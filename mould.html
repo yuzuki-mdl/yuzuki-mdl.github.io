@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>mould</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d0c;color:#8fae8a;
+    font:13px ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  #wrap{display:flex;flex-direction:column;height:100%;align-items:center;justify-content:center;gap:14px}
+  canvas{display:block;max-width:96vw;max-height:80vh;image-rendering:pixelated;
+    box-shadow:0 0 60px #0f2a18 inset,0 0 2px #1c3a26}
+  .row{display:flex;gap:10px;align-items:center;font-size:12px;color:#5f7a5c}
+  a{color:#8fae8a;text-decoration:none;border-bottom:1px dotted #3a5540}
+  button{background:#12201a;color:#8fae8a;border:1px solid #24402e;border-radius:4px;
+    padding:4px 10px;font:inherit;cursor:pointer}
+  button:hover{background:#183024}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div class="row">
+    <button id="reset">reset</button>
+    <span id="stat">mould finding its way</span>
+    <span>·</span>
+    <a href="maze.html">play the maze →</a>
+  </div>
+</div>
+<script>
+const MAZE = [["##", "  ", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##"], ["##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##"], ["##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##"], ["##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "##"], ["##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##"], ["##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##"], ["##", "##", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##"], ["##", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##"], ["##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##"], ["##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##"], ["##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "##", "##"], ["##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "##"], ["##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##"], ["##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##"], ["##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##"], ["##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##"], ["##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "  ", "##"], ["##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##"], ["##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##"], ["##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "##"], ["##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##"], ["##", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##"], ["##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "  ", "##"], ["##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##"], ["##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "  ", "##"]];
+
+const WALL = '##';
+const H = MAZE.length, W = MAZE[0].length;
+const CELL = 12;            // px per cell
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+c.width = W * CELL; c.height = H * CELL;
+
+// ---- physarum state ----
+const DEPOSIT = 0.02, DECAY = 0.97;
+const SENSOR_ANGLE = Math.PI / 4, SENSOR_DIST = 2.0;
+const TURN = Math.PI / 6, SPEED = 0.7;
+
+let pher, agents, sol, start, exit;
+
+function bfs(grid) {
+  const prev = Array.from({length:H}, () => new Array(W).fill(null));
+  const q = [start];
+  prev[start[1]][start[0]] = start;
+  while (q.length) {
+    const [x, y] = q.shift();
+    if (x === exit[0] && y === exit[1]) break;
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+      const nx = x + dx, ny = y + dy;
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+      if (grid[ny][nx] === WALL) continue;
+      if (prev[ny][nx]) continue;
+      prev[ny][nx] = [x, y];
+      q.push([nx, ny]);
+    }
+  }
+  const path = new Set();
+  let cur = exit;
+  while (cur) {
+    path.add(cur[1] * W + cur[0]);
+    const p = prev[cur[1]][cur[0]];
+    if (!p || (p[0] === cur[0] && p[1] === cur[1])) break;
+    cur = p;
+  }
+  return path;
+}
+
+function init() {
+  sol = bfs(MAZE);
+  pher = Array.from({length:H}, () => new Float32Array(W));
+  // weak seed along the solution so the mould has a scent to follow
+  for (const k of sol) {
+    const x = k % W, y = (k / W) | 0;
+    pher[y][x] = 0.05;
+  }
+  pher[exit[1]][exit[0]] = 1.0;
+  agents = [];
+  const n = 140;
+  for (let i = 0; i < n; i++) {
+    agents.push({ x: start[0], y: start[1], a: Math.random() * Math.PI * 2 });
+  }
+  document.getElementById('stat').textContent = 'mould finding its way';
+}
+
+function walkable(x, y) {
+  const ix = Math.round(x), iy = Math.round(y);
+  if (ix < 0 || iy < 0 || ix >= W || iy >= H) return false;
+  return MAZE[iy][ix] !== WALL;
+}
+
+function sample(x, y, ang) {
+  const nx = x + Math.cos(ang) * SENSOR_DIST;
+  const ny = y + Math.sin(ang) * SENSOR_DIST;
+  const ix = Math.round(nx), iy = Math.round(ny);
+  if (ix < 0 || iy < 0 || ix >= W || iy >= H) return -1;
+  if (MAZE[iy][ix] === WALL) return -1;
+  return pher[iy][ix];
+}
+
+function step() {
+  // decay
+  for (let y = 0; y < H; y++) {
+    const row = pher[y];
+    for (let x = 0; x < W; x++) row[x] *= DECAY;
+  }
+  // keep the scent alive on the solution path
+  for (const k of sol) {
+    const x = k % W, y = (k / W) | 0;
+    if (pher[y][x] < 0.08) pher[y][x] = 0.08;
+  }
+  pher[exit[1]][exit[0]] = 1.0;
+
+  for (const ag of agents) {
+    const sl = sample(ag.x, ag.y, ag.a + SENSOR_ANGLE);
+    const sc = sample(ag.x, ag.y, ag.a);
+    const sr = sample(ag.x, ag.y, ag.a - SENSOR_ANGLE);
+    if (sc >= sl && sc >= sr) {
+      // straight
+    } else if (sl > sr) {
+      ag.a += TURN;
+    } else if (sr > sl) {
+      ag.a -= TURN;
+    } else {
+      ag.a += (Math.random() * 2 - 1) * TURN;
+    }
+    let nx = ag.x + Math.cos(ag.a) * SPEED;
+    let ny = ag.y + Math.sin(ag.a) * SPEED;
+    if (walkable(nx, ny)) {
+      ag.x = nx; ag.y = ny;
+    } else {
+      for (let t = 0; t < 4; t++) {
+        ag.a += (Math.random() * 2 - 1) * Math.PI;
+        nx = ag.x + Math.cos(ag.a) * SPEED;
+        ny = ag.y + Math.sin(ag.a) * SPEED;
+        if (walkable(nx, ny)) { ag.x = nx; ag.y = ny; break; }
+      }
+    }
+    const ix = Math.round(ag.x), iy = Math.round(ag.y);
+    if (ix >= 0 && iy >= 0 && ix < W && iy < H && MAZE[iy][ix] !== WALL) {
+      pher[iy][ix] += DEPOSIT;
+    }
+  }
+}
+
+function draw() {
+  let mx = 0.0001;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (pher[y][x] > mx) mx = pher[y][x];
+
+  ctx.fillStyle = '#0b0d0c';
+  ctx.fillRect(0, 0, c.width, c.height);
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const px = x * CELL, py = y * CELL;
+      if (MAZE[y][x] === WALL) {
+        ctx.fillStyle = '#121a15';
+        ctx.fillRect(px, py, CELL, CELL);
+      } else {
+        const v = pher[y][x] / mx;
+        if (v > 0.02) {
+          const g = Math.min(255, 40 + v * 220) | 0;
+          ctx.fillStyle = `rgb(${(g*0.45)|0},${g},${(g*0.55)|0})`;
+          ctx.fillRect(px, py, CELL, CELL);
+        }
+      }
+    }
+  }
+  // exit marker
+  ctx.fillStyle = '#ff5ea8';
+  ctx.fillRect(exit[0]*CELL + CELL*0.3, exit[1]*CELL + CELL*0.3, CELL*0.4, CELL*0.4);
+}
+
+let frame = 0;
+function loop() {
+  for (let i = 0; i < 2; i++) step();
+  draw();
+  frame++;
+  requestAnimationFrame(loop);
+}
+
+function findStartExit() {
+  // entrance: top opening (0,1); exit: bottom-right opening
+  start = [1, 1];
+  exit = [W - 2, H - 2];
+}
+
+function reset() {
+  findStartExit();
+  init();
+}
+
+document.getElementById('reset').addEventListener('click', reset);
+reset();
+loop();
+</script>
+</body>
+</html>
