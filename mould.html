@@ -22,6 +22,7 @@
   <canvas id="c"></canvas>
   <div class="row">
     <button id="reset">reset</button>
+    <button id="mode">honest mode</button>
     <span id="stat">mould finding its way</span>
     <span>·</span>
     <a href="maze.html">play the maze →</a>
@@ -38,9 +39,12 @@ const ctx = c.getContext('2d');
 c.width = W * CELL; c.height = H * CELL;
 
 // ---- physarum state ----
-const DEPOSIT = 0.02, DECAY = 0.97;
-const SENSOR_ANGLE = Math.PI / 4, SENSOR_DIST = 2.0;
-const TURN = Math.PI / 6, SPEED = 0.7;
+// "assisted": seeded scent along the bfs solution (looks great, technically cheating)
+// "honest": real Jones 2010 params, no seed, mould has to find food on its own
+let DEPOSIT = 0.02, DECAY = 0.97;
+let SENSOR_ANGLE = Math.PI / 4, SENSOR_DIST = 2.0;
+let TURN = Math.PI / 6, SPEED = 0.7;
+let honest = false;
 
 let pher, agents, sol, start, exit;
 
@@ -74,18 +78,29 @@ function bfs(grid) {
 function init() {
   sol = bfs(MAZE);
   pher = Array.from({length:H}, () => new Float32Array(W));
-  // weak seed along the solution so the mould has a scent to follow
-  for (const k of sol) {
-    const x = k % W, y = (k / W) | 0;
-    pher[y][x] = 0.05;
+  if (honest) {
+    DEPOSIT = 5; DECAY = 0.9;
+    SENSOR_ANGLE = Math.PI / 4; TURN = Math.PI / 4; SPEED = 1;
+    SENSOR_DIST = 2.0;
+  } else {
+    DEPOSIT = 0.02; DECAY = 0.97;
+    SENSOR_ANGLE = Math.PI / 4; TURN = Math.PI / 6; SPEED = 0.7;
+    SENSOR_DIST = 2.0;
+    // weak seed along the solution so the mould has a scent to follow
+    for (const k of sol) {
+      const x = k % W, y = (k / W) | 0;
+      pher[y][x] = 0.05;
+    }
   }
-  pher[exit[1]][exit[0]] = 1.0;
+  pher[exit[1]][exit[0]] = honest ? 20.0 : 1.0;
   agents = [];
-  const n = 140;
+  const n = honest ? 400 : 140;
   for (let i = 0; i < n; i++) {
     agents.push({ x: start[0], y: start[1], a: Math.random() * Math.PI * 2 });
   }
-  document.getElementById('stat').textContent = 'mould finding its way';
+  document.getElementById('stat').textContent = honest
+    ? 'honest mode: no seed, real physarum rules'
+    : 'assisted: seeded scent along the solution';
 }
 
 function walkable(x, y) {
@@ -109,12 +124,16 @@ function step() {
     const row = pher[y];
     for (let x = 0; x < W; x++) row[x] *= DECAY;
   }
-  // keep the scent alive on the solution path
-  for (const k of sol) {
-    const x = k % W, y = (k / W) | 0;
-    if (pher[y][x] < 0.08) pher[y][x] = 0.08;
+  if (!honest) {
+    // keep the scent alive on the solution path
+    for (const k of sol) {
+      const x = k % W, y = (k / W) | 0;
+      if (pher[y][x] < 0.08) pher[y][x] = 0.08;
+    }
+    pher[exit[1]][exit[0]] = 1.0;
+  } else {
+    pher[exit[1]][exit[0]] = 20.0; // food source
   }
-  pher[exit[1]][exit[0]] = 1.0;
 
   for (const ag of agents) {
     const sl = sample(ag.x, ag.y, ag.a + SENSOR_ANGLE);
@@ -196,6 +215,11 @@ function reset() {
 }
 
 document.getElementById('reset').addEventListener('click', reset);
+document.getElementById('mode').addEventListener('click', () => {
+  honest = !honest;
+  document.getElementById('mode').textContent = honest ? 'assisted mode' : 'honest mode';
+  reset();
+});
 reset();
 loop();
 </script>
