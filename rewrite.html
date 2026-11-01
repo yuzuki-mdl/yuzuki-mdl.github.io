@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rewrite</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0e14;color:#a9c4e0;overflow:hidden;font-family:ui-monospace,monospace}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  #tape{flex:1;overflow:auto;padding:20px;font-size:20px;line-height:1.7;letter-spacing:1px;word-break:break-all;white-space:pre-wrap}
+  #tape span{transition:color .2s}
+  #panel{flex:0 0 auto;background:#0d131c;border-top:1px solid #1c2736;padding:12px 16px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;font-size:13px}
+  label{color:#5f6f85;display:block;margin-bottom:4px;font-size:11px;text-transform:uppercase;letter-spacing:1px}
+  textarea,input{background:#111a25;border:1px solid #23303f;color:#cfe0f0;font-family:inherit;font-size:13px;border-radius:6px;padding:6px 8px;outline:none}
+  textarea:focus,input:focus{border-color:#3a5878}
+  #rules{width:170px;height:66px;resize:none}
+  #start{width:120px}
+  button{background:#1b2836;border:1px solid #2b3d50;color:#bcd2e8;font-family:inherit;font-size:13px;border-radius:6px;padding:7px 12px;cursor:pointer}
+  button:hover{background:#243548}
+  button:active{transform:translateY(1px)}
+  .col{display:flex;flex-direction:column}
+  #stats{color:#5f6f85;font-size:12px;margin-left:auto;text-align:right;line-height:1.6}
+  #stats b{color:#a9c4e0}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="tape"></div>
+  <div id="panel">
+    <div class="col"><label>start</label><input id="start" value="a"></div>
+    <div class="col"><label>rules (one per line: a -> ab)</label><textarea id="rules">a -> ab
+b -> a</textarea></div>
+    <div class="col" style="justify-content:flex-end">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button id="step">step</button>
+        <button id="play">play</button>
+        <button id="reset">reset</button>
+      </div>
+    </div>
+    <div id="stats"></div>
+  </div>
+</div>
+<script>
+const tape = document.getElementById('tape');
+const startEl = document.getElementById('start');
+const rulesEl = document.getElementById('rules');
+const statsEl = document.getElementById('stats');
+const stepBtn = document.getElementById('step');
+const playBtn = document.getElementById('play');
+const resetBtn = document.getElementById('reset');
+
+const MAXLEN = 20000;
+const COLORS = ['#7fb2e6','#86d3a4','#e6c67f','#e69a9a','#b69ae6','#7fd3d0','#d3a4e6','#a4c8e6'];
+let str = '';
+let gen = 0;
+let playing = false;
+let timer = null;
+
+function parseRules(){
+  const out = [];
+  for(const line of rulesEl.value.split('\n')){
+    const m = line.match(/^\s*(\S+)\s*(?:->|=>|→)\s*(\S*)\s*$/);
+    if(m) out.push([m[1], m[2]]);
+  }
+  return out;
+}
+
+function applyOne(s, rules){
+  // simultaneous-ish: scan left to right, first rule whose LHS matches wins
+  let out = '';
+  let i = 0;
+  while(i < s.length){
+    let hit = false;
+    for(const [lhs, rhs] of rules){
+      if(s.startsWith(lhs, i)){
+        out += rhs;
+        i += lhs.length;
+        hit = true;
+        break;
+      }
+    }
+    if(!hit){ out += s[i]; i++; }
+    if(out.length > MAXLEN) break;
+  }
+  return out.slice(0, MAXLEN);
+}
+
+function render(){
+  // build colored spans per char, capped for perf
+  const n = str.length;
+  const shown = Math.min(n, 8000);
+  const parts = [];
+  const alphabet = {};
+  let ci = 0;
+  for(let i=0;i<n;i++){
+    const ch = str[i];
+    if(!(ch in alphabet)) alphabet[ch] = COLORS[ci++ % COLORS.length];
+  }
+  for(let i=0;i<shown;i++){
+    const ch = str[i];
+    const col = alphabet[ch];
+    parts.push('<span style="color:'+col+'">'+escapeHtml(ch)+'</span>');
+  }
+  if(n > shown) parts.push('<span style="color:#5f6f85">…+'+(n-shown)+'</span>');
+  tape.innerHTML = parts.join('');
+  statsEl.innerHTML = 'gen <b>'+gen+'</b><br>len <b>'+n+'</b>';
+}
+
+function escapeHtml(c){
+  if(c === '&') return '&amp;';
+  if(c === '<') return '&lt;';
+  if(c === '>') return '&gt;';
+  if(c === ' ') return '&nbsp;';
+  return c;
+}
+
+function step(){
+  const rules = parseRules();
+  if(rules.length === 0) return;
+  const next = applyOne(str, rules);
+  if(next === str){ stop(); return; }
+  str = next;
+  gen++;
+  render();
+}
+
+function start(){
+  str = startEl.value || '';
+  gen = 0;
+  render();
+}
+
+function play(){
+  if(playing){ stop(); return; }
+  playing = true;
+  playBtn.textContent = 'pause';
+  timer = setInterval(step, 400);
+}
+
+function stop(){
+  playing = false;
+  playBtn.textContent = 'play';
+  if(timer){ clearInterval(timer); timer = null; }
+}
+
+stepBtn.onclick = step;
+playBtn.onclick = play;
+resetBtn.onclick = () => { stop(); start(); };
+startEl.oninput = () => { stop(); start(); };
+rulesEl.oninput = () => { stop(); start(); };
+
+start();
+render();
+</script>
+</body>
+</html>
