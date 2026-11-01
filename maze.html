@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>maze</title>
 <style>
-  :root { --bg:#08080c; --wall:#181820; --path:#0f1410; --mould:#4dff8a; --exit:#fff078; --you:#fff078; }
+  :root { --bg:#08080c; --wall:#181820; --path:#0f1410; --mould:#4dff8a; --exit:#fff078; --you:#fff078; --weak:#ff5ea8; }
   * { box-sizing:border-box; }
   html,body { margin:0; height:100%; background:var(--bg); color:#cfd6cf;
     font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
@@ -16,12 +16,20 @@
   .c { width:16px; height:16px; }
   .wall { background:var(--wall); }
   .path { background:var(--path); }
+  .weak { background:#2a1420; box-shadow:inset 0 0 0 1px #4a1f30; }
+  .weak::after { content:''; display:block; width:100%; height:100%;
+    background:radial-gradient(circle at center, rgba(255,94,168,.35) 0%, transparent 70%); }
   .exit { background:var(--exit); box-shadow:0 0 10px var(--exit); }
   .you { display:flex; align-items:center; justify-content:center; font-size:14px; line-height:1; }
   .you::before { content:'\1F642'; filter:drop-shadow(0 0 6px var(--you)); }
-  #hud { font-size:12px; color:#5f6b5f; letter-spacing:.1em; }
+  #hud { font-size:12px; color:#5f6b5f; letter-spacing:.1em; text-align:center; }
   #hud b { color:var(--mould); font-weight:400; }
+  #hud .weakc { color:var(--weak); }
   .win { color:var(--exit) !important; }
+  #bar { display:flex; gap:10px; }
+  button { background:#12121a; color:#9fe6b8; border:1px solid #262636; border-radius:8px;
+    padding:6px 12px; font:inherit; cursor:pointer; }
+  button:hover { background:#1e3a28; border-color:var(--mould); }
   #dpad { display:none; grid-template-columns:repeat(3,56px); grid-template-rows:repeat(3,56px); gap:8px; margin-top:6px; }
   #dpad button { background:#12121a; color:#9fe6b8; border:1px solid #262636; border-radius:12px;
     font-size:22px; font-family:inherit; -webkit-user-select:none; user-select:none; touch-action:manipulation; }
@@ -35,24 +43,76 @@
 <h1>maze</h1>
 <div id="board"></div>
 <div id="hud">arrows / wasd &middot; reach the <b>exit</b></div>
+<div id="bar">
+  <button id="newmaze">new maze</button>
+</div>
 <div id="dpad">
   <button class="sp"></button><button data-d="up">▲</button><button class="sp"></button>
   <button data-d="left">◀</button><button class="sp"></button><button data-d="right">▶</button>
   <button class="sp"></button><button data-d="down">▼</button><button class="sp"></button>
 </div>
 <script>
-const MAZE = [["##", "  ", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##"], ["##", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##"], ["##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##"], ["##", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##"], ["##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "##", "##"], ["##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##"], ["##", "  ", "##", "##", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##"], ["##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##"], ["##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##"], ["##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##"], ["##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##"], ["##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##"], ["##", "##", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##"], ["##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "##"], ["##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##"], ["##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##"], ["##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##"], ["##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "##"], ["##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "##", "##"], ["##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##"], ["##", "  ", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "##", "##", "##", "##", "  ", "##", "##", "##", "  ", "##"], ["##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##"], ["##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "##", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "  ", "##", "##", "##", "  ", "##", "##", "##", "##", "##", "##", "##", "  ", "##"], ["##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##", "  ", "  ", "  ", "  ", "  ", "##", "  ", "##", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "  ", "##"], ["##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "##", "  ", "##"]];
-
-let grid, W, H, px, py, exitX, exitY, moves, done;
+const WALL='##', PATH='  ', WEAK='~~';
+let grid, W, H, px, py, exitX, exitY, moves, done, broke;
 const board = document.getElementById('board');
 const hud = document.getElementById('hud');
 
-async function load() {
-  grid = MAZE;
+// ---- maze generation ----
+// recursive-backtracker carve on odd cells, then knock out some walls as weak spots.
+// weak walls let the player shortcut but also create loops (harder to read).
+function genMaze(w, h) {
+  const g = Array.from({length:h}, () => new Array(w).fill(WALL));
+  const carve = (x, y) => {
+    g[y][x] = PATH;
+    const dirs = [[2,0],[-2,0],[0,2],[0,-2]];
+    for (let i = dirs.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [dirs[i], dirs[j]] = [dirs[j], dirs[i]];
+    }
+    for (const [dx, dy] of dirs) {
+      const nx = x + dx, ny = y + dy;
+      if (nx > 0 && nx < w - 1 && ny > 0 && ny < h - 1 && g[ny][nx] === WALL) {
+        g[y + dy/2][x + dx/2] = PATH;
+        carve(nx, ny);
+      }
+    }
+  };
+  carve(1, 1);
+  // openings
+  g[0][1] = PATH; g[1][1] = PATH;
+  g[h-1][w-2] = PATH; g[h-2][w-2] = PATH;
+
+  // add some loops (extra passages) so it's not a perfect tree — more dead-end feel
+  const loops = Math.floor((w * h) / 60);
+  for (let i = 0; i < loops; i++) {
+    const x = 1 + ((Math.random() * (w - 2)) | 0);
+    const y = 1 + ((Math.random() * (h - 2)) | 0);
+    if (g[y][x] !== WALL) continue;
+    const hz = g[y][x-1] !== WALL && g[y][x+1] !== WALL;
+    const vt = g[y-1] && g[y-1][x] !== WALL && g[y+1] && g[y+1][x] !== WALL;
+    if (hz || vt) g[y][x] = PATH;
+  }
+
+  // mark some interior walls as breakable weak spots
+  const weakCount = Math.max(6, Math.floor((w * h) / 90));
+  let placed = 0, tries = 0;
+  while (placed < weakCount && tries < 4000) {
+    tries++;
+    const x = 1 + ((Math.random() * (w - 2)) | 0);
+    const y = 1 + ((Math.random() * (h - 2)) | 0);
+    if (g[y][x] !== WALL) continue;
+    const hz = g[y][x-1] !== WALL && g[y][x+1] !== WALL;
+    const vt = g[y-1] && g[y-1][x] !== WALL && g[y+1] && g[y+1][x] !== WALL;
+    if (hz || vt) { g[y][x] = WEAK; placed++; }
+  }
+  return g;
+}
+
+function load() {
   H = grid.length; W = grid[0].length;
   px = 1; py = 1;
   exitX = W - 2; exitY = H - 2;
-  moves = 0; done = false;
+  moves = 0; broke = 0; done = false;
   render();
 }
 
@@ -62,22 +122,28 @@ function render() {
   for (let y = 0; y < H; y++) {
     for (let x = 0; x < W; x++) {
       const d = document.createElement('div');
-      d.className = 'c ' + (grid[y][x] === '##' ? 'wall' : 'path');
-      if (x === exitX && y === exitY) d.className = 'c exit';
-      if (x === px && y === py) d.className = 'c you';
+      const t = grid[y][x];
+      let cls = t === WALL ? 'wall' : (t === WEAK ? 'weak' : 'path');
+      if (x === exitX && y === exitY) cls = 'exit';
+      if (x === px && y === py) cls = 'you';
+      d.className = 'c ' + cls;
       board.appendChild(d);
     }
   }
   hud.innerHTML = done
-    ? '<span class="win">made it in ' + moves + ' moves</span>'
-    : 'arrows / wasd &middot; reach the <b>exit</b> &middot; ' + moves + ' moves';
+    ? '<span class="win">made it in ' + moves + ' moves, ' + broke + ' walls broken</span>'
+    : 'arrows / wasd &middot; reach the <b>exit</b> &middot; ' + moves + ' moves' +
+      (broke ? ' &middot; <span class="weakc">' + broke + ' broken</span>' : '') +
+      ' &middot; <span class="weakc">pink walls break</span>';
 }
 
 function move(dx, dy) {
   if (done) return;
   const nx = px + dx, ny = py + dy;
   if (nx < 0 || ny < 0 || nx >= W || ny >= H) return;
-  if (grid[ny][nx] === '##') return;
+  const t = grid[ny][nx];
+  if (t === WALL) return;
+  if (t === WEAK) { grid[ny][nx] = PATH; broke++; }
   px = nx; py = ny; moves++;
   if (px === exitX && py === exitY) done = true;
   render();
@@ -100,6 +166,13 @@ document.querySelectorAll('#dpad button[data-d]').forEach(b => {
   b.addEventListener('mousedown', go);
 });
 
+document.getElementById('newmaze').addEventListener('click', () => {
+  grid = genMaze(31, 21);
+  load();
+});
+
+// bigger starting maze than before (31x21 -> 15x10 rooms)
+grid = genMaze(31, 21);
 load();
 </script>
 </body>
