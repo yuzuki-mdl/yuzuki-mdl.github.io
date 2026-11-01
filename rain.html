@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rain</title>
+<style>
+  :root { --bg:#0a0e14; }
+  * { box-sizing:border-box; margin:0; }
+  html,body { height:100%; }
+  body { background:var(--bg); overflow:hidden; cursor:crosshair; }
+  canvas { display:block; }
+  .hint { position:fixed; left:0; right:0; bottom:14px; text-align:center;
+    font-family:ui-monospace,monospace; font-size:.66rem; color:#2f3a48;
+    letter-spacing:.08em; pointer-events:none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hint">rain on a window · click to make a drop</div>
+<script>
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+let W, H, DPR;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = c.width = innerWidth*DPR;
+  H = c.height = innerHeight*DPR;
+  c.style.width = innerWidth+'px'; c.style.height = innerHeight+'px';
+}
+resize();
+addEventListener('resize', resize);
+
+const drops = [];
+const MAX = 900;
+
+function spawn(x, y, big){
+  if (drops.length >= MAX) return;
+  drops.push({
+    x: x ?? Math.random()*W,
+    y: y ?? Math.random()*H*0.9,
+    r: big ? 6+Math.random()*5 : 1.5+Math.random()*3.5,
+    vy: 0,
+    vx: 0,
+    wob: Math.random()*6.28,
+    stuck: Math.random() < 0.82,
+    trail: []
+  });
+}
+
+for (let i=0;i<90;i++) spawn();
+
+c.addEventListener('pointerdown', e=>{
+  const px = e.clientX*DPR, py = e.clientY*DPR;
+  for (let i=0;i<6;i++) spawn(px+(Math.random()-0.5)*40, py+(Math.random()-0.5)*40, true);
+});
+
+function step(){
+  // ambient drizzle
+  if (Math.random() < 0.15) spawn();
+
+  for (let i=drops.length-1;i>=0;i--){
+    const d = drops[i];
+    d.wob += 0.02;
+
+    // grow slowly while sitting
+    if (d.r < 14) d.r += 0.0018;
+
+    // once heavy enough, start sliding
+    if (d.r > 6.5 || !d.stuck){
+      d.vy += 0.02 + d.r*0.004;
+      d.vy *= 0.985;
+      d.vx += Math.sin(d.wob)*0.02;
+      d.vx *= 0.94;
+      d.x += d.vx;
+      d.y += d.vy;
+
+      // leave a wet trail
+      if (d.vy > 0.4) {
+        d.trail.push({x:d.x, y:d.y, r:d.r*0.85});
+        if (d.trail.length > 40) d.trail.shift();
+      }
+
+      // eat smaller drops it passes over
+      for (let j=drops.length-1;j>=0;j--){
+        if (j===i) continue;
+        const o = drops[j];
+        const dx = d.x-o.x, dy = d.y-o.y;
+        const rr = d.r+o.r;
+        if (dx*dx+dy*dy < rr*rr) {
+          d.r = Math.min(16, Math.sqrt(d.r*d.r + o.r*o.r));
+          drops.splice(j,1);
+          if (j < i) i--;
+        }
+      }
+    } else {
+      // tiny condensation shimmer
+      d.x += Math.sin(d.wob)*0.05;
+    }
+
+    if (d.y > H + 20) drops.splice(i,1);
+  }
+}
+
+function draw(){
+  // soft dark glass, faint vertical gradient
+  ctx.fillStyle = 'rgba(10,14,20,0.14)';
+  ctx.fillRect(0,0,W,H);
+
+  for (const d of drops){
+    // wet trail left behind sliding drops
+    for (let k=0;k<d.trail.length;k++){
+      const t = d.trail[k];
+      const a = (k/d.trail.length)*0.5;
+      ctx.beginPath();
+      ctx.fillStyle = 'rgba(110,150,195,'+a+')';
+      ctx.arc(t.x, t.y, t.r*0.8, 0, 6.283);
+      ctx.fill();
+    }
+    // drop body: bright rim, dim center = glass bead
+    const g = ctx.createRadialGradient(d.x-d.r*0.35, d.y-d.r*0.35, d.r*0.05, d.x, d.y, d.r);
+    g.addColorStop(0, 'rgba(225,240,255,0.95)');
+    g.addColorStop(0.45, 'rgba(120,165,210,0.55)');
+    g.addColorStop(0.85, 'rgba(55,90,135,0.35)');
+    g.addColorStop(1, 'rgba(30,55,90,0.12)');
+    ctx.beginPath();
+    ctx.fillStyle = g;
+    ctx.arc(d.x, d.y, d.r, 0, 6.283);
+    ctx.fill();
+    // highlight dot
+    ctx.beginPath();
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.arc(d.x-d.r*0.35, d.y-d.r*0.35, d.r*0.18, 0, 6.283);
+    ctx.fill();
+  }
+}
+
+function loop(){ step(); draw(); requestAnimationFrame(loop); }
+loop();
+</script>
+</body>
+</html>
