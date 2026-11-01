@@ -277,6 +277,22 @@ const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.055,0.11,16), new T
 mug.position.set(W/2-0.75, 0.845, 0.55); room.add(mug);
 const handle = new THREE.Mesh(new THREE.TorusGeometry(0.035,0.012,8,12), new THREE.MeshStandardMaterial({color:0xd8cfc4, roughness:.8}));
 handle.position.set(W/2-0.81, 0.845, 0.55); handle.rotation.y = Math.PI/2; room.add(handle);
+// chair in front of the desk
+const chairMat = new THREE.MeshStandardMaterial({color:0x3d3348, roughness:.85});
+box(0.5,0.08,0.5, 0x3d3348, W/2-1.35, 0.46, 0.8); // seat
+box(0.5,0.5,0.08, 0x3d3348, W/2-1.6, 0.72, 0.8); // backrest
+for(const [cx,cz] of [[-0.2,-0.2],[0.2,-0.2],[-0.2,0.2],[0.2,0.2]]){
+  box(0.05,0.46,0.05, 0x2a2233, W/2-1.35+cx, 0.23, 0.8+cz);
+}
+// floor lamp near the bed corner
+const lampPole = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,1.5,8), new THREE.MeshStandardMaterial({color:0x2a2233, roughness:.7}));
+lampPole.position.set(-W/2+1.6, 0.75, D/2-0.7); room.add(lampPole);
+const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.18,0.05,16), new THREE.MeshStandardMaterial({color:0x2a2233, roughness:.7}));
+lampBase.position.set(-W/2+1.6, 0.03, D/2-0.7); room.add(lampBase);
+const lampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.22,0.24,16,1,true), new THREE.MeshStandardMaterial({color:0xe8d9a8, roughness:.9, side:THREE.DoubleSide, emissive:0xffcf7a, emissiveIntensity:0.4}));
+lampShade.position.set(-W/2+1.6, 1.55, D/2-0.7); room.add(lampShade);
+const lampLight = new THREE.PointLight(0xffcf7a, 1.6, 3.5, 2);
+lampLight.position.set(-W/2+1.6, 1.5, D/2-0.7); room.add(lampLight);
 
 // chair
 box(0.5,0.06,0.5, 0x3a3a44, W/2-0.95, 0.45, 0.8);
