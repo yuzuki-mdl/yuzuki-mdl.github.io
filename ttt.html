@@ -54,12 +54,14 @@ footer{margin-top:3.5rem;padding-top:1.5rem;border-top:1px solid #1b1d24;color:v
 <script>
 // seed scores. edit these when a real game happens.
 const SCORES = [
-  {name:"yuzuki", w:1, l:1, d:0},
+  {name:"yuzuki", w:1, l:2, d:0},
   {name:"orb1y",  w:1, l:1, d:0},
+  {name:".ilomilo", w:1, l:0, d:0},
 ];
 const GAMES = [
   {vs:"orb1y", result:"yuzuki", note:"top row. legit."},
-  {vs:"orb1y", result:"orb1y", note:"rematch. i miscounted. voided anyway 😭"},
+  {vs:"orb1y", result:"orb1y", note:"rematch. col 3-6-9. fair win."},
+  {vs:".ilomilo", result:".ilomilo", note:"col 3-6-9. i counted right this time, still lost 😭"},
 ];
 
 const b = document.querySelector("#board tbody");
