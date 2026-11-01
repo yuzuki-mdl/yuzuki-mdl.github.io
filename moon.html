@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>moon</title>
+<style>
+  :root { --bg:#07070d; }
+  * { box-sizing:border-box; margin:0; }
+  html,body { height:100%; }
+  body { background:radial-gradient(circle at 50% 40%, #10101f 0%, #07070d 70%);
+    overflow:hidden; cursor:crosshair; }
+  canvas { display:block; }
+  .hint { position:fixed; left:0; right:0; bottom:14px; text-align:center;
+    font-family:ui-monospace,monospace; font-size:.66rem; color:#3a3a55;
+    letter-spacing:.08em; pointer-events:none; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hint">move to tilt the night · click to drop a star</div>
+<script>
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+let W, H, DPR;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = c.width = innerWidth*DPR;
+  H = c.height = innerHeight*DPR;
+  c.style.width = innerWidth+'px'; c.style.height = innerHeight+'px';
+}
+resize(); addEventListener('resize', resize);
+
+// background stars
+const stars = Array.from({length:180}, () => ({
+  x: Math.random(), y: Math.random(), r: Math.random()*1.2+0.3,
+  tw: Math.random()*Math.PI*2, sp: Math.random()*0.03+0.005
+}));
+
+// dropped stars (click)
+const dropped = [];
+
+let mx = 0.5, my = 0.5; // normalized cursor
+addEventListener('pointermove', e => {
+  mx = e.clientX/innerWidth; my = e.clientY/innerHeight;
+});
+addEventListener('pointerdown', e => {
+  dropped.push({ x:e.clientX*DPR, y:e.clientY*DPR, life:1, r:Math.random()*1.8+0.8 });
+});
+
+let t = 0;
+function frame(){
+  t += 0.016;
+  ctx.clearRect(0,0,W,H);
+
+  // stars
+  for (const s of stars){
+    s.tw += s.sp;
+    const a = 0.35 + 0.4*Math.sin(s.tw);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = '#cfd6ff';
+    ctx.beginPath();
+    ctx.arc(s.x*W + (mx-0.5)*10*DPR, s.y*H + (my-0.5)*10*DPR, s.r*DPR, 0, 7);
+    ctx.fill();
+  }
+
+  // moon
+  const cx = W*0.5 + (mx-0.5)*40*DPR;
+  const cy = H*0.42 + (my-0.5)*40*DPR;
+  const R = Math.min(W,H)*0.16;
+  // glow
+  const g = ctx.createRadialGradient(cx,cy,R*0.7,cx,cy,R*2.4);
+  g.addColorStop(0,'rgba(200,210,255,0.16)');
+  g.addColorStop(1,'rgba(200,210,255,0)');
+  ctx.globalAlpha = 1; ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(cx,cy,R*2.4,0,7); ctx.fill();
+  // body
+  const mg = ctx.createRadialGradient(cx-R*0.3,cy-R*0.3,R*0.2,cx,cy,R);
+  mg.addColorStop(0,'#f4f1e6'); mg.addColorStop(1,'#b9b6a8');
+  ctx.fillStyle = mg;
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.fill();
+  // craters
+  ctx.fillStyle = 'rgba(140,138,128,0.35)';
+  for (const [ox,oy,cr] of [[-0.3,-0.2,0.16],[0.2,-0.35,0.1],[0.28,0.25,0.13],[-0.15,0.32,0.08],[-0.42,0.15,0.07]]){
+    ctx.beginPath(); ctx.arc(cx+ox*R, cy+oy*R, cr*R, 0, 7); ctx.fill();
+  }
+  // phase shadow (waxing/waning slowly over time)
+  const phase = (Math.sin(t*0.12)*0.5+0.5); // 0 = new, 1 = full
+  ctx.save();
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,7); ctx.clip();
+  ctx.fillStyle = 'rgba(7,7,13,0.9)';
+  // shadow disc same radius, slides across so the lit part grows/shrinks
+  const sx = cx + (1 - 2*phase) * 2*R;
+  ctx.beginPath();
+  ctx.arc(sx, cy, R, 0, 7);
+  ctx.fill();
+  ctx.restore();
+
+  // dropped stars
+  for (let i=dropped.length-1; i>=0; i--){
+    const d = dropped[i];
+    d.life -= 0.006;
+    if (d.life <= 0){ dropped.splice(i,1); continue; }
+    ctx.globalAlpha = d.life;
+    ctx.fillStyle = '#fff6cf';
+    ctx.beginPath(); ctx.arc(d.x, d.y, d.r*DPR, 0, 7); ctx.fill();
+    const dg = ctx.createRadialGradient(d.x,d.y,0,d.x,d.y,d.r*DPR*6);
+    dg.addColorStop(0,'rgba(255,246,207,0.5)'); dg.addColorStop(1,'rgba(255,246,207,0)');
+    ctx.globalAlpha = d.life*0.6; ctx.fillStyle = dg;
+    ctx.beginPath(); ctx.arc(d.x,d.y,d.r*DPR*6,0,7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>
