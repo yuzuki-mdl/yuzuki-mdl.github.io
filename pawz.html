@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>paws — yuzuki</title>
+<style>
+  html,body{margin:0;height:100%;background:#141018;overflow:hidden;cursor:crosshair}
+  canvas{display:block}
+  .hint{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+    color:#b9a7d6;font:14px/1.4 ui-monospace,monospace;opacity:.7;pointer-events:none}
+  a.back{position:fixed;top:14px;left:14px;color:#b9a7d6;font:13px ui-monospace,monospace;text-decoration:none;opacity:.6}
+  a.back:hover{opacity:1}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<a class="back" href="index.html">&larr; back</a>
+<div class="hint">move to leave paw prints · click for a big one</div>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+let W,H;function rs(){W=c.width=innerWidth*devicePixelRatio;H=c.height=innerHeight*devicePixelRatio;
+  c.style.width=innerWidth+'px';c.style.height=innerHeight+'px';}
+rs();addEventListener('resize',rs);
+
+const cols=['#e6b3ff','#b3d4ff','#ffb3d9','#c9ffb3','#ffd9b3'];
+let col=0,last=0;
+
+// draw a paw centered at (px,py) size s, angle a
+function paw(px,py,s,a){
+  x.save();x.translate(px,py);x.rotate(a);
+  x.fillStyle=cols[Math.floor(Math.random()*cols.length)];
+  x.globalAlpha=.55;
+  // pad
+  x.beginPath();x.ellipse(0,s*0.18,s*0.42,s*0.36,0,0,7);x.fill();
+  // toes
+  const toes=[[-0.42,-0.28,0.17],[0,-0.44,0.18],[0.42,-0.28,0.17],[-0.22,0.02,0.13]];
+  for(const[tx,ty,r]of toes){x.beginPath();x.ellipse(tx*s,ty*s,r*s,r*s*0.9,0,0,7);x.fill();}
+  x.restore();
+}
+
+function stamp(px,py,big){
+  const s=big?46:26;
+  const a=(Math.random()-.5)*0.5;
+  paw(px,py,s,a);
+}
+
+addEventListener('pointermove',e=>{
+  const now=performance.now();
+  const px=e.clientX*devicePixelRatio,py=e.clientY*devicePixelRatio;
+  if(now-last>90){stamp(px,py,false);last=now;}
+});
+addEventListener('pointerdown',e=>{
+  stamp(e.clientX*devicePixelRatio,e.clientY*devicePixelRatio,true);
+});
+
+// fade slowly so it doesnt fill up
+setInterval(()=>{
+  x.globalAlpha=1;x.fillStyle='rgba(20,16,24,0.03)';x.fillRect(0,0,W,H);
+},60);
+</script>
+</body>
+</html>
+
+<!-- rebuild -->
