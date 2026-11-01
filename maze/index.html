@@ -5,15 +5,15 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>physarum maze solver</title>
 <style>
-  :root { --bg:#0a0a0f; --tube:#7ef; --dim:#1a2a33; }
+  :root { --bg:#0a0a0f; --tube:#7ef; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:#cfe; font-family:ui-monospace,monospace;
     display:flex; flex-direction:column; align-items:center; min-height:100vh; }
   header { padding:24px 16px 8px; text-align:center; }
   h1 { font-size:1.1rem; font-weight:600; letter-spacing:.05em; margin:0 0 6px; color:#9df; }
-  p { font-size:.72rem; color:#5a7a88; max-width:520px; line-height:1.6; margin:0 auto; }
+  p { font-size:.72rem; color:#5a7a88; max-width:540px; line-height:1.6; margin:0 auto; }
   canvas { display:block; margin:16px auto; max-width:96vw; max-height:70vh; image-rendering:pixelated; }
-  .bar { display:flex; gap:12px; align-items:center; font-size:.7rem; color:#5a7a88; margin-bottom:20px; }
+  .bar { display:flex; gap:14px; align-items:center; font-size:.7rem; color:#5a7a88; margin-bottom:20px; }
   button { background:#12202a; color:#9df; border:1px solid #24404f; padding:6px 14px;
     border-radius:6px; font-family:inherit; font-size:.7rem; cursor:pointer; }
   button:hover { background:#1a2e3a; }
@@ -22,86 +22,200 @@
 <body>
 <header>
   <h1>physarum solves a maze</h1>
-  <p>node-network slime mould. each corridor is a tube with a conductivity. pressure is solved
-  across the network, high-flow tubes thicken, low-flow ones starve. on a braided maze the
-  shortest route wins and the rest prunes away — that's how real mould does it.</p>
+  <p>node-network slime mould. each corridor is a tube with a conductivity. pressure is solved across
+  the network, high-flow tubes thicken, low-flow ones starve. on a braided maze (loops) the shortest
+  route wins and the rest prunes away — that's how real mould does it. hit new maze to try another.</p>
 </header>
 <canvas id="c"></canvas>
 <div class="bar">
+  <button id="newmaze">new maze</button>
   <button id="play">pause</button>
-  <span id="info">frame 0</span>
+  <span id="info">idle</span>
 </div>
-<script src="anim_data.json.js"></script>
 <script>
-const D = window.ANIM;
 const c = document.getElementById('c');
 const ctx = c.getContext('2d');
-const CS = 18; // cell size
-c.width = D.w * CS; c.height = D.h * CS;
 const info = document.getElementById('info');
+let CS = 18;
 
-// map edge key -> endpoint coords
-const E = D.edges.map(e => ({a:[e[0],e[1]], b:[e[2],e[3]], key:e[0]+','+e[1]+','+e[2]+','+e[3]}));
+// ---- maze gen: recursive backtracker on odd cells, then braid ----
+function genMaze(W, H) {
+  // W,H odd-ish; grid[y][x] true = open cell
+  const g = Array.from({length:H}, ()=>Array(W).fill(false));
+  const inb = (x,y)=> x>0&&y>0&&x<W-1&&y<H-1;
+  const stack = [[1,1]];
+  g[1][1] = true;
+  const dirs = [[2,0],[-2,0],[0,2],[0,-2]];
+  while (stack.length) {
+    const [x,y] = stack[stack.length-1];
+    const opts = [];
+    for (const [dx,dy] of dirs) {
+      const nx=x+dx, ny=y+dy;
+      if (inb(nx,ny) && !g[ny][nx]) opts.push([nx,ny,x+dx/2,y+dy/2]);
+    }
+    if (!opts.length) { stack.pop(); continue; }
+    const [nx,ny,mx,my] = opts[(Math.random()*opts.length)|0];
+    g[my][mx] = true; g[ny][nx] = true;
+    stack.push([nx,ny]);
+  }
+  return g;
+}
 
-let frame = 0, playing = true, last = 0;
-const FPS = 12;
+function braid(g, W, H, frac) {
+  // knock out interior walls to create loops
+  const walls = [];
+  for (let y=2;y<H-2;y++) for (let x=2;x<W-2;x++) {
+    if (g[y][x]) continue;
+    const h = g[y][x-1]&&g[y][x+1]&&!g[y-1][x]&&!g[y+1][x];
+    const v = g[y-1][x]&&g[y+1][x]&&!g[y][x-1]&&!g[y][x+1];
+    if (h||v) walls.push([x,y]);
+  }
+  for (let i=walls.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[walls[i],walls[j]]=[walls[j],walls[i]];}
+  const n = Math.floor(walls.length*frac);
+  for (let i=0;i<n;i++){const [x,y]=walls[i];g[y][x]=true;}
+  return g;
+}
 
-function draw() {
-  ctx.fillStyle = '#0a0a0f';
-  ctx.fillRect(0,0,c.width,c.height);
-  const snap = D.frames[frame];
+function neighbors(g,W,H,x,y){
+  const out=[];
+  if(x+1<W&&g[y][x+1])out.push([x+1,y]);
+  if(x-1>=0&&g[y][x-1])out.push([x-1,y]);
+  if(y+1<H&&g[y+1][x])out.push([x,y+1]);
+  if(y-1>=0&&g[y-1][x])out.push([x,y-1]);
+  return out;
+}
+
+// ---- physarum node network ----
+let G, W, H, nodes, nodeIdx, edges, src, sink, frame, playing=true, tmr=null, maxFrames=140;
+
+function key(a,b){ return a<b ? a[0]+','+a[1]+'|'+b[0]+','+b[1] : b[0]+','+b[1]+'|'+a[0]+','+a[1]; }
+
+function buildNetwork(g,w,h){
+  const nd=[]; const idx={};
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++) if(g[y][x]){idx[x+','+y]=nd.length;nd.push([x,y]);}
+  const ed=new Map();
+  for(const [x,y] of nd){
+    for(const [nx,ny] of neighbors(g,w,h,x,y)){
+      const k=key([x,y],[nx,ny]);
+      if(!ed.has(k)) ed.set(k,1.0);
+    }
+  }
+  // src/sink: entrance top, exit bottom
+  let s=nd.find(n=>n[1]===0), t=nd.find(n=>n[1]===h-1);
+  if(!s) s=nd[0]; if(!t) t=nd[nd.length-1];
+  return {nodes:nd, idx, edges:ed, src:s, sink:t};
+}
+
+// Gauss-Seidel pressure solve
+function solvePressure(net){
+  const {nodes,idx,edges,src,sink}=net;
+  const N=nodes.length;
+  const adj=Array.from({length:N},()=>[]);
+  for(const [k,d] of edges){
+    const [a,b]=k.split('|'); const i=idx[a], j=idx[b];
+    adj[i].push([j,d]); adj[j].push([i,d]);
+  }
+  const si=idx[src[0]+','+src[1]], ti=idx[sink[0]+','+sink[1]];
+  const p=new Float64Array(N).fill(0.5); p[ti]=0; p[si]=1;
+  for(let it=0;it<2000;it++){
+    let maxd=0;
+    for(let i=0;i<N;i++){
+      if(i===ti||i===si) continue;
+      let s=0, ds=0;
+      for(const [j,d] of adj[i]){ s+=d*p[j]; ds+=d; }
+      if(ds===0) continue;
+      let np=s/ds;
+      maxd=Math.max(maxd,Math.abs(np-p[i]));
+      p[i]=np;
+    }
+    if(maxd<1e-6) break;
+  }
+  return {p,adj,idx,si,ti};
+}
+
+function stepPhysarum(net){
+  const {p,idx}=solvePressure(net);
+  const flux=new Map();
+  let qmax=0;
+  for(const [k,d] of net.edges){
+    const [a,b]=k.split('|');
+    const q=Math.abs(d*(p[idx[a]]-p[idx[b]]));
+    flux.set(k,q); if(q>qmax)qmax=q;
+  }
+  if(qmax===0)qmax=1;
+  for(const [k,q] of flux){
+    const d=net.edges.get(k);
+    net.edges.set(k, Math.min(d+0.25*Math.pow(q/qmax,2), 50)*0.985);
+  }
+  return flux;
+}
+
+function draw(net, flux){
+  ctx.fillStyle='#0a0a0f'; ctx.fillRect(0,0,c.width,c.height);
   // base corridors
-  ctx.strokeStyle = '#132029';
-  ctx.lineWidth = CS*0.5;
-  for (const e of E) {
-    ctx.beginPath();
-    ctx.moveTo(e.a[0]*CS+CS/2, e.a[1]*CS+CS/2);
-    ctx.lineTo(e.b[0]*CS+CS/2, e.b[1]*CS+CS/2);
-    ctx.stroke();
+  ctx.lineCap='round';
+  ctx.strokeStyle='#132029'; ctx.lineWidth=CS*0.5;
+  for(const k of net.edges.keys()){
+    const [a,b]=k.split('|');
+    const [ax,ay]=a.split(','), [bx,by]=b.split(',');
+    ctx.beginPath(); ctx.moveTo(ax*CS+CS/2,ay*CS+CS/2); ctx.lineTo(bx*CS+CS/2,by*CS+CS/2); ctx.stroke();
   }
   // tubes by conductivity
-  ctx.lineCap = 'round';
-  for (const e of E) {
-    const v = snap[e.key] || 0;
-    if (v < 0.02) continue;
-    const w = CS*0.15 + CS*0.7*v;
-    ctx.lineWidth = w;
-    const alpha = 0.25 + 0.75*v;
-    ctx.strokeStyle = `rgba(120,235,255,${alpha})`;
-    ctx.shadowColor = 'rgba(120,235,255,0.6)';
-    ctx.shadowBlur = v*8;
-    ctx.beginPath();
-    ctx.moveTo(e.a[0]*CS+CS/2, e.a[1]*CS+CS/2);
-    ctx.lineTo(e.b[0]*CS+CS/2, e.b[1]*CS+CS/2);
-    ctx.stroke();
+  let dmax=0; for(const d of net.edges.values()) if(d>dmax)dmax=d;
+  if(dmax===0)dmax=1;
+  for(const [k,d] of net.edges){
+    const v=d/dmax;
+    if(v<0.08) continue;
+    const [a,b]=k.split('|');
+    const [ax,ay]=a.split(','), [bx,by]=b.split(',');
+    ctx.lineWidth=CS*0.12+CS*0.72*v;
+    ctx.strokeStyle=`rgba(120,235,255,${0.2+0.8*v})`;
+    ctx.shadowColor='rgba(120,235,255,0.6)'; ctx.shadowBlur=v*8;
+    ctx.beginPath(); ctx.moveTo(ax*CS+CS/2,ay*CS+CS/2); ctx.lineTo(bx*CS+CS/2,by*CS+CS/2); ctx.stroke();
   }
-  ctx.shadowBlur = 0;
-  // src / sink markers
-  ctx.fillStyle = '#5f8';
-  ctx.beginPath(); ctx.arc(D.src[0]*CS+CS/2, D.src[1]*CS+CS/2, CS*0.3, 0, 7); ctx.fill();
-  ctx.fillStyle = '#f77';
-  ctx.beginPath(); ctx.arc(D.sink[0]*CS+CS/2, D.sink[1]*CS+CS/2, CS*0.3, 0, 7); ctx.fill();
-  info.textContent = 'frame ' + frame + ' / ' + (D.frames.length-1);
+  ctx.shadowBlur=0;
+  // src/sink
+  ctx.fillStyle='#5f8'; ctx.beginPath(); ctx.arc(net.src[0]*CS+CS/2,net.src[1]*CS+CS/2,CS*0.3,0,7); ctx.fill();
+  ctx.fillStyle='#f77'; ctx.beginPath(); ctx.arc(net.sink[0]*CS+CS/2,net.sink[1]*CS+CS/2,CS*0.3,0,7); ctx.fill();
 }
 
-function loop(t) {
-  if (playing && t - last > 1000/FPS) {
+function newMaze(){
+  W=31; H=21;
+  G=genMaze(W,H); braid(G,W,H,0.18);
+  // fit cell size
+  CS = Math.min(18, Math.floor(Math.min(960/(W), 700/(H))));
+  c.width=W*CS; c.height=H*CS;
+  nodes=buildNetwork(G,W,H);
+  frame=0; playing=true;
+  document.getElementById('play').textContent='pause';
+  draw(nodes,null);
+  info.textContent='frame 0 / '+maxFrames;
+  scheduleTick();
+}
+
+function scheduleTick(){
+  if(tmr) clearTimeout(tmr);
+  if(!playing) return;
+  tmr=setTimeout(()=>{
+    if(!playing) return;
+    const flux=stepPhysarum(nodes);
+    draw(nodes,flux);
     frame++;
-    if (frame >= D.frames.length) { frame = D.frames.length-1; playing = false; document.getElementById('play').textContent='replay'; }
-    last = t;
-    draw();
-  }
-  requestAnimationFrame(loop);
+    info.textContent='frame '+frame+' / '+maxFrames;
+    if(frame>=maxFrames){ playing=false; document.getElementById('play').textContent='replay'; return; }
+    scheduleTick();
+  }, 90);
 }
 
-document.getElementById('play').onclick = () => {
-  if (!playing && frame >= D.frames.length-1) frame = 0;
-  playing = !playing;
-  document.getElementById('play').textContent = playing ? 'pause' : 'play';
+document.getElementById('newmaze').onclick=newMaze;
+document.getElementById('play').onclick=()=>{
+  if(!playing && frame>=maxFrames){ newMaze(); return; }
+  playing=!playing;
+  document.getElementById('play').textContent=playing?'pause':'play';
+  if(playing) scheduleTick();
 };
 
-draw();
-requestAnimationFrame(loop);
+newMaze();
 </script>
 </body>
 </html>
