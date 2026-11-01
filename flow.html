@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>flow field</title>
+<style>
+  html,body{margin:0;height:100%;background:#07070c;overflow:hidden;font-family:ui-monospace,monospace}
+  canvas{display:block;width:100vw;height:100vh}
+  #hint{position:fixed;left:12px;bottom:10px;color:#3a4a5a;font-size:.7rem;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">click / drag to stir the field</div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+let W,H;
+function resize(){W=c.width=innerWidth;H=c.height=innerHeight;ctx.fillStyle='#07070c';ctx.fillRect(0,0,W,H);}
+resize();addEventListener('resize',resize);
+
+// simple value-noise-ish flow via layered sines
+const T=Date.now()/1000;
+function angle(x,y,t){
+  return Math.sin(x*0.006+t*0.3)*1.6 + Math.cos(y*0.005-t*0.2)*1.6 + Math.sin((x+y)*0.002+t*0.1)*2.0;
+}
+
+const parts=[];
+function spawn(x,y,n){
+  for(let i=0;i<n;i++){
+    parts.push({x,y,a:Math.random()*6.28,life:0,max:120+Math.random()*180,h:170+Math.random()*80});
+  }
+}
+spawn(W/2,H/2,400);
+
+let mx=null,my=null;
+c.addEventListener('pointerdown',e=>{mx=e.clientX;my=e.clientY;spawn(mx,my,120);});
+c.addEventListener('pointermove',e=>{if(e.buttons){mx=e.clientX;my=e.clientY;spawn(mx,my,25);}});
+
+let t0=performance.now();
+function frame(now){
+  const t=(now-t0)/1000;
+  ctx.fillStyle='rgba(7,7,12,0.028)';
+  ctx.fillRect(0,0,W,H);
+  for(let i=parts.length-1;i>=0;i--){
+    const p=parts[i];
+    p.a=angle(p.x,p.y,t);
+    p.x+=Math.cos(p.a)*1.4;
+    p.y+=Math.sin(p.a)*1.4;
+    p.life++;
+    const k=1-p.life/p.max;
+    if(k<=0||p.x<0||p.x>W||p.y<0||p.y>H){parts.splice(i,1);continue;}
+    ctx.fillStyle=`hsla(${p.h},90%,68%,${0.7*k})`;
+    ctx.fillRect(p.x,p.y,2,2);
+  }
+  if(parts.length<1400)spawn(Math.random()*W,Math.random()*H,6);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
