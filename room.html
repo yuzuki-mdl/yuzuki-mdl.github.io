@@ -288,6 +288,18 @@ for(const s of [-1,1]){
 }
 let nextBlink = performance.now() + 3000;
 
+// bed along the left wall
+const bedX = -W/2 + 0.68, bedZ = -0.9;
+box(1.15,0.32,2.1, 0x3a2e40, bedX, 0.16, bedZ); // frame
+box(1.1,0.18,2.05, 0x5a4a63, bedX, 0.42, bedZ, 1); // mattress
+// pillow at the head (toward back wall)
+box(0.85,0.14,0.4, 0xcfc4d9, bedX, 0.58, bedZ-0.72, 1);
+// blanket draped over the foot half
+const blanket = new THREE.Mesh(new THREE.BoxGeometry(1.12,0.12,1.05), new THREE.MeshStandardMaterial({color:0x6b4a7a, roughness:1}));
+blanket.position.set(bedX, 0.53, bedZ+0.45); room.add(blanket);
+// a little folded edge of the blanket
+box(1.12,0.06,0.12, 0x7d5c8c, bedX, 0.6, bedZ-0.02, 1);
+
 // string lights along back wall
 const bulbColors = [0xffd9a0,0xf5c2e7,0x89dceb,0xa6e3a1];
 for(let i=0;i<10;i++){
