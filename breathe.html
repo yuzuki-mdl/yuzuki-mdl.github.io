@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>breathe</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a12;overflow:hidden}
+  canvas{display:block;width:100%;height:100%}
+  #hint{position:fixed;left:12px;bottom:10px;color:#3a3a55;font:12px ui-monospace,monospace;user-select:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">click to change colour</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',resize);
+
+let hue=200;
+addEventListener('pointerdown',()=>{hue=(hue+70+Math.random()*80)%360;});
+
+// a ring of particles that breathe together
+const N=900;
+const parts=[];
+for(let i=0;i<N;i++){
+  const a=Math.random()*Math.PI*2;
+  const r=Math.sqrt(Math.random());
+  parts.push({a,r,sp:0.15+Math.random()*0.35,ph:Math.random()*Math.PI*2});
+}
+
+let t=0;
+function frame(){
+  t+=0.006;
+  // breathing: one slow in/out cycle
+  const breath=0.5+0.5*Math.sin(t*1.3);
+  ctx.fillStyle='rgba(10,10,18,0.14)';
+  ctx.fillRect(0,0,W,H);
+  ctx.globalCompositeOperation='lighter';
+  const cx=W/2,cy=H/2;
+  const base=Math.min(W,H)*0.30;
+  const spread=base*(0.55+0.65*breath);
+  for(const p of parts){
+    p.a+=p.sp*0.004*(0.5+breath);
+    const wob=Math.sin(t*0.7+p.ph)*0.12;
+    const rr=p.r*spread*(1+wob);
+    const x=cx+Math.cos(p.a)*rr;
+    const y=cy+Math.sin(p.a)*rr*0.92;
+    const h=(hue+rr*0.15+t*8)%360;
+    const al=0.05+0.20*breath*(1-p.r*0.6);
+    ctx.fillStyle=`hsla(${h},70%,65%,${al})`;
+    ctx.beginPath();
+    ctx.arc(x,y,1.4+p.r*2.2,0,7);
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation='source-over';
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>
