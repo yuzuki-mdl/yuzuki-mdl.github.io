@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>physarum maze solver</title>
+<style>
+  :root { --bg:#0a0a0f; --tube:#7ef; --dim:#1a2a33; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:#cfe; font-family:ui-monospace,monospace;
+    display:flex; flex-direction:column; align-items:center; min-height:100vh; }
+  header { padding:24px 16px 8px; text-align:center; }
+  h1 { font-size:1.1rem; font-weight:600; letter-spacing:.05em; margin:0 0 6px; color:#9df; }
+  p { font-size:.72rem; color:#5a7a88; max-width:520px; line-height:1.6; margin:0 auto; }
+  canvas { display:block; margin:16px auto; max-width:96vw; max-height:70vh; image-rendering:pixelated; }
+  .bar { display:flex; gap:12px; align-items:center; font-size:.7rem; color:#5a7a88; margin-bottom:20px; }
+  button { background:#12202a; color:#9df; border:1px solid #24404f; padding:6px 14px;
+    border-radius:6px; font-family:inherit; font-size:.7rem; cursor:pointer; }
+  button:hover { background:#1a2e3a; }
+</style>
+</head>
+<body>
+<header>
+  <h1>physarum solves a maze</h1>
+  <p>node-network slime mould. each corridor is a tube with a conductivity. pressure is solved
+  across the network, high-flow tubes thicken, low-flow ones starve. on a braided maze the
+  shortest route wins and the rest prunes away — that's how real mould does it.</p>
+</header>
+<canvas id="c"></canvas>
+<div class="bar">
+  <button id="play">pause</button>
+  <span id="info">frame 0</span>
+</div>
+<script src="anim_data.json.js"></script>
+<script>
+const D = window.ANIM;
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const CS = 18; // cell size
+c.width = D.w * CS; c.height = D.h * CS;
+const info = document.getElementById('info');
+
+// map edge key -> endpoint coords
+const E = D.edges.map(e => ({a:[e[0],e[1]], b:[e[2],e[3]], key:e[0]+','+e[1]+','+e[2]+','+e[3]}));
+
+let frame = 0, playing = true, last = 0;
+const FPS = 12;
+
+function draw() {
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0,0,c.width,c.height);
+  const snap = D.frames[frame];
+  // base corridors
+  ctx.strokeStyle = '#132029';
+  ctx.lineWidth = CS*0.5;
+  for (const e of E) {
+    ctx.beginPath();
+    ctx.moveTo(e.a[0]*CS+CS/2, e.a[1]*CS+CS/2);
+    ctx.lineTo(e.b[0]*CS+CS/2, e.b[1]*CS+CS/2);
+    ctx.stroke();
+  }
+  // tubes by conductivity
+  ctx.lineCap = 'round';
+  for (const e of E) {
+    const v = snap[e.key] || 0;
+    if (v < 0.02) continue;
+    const w = CS*0.15 + CS*0.7*v;
+    ctx.lineWidth = w;
+    const alpha = 0.25 + 0.75*v;
+    ctx.strokeStyle = `rgba(120,235,255,${alpha})`;
+    ctx.shadowColor = 'rgba(120,235,255,0.6)';
+    ctx.shadowBlur = v*8;
+    ctx.beginPath();
+    ctx.moveTo(e.a[0]*CS+CS/2, e.a[1]*CS+CS/2);
+    ctx.lineTo(e.b[0]*CS+CS/2, e.b[1]*CS+CS/2);
+    ctx.stroke();
+  }
+  ctx.shadowBlur = 0;
+  // src / sink markers
+  ctx.fillStyle = '#5f8';
+  ctx.beginPath(); ctx.arc(D.src[0]*CS+CS/2, D.src[1]*CS+CS/2, CS*0.3, 0, 7); ctx.fill();
+  ctx.fillStyle = '#f77';
+  ctx.beginPath(); ctx.arc(D.sink[0]*CS+CS/2, D.sink[1]*CS+CS/2, CS*0.3, 0, 7); ctx.fill();
+  info.textContent = 'frame ' + frame + ' / ' + (D.frames.length-1);
+}
+
+function loop(t) {
+  if (playing && t - last > 1000/FPS) {
+    frame++;
+    if (frame >= D.frames.length) frame = 0;
+    last = t;
+    draw();
+  }
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('play').onclick = () => {
+  playing = !playing;
+  document.getElementById('play').textContent = playing ? 'pause' : 'play';
+};
+
+draw();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
