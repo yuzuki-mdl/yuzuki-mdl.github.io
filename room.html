@@ -17,7 +17,7 @@
 <div id="hint">
   <b>my room</b><br>
   click to walk in<br>
-  <span style="opacity:.6">wasd move · mouse look · esc out</span>
+  <span style="opacity:.6">wasd move · mouse look · e = light switch · esc out</span>
 </div>
 <script type="importmap">
 { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -200,8 +200,13 @@ const lampLight = new THREE.PointLight(0xffd9a0, 18, 16, 2);
 lampLight.position.copy(lampBulb.position); room.add(lampLight);
 
 // ambient + soft fill
-scene.add(new THREE.AmbientLight(0x404060, 0.9));
+const ambient = new THREE.AmbientLight(0x404060, 0.9); scene.add(ambient);
 const fill = new THREE.DirectionalLight(0xa0b0ff, 0.4); fill.position.set(2,4,3); scene.add(fill);
+
+// light switch on the front wall (near the doorway)
+const switchPlate = box(0.16,0.24,0.03, 0xd8d2e0, -W/2+3.0, 1.25, D/2-0.03);
+const switchNub = box(0.08,0.12,0.03, 0x9a94a8, -W/2+3.0, 1.28, D/2-0.06);
+let lightsOn = true;
 
 // ---- decorations ----
 function box(w,h,d,color,x,y,z,rough=0.8){
@@ -292,7 +297,20 @@ for(let i=0;i<10;i++){
 
 // ---- controls ----
 const keys = {};
-addEventListener('keydown', e=>{ keys[e.code]=true; });
+addEventListener('keydown', e=>{ keys[e.code]=true; if(e.code==='KeyE') toggleLights(); });
+
+function toggleLights(){
+  // only when standing near the switch
+  const dx = camera.position.x - (-W/2+3.0);
+  const dz = camera.position.z - (D/2);
+  if(dx*dx + dz*dz > 2.2*2.2) return;
+  lightsOn = !lightsOn;
+  lampLight.intensity = lightsOn ? 18 : 0;
+  fill.intensity = lightsOn ? 0.4 : 0.05;
+  ambient.intensity = lightsOn ? 0.9 : 0.22;
+  lampBulb.material.color.set(lightsOn ? 0xffd9a0 : 0x2a2233);
+  switchNub.position.y = lightsOn ? 1.28 : 1.22;
+}
 addEventListener('keyup', e=>{ keys[e.code]=false; });
 
 let yaw = 0, pitch = 0;
@@ -341,8 +359,8 @@ function tick(){
   const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
   camera.quaternion.copy(q);
 
-  // gentle lamp flicker
-  lampLight.intensity = 18 + Math.sin(performance.now()*0.003)*1.2;
+  // gentle lamp flicker (only when on)
+  if(lightsOn) lampLight.intensity = 18 + Math.sin(performance.now()*0.003)*1.2;
 
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
