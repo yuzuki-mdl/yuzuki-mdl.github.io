@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>wireworld</title>
+<style>
+  :root { --bg:#0a0a0f; --wire:#3a4a66; --head:#7cf0ff; --tail:#ff5c8a; --grid:#14141f; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:#cfd6e6;
+    font:13px/1.4 ui-monospace,Menlo,Consolas,monospace; overflow:hidden; }
+  #wrap { position:fixed; inset:0; display:flex; flex-direction:column; }
+  canvas { flex:1; display:block; cursor:crosshair; touch-action:none; }
+  #bar { display:flex; gap:6px; align-items:center; flex-wrap:wrap;
+    padding:8px 10px; background:#0d0d16; border-bottom:1px solid #1c1c2b; }
+  button { background:#161623; color:#cfd6e6; border:1px solid #26263a; border-radius:6px;
+    padding:6px 10px; font:inherit; cursor:pointer; }
+  button:hover { background:#1e1e30; }
+  button.on { background:#243b52; border-color:#3a6a92; color:#cfeaff; }
+  .sw { width:22px; height:22px; border-radius:5px; border:2px solid #26263a; cursor:pointer; }
+  .sw.on { border-color:#fff; }
+  #hint { margin-left:auto; color:#5a6478; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="bar">
+    <button id="play">play</button>
+    <button id="step">step</button>
+    <button id="clear">clear</button>
+    <button id="preset">preset: line</button>
+    <span style="width:10px"></span>
+    <div class="sw on" data-pen="1" style="background:var(--wire)" title="wire (1)"></div>
+    <div class="sw" data-pen="2" style="background:var(--head)" title="electron head (2)"></div>
+    <div class="sw" data-pen="3" style="background:var(--tail)" title="electron tail (3)"></div>
+    <div class="sw" data-pen="0" style="background:#0a0a0f;border-color:#333" title="erase (0)"></div>
+    <span id="hint">draw wires, drop electrons, watch them flow</span>
+  </div>
+  <canvas id="c"></canvas>
+</div>
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const CELL = 10;
+let cols = 0, rows = 0, grid, pen = 1, running = false, raf = 0, acc = 0, last = 0;
+const SPEED = 140; // ms per generation
+
+function resize() {
+  const r = cv.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  cv.width = Math.floor(r.width * dpr);
+  cv.height = Math.floor(r.height * dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const nc = Math.max(4, Math.floor(r.width / CELL));
+  const nr = Math.max(4, Math.floor(r.height / CELL));
+  const old = grid, oc = cols, orows = rows;
+  cols = nc; rows = nr;
+  grid = new Uint8Array(cols * rows);
+  if (old) {
+    for (let y = 0; y < Math.min(orows, rows); y++)
+      for (let x = 0; x < Math.min(oc, cols); x++)
+        grid[y*cols+x] = old[y*oc+x];
+  }
+  draw();
+}
+
+function idx(x,y){ return y*cols + x; }
+function get(x,y){ if(x<0||y<0||x>=cols||y>=rows) return 0; return grid[idx(x,y)]; }
+
+function step() {
+  const next = new Uint8Array(grid.length);
+  for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+    const c = grid[idx(x,y)];
+    if (c === 0) { next[idx(x,y)] = 0; }
+    else if (c === 2) { next[idx(x,y)] = 3; } // head -> tail
+    else if (c === 3) { next[idx(x,y)] = 1; } // tail -> wire
+    else { // wire
+      let heads = 0;
+      for (let dy=-1;dy<=1;dy++) for (let dx=-1;dx<=1;dx++) {
+        if (dx===0&&dy===0) continue;
+        if (get(x+dx,y+dy) === 2) heads++;
+      }
+      next[idx(x,y)] = (heads===1 || heads===2) ? 2 : 1;
+    }
+  }
+  grid = next;
+  draw();
+}
+
+function colorFor(v){
+  if (v===1) return '#3a4a66';
+  if (v===2) return '#7cf0ff';
+  if (v===3) return '#ff5c8a';
+  return null;
+}
+
+function draw() {
+  const w = cv.clientWidth, h = cv.clientHeight;
+  ctx.fillStyle = '#0a0a0f';
+  ctx.fillRect(0,0,w,h);
+  // faint grid
+  ctx.strokeStyle = '#14141f';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  for (let x=0;x<=cols;x++){ ctx.moveTo(x*CELL+0.5,0); ctx.lineTo(x*CELL+0.5,rows*CELL); }
+  for (let y=0;y<=rows;y++){ ctx.moveTo(0,y*CELL+0.5); ctx.lineTo(cols*CELL,y*CELL+0.5); }
+  ctx.stroke();
+  for (let y=0;y<rows;y++) for (let x=0;x<cols;x++) {
+    const v = grid[idx(x,y)];
+    const c = colorFor(v);
+    if (!c) continue;
+    ctx.fillStyle = c;
+    const pad = v===2 ? 1 : 2;
+    ctx.fillRect(x*CELL+pad, y*CELL+pad, CELL-pad*2, CELL-pad*2);
+    if (v===2) { // glow on heads
+      ctx.shadowColor = '#7cf0ff'; ctx.shadowBlur = 8;
+      ctx.fillRect(x*CELL+1, y*CELL+1, CELL-2, CELL-2);
+      ctx.shadowBlur = 0;
+    }
+  }
+}
+
+function loop(t) {
+  if (!running) return;
+  if (!last) last = t;
+  acc += t - last; last = t;
+  if (acc >= SPEED) { acc = 0; step(); }
+  raf = requestAnimationFrame(loop);
+}
+
+function setRunning(v){
+  running = v;
+  document.getElementById('play').textContent = v ? 'pause' : 'play';
+  document.getElementById('play').classList.toggle('on', v);
+  last = 0; acc = 0;
+  if (v) raf = requestAnimationFrame(loop);
+  else cancelAnimationFrame(raf);
+}
+
+// drawing
+let paintVal = -1;
+function cellAt(ev){
+  const r = cv.getBoundingClientRect();
+  const x = Math.floor((ev.clientX - r.left) / CELL);
+  const y = Math.floor((ev.clientY - r.top) / CELL);
+  return {x,y};
+}
+function paint(ev){
+  const {x,y} = cellAt(ev);
+  if (x<0||y<0||x>=cols||y>=rows) return;
+  const v = paintVal >= 0 ? paintVal : pen;
+  if (grid[idx(x,y)] !== v) { grid[idx(x,y)] = v; draw(); }
+}
+cv.addEventListener('pointerdown', e => {
+  cv.setPointerCapture(e.pointerId);
+  paintVal = pen;
+  paint(e);
+});
+cv.addEventListener('pointermove', e => { if (paintVal >= 0) paint(e); });
+cv.addEventListener('pointerup', () => { paintVal = -1; });
+cv.addEventListener('pointercancel', () => { paintVal = -1; });
+
+// buttons
+document.querySelectorAll('.sw').forEach(sw => {
+  sw.addEventListener('click', () => {
+    pen = +sw.dataset.pen;
+    document.querySelectorAll('.sw').forEach(s => s.classList.toggle('on', s===sw));
+  });
+});
+document.getElementById('play').onclick = () => setRunning(!running);
+document.getElementById('step').onclick = () => { setRunning(false); step(); };
+document.getElementById('clear').onclick = () => { grid.fill(0); setRunning(false); draw(); };
+
+let presetName = 'line';
+const presets = ['line','loop','merge'];
+document.getElementById('preset').onclick = () => {
+  presetName = presets[(presets.indexOf(presetName)+1) % presets.length];
+  document.getElementById('preset').textContent = 'preset: ' + presetName;
+  loadPreset(presetName);
+};
+
+function plotLine(x0,y0,x1,y1,v){
+  // simple bresenham-ish
+  const dx = Math.abs(x1-x0), dy = Math.abs(y1-y0);
+  const sx = x0<x1?1:-1, sy = y0<y1?1:-1;
+  let err = dx-dy;
+  while(true){
+    if(x0>=0&&y0>=0&&x0<cols&&y0<rows) grid[idx(x0,y0)] = v;
+    if(x0===x1&&y0===y1) break;
+    const e2 = 2*err;
+    if(e2 > -dy){ err -= dy; x0 += sx; }
+    if(e2 < dx){ err += dx; y0 += sy; }
+  }
+}
+
+function loadPreset(name){
+  grid.fill(0);
+  const cx = Math.floor(cols/2), cy = Math.floor(rows/2);
+  if (name === 'line') {
+    const y = cy;
+    plotLine(cx-18, y, cx+18, y, 1);
+    grid[idx(cx-3,y)] = 2; grid[idx(cx-4,y)] = 3;
+  } else if (name === 'loop') {
+    // a loop of wire that sustains an electron
+    const r = 6;
+    for (let a=0;a<360;a+=6){
+      const rad = a*Math.PI/180;
+      const x = Math.round(cx + Math.cos(rad)*r);
+      const y = Math.round(cy + Math.sin(rad)*r);
+      grid[idx(x,y)] = 1;
+    }
+    grid[idx(cx+r,cy)] = 2;
+    grid[idx(cx+r-1,cy)] = 3;
+  } else if (name === 'merge') {
+    // two wires feeding into one, just to show merging electrons
+    const y = cy;
+    plotLine(cx-16, y-4, cx, y, 1);
+    plotLine(cx-16, y+4, cx, y, 1);
+    plotLine(cx, y, cx+16, y, 1);
+    grid[idx(cx-14,y-4)] = 2; grid[idx(cx-15,y-4)] = 3;
+  }
+  draw();
+}
+
+window.addEventListener('resize', resize);
+resize();
+loadPreset('line');
+
+// keys
+document.addEventListener('keydown', e => {
+  if (e.key === '1') document.querySelector('[data-pen="1"]').click();
+  if (e.key === '2') document.querySelector('[data-pen="2"]').click();
+  if (e.key === '3') document.querySelector('[data-pen="3"]').click();
+  if (e.key === '0') document.querySelector('[data-pen="0"]').click();
+  if (e.key === ' ') { e.preventDefault(); setRunning(!running); }
+  if (e.key === 's') { setRunning(false); step(); }
+});
+</script>
+</body>
+</html>
