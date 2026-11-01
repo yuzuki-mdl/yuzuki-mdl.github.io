@@ -186,6 +186,8 @@ const LEVELS=[
   {W:39,H:25,braid:0.14},
   {W:47,H:31,braid:0.10},
   {W:55,H:37,braid:0.07},
+  {W:63,H:43,braid:0.05},
+  {W:75,H:51,braid:0.04},
 ];
 function newMaze(){
   const L=LEVELS[level];
@@ -195,7 +197,7 @@ function newMaze(){
   CS = Math.min(18, Math.floor(Math.min(960/(W), 700/(H))));
   c.width=W*CS; c.height=H*CS;
   nodes=buildNetwork(G,W,H);
-  maxFrames = Math.min(260, 100 + Math.floor(nodes.nodes.length/12));
+  maxFrames = Math.min(420, 100 + Math.floor(nodes.nodes.length/10));
   frame=0; playing=true;
   document.getElementById('play').textContent='pause';
   draw(nodes,null);
