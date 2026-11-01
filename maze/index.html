@@ -29,6 +29,7 @@
 <canvas id="c"></canvas>
 <div class="bar">
   <button id="newmaze">new maze</button>
+  <button id="harder">harder</button>
   <button id="play">pause</button>
   <span id="info">idle</span>
 </div>
@@ -179,13 +180,21 @@ function draw(net, flux){
   ctx.fillStyle='#f77'; ctx.beginPath(); ctx.arc(net.sink[0]*CS+CS/2,net.sink[1]*CS+CS/2,CS*0.3,0,7); ctx.fill();
 }
 
+let level=0;
+const LEVELS=[
+  {W:31,H:21,braid:0.18},
+  {W:39,H:25,braid:0.14},
+  {W:47,H:31,braid:0.10},
+];
 function newMaze(){
-  W=31; H=21;
-  G=genMaze(W,H); braid(G,W,H,0.18);
+  const L=LEVELS[level];
+  W=L.W; H=L.H;
+  G=genMaze(W,H); braid(G,W,H,L.braid);
   // fit cell size
   CS = Math.min(18, Math.floor(Math.min(960/(W), 700/(H))));
   c.width=W*CS; c.height=H*CS;
   nodes=buildNetwork(G,W,H);
+  maxFrames = Math.min(260, 100 + Math.floor(nodes.nodes.length/12));
   frame=0; playing=true;
   document.getElementById('play').textContent='pause';
   draw(nodes,null);
@@ -208,6 +217,7 @@ function scheduleTick(){
 }
 
 document.getElementById('newmaze').onclick=newMaze;
+document.getElementById('harder').onclick=()=>{ level=(level+1)%LEVELS.length; newMaze(); };
 document.getElementById('play').onclick=()=>{
   if(!playing && frame>=maxFrames){ newMaze(); return; }
   playing=!playing;
