@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>life</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0e14;overflow:hidden;font-family:ui-monospace,monospace}
+  canvas{display:block;width:100vw;height:100vh;cursor:crosshair;touch-action:none}
+  #ui{position:fixed;left:14px;bottom:14px;color:#7a8aa0;font-size:12px;line-height:1.6;pointer-events:none;user-select:none}
+  #ui b{color:#a9c4e0;font-weight:600}
+  #hint{position:fixed;left:14px;top:14px;color:#5f6f85;font-size:12px;pointer-events:none;user-select:none;transition:opacity 1s}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">draw with ur cursor. cells come alive.</div>
+<div id="ui">
+  <b>space</b> pause &nbsp; <b>c</b> clear &nbsp; <b>r</b> random &nbsp; <b>s</b> step
+</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const CELL = 8;
+let cols, rows, grid, next;
+let running = true;
+let last = 0;
+const SPEED = 120; // ms per generation
+let acc = 0;
+
+function resize(){
+  c.width = Math.floor(innerWidth / CELL);
+  c.height = Math.floor(innerHeight / CELL);
+  cols = c.width; rows = c.height;
+  grid = new Uint8Array(cols*rows);
+  next = new Uint8Array(cols*rows);
+  draw();
+}
+
+function idx(x,y){ return y*cols + x; }
+
+function seedRandom(p=0.28){
+  for(let i=0;i<grid.length;i++) grid[i] = Math.random() < p ? 1 : 0;
+}
+
+function step(){
+  for(let y=0;y<rows;y++){
+    for(let x=0;x<cols;x++){
+      let n = 0;
+      for(let dy=-1;dy<=1;dy++){
+        for(let dx=-1;dx<=1;dx++){
+          if(dx===0&&dy===0) continue;
+          const nx = (x+dx+cols)%cols;
+          const ny = (y+dy+rows)%rows;
+          n += grid[idx(nx,ny)];
+        }
+      }
+      const alive = grid[idx(x,y)];
+      next[idx(x,y)] = (alive ? (n===2||n===3) : n===3) ? 1 : 0;
+    }
+  }
+  const t = grid; grid = next; next = t;
+}
+
+function draw(){
+  ctx.fillStyle = '#0a0e14';
+  ctx.fillRect(0,0,c.width,c.height);
+  ctx.fillStyle = '#8fd0ff';
+  for(let y=0;y<rows;y++){
+    for(let x=0;x<cols;x++){
+      if(grid[idx(x,y)]) ctx.fillRect(x,y,1,1);
+    }
+  }
+}
+
+// painting
+let painting = false;
+let paintVal = 1;
+function paintAt(clientX, clientY){
+  const x = Math.floor(clientX / CELL);
+  const y = Math.floor(clientY / CELL);
+  for(let dy=-1;dy<=1;dy++){
+    for(let dx=-1;dx<=1;dx++){
+      const nx = (x+dx+cols)%cols;
+      const ny = (y+dy+rows)%rows;
+      if(nx>=0&&nx<cols&&ny>=0&&ny<rows) grid[idx(nx,ny)] = paintVal;
+    }
+  }
+}
+
+c.addEventListener('pointerdown', e=>{
+  painting = true;
+  // toggle: if cell alive, erase; else draw
+  const x = Math.floor(e.clientX/CELL), y = Math.floor(e.clientY/CELL);
+  paintVal = grid[idx((x+cols)%cols,(y+rows)%rows)] ? 0 : 1;
+  paintAt(e.clientX, e.clientY);
+  const h = document.getElementById('hint');
+  h.style.opacity = 0;
+});
+c.addEventListener('pointermove', e=>{
+  if(painting){ paintAt(e.clientX, e.clientY); draw(); }
+});
+addEventListener('pointerup', ()=> painting = false);
+c.addEventListener('pointerleave', ()=> painting = false);
+
+addEventListener('keydown', e=>{
+  const k = e.key.toLowerCase();
+  if(k===' '){ running = !running; e.preventDefault(); }
+  else if(k==='c'){ grid.fill(0); draw(); }
+  else if(k==='r'){ seedRandom(); draw(); }
+  else if(k==='s'){ step(); draw(); }
+});
+
+function loop(t){
+  if(!last) last = t;
+  const dt = t - last; last = t;
+  if(running){
+    acc += dt;
+    if(acc > SPEED){ acc = 0; step(); draw(); }
+  }
+  requestAnimationFrame(loop);
+}
+
+function place(pat, ox, oy){
+  for(let py=0;py<pat.length;py++) for(let px=0;px<pat[py].length;px++){
+    if(pat[py][px]){
+      const nx=(ox+px)%cols, ny=(oy+py)%rows;
+      grid[idx(nx,ny)] = 1;
+    }
+  }
+}
+
+addEventListener('resize', resize);
+resize();
+// start with something alive to look at
+const glider = [[0,1,0],[0,0,1],[1,1,1]];
+const pulsar = [[0,0,1,1,1,0,0],[0,0,0,0,0,0,0],[1,0,0,0,0,0,1],[1,0,0,0,0,0,1],[1,0,0,0,0,0,1],[0,0,0,0,0,0,0],[0,0,1,1,1,0,0]];
+place(pulsar, Math.floor(cols/2)-3, Math.floor(rows/2)-3);
+place(glider, Math.floor(cols*0.2), Math.floor(rows*0.3));
+place(glider, Math.floor(cols*0.75), Math.floor(rows*0.65));
+place(glider, Math.floor(cols*0.6), Math.floor(rows*0.2));
+draw();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
