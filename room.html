@@ -310,6 +310,30 @@ for(const s of [-1,1]){
 }
 let nextBlink = performance.now() + 3000;
 
+// a plant in the back-left corner
+const plantX = -W/2 + 0.55, plantZ = -D/2 + 0.55;
+const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.16,0.34,16), new THREE.MeshStandardMaterial({color:0x8a5a44, roughness:.9}));
+pot.position.set(plantX, 0.17, plantZ); room.add(pot);
+const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.19,0.19,0.04,16), new THREE.MeshStandardMaterial({color:0x2a1e18, roughness:1}));
+soil.position.set(plantX, 0.33, plantZ); room.add(soil);
+const leafMat = new THREE.MeshStandardMaterial({color:0x3f7a4a, roughness:.85});
+const leaves = [];
+for(let i=0;i<9;i++){
+  const a = (i/9)*Math.PI*2 + Math.random()*0.4;
+  const lean = 0.15 + Math.random()*0.25;
+  const len = 0.5 + Math.random()*0.35;
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.02,len,6), leafMat);
+  stem.position.set(plantX + Math.cos(a)*lean*0.5, 0.33 + len/2, plantZ + Math.sin(a)*lean*0.5);
+  stem.rotation.z = Math.cos(a)*lean;
+  stem.rotation.x = -Math.sin(a)*lean;
+  room.add(stem);
+  const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.11,10,8), leafMat);
+  leaf.scale.set(1,0.35,1.4);
+  leaf.position.set(plantX + Math.cos(a)*lean*len*0.9, 0.33 + len, plantZ + Math.sin(a)*lean*len*0.9);
+  leaf.rotation.y = a;
+  room.add(leaf); leaves.push(leaf);
+}
+
 // bed along the left wall
 const bedX = -W/2 + 0.68, bedZ = -0.9;
 box(1.15,0.32,2.1, 0x3a2e40, bedX, 0.16, bedZ); // frame
