@@ -87,7 +87,7 @@ function draw() {
 function loop(t) {
   if (playing && t - last > 1000/FPS) {
     frame++;
-    if (frame >= D.frames.length) frame = 0;
+    if (frame >= D.frames.length) { frame = D.frames.length-1; playing = false; document.getElementById('play').textContent='replay'; }
     last = t;
     draw();
   }
@@ -95,6 +95,7 @@ function loop(t) {
 }
 
 document.getElementById('play').onclick = () => {
+  if (!playing && frame >= D.frames.length-1) frame = 0;
   playing = !playing;
   document.getElementById('play').textContent = playing ? 'pause' : 'play';
 };
