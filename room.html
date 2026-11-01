@@ -281,10 +281,12 @@ for(const s of [-1,1]){
   ear.position.set(1.12,0.4,0.6+s*0.07); room.add(ear);
 }
 // cat eyes glow
+const catEyes = [];
 for(const s of [-1,1]){
   const eye = new THREE.Mesh(new THREE.SphereGeometry(0.018,8,8), new THREE.MeshBasicMaterial({color:0xffd66b}));
-  eye.position.set(1.26,0.29,0.6+s*0.05); room.add(eye);
+  eye.position.set(1.26,0.29,0.6+s*0.05); room.add(eye); catEyes.push(eye);
 }
+let nextBlink = performance.now() + 3000;
 
 // string lights along back wall
 const bulbColors = [0xffd9a0,0xf5c2e7,0x89dceb,0xa6e3a1];
@@ -361,6 +363,14 @@ function tick(){
 
   // gentle lamp flicker (only when on)
   if(lightsOn) lampLight.intensity = 18 + Math.sin(performance.now()*0.003)*1.2;
+
+  // the cat plush blinks now and then
+  const now = performance.now();
+  if(now > nextBlink){
+    const t = (now - nextBlink)/140;
+    if(t >= 1){ for(const e of catEyes) e.scale.y = 1; nextBlink = now + 2500 + Math.random()*4500; }
+    else { const open = Math.abs(t - 0.5)*2; for(const e of catEyes) e.scale.y = Math.max(0.12, open); }
+  }
 
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
