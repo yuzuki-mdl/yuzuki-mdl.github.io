@@ -27,7 +27,7 @@ import * as THREE from 'three';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x0b0e14);
-scene.fog = new THREE.Fog(0x0b0e14, 8, 26);
+scene.fog = new THREE.Fog(0x1a1b34, 40, 400);
 
 const camera = new THREE.PerspectiveCamera(70, innerWidth/innerHeight, 0.05, 200);
 camera.position.set(0, 1.6, 2.6);
@@ -59,8 +59,28 @@ function wall(w,h,x,y,z,ry){
 }
 wall(W,H,0,H/2,-D/2,0);      // back
 wall(W,H,0,H/2, D/2,Math.PI); // front
-wall(D,H,-W/2,H/2,0, Math.PI/2); // left
 wall(D,H, W/2,H/2,0,-Math.PI/2); // right
+
+// left wall has a doorway out to the balcony
+const OP_Z = 0.8, OP_W = 2.0, OP_Y0 = 0.0, OP_Y1 = 2.4;
+// segment in front of the opening (toward +z)
+const segFront = (D/2) - (OP_Z + OP_W/2);
+if(segFront > 0.01){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(segFront,H), wallMat);
+  m.position.set(-W/2, H/2, OP_Z+OP_W/2 + segFront/2); m.rotation.y = Math.PI/2; room.add(m);
+}
+// segment behind the opening (toward -z)
+const segBack = (OP_Z - OP_W/2) - (-D/2);
+if(segBack > 0.01){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(segBack,H), wallMat);
+  m.position.set(-W/2, H/2, -D/2 + segBack/2); m.rotation.y = Math.PI/2; room.add(m);
+}
+// lintel above the opening
+const lintelH = H - OP_Y1;
+if(lintelH > 0.01){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(OP_W, lintelH), wallMat);
+  m.position.set(-W/2, OP_Y1 + lintelH/2, OP_Z); m.rotation.y = Math.PI/2; room.add(m);
+}
 
 // rug
 const rug = new THREE.Mesh(new THREE.CircleGeometry(1.6, 40), new THREE.MeshStandardMaterial({color:0x4a3a5c, roughness:1}));
@@ -82,14 +102,96 @@ for(let i=0;i<3;i++){
   s.position.set(-1.6, 0.9+i*0.7, -D/2+0.22); room.add(s);
 }
 
-// window on left wall (glowing)
-const winGeo = new THREE.PlaneGeometry(1.6,1.2);
-const winMat = new THREE.MeshBasicMaterial({color:0x8fb6ff});
-const win = new THREE.Mesh(winGeo, winMat);
-win.position.set(-W/2+0.02, 1.9, 0.8); win.rotation.y = Math.PI/2; room.add(win);
-// window frame glow light
-const winLight = new THREE.PointLight(0x8fb6ff, 6, 12, 2);
-winLight.position.set(-W/2+0.6, 1.9, 0.8); room.add(winLight);
+// moonlight spilling in through the doorway
+const winLight = new THREE.PointLight(0x8fb6ff, 6, 14, 2);
+winLight.position.set(-W/2+0.6, 1.9, OP_Z); room.add(winLight);
+
+// ---- balcony + outside ----
+// slab
+const slabMat = new THREE.MeshStandardMaterial({color:0x2f2a38, roughness:.95});
+const slab = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.12, OP_W+0.6), slabMat);
+slab.position.set(-W/2-1.0, 0.0, OP_Z); room.add(slab);
+// railing posts + top rail
+const railMat = new THREE.MeshStandardMaterial({color:0x4a4450, roughness:.7, metalness:.3});
+const railTop = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.05, 0.05), railMat);
+railTop.position.set(-W/2-1.0, 1.0, OP_Z - (OP_W+0.6)/2); room.add(railTop);
+const railTop2 = railTop.clone(); railTop2.position.z = OP_Z + (OP_W+0.6)/2; room.add(railTop2);
+for(let i=0;i<=8;i++){
+  const t = i/8;
+  const x = -W/2 - t*2.0;
+  for(const zz of [OP_Z-(OP_W+0.6)/2, OP_Z+(OP_W+0.6)/2]){
+    const p = new THREE.Mesh(new THREE.BoxGeometry(0.04,1.0,0.04), railMat);
+    p.position.set(x, 0.5, zz); room.add(p);
+  }
+}
+// outer railing (far edge)
+const railFar = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.05,OP_W+0.6), railMat);
+railFar.position.set(-W/2-2.0, 1.0, OP_Z); room.add(railFar);
+for(let i=0;i<=4;i++){
+  const t = i/4;
+  const p = new THREE.Mesh(new THREE.BoxGeometry(0.04,1.0,0.04), railMat);
+  p.position.set(-W/2-2.0, 0.5, OP_Z-(OP_W+0.6)/2 + t*(OP_W+0.6)); room.add(p);
+}
+
+// sky dome-ish: big backdrop sphere behind, plus ground + hills + city + moon + stars
+const skyGeo = new THREE.SphereGeometry(80, 32, 16);
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide,
+  uniforms:{ top:{value:new THREE.Color(0x0d1330)}, bot:{value:new THREE.Color(0x3a2f52)} },
+  vertexShader:`varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`varying vec3 vP; uniform vec3 top; uniform vec3 bot;
+    void main(){ float h = clamp(vP.y/80.0*0.5+0.5, 0.0, 1.0); gl_FragColor = vec4(mix(bot, top, h), 1.0); }`
+});
+scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+// stars
+const starGeo = new THREE.BufferGeometry();
+const sN = 700; const sPos = new Float32Array(sN*3);
+for(let i=0;i<sN;i++){
+  const u = Math.random()*Math.PI*2, v = Math.random()*0.6+0.05;
+  const r = 70;
+  sPos[i*3]   = Math.cos(u)*Math.cos(v)*r;
+  sPos[i*3+1] = Math.sin(v)*r + 5;
+  sPos[i*3+2] = Math.sin(u)*Math.cos(v)*r;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(sPos,3));
+scene.add(new THREE.Points(starGeo, new THREE.PointsMaterial({color:0xffffff, size:0.35, sizeAttenuation:true, transparent:true, opacity:0.9})));
+
+// moon
+const moon = new THREE.Mesh(new THREE.SphereGeometry(3, 24, 24), new THREE.MeshBasicMaterial({color:0xf5e6c8}));
+moon.position.set(-40, 22, -20); scene.add(moon);
+const moonHalo = new THREE.Mesh(new THREE.SphereGeometry(4.2, 24, 24), new THREE.MeshBasicMaterial({color:0xdfe6ff, transparent:true, opacity:0.12}));
+moonHalo.position.copy(moon.position); scene.add(moonHalo);
+
+// distant ground (city level, way below the balcony)
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(300,300), new THREE.MeshStandardMaterial({color:0x121522, roughness:1}));
+ground.rotation.x = -Math.PI/2; ground.position.y = -18; scene.add(ground);
+
+// distant city blocks w/ window lights
+const cityMat = new THREE.MeshStandardMaterial({color:0x0e1220, roughness:1});
+const lightMat = new THREE.MeshBasicMaterial({color:0xffd99a});
+for(let i=0;i<70;i++){
+  const bw = 2+Math.random()*5, bh = 6+Math.random()*28, bd = 2+Math.random()*5;
+  const x = -30 - Math.random()*90;
+  const z = -60 + Math.random()*120;
+  const b = new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd), cityMat);
+  b.position.set(x, -18 + bh/2, z); scene.add(b);
+  // a few lit windows
+  const nWin = 2 + Math.floor(Math.random()*5);
+  for(let w=0; w<nWin; w++){
+    const lw = new THREE.Mesh(new THREE.PlaneGeometry(0.6,0.9), lightMat);
+    lw.position.set(x + bw/2 + 0.02, -18 + 2 + Math.random()*(bh-3), z - bd/2 + 1 + Math.random()*(bd-2));
+    lw.rotation.y = Math.PI/2; scene.add(lw);
+  }
+}
+
+// hills silhouette
+const hillMat = new THREE.MeshBasicMaterial({color:0x0a0d18});
+for(let i=0;i<6;i++){
+  const h = new THREE.Mesh(new THREE.CircleGeometry(20+Math.random()*15, 24, 0, Math.PI), hillMat);
+  h.position.set(-50-Math.random()*40, -18, -70 + Math.random()*140);
+  h.rotation.y = Math.PI/2; scene.add(h);
+}
 
 // hanging lamp
 const lampBulb = new THREE.Mesh(new THREE.SphereGeometry(.12,16,16), new THREE.MeshBasicMaterial({color:0xffd9a0}));
@@ -229,8 +331,11 @@ function tick(){
   vel.lerp(dir.multiplyScalar(speed), 1-Math.pow(0.001, dt));
   camera.position.x += vel.x*dt;
   camera.position.z += vel.z*dt;
-  camera.position.x = Math.max(-BOUND.x, Math.min(BOUND.x, camera.position.x));
   camera.position.z = Math.max(-BOUND.z, Math.min(BOUND.z, camera.position.z));
+  // allow stepping out onto the balcony through the doorway
+  const onBalconyZ = Math.abs(camera.position.z - OP_Z) < OP_W/2 - 0.3;
+  const minX = onBalconyZ ? (-W/2 - 2.0 + 0.3) : -BOUND.x;
+  camera.position.x = Math.max(minX, Math.min(BOUND.x, camera.position.x));
   camera.position.y = 1.6;
 
   const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
