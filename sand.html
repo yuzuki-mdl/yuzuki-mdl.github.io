@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sand</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0e14;overflow:hidden;font-family:ui-monospace,monospace}
+  canvas{display:block;width:100vw;height:100vh;cursor:crosshair;touch-action:none;image-rendering:pixelated}
+  #ui{position:fixed;left:14px;bottom:14px;color:#7a8aa0;font-size:12px;line-height:1.7;pointer-events:none;user-select:none}
+  #ui b{color:#a9c4e0;font-weight:600}
+  #ui .sel{color:#f0d38a}
+  #hint{position:fixed;left:14px;top:14px;color:#5f6f85;font-size:12px;pointer-events:none;user-select:none;transition:opacity 1s}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">draw with ur cursor. sand falls, water flows.</div>
+<div id="ui">
+  <span id="tools"></span><br>
+  <b>1</b> sand <b>2</b> water <b>3</b> stone <b>4</b> erase &nbsp; <b>c</b> clear
+</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const CELL = 4;
+let cols, rows, grid;
+const EMPTY=0, SAND=1, WATER=2, STONE=3;
+let brush = SAND;
+let mouseDown = false;
+let mx = -1, my = -1;
+
+const COLORS = {
+  1: [232,196,116],
+  2: [90,150,220],
+  3: [110,116,130],
+};
+
+function resize(){
+  cols = Math.floor(innerWidth / CELL);
+  rows = Math.floor(innerHeight / CELL);
+  c.width = cols; c.height = rows;
+  grid = new Uint8Array(cols*rows);
+  ctx.imageSmoothingEnabled = false;
+  render();
+}
+
+function idx(x,y){ return y*cols + x; }
+function inb(x,y){ return x>=0&&x<cols&&y>=0&&y<rows; }
+
+function paint(cx, cy, r){
+  for(let dy=-r;dy<=r;dy++){
+    for(let dx=-r;dx<=r;dx++){
+      if(dx*dx+dy*dy > r*r) continue;
+      const x=cx+dx, y=cy+dy;
+      if(!inb(x,y)) continue;
+      if(Math.random()<0.85){
+        if(brush===4) grid[idx(x,y)] = EMPTY;
+        else grid[idx(x,y)] = brush;
+      }
+    }
+  }
+}
+
+function step(){
+  // bottom-up so falling works in one pass
+  for(let y=rows-1;y>=0;y--){
+    // alternate scan direction so water doesn't bias one way
+    const dir = Math.random()<0.5 ? 1 : -1;
+    for(let i=0;i<cols;i++){
+      const x = dir===1 ? i : cols-1-i;
+      const v = grid[idx(x,y)];
+      if(v===SAND) moveSand(x,y);
+      else if(v===WATER) moveWater(x,y);
+    }
+  }
+}
+
+function moveSand(x,y){
+  if(y+1>=rows) return;
+  const below = grid[idx(x,y+1)];
+  if(below===EMPTY || below===WATER){
+    grid[idx(x,y)] = below;
+    grid[idx(x,y+1)] = SAND;
+    return;
+  }
+  // diagonal slide
+  const dir = Math.random()<0.5 ? -1 : 1;
+  for(const d of [dir, -dir]){
+    const nx=x+d, ny=y+1;
+    if(inb(nx,ny) && (grid[idx(nx,ny)]===EMPTY || grid[idx(nx,ny)]===WATER)){
+      grid[idx(x,y)] = grid[idx(nx,ny)];
+      grid[idx(nx,ny)] = SAND;
+      return;
+    }
+  }
+}
+
+function moveWater(x,y){
+  if(y+1>=rows) return;
+  const below = grid[idx(x,y+1)];
+  if(below===EMPTY){
+    grid[idx(x,y)] = EMPTY;
+    grid[idx(x,y+1)] = WATER;
+    return;
+  }
+  const dir = Math.random()<0.5 ? -1 : 1;
+  // diagonal down
+  for(const d of [dir, -dir]){
+    const nx=x+d, ny=y+1;
+    if(inb(nx,ny) && grid[idx(nx,ny)]===EMPTY){
+      grid[idx(x,y)] = EMPTY;
+      grid[idx(nx,ny)] = WATER;
+      return;
+    }
+  }
+  // sideways spread
+  for(const d of [dir, -dir]){
+    const nx=x+d;
+    if(inb(nx,y) && grid[idx(nx,y)]===EMPTY){
+      grid[idx(x,y)] = EMPTY;
+      grid[idx(nx,y)] = WATER;
+      return;
+    }
+  }
+}
+
+const img = ctx.createImageData(1,1);
+function render(){
+  const data = ctx.createImageData(cols, rows);
+  const d = data.data;
+  for(let i=0;i<grid.length;i++){
+    const v = grid[i];
+    const o = i*4;
+    if(v===EMPTY){ d[o+3]=0; continue; }
+    const col = COLORS[v];
+    // slight per-cell jitter for texture
+    const j = (Math.random()*14-7)|0;
+    d[o] = col[0]+j; d[o+1] = col[1]+j; d[o+2] = col[2]+j; d[o+3]=255;
+  }
+  ctx.putImageData(data, 0, 0);
+}
+
+let acc = 0, last = 0;
+function loop(t){
+  if(!last) last = t;
+  const dt = t - last; last = t;
+  acc += dt;
+  const SPEED = 22; // sim speed ms
+  while(acc >= SPEED){
+    acc -= SPEED;
+    if(mouseDown && mx>=0) paint(mx, my, brush===4?6:4);
+    step();
+  }
+  render();
+  requestAnimationFrame(loop);
+}
+
+function pos(e){
+  const r = c.getBoundingClientRect();
+  const px = (e.touches?e.touches[0].clientX:e.clientX) - r.left;
+  const py = (e.touches?e.touches[0].clientY:e.clientY) - r.top;
+  mx = Math.floor(px / r.width * cols);
+  my = Math.floor(py / r.height * rows);
+}
+
+c.addEventListener('pointerdown', e=>{ mouseDown=true; pos(e); paint(mx,my,brush===4?6:4); hideHint(); });
+window.addEventListener('pointerup', ()=>{ mouseDown=false; });
+c.addEventListener('pointermove', e=>{ pos(e); });
+c.addEventListener('pointerleave', ()=>{ mx=-1; my=-1; });
+
+let hintHidden=false;
+function hideHint(){ if(hintHidden) return; hintHidden=true; const h=document.getElementById('hint'); h.style.opacity=0; }
+
+function updateTools(){
+  const names=['sand','water','stone','erase'];
+  document.getElementById('tools').innerHTML = names.map((n,i)=>{
+    const active = (i+1)===brush;
+    return active? `<span class="sel">${n}</span>` : n;
+  }).join(' · ');
+}
+
+window.addEventListener('keydown', e=>{
+  if(e.key==='1') brush=SAND;
+  else if(e.key==='2') brush=WATER;
+  else if(e.key==='3') brush=STONE;
+  else if(e.key==='4') brush=4;
+  else if(e.key==='c'||e.key==='C'){ grid.fill(0); }
+  updateTools();
+});
+
+window.addEventListener('resize', resize);
+resize();
+updateTools();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
