@@ -225,6 +225,32 @@ const switchPlate = box(0.16,0.24,0.03, 0xd8d2e0, -W/2+3.0, 1.25, D/2-0.03);
 const switchNub = box(0.08,0.12,0.03, 0x9a94a8, -W/2+3.0, 1.28, D/2-0.06);
 let lightsOn = true;
 
+// rainy window on the front wall
+const rainCanvas = document.createElement('canvas'); rainCanvas.width = 128; rainCanvas.height = 192;
+const rctx = rainCanvas.getContext('2d');
+const rainTex = new THREE.CanvasTexture(rainCanvas);
+const rainDrops = [];
+for(let i=0;i<70;i++) rainDrops.push({x:Math.random()*128, y:Math.random()*192, len:6+Math.random()*14, sp:90+Math.random()*120});
+function drawRain(dt){
+  rctx.fillStyle = '#0b1026'; rctx.fillRect(0,0,128,192);
+  const g = rctx.createLinearGradient(0,120,0,192);
+  g.addColorStop(0,'rgba(40,50,90,0)'); g.addColorStop(1,'rgba(60,70,120,0.5)');
+  rctx.fillStyle = g; rctx.fillRect(0,120,128,72);
+  rctx.strokeStyle = 'rgba(170,200,255,0.55)'; rctx.lineWidth = 1;
+  for(const d of rainDrops){
+    d.y += d.sp*dt; if(d.y > 192){ d.y = -d.len; d.x = Math.random()*128; }
+    rctx.beginPath(); rctx.moveTo(d.x, d.y); rctx.lineTo(d.x-2, d.y+d.len); rctx.stroke();
+  }
+  rainTex.needsUpdate = true;
+}
+drawRain(0);
+box(1.5,1.9,0.06, 0x2a2333, 1.9, 1.75, D/2-0.01);
+const winGlass = new THREE.Mesh(new THREE.PlaneGeometry(1.3,1.7), new THREE.MeshBasicMaterial({map:rainTex, transparent:true, opacity:0.9}));
+winGlass.position.set(1.9, 1.75, D/2-0.05); winGlass.rotation.y = Math.PI; room.add(winGlass);
+box(0.05,1.7,0.02, 0x2a2333, 1.9, 1.75, D/2-0.04);
+box(1.3,0.05,0.02, 0x2a2333, 1.9, 1.75, D/2-0.04);
+box(1.6,0.06,0.16, 0x2a2333, 1.9, 0.8, D/2-0.09);
+
 // ---- decorations ----
 function box(w,h,d,color,x,y,z,rough=0.8){
   const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshStandardMaterial({color, roughness:rough}));
@@ -819,6 +845,7 @@ function tick(){
     else promptEl.style.opacity='0';
   }
 
+  drawRain(dt);
   renderer.render(scene, camera);
   requestAnimationFrame(tick);
 }
