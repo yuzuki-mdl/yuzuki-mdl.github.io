@@ -196,6 +196,61 @@ for(let i=0;i<6;i++){
   h.rotation.y = Math.PI/2; scene.add(h);
 }
 
+// ---- little covered nook at the far end of the balcony ----
+const nookZ0 = OP_Z + (OP_W+0.6)/2; // 2.1, outer edge of balcony slab
+const nookD = 1.9;                  // depth of nook in z
+const nookW = 2.0;                  // matches slab width in x
+const nookCX = -W/2 - 1.0;          // same x-center as slab
+const nookZc = nookZ0 + nookD/2;
+// slab extension
+const nookSlab = new THREE.Mesh(new THREE.BoxGeometry(nookW, 0.12, nookD), slabMat);
+nookSlab.position.set(nookCX, 0.0, nookZc); room.add(nookSlab);
+// back wall of nook (far +z)
+const nookWallMat = new THREE.MeshStandardMaterial({color:0x342a40, roughness:.95, side:THREE.DoubleSide});
+const nookBack = new THREE.Mesh(new THREE.PlaneGeometry(nookW, H), nookWallMat);
+nookBack.position.set(nookCX, H/2, nookZ0 + nookD); room.add(nookBack);
+// side wall (far -x edge), the outer one, so the nook is sheltered from the city side
+const nookSide = new THREE.Mesh(new THREE.PlaneGeometry(nookD, H), nookWallMat);
+nookSide.position.set(nookCX - nookW/2, H/2, nookZc); nookSide.rotation.y = Math.PI/2; room.add(nookSide);
+// roof
+const nookRoofMat = new THREE.MeshStandardMaterial({color:0x2a2233, roughness:1});
+const nookRoof = new THREE.Mesh(new THREE.BoxGeometry(nookW+0.1, 0.08, nookD+0.1), nookRoofMat);
+nookRoof.position.set(nookCX, H, nookZc); room.add(nookRoof);
+// little chair in the nook
+const nookChairMat = new THREE.MeshStandardMaterial({color:0x6a4a3a, roughness:.8});
+const chairSeat = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.06,0.5), nookChairMat);
+chairSeat.position.set(nookCX, 0.45, nookZc+0.35); room.add(chairSeat);
+const chairBack = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.5,0.05), nookChairMat);
+chairBack.position.set(nookCX, 0.7, nookZc+0.6); room.add(chairBack);
+for(const [dx,dz] of [[-.2,-.2],[.2,-.2],[-.2,.2],[.2,.2]]){
+  const leg = new THREE.Mesh(new THREE.BoxGeometry(.05,.45,.05), nookChairMat);
+  leg.position.set(nookCX+dx, 0.225, nookZc+0.35+dz); room.add(leg);
+}
+// little side table
+const sideTable = new THREE.Mesh(new THREE.BoxGeometry(0.35,0.05,0.35), nookChairMat);
+sideTable.position.set(nookCX+0.55, 0.55, nookZc+0.35); room.add(sideTable);
+const stLeg = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.55,0.05), nookChairMat);
+stLeg.position.set(nookCX+0.55, 0.275, nookZc+0.35); room.add(stLeg);
+// a little mug on the table
+const nookMug = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.045,0.09,12), new THREE.MeshStandardMaterial({color:0xd8d2e0, roughness:.6}));
+nookMug.position.set(nookCX+0.55, 0.62, nookZc+0.35); room.add(nookMug);
+// hanging lantern
+const nookLantern = new THREE.Mesh(new THREE.SphereGeometry(0.1,12,12), new THREE.MeshBasicMaterial({color:0xffd9a0}));
+nookLantern.position.set(nookCX, H-0.35, nookZc); room.add(nookLantern);
+const nookLight = new THREE.PointLight(0xffc98a, 8, 6, 2);
+nookLight.position.copy(nookLantern.position); room.add(nookLight);
+const lanternWire = new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.35,6), new THREE.MeshStandardMaterial({color:0x1a1a20}));
+lanternWire.position.set(nookCX, H-0.17, nookZc); room.add(lanternWire);
+// a little potted plant in the corner
+const nookPlantPot = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.07,0.14,10), new THREE.MeshStandardMaterial({color:0x8a5a4a, roughness:.9}));
+nookPlantPot.position.set(nookCX-0.7, 0.07, nookZc+0.7); room.add(nookPlantPot);
+for(let i=0;i<5;i++){
+  const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.07,8,8), new THREE.MeshStandardMaterial({color:0x4a7a4a, roughness:.9}));
+  const a = i/5*Math.PI*2;
+  leaf.position.set(nookCX-0.7+Math.cos(a)*0.06, 0.2+Math.random()*0.1, nookZc+0.7+Math.sin(a)*0.06);
+  leaf.scale.y = 1.4; room.add(leaf);
+}
+
 // hanging lamp
 const lampBulb = new THREE.Mesh(new THREE.SphereGeometry(.12,16,16), new THREE.MeshBasicMaterial({color:0xffd9a0}));
 lampBulb.position.set(0,H-0.6,0); room.add(lampBulb);
@@ -817,8 +872,8 @@ function tick(){
   camera.position.x += vel.x*dt;
   camera.position.z += vel.z*dt;
   camera.position.z = Math.max(-BOUND.z, Math.min(BOUND.z, camera.position.z));
-  // allow stepping out onto the balcony through the doorway
-  const onBalconyZ = Math.abs(camera.position.z - OP_Z) < OP_W/2 - 0.3;
+  // allow stepping out onto the balcony through the doorway, and into the far nook
+  const onBalconyZ = (camera.position.z > OP_Z - (OP_W/2 - 0.3)) && (camera.position.z < nookZ0 + nookD - 0.3);
   const minX = onBalconyZ ? (-W/2 - 2.0 + 0.3) : -BOUND.x;
   camera.position.x = Math.max(minX, Math.min(BOUND.x, camera.position.x));
   camera.position.y = 1.6;
