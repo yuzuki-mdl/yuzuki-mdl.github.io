@@ -17,7 +17,7 @@
 <div id="hint">
   <b>my room</b><br>
   click to walk in<br>
-  <span style="opacity:.6">wasd move · mouse look · e = light switch · esc out</span>
+  <span style="opacity:.6">wasd move · mouse look · e = light switch<br>f pick up · r rotate · backspace delete · + to add · esc out</span>
 </div>
 <script type="importmap">
 { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
@@ -482,12 +482,59 @@ function dropHeld(){
   p.position.x = Math.max(-W/2+0.5, Math.min(W/2-0.5, p.position.x));
   p.position.z = Math.max(-D/2+0.5, Math.min(D/2-0.5, p.position.z));
   p.position.y = 0;
+  saveLayout();
 }
 
 addEventListener('keydown', e=>{
   if(e.code==='KeyF') tryGrab();
   if(e.code==='KeyR' && held) held.rotation.y += Math.PI/6;
+  if(e.code==='Backspace' && held){ // delete a prop
+    room.remove(held); props.splice(props.indexOf(held),1); held=null; saveLayout();
+  }
 });
+
+// ---- save / load layout ----
+const SAVE_KEY = 'room-layout-v1';
+function saveLayout(){
+  try{
+    const data = props.map(p=>({name:p.userData.name, x:p.position.x, z:p.position.z, ry:p.rotation.y}));
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  }catch(e){}
+}
+const MAKERS = {lamp:makeLamp, stool:makeStool, cushion:makeCushion, plant:makePlant, books:makeBooks};
+function loadLayout(){
+  let data = null;
+  try{ data = JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); }catch(e){}
+  if(!Array.isArray(data)) return;
+  for(const p of props.slice()){ room.remove(p); }
+  props.length = 0;
+  for(const d of data){
+    const mk = MAKERS[d.name]; if(!mk) continue;
+    const g = addProp(mk(), d.x, d.z, d.name);
+    g.rotation.y = d.ry||0;
+  }
+}
+loadLayout();
+
+// ---- spawn palette ----
+const pal = document.createElement('div');
+Object.assign(pal.style,{position:'fixed',right:'14px',bottom:'14px',display:'flex',gap:'6px',zIndex:6,font:'12px system-ui,sans-serif'});
+for(const name of Object.keys(MAKERS)){
+  const b=document.createElement('button');
+  b.textContent='+ '+name;
+  Object.assign(b.style,{background:'rgba(20,16,26,.7)',color:'#e8dcc0',border:'1px solid #3a3048',borderRadius:'8px',padding:'5px 9px',cursor:'pointer'});
+  b.onclick=()=>{
+    const fwd=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)).multiplyScalar(1.3);
+    const x=Math.max(-W/2+0.5,Math.min(W/2-0.5,camera.position.x+fwd.x));
+    const z=Math.max(-D/2+0.5,Math.min(D/2-0.5,camera.position.z+fwd.z));
+    addProp(MAKERS[name](), x, z, name); saveLayout();
+  };
+  pal.appendChild(b);
+}
+document.body.appendChild(pal);
+
+// save whenever a prop is placed, and on unload
+addEventListener('beforeunload', saveLayout);
 
 const promptEl = document.createElement('div');
 Object.assign(promptEl.style, {
@@ -499,7 +546,7 @@ Object.assign(promptEl.style, {
 document.body.appendChild(promptEl);
 
 const noteEl = document.createElement('div');
-noteEl.textContent='f pick up · r rotate';
+noteEl.textContent='f pick up · r rotate · backspace delete · + to add';
 Object.assign(noteEl.style,{position:'fixed',left:'14px',bottom:'14px',color:'#9a8fa8',font:'12px system-ui,sans-serif',letterSpacing:'.04em',opacity:'.7',pointerEvents:'none'});
 document.body.appendChild(noteEl);
 
