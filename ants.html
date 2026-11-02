@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ants</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0a08;overflow:hidden;font-family:ui-monospace,monospace;color:#e8dcc0}
+  canvas{display:block;width:100%;height:100%;cursor:crosshair}
+  #hud{position:fixed;left:12px;bottom:12px;font-size:12px;opacity:.55;line-height:1.5;pointer-events:none}
+  #hud b{color:#ffcf7a;font-weight:600}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  click + drag = drop food<br>
+  <b id="n">0</b> ants · <b id="f">0</b> food
+</div>
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W, H;
+function resize(){ W = cv.width = innerWidth * devicePixelRatio; H = cv.height = innerHeight * devicePixelRatio; cv.style.width = innerWidth+'px'; cv.style.height = innerHeight+'px'; }
+resize(); addEventListener('resize', resize);
+
+// nest
+const nest = { x: W/2, y: H/2 };
+
+// food piles: {x,y,amount}
+let foods = [];
+
+// ant
+const N = 220;
+const ants = [];
+for (let i=0;i<N;i++){
+  ants.push({
+    x: nest.x + (Math.random()-0.5)*40,
+    y: nest.y + (Math.random()-0.5)*40,
+    a: Math.random()*Math.PI*2,
+    carry: 0,
+    wander: Math.random()*1000,
+  });
+}
+
+// pheromone grid (trail home / trail food)
+const CELL = 8 * devicePixelRatio;
+let GW, GH, homeTrail, foodTrail;
+function makeGrid(){
+  GW = Math.ceil(W/CELL); GH = Math.ceil(H/CELL);
+  homeTrail = new Float32Array(GW*GH);
+  foodTrail = new Float32Array(GW*GH);
+}
+makeGrid();
+
+function gi(x,y){
+  const gx = (x/CELL)|0, gy = (y/CELL)|0;
+  if (gx<0||gy<0||gx>=GW||gy>=GH) return -1;
+  return gy*GW+gx;
+}
+
+function deposit(arr, x, y, amt){
+  const i = gi(x,y); if (i>=0) arr[i] = Math.min(3, arr[i]+amt);
+}
+function sample(arr, x, y){
+  const i = gi(x,y); return i>=0 ? arr[i] : 0;
+}
+
+// mouse
+let dragging=false, mx=0, my=0;
+cv.addEventListener('pointerdown', e=>{ dragging=true; mx=e.clientX*devicePixelRatio; my=e.clientY*devicePixelRatio; dropFood(mx,my); });
+cv.addEventListener('pointermove', e=>{ mx=e.clientX*devicePixelRatio; my=e.clientY*devicePixelRatio; if(dragging) dropFood(mx,my); });
+addEventListener('pointerup', ()=> dragging=false);
+
+let foodAcc=0;
+function dropFood(x,y){
+  foodAcc += 1;
+  if (foodAcc < 3) return;
+  foodAcc = 0;
+  // merge into nearby pile
+  for (const f of foods){
+    const dx=f.x-x, dy=f.y-y;
+    if (dx*dx+dy*dy < 400*devicePixelRatio*devicePixelRatio){ f.amount = Math.min(60, f.amount+3); return; }
+  }
+  foods.push({x, y, amount: 8});
+}
+
+function nearestFood(x,y){
+  let best=null, bd=Infinity;
+  for (const f of foods){
+    if (f.amount<=0) continue;
+    const dx=f.x-x, dy=f.y-y, d=dx*dx+dy*dy;
+    if (d<bd){ bd=d; best=f; }
+  }
+  return best;
+}
+
+const SPEED = 1.4 * devicePixelRatio;
+const TURN = 0.45;
+
+function stepAnt(ant){
+  // sense: pick direction by weighted trail + goal
+  let target=null;
+  if (ant.carry){ target = nest; }
+  else {
+    const f = nearestFood(ant.x, ant.y);
+    if (f) target = f;
+  }
+
+  let desired = ant.a;
+  if (target){
+    const dx = target.x - ant.x, dy = target.y - ant.y;
+    const ta = Math.atan2(dy, dx);
+    // steer toward target with a little wobble
+    let diff = ta - ant.a;
+    while (diff > Math.PI) diff -= Math.PI*2;
+    while (diff < -Math.PI) diff += Math.PI*2;
+    desired = ant.a + Math.sign(diff) * Math.min(Math.abs(diff), 0.12);
+  }
+
+  // trail following
+  const arr = ant.carry ? foodTrail : homeTrail;
+  let bestA = desired, bestV = -1;
+  for (let k=-2;k<=2;k++){
+    const a = ant.a + k*0.35;
+    const px = ant.x + Math.cos(a)*CELL*1.5;
+    const py = ant.y + Math.sin(a)*CELL*1.5;
+    const v = sample(arr, px, py) + (k===0?0.05:0);
+    if (v > bestV){ bestV = v; bestA = a; }
+  }
+
+  if (target && bestV < 0.15){ ant.a = desired; }
+  else { ant.a = bestA; }
+
+  // wander
+  ant.wander += 0.3;
+  ant.a += Math.sin(ant.wander)*0.05;
+
+  ant.x += Math.cos(ant.a)*SPEED;
+  ant.y += Math.sin(ant.a)*SPEED;
+
+  // walls
+  if (ant.x<2){ ant.x=2; ant.a=Math.PI-ant.a; }
+  if (ant.x>W-2){ ant.x=W-2; ant.a=Math.PI-ant.a; }
+  if (ant.y<2){ ant.y=2; ant.a=-ant.a; }
+  if (ant.y>H-2){ ant.y=H-2; ant.a=-ant.a; }
+
+  // deposit trail
+  if (ant.carry) deposit(foodTrail, ant.x, ant.y, 0.08);
+  else deposit(homeTrail, ant.x, ant.y, 0.05);
+
+  // pick up / drop
+  if (!ant.carry){
+    for (const f of foods){
+      if (f.amount<=0) continue;
+      const dx=f.x-ant.x, dy=f.y-ant.y;
+      if (dx*dx+dy*dy < 100*devicePixelRatio*devicePixelRatio){
+        f.amount -= 1; ant.carry = 1; ant.a += Math.PI; break;
+      }
+    }
+  } else {
+    const dx=nest.x-ant.x, dy=nest.y-ant.y;
+    if (dx*dx+dy*dy < 300*devicePixelRatio*devicePixelRatio){
+      ant.carry = 0; ant.a += Math.PI + (Math.random()-0.5);
+    }
+  }
+}
+
+function decay(arr, rate){
+  for (let i=0;i<arr.length;i++){ arr[i] *= rate; if (arr[i]<0.001) arr[i]=0; }
+}
+
+let fEl = document.getElementById('f');
+let nEl = document.getElementById('n');
+let frame=0;
+function loop(){
+  frame++;
+  // fade previous frame a little
+  ctx.fillStyle = 'rgba(11,10,8,0.22)';
+  ctx.fillRect(0,0,W,H);
+
+  // draw pheromone trails faintly
+  ctx.globalCompositeOperation = 'lighter';
+  const cs = CELL;
+  for (let gy=0; gy<GH; gy++){
+    for (let gx=0; gx<GW; gx++){
+      const i = gy*GW+gx;
+      const h = homeTrail[i], f = foodTrail[i];
+      if (h<0.02 && f<0.02) continue;
+      if (f>0.02){ ctx.fillStyle = `rgba(255,180,90,${Math.min(0.18,f*0.09)})`; }
+      else { ctx.fillStyle = `rgba(90,150,220,${Math.min(0.10,h*0.05)})`; }
+      ctx.fillRect(gx*cs, gy*cs, cs, cs);
+    }
+  }
+  ctx.globalCompositeOperation = 'source-over';
+
+  // nest
+  ctx.beginPath();
+  ctx.fillStyle = '#3a2a18';
+  ctx.arc(nest.x, nest.y, 14*devicePixelRatio, 0, 7);
+  ctx.fill();
+  ctx.strokeStyle = '#6b4d2a';
+  ctx.lineWidth = 2*devicePixelRatio;
+  ctx.stroke();
+
+  // food
+  let totalFood = 0;
+  for (const f of foods){
+    if (f.amount<=0) continue;
+    totalFood += f.amount;
+    const r = (3 + Math.sqrt(f.amount)*2.2) * devicePixelRatio;
+    ctx.beginPath();
+    ctx.fillStyle = '#8fd48a';
+    ctx.arc(f.x, f.y, r, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,0.25)';
+    ctx.beginPath();
+    ctx.arc(f.x-r*0.3, f.y-r*0.3, r*0.35, 0, 7);
+    ctx.fill();
+  }
+
+  // ants
+  for (const ant of ants){
+    stepAnt(ant);
+    ctx.beginPath();
+    ctx.fillStyle = ant.carry ? '#ffcf7a' : '#e8dcc0';
+    ctx.arc(ant.x, ant.y, 1.9*devicePixelRatio, 0, 7);
+    ctx.fill();
+  }
+
+  decay(homeTrail, 0.996);
+  decay(foodTrail, 0.994);
+
+  // prune dead food
+  if (frame % 30 === 0) foods = foods.filter(f=>f.amount>0);
+
+  if (frame % 6 === 0){ fEl.textContent = Math.round(totalFood); nEl.textContent = N; }
+
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
