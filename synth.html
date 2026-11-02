@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>synth</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0a10;color:#cfc6e0;font-family:ui-monospace,monospace;overflow:hidden;user-select:none;-webkit-user-select:none;touch-action:none}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  #top{flex:0 0 auto;display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:14px 18px;font-size:.78rem;color:#7a7090}
+  #top label{display:flex;align-items:center;gap:6px}
+  select,input[type=range]{accent-color:#8f7bd8;background:#17141f;color:#cfc6e0;border:1px solid #2a2438;border-radius:6px;padding:2px 4px;font-family:inherit;font-size:.75rem}
+  input[type=range]{padding:0;vertical-align:middle;width:80px}
+  #keys{flex:1 1 auto;position:relative;display:flex;padding:0 10px 14px}
+  .key{position:relative;flex:1 1 0;border-radius:0 0 7px 7px;background:linear-gradient(#efeaf6,#cfc6e0);border:1px solid #1a1622;border-top:none;box-shadow:0 3px 0 #1a1622;transition:transform .04s,filter .04s}
+  .key.black{position:absolute;top:0;height:62%;z-index:2;background:linear-gradient(#2a2438,#141019);border-radius:0 0 6px 6px;box-shadow:0 3px 0 #000}
+  .key.on{filter:brightness(1.15);transform:translateY(2px);box-shadow:0 1px 0 #1a1622}
+  .key.black.on{filter:brightness(1.6)}
+  .key .lbl{position:absolute;bottom:6px;left:0;right:0;text-align:center;font-size:.6rem;color:#5a5170;pointer-events:none}
+  .key.black .lbl{color:#6a6088;bottom:4px}
+  #hint{position:fixed;left:12px;bottom:6px;color:#3f3850;font-size:.66rem;pointer-events:none;z-index:5}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="top">
+    <label>wave <select id="wave"><option>sine</option><option>triangle</option><option>square</option><option>sawtooth</option></select></label>
+    <label>attack <input id="atk" type="range" min="0" max="0.5" step="0.01" value="0.01"></label>
+    <label>release <input id="rel" type="range" min="0.05" max="2" step="0.01" value="0.5"></label>
+    <label>octave <input id="oct" type="range" min="-2" max="2" step="1" value="0"></label>
+    <label>drone <input id="drone" type="checkbox"></label>
+  </div>
+  <div id="keys"></div>
+</div>
+<div id="hint">click / tap the keys · or type on ur keyboard (a w s e d f t g y h u j k) · hold drone for a pad</div>
+<script>
+let actx,synth,master,droneOsc,droneGain;
+const waveSel=document.getElementById('wave');
+const atk=document.getElementById('atk'),rel=document.getElementById('rel'),oct=document.getElementById('oct'),drone=document.getElementById('drone');
+const keysEl=document.getElementById('keys');
+const NOTE_NAMES=['c','c#','d','d#','e','f','f#','g','g#','a','a#','b'];
+const WHITE=[0,2,4,5,7,9,11];
+// keyboard letter -> semitone offset from base octave
+const KEYMAP={'a':0,'w':1,'s':2,'e':3,'d':4,'f':5,'t':6,'g':7,'y':8,'h':9,'u':10,'j':11,'k':12,'o':13,'l':14,'p':15};
+
+function ensureAudio(){
+  if(actx) return;
+  actx=new (window.AudioContext||window.webkitAudioContext)();
+  master=actx.createGain(); master.gain.value=0.85; master.connect(actx.destination);
+  synth=actx.createGain(); synth.connect(master);
+  droneOsc=actx.createOscillator(); droneGain=actx.createGain();
+  droneGain.gain.value=0; droneOsc.type='sine'; droneOsc.frequency.value=110;
+  droneOsc.connect(droneGain).connect(master); droneOsc.start();
+}
+
+function midiToFreq(m){ return 440*Math.pow(2,(m-69)/12); }
+
+// build two octaves of keys
+const BASE=60; // c4
+const keys=[];
+function buildKeys(){
+  keysEl.innerHTML='';
+  const octaves=2;
+  const whiteCount=7*octaves;
+  // white keys first (flex layout)
+  let idx=0;
+  for(let o=0;o<octaves;o++){
+    for(let w=0;w<7;w++){
+      const semi=WHITE[w]; const midi=BASE+o*12+semi;
+      const k=document.createElement('div');
+      k.className='key'; k.dataset.midi=midi;
+      const nm=NOTE_NAMES[(midi%12)]+Math.floor(midi/12-1);
+      k.innerHTML='<span class="lbl">'+nm+'</span>';
+      keysEl.appendChild(k);
+      keys.push(k);
+    }
+  }
+  // black keys positioned by measuring white widths
+  requestAnimationFrame(()=>{
+    const whites=[...keysEl.querySelectorAll('.key:not(.black)')];
+    const ww=whites[0].getBoundingClientRect().width;
+    const left0=whites[0].getBoundingClientRect().left - keysEl.getBoundingClientRect().left;
+    const blackAfter=[0,1,3,4,5]; // c,d,f,g,a in each octave have a black to their right
+    let wi=0;
+    for(let o=0;o<octaves;o++){
+      for(let w=0;w<7;w++){
+        if(blackAfter.includes(w)){
+          const midi=BASE+o*12+WHITE[w]+1;
+          const k=document.createElement('div');
+          k.className='key black'; k.dataset.midi=midi;
+          const nm=NOTE_NAMES[midi%12]+Math.floor(midi/12-1);
+          k.innerHTML='<span class="lbl">'+nm+'</span>';
+          const cx=left0 + (wi+1)*ww;
+          k.style.left=(cx-ww*0.32)+'px'; k.style.width=(ww*0.64)+'px';
+          keysEl.appendChild(k);
+          keys.push(k);
+        }
+        wi++;
+      }
+    }
+  });
+}
+
+const active={};
+function playMidi(midi,vel=1){
+  ensureAudio(); if(actx.state==='suspended') actx.resume();
+  const f=midiToFreq(midi + (parseInt(oct.value,10)||0)*12);
+  const t=actx.currentTime;
+  const o=actx.createOscillator(); o.type=waveSel.value; o.frequency.value=f;
+  const g=actx.createGain();
+  const a=parseFloat(atk.value)||0.01, r=parseFloat(rel.value)||0.5;
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(0.28*vel,t+a+0.001);
+  o.connect(g).connect(master);
+  o.start(t);
+  return {o,g,t,r};
+}
+function stopVoice(note){
+  if(!note) return; const {o,g,r}=note; const t=actx.currentTime;
+  g.gain.cancelScheduledValues(t);
+  g.gain.setValueAtTime(Math.max(g.gain.value,0.0001),t);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+r);
+  o.stop(t+r+0.02);
+}
+
+function down(el){
+  const midi=parseInt(el.dataset.midi,10);
+  if(active[midi]) return;
+  active[midi]=playMidi(midi);
+  el.classList.add('on');
+}
+function up(el){
+  const midi=parseInt(el.dataset.midi,10);
+  if(active[midi]){ stopVoice(active[midi]); delete active[midi]; }
+  el.classList.remove('on');
+}
+
+// pointer events on keys
+let pointing=false;
+function keyFromPoint(x,y){
+  const els=document.elementsFromPoint(x,y);
+  for(const e of els){ if(e.classList&&e.classList.contains('key')) return e; }
+  return null;
+}
+keysEl.addEventListener('pointerdown',e=>{
+  const k=e.target.closest('.key'); if(!k) return;
+  pointing=true; keysEl.setPointerCapture(e.pointerId); down(k); e.preventDefault();
+});
+keysEl.addEventListener('pointermove',e=>{
+  if(!pointing) return;
+  // glide: release keys not under pointer, press new one
+  const k=keyFromPoint(e.clientX,e.clientY);
+  for(const el of keys){ if(el.classList.contains('on') && el!==k) up(el); }
+  if(k && !k.classList.contains('on')) down(k);
+});
+window.addEventListener('pointerup',()=>{ pointing=false; for(const el of keys) if(el.classList.contains('on')) up(el); });
+
+// computer keyboard
+const keyElByMidi={};
+function refreshKeyMap(){ for(const el of keys){ keyElByMidi[parseInt(el.dataset.midi,10)]=el; } }
+window.addEventListener('keydown',e=>{
+  if(e.repeat) return;
+  const k=e.key.toLowerCase();
+  if(k in KEYMAP){
+    const midi=BASE+KEYMAP[k];
+    const el=keyElByMidi[midi];
+    if(el) down(el);
+    e.preventDefault();
+  }
+});
+window.addEventListener('keyup',e=>{
+  const k=e.key.toLowerCase();
+  if(k in KEYMAP){ const midi=BASE+KEYMAP[k]; const el=keyElByMidi[midi]; if(el) up(el); }
+});
+
+// drone pad
+drone.addEventListener('change',()=>{
+  ensureAudio(); if(actx.state==='suspended') actx.resume();
+  const t=actx.currentTime;
+  droneGain.gain.cancelScheduledValues(t);
+  droneGain.gain.setValueAtTime(droneGain.gain.value,t);
+  droneGain.gain.linearRampToValueAtTime(drone.checked?0.12:0,t+0.3);
+});
+
+buildKeys();
+setTimeout(refreshKeyMap,50);
+addEventListener('resize',()=>{ keysEl.innerHTML=''; keys.length=0; buildKeys(); setTimeout(refreshKeyMap,60); });
+</script>
+</body>
+</html>
