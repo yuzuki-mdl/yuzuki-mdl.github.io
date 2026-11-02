@@ -597,7 +597,47 @@ function makeCat(){
   return g;
 }
 
-const MAKERS = {lamp:makeLamp, stool:makeStool, cushion:makeCushion, plant:makePlant, books:makeBooks, counter:makeCounter, kettle:makeKettle, mug:makeMug, stove:makeStove, fridge:makeFridge, rug:makeRug, cat:makeCat};
+const fireFlames = [];
+function makeFireplace(){
+  const g=new THREE.Group();
+  // hearth base
+  const base=new THREE.Mesh(new THREE.BoxGeometry(1.5,0.12,0.6), propMat(0x4a4450,.95));
+  base.position.y=0.06; g.add(base);
+  // body / surround
+  const body=new THREE.Mesh(new THREE.BoxGeometry(1.4,1.25,0.5), propMat(0x5a5262,1));
+  body.position.y=0.7; g.add(body);
+  // firebox recess (dark)
+  const firebox=new THREE.Mesh(new THREE.BoxGeometry(0.9,0.7,0.15), propMat(0x140f18,1));
+  firebox.position.set(0,0.55,0.19); g.add(firebox);
+  // logs
+  for(const o of [-0.12,0.12]){
+    const log=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.55,8), propMat(0x3a2a20,1));
+    log.rotation.z=Math.PI/2; log.position.set(0,0.28+o*0.3,0.22); g.add(log);
+  }
+  // flames
+  for(let i=0;i<3;i++){
+    const f=new THREE.Mesh(new THREE.ConeGeometry(0.1,0.32,8), new THREE.MeshBasicMaterial({color:0xff8a3a, transparent:true, opacity:0.85}));
+    f.position.set((i-1)*0.16,0.44,0.24); g.add(f); fireFlames.push(f);
+  }
+  // mantel shelf
+  const mantel=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.1,0.62), propMat(0x6b5f78,1));
+  mantel.position.set(0,1.36,0.02); g.add(mantel);
+  // little things on the mantel: a candle + a tiny plant
+  const candle=new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.18,8), propMat(0xe8dcc0,1));
+  candle.position.set(-0.5,1.5,0.05); g.add(candle);
+  const flame=new THREE.Mesh(new THREE.SphereGeometry(0.03,6,6), new THREE.MeshBasicMaterial({color:0xffd9a0}));
+  flame.position.set(-0.5,1.62,0.05); g.add(flame);
+  const pot=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.06,0.1,8), propMat(0x8a5a3a,1));
+  pot.position.set(0.5,1.46,0.05); g.add(pot);
+  const leaf=new THREE.Mesh(new THREE.SphereGeometry(0.09,8,6), propMat(0x4a7a4a,1));
+  leaf.scale.set(1,1.3,1); leaf.position.set(0.5,1.58,0.05); g.add(leaf);
+  // warm light
+  const glow=new THREE.PointLight(0xff7a2a, 6, 5, 2);
+  glow.position.set(0,0.5,0.4); g.add(glow);
+  return g;
+}
+
+const MAKERS = {lamp:makeLamp, stool:makeStool, cushion:makeCushion, plant:makePlant, books:makeBooks, counter:makeCounter, kettle:makeKettle, mug:makeMug, stove:makeStove, fridge:makeFridge, rug:makeRug, cat:makeCat, fireplace:makeFireplace};
 function loadLayout(){
   let data = null;
   try{ data = JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); }catch(e){}
@@ -614,7 +654,7 @@ loadLayout();
 
 // ---- spawn palette ----
 const pal = document.createElement('div');
-Object.assign(pal.style,{position:'fixed',right:'14px',bottom:'14px',display:'flex',gap:'6px',zIndex:6,font:'12px system-ui,sans-serif'});
+Object.assign(pal.style,{position:'fixed',right:'14px',bottom:'14px',display:'flex',flexWrap:'wrap',justifyContent:'flex-end',gap:'6px',zIndex:6,maxWidth:'min(60vw,520px)',font:'12px system-ui,sans-serif'});
 for(const name of Object.keys(MAKERS)){
   const b=document.createElement('button');
   b.textContent='+ '+name;
@@ -712,6 +752,16 @@ function tick(){
 
   // gentle lamp flicker (only when on)
   if(lightsOn) lampLight.intensity = 18 + Math.sin(performance.now()*0.003)*1.2;
+
+  // fireplace flames flicker
+  if(fireFlames.length){
+    const t = performance.now()*0.008;
+    for(let i=0;i<fireFlames.length;i++){
+      const f = fireFlames[i];
+      const s = 0.85 + Math.sin(t + i*1.7)*0.18 + Math.random()*0.06;
+      f.scale.y = s; f.scale.x = f.scale.z = 0.9 + Math.sin(t*1.3+i)*0.1;
+    }
+  }
 
   // the cat plush blinks now and then
   const now = performance.now();
