@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>double pendulum</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0e14;overflow:hidden;font-family:ui-monospace,monospace;color:#8ea0b8}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  #hud{position:fixed;left:14px;bottom:12px;font-size:12px;line-height:1.5;opacity:.7;pointer-events:none}
+  #hud b{color:#e6b980}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><b>drag</b> to pull &nbsp; <b>space</b> reset &nbsp; double pendulum chaos</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',resize);
+
+// state: two arms, angles from vertical
+const L1=1,L2=1,m1=1,m2=1,g=9.81;
+let a1,a2,w1,w2;
+let trail=[];
+const MAXTRAIL=1400;
+
+function reset(){
+  a1=Math.PI/2+0.3; a2=Math.PI/2+0.6; w1=0; w2=0;
+  trail=[];
+}
+reset();
+
+function deriv(a1,a2,w1,w2){
+  const d=a1-a2;
+  const den=(2*m1+m2-m2*Math.cos(2*d));
+  const da1=w1, da2=w2;
+  const dw1=(-g*(2*m1+m2)*Math.sin(a1)-m2*g*Math.sin(a1-2*a2)-2*Math.sin(d)*m2*(w2*w2*L2+w1*w1*L1*Math.cos(d)))/(L1*den);
+  const dw2=(2*Math.sin(d)*(w1*w1*L1*(m1+m2)+g*(m1+m2)*Math.sin(a1)+w2*w2*L2*m2*Math.cos(d)))/(L2*den);
+  return [da1,da2,dw1,dw2];
+}
+
+function step(dt){
+  // rk4
+  const k1=deriv(a1,a2,w1,w2);
+  const k2=deriv(a1+dt/2*k1[0],a2+dt/2*k1[1],w1+dt/2*k1[2],w2+dt/2*k1[3]);
+  const k3=deriv(a1+dt/2*k2[0],a2+dt/2*k2[1],w1+dt/2*k2[2],w2+dt/2*k2[3]);
+  const k4=deriv(a1+dt*k3[0],a2+dt*k3[1],w1+dt*k3[2],w2+dt*k3[3]);
+  a1+=dt/6*(k1[0]+2*k2[0]+2*k3[0]+k4[0]);
+  a2+=dt/6*(k1[1]+2*k2[1]+2*k3[1]+k4[1]);
+  w1+=dt/6*(k1[2]+2*k2[2]+2*k3[2]+k4[2]);
+  w2+=dt/6*(k1[3]+2*k2[3]+2*k3[3]+k4[3]);
+}
+
+let scale,ox,oy;
+function toScreen(a,b){
+  const x1=ox+Math.sin(a)*L1*scale;
+  const y1=oy+Math.cos(a)*L1*scale;
+  const x2=x1+Math.sin(b)*L2*scale;
+  const y2=y1+Math.cos(b)*L2*scale;
+  return [x1,y1,x2,y2];
+}
+
+let dragging=false;
+function pt(e){const r=cv.getBoundingClientRect();const t=e.touches?e.touches[0]:e;return [t.clientX-r.left,t.clientY-r.top];}
+function down(e){dragging=true;moveDrag(e);e.preventDefault();}
+function moveDrag(e){
+  if(!dragging)return;
+  const [mx,my]=pt(e);
+  // pull second bob toward mouse, set angles, kill velocity
+  let dx=mx-ox,dy=my-oy;
+  // solve a1 from first joint approx: aim whole thing at mouse
+  let dist=Math.hypot(dx,dy);
+  a1=Math.atan2(dx,dy);
+  a2=a1;
+  w1=0;w2=0;
+  trail=[];
+  e.preventDefault&&e.preventDefault();
+}
+function up(){dragging=false;}
+cv.addEventListener('mousedown',down);addEventListener('mousemove',moveDrag);addEventListener('mouseup',up);
+cv.addEventListener('touchstart',down,{passive:false});addEventListener('touchmove',moveDrag,{passive:false});addEventListener('touchend',up);
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();reset();}});
+
+let last=performance.now(),acc=0;
+function frame(now){
+  const dt=Math.min((now-last)/1000,0.05);last=now;
+  scale=Math.min(W,H)*0.22; ox=W/2; oy=H*0.34;
+  if(!dragging){
+    acc+=dt; const h=0.002;
+    while(acc>h){step(h);acc-=h;}
+  }
+  const [x1,y1,x2,y2]=toScreen(a1,a2);
+  trail.push([x2,y2]);
+  if(trail.length>MAXTRAIL)trail.shift();
+
+  ctx.fillStyle='rgba(11,14,20,0.22)';ctx.fillRect(0,0,W,H);
+
+  // trail
+  for(let i=1;i<trail.length;i++){
+    const t=i/trail.length;
+    ctx.strokeStyle=`hsla(${200+t*120},80%,60%,${t*0.7})`;
+    ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(trail[i-1][0],trail[i-1][1]);ctx.lineTo(trail[i][0],trail[i][1]);ctx.stroke();
+  }
+
+  // arms
+  ctx.strokeStyle='#8ea0b8';ctx.lineWidth=3;
+  ctx.beginPath();ctx.moveTo(ox,oy);ctx.lineTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+  // pivots
+  ctx.fillStyle='#e6b980';
+  ctx.beginPath();ctx.arc(ox,oy,5,0,7);ctx.fill();
+  ctx.beginPath();ctx.arc(x1,y1,7,0,7);ctx.fill();
+  ctx.fillStyle='#ff8a65';
+  ctx.beginPath();ctx.arc(x2,y2,9,0,7);ctx.fill();
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
