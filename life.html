@@ -2,134 +2,198 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>life-like</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>life — rule explorer</title>
 <style>
-  html,body{margin:0;height:100%;background:#0b0b12;color:#cdd;font-family:ui-monospace,monospace;overflow:hidden}
-  #wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px}
-  canvas{background:#0b0b12;image-rendering:pixelated;border:1px solid #23233a;box-shadow:0 0 40px #000 inset;touch-action:none}
-  #bar{display:flex;gap:10px;align-items:center;font-size:13px;flex-wrap:wrap;justify-content:center;max-width:96vw}
-  input,select,button{background:#16162a;color:#cdd;border:1px solid #2a2a45;font-family:inherit;font-size:13px;padding:4px 7px;border-radius:4px}
-  button{cursor:pointer}
-  button:hover{border-color:#6cf}
-  #rule{width:110px;text-align:center;letter-spacing:2px;color:#fc6}
-  .dim{color:#556}
+  :root{--bg:#0a0e14;--fg:#c9d6e3;--dim:#5a6b7d;--accent:#6fd3c7;--warm:#e8a86b}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:ui-monospace,Menlo,Consolas,monospace}
+  #wrap{display:flex;flex-direction:column;height:100%}
+  header{padding:10px 14px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;border-bottom:1px solid #1a2330}
+  h1{font-size:14px;margin:0 12px 0 0;font-weight:600;color:var(--accent);letter-spacing:.5px}
+  .grp{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--dim)}
+  input[type=text]{width:110px;background:#111823;border:1px solid #24303f;color:var(--fg);font-family:inherit;font-size:12px;padding:4px 6px;border-radius:4px}
+  input[type=text]:focus{outline:none;border-color:var(--accent)}
+  select{background:#111823;border:1px solid #24303f;color:var(--fg);font-family:inherit;font-size:12px;padding:4px 6px;border-radius:4px}
+  button{background:#16202c;border:1px solid #24303f;color:var(--fg);font-family:inherit;font-size:12px;padding:4px 10px;border-radius:4px;cursor:pointer}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button.on{background:var(--accent);color:#08110f;border-color:var(--accent)}
+  #canvas{flex:1;display:block;cursor:crosshair;image-rendering:pixelated}
+  #hud{padding:6px 14px;font-size:11px;color:var(--dim);display:flex;gap:16px;border-top:1px solid #1a2330}
+  #hud b{color:var(--fg);font-weight:500}
 </style>
 </head>
 <body>
 <div id="wrap">
-  <div id="bar">
-    <input id="rule" value="B3/S23" spellcheck="false">
+  <header>
+    <h1>life · rule explorer</h1>
+    <div class="grp">B<input id="birth" type="text" value="3" spellcheck="false">/S<input id="survive" type="text" value="23" spellcheck="false"></div>
     <select id="preset">
-      <option value="B3/S23">Conway (B3/S23)</option>
-      <option value="B35678/S5678">Diamoeba</option>
-      <option value="B3/S1234">Mazectric</option>
-      <option value="B2/S">Seeds</option>
-      <option value="B3678/S34678">Day &amp; Night</option>
-      <option value="B3/S12345">Maze</option>
-      <option value="B2/S12345">Anne</option>
-      <option value="B1357/S1357">Replicator</option>
-      <option value="B36/S125">2x2</option>
+      <option value="3/23">life (B3/S23)</option>
+      <option value="36/23">highlife (B36/S23)</option>
+      <option value="2/0">seeds (B2/S)</option>
+      <option value="3/23,34,45,58">day &amp; night</option>
+      <option value="35678/5678">diamoeba</option>
+      <option value="3/12345">maze</option>
+      <option value="3/123">2x2 (B3/S123)</option>
+      <option value="1/1">anneal-like (B1/S1)</option>
+      <option value="34/34">coagulations</option>
     </select>
-    <button id="run">pause</button>
-    <button id="rand">random</button>
+    <button id="play">play</button>
+    <button id="step">step</button>
     <button id="clear">clear</button>
-    <span class="dim">click / drag to draw</span>
-  </div>
-  <canvas id="c"></canvas>
+    <button id="rand">random</button>
+    <div class="grp">speed <input id="speed" type="range" min="1" max="60" value="20" style="width:90px"></div>
+  </header>
+  <canvas id="canvas"></canvas>
+  <div id="hud"><span>gen <b id="gen">0</b></span><span>pop <b id="pop">0</b></span><span>rule <b id="ruleHud">B3/S23</b></span><span id="msg"></span></div>
 </div>
 <script>
-const CELL=6;
-const cv=document.getElementById('c'), cx=cv.getContext('2d');
-let cols, rows, grid, running=true, born, survive, last=0, speedMs=90;
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+const birthEl=document.getElementById('birth'),surviveEl=document.getElementById('survive');
+const presetEl=document.getElementById('preset'),speedEl=document.getElementById('speed');
+const genEl=document.getElementById('gen'),popEl=document.getElementById('pop'),ruleHud=document.getElementById('ruleHud'),msgEl=document.getElementById('msg');
+const playBtn=document.getElementById('play');
 
-function fit(){
-  const availW=Math.min(window.innerWidth-20, 1100);
-  const availH=window.innerHeight-120;
-  cols=Math.max(20,Math.floor(availW/CELL));
-  rows=Math.max(20,Math.floor(availH/CELL));
-  cv.width=cols*CELL; cv.height=rows*CELL;
-  grid=new Uint8Array(cols*rows);
-  seed();
+let CELL=6; // px per cell, set on resize
+let cols=0,rows=0;
+let grid=null,buf=null;
+let running=false,gen=0;
+let birth=new Set([3]),survive=new Set([2,3]);
+let acc=0,last=0;
+
+function parseRule(){
+  const b=birthEl.value.replace(/[^0-8]/g,'');
+  const s=surviveEl.value.replace(/[^0-8]/g,'');
+  birth=new Set([...b].map(Number));
+  survive=new Set([...s].map(Number));
+  ruleHud.textContent='B'+b+'/S'+s;
 }
 
-function seed(){
-  for(let i=0;i<grid.length;i++) grid[i]=Math.random()<0.18?1:0;
+function resize(){
+  const r=canvas.getBoundingClientRect();
+  canvas.width=Math.floor(r.width);
+  canvas.height=Math.floor(r.height);
+  const nc=Math.floor(canvas.width/CELL), nr=Math.floor(canvas.height/CELL);
+  const old=grid,oc=cols,orr=rows;
+  cols=nc;rows=nr;
+  grid=new Uint8Array(cols*rows);
+  buf=new Uint8Array(cols*rows);
+  if(old){
+    const cx=Math.min(oc,cols),cy=Math.min(orr,rows);
+    for(let y=0;y<cy;y++)for(let x=0;x<cx;x++)grid[y*cols+x]=old[y*oc+x];
+  }
   draw();
 }
 
-function parseRule(s){
-  // B3/S23 style
-  const m=/B([0-8]*)\/?S([0-8]*)/i.exec(s.replace(/\s/g,''));
-  if(!m){ return false; }
-  born=new Set((m[1]||'').split('').map(Number));
-  survive=new Set((m[2]||'').split('').map(Number));
-  return true;
+function idx(x,y){ return y*cols+x; }
+
+function neighborCount(x,y){
+  let n=0;
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+    if(dx===0&&dy===0)continue;
+    const nx=(x+dx+cols)%cols, ny=(y+dy+rows)%rows;
+    n+=grid[ny*cols+nx];
+  }
+  return n;
 }
 
 function step(){
-  const ng=new Uint8Array(grid.length);
-  for(let y=0;y<rows;y++){
-    for(let x=0;x<cols;x++){
-      let n=0;
-      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
-        if(dx===0&&dy===0)continue;
-        const nx=(x+dx+cols)%cols, ny=(y+dy+rows)%rows;
-        n+=grid[ny*cols+nx];
-      }
-      const a=grid[y*cols+x];
-      ng[y*cols+x] = a ? (survive.has(n)?1:0) : (born.has(n)?1:0);
-    }
+  let pop=0;
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+    const n=neighborCount(x,y);
+    const alive=grid[idx(x,y)];
+    const next=alive?(survive.has(n)?1:0):(birth.has(n)?1:0);
+    buf[idx(x,y)]=next;
+    pop+=next;
   }
-  grid=ng;
+  const t=grid;grid=buf;buf=t;
+  gen++;
+  genEl.textContent=gen;
+  popEl.textContent=pop;
 }
 
 function draw(){
-  cx.fillStyle='#0b0b12'; cx.fillRect(0,0,cv.width,cv.height);
-  cx.fillStyle='#8f9';
+  ctx.fillStyle='#0a0e14';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle='#6fd3c7';
   for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
-    if(grid[y*cols+x]) cx.fillRect(x*CELL+1,y*CELL+1,CELL-2,CELL-2);
+    if(grid[idx(x,y)]) ctx.fillRect(x*CELL,y*CELL,CELL-1,CELL-1);
   }
 }
 
 function loop(t){
+  if(!running){ last=t; return; }
+  if(!last)last=t;
+  const dt=t-last; last=t;
+  acc+=dt;
+  const interval=1000/Number(speedEl.value);
+  let did=false;
+  while(acc>=interval){ step(); acc-=interval; did=true; }
+  if(did)draw();
   requestAnimationFrame(loop);
-  if(!running) return;
-  if(t-last<speedMs) return;
-  last=t;
-  step(); draw();
 }
 
-// draw with mouse / touch
-let drawing=false, drawVal=1;
-function paint(ev){
-  const r=cv.getBoundingClientRect();
-  const px=(ev.clientX-r.left)*(cv.width/r.width);
-  const py=(ev.clientY-r.top)*(cv.height/r.height);
+function togglePlay(){
+  running=!running;
+  playBtn.textContent=running?'pause':'play';
+  playBtn.classList.toggle('on',running);
+  if(running){ last=0; requestAnimationFrame(loop); }
+}
+
+function randomFill(){
+  for(let i=0;i<grid.length;i++) grid[i]=Math.random()<0.3?1:0;
+  gen=0;genEl.textContent=0;
+  let pop=0;for(let i=0;i<grid.length;i++)pop+=grid[i];popEl.textContent=pop;
+  draw();
+}
+
+function clearGrid(){
+  grid.fill(0);gen=0;genEl.textContent=0;popEl.textContent=0;draw();
+}
+
+// painting
+let painting=false, paintVal=1;
+function canvasXY(e){
+  const r=canvas.getBoundingClientRect();
+  return [e.clientX-r.left, e.clientY-r.top];
+}
+function paintAt(e){
+  const [px,py]=canvasXY(e);
   const x=Math.floor(px/CELL), y=Math.floor(py/CELL);
   if(x<0||y<0||x>=cols||y>=rows)return;
-  grid[y*cols+x]=drawVal; draw();
+  grid[idx(x,y)]=paintVal;
+  draw();
 }
-cv.addEventListener('pointerdown',e=>{ drawing=true; const r=cv.getBoundingClientRect(); const px=(e.clientX-r.left)*(cv.width/r.width); const py=(e.clientY-r.top)*(cv.height/r.height); const x=Math.floor(px/CELL),y=Math.floor(py/CELL); drawVal=grid[y*cols+x]?0:1; paint(e); });
-cv.addEventListener('pointermove',e=>{ if(drawing)paint(e); });
-window.addEventListener('pointerup',()=>drawing=false);
+canvas.addEventListener('pointerdown',e=>{
+  painting=true;
+  const [px,py]=canvasXY(e);
+  const x=Math.floor(px/CELL), y=Math.floor(py/CELL);
+  paintVal = grid[idx(x,y)]?0:1;
+  paintAt(e);
+  canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove',e=>{ if(painting)paintAt(e); });
+canvas.addEventListener('pointerup',()=>{painting=false;});
 
-const ruleIn=document.getElementById('rule');
-function applyRule(){
-  if(parseRule(ruleIn.value)){ ruleIn.style.color='#fc6'; }
-  else ruleIn.style.color='#e55';
-}
-ruleIn.addEventListener('input',applyRule);
-document.getElementById('preset').addEventListener('change',e=>{ ruleIn.value=e.target.value; applyRule(); });
-document.getElementById('run').addEventListener('click',e=>{ running=!running; e.target.textContent=running?'pause':'run'; });
-document.getElementById('rand').addEventListener('click',seed);
-document.getElementById('clear').addEventListener('click',()=>{ grid.fill(0); draw(); });
+presetEl.addEventListener('change',()=>{
+  const parts=presetEl.value.split('/');
+  birthEl.value=parts[0];
+  surviveEl.value=parts[1];
+  parseRule();
+  msgEl.textContent='rule set — random or draw, then play';
+});
+birthEl.addEventListener('input',()=>{parseRule();presetEl.value='';});
+surviveEl.addEventListener('input',()=>{parseRule();presetEl.value='';});
+playBtn.addEventListener('click',togglePlay);
+document.getElementById('step').addEventListener('click',()=>{ if(running)togglePlay(); step(); draw(); });
+document.getElementById('clear').addEventListener('click',()=>{ if(running)togglePlay(); clearGrid(); });
+document.getElementById('rand').addEventListener('click',()=>{ if(running)togglePlay(); randomFill(); });
+window.addEventListener('resize',resize);
 
-window.addEventListener('resize',()=>{ fit(); });
-
-parseRule('B3/S23');
-fit();
-requestAnimationFrame(loop);
+parseRule();
+requestAnimationFrame(()=>{resize(); randomFill();});
 </script>
 </body>
 </html>
