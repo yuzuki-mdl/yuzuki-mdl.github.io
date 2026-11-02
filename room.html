@@ -329,6 +329,38 @@ for(const dx of [-0.38,0.38]){
   bl.position.set(ghCX+dx, 0.225, ghZc-0.3); room.add(bl);
 }
 
+// hanging vines from the roof beam
+const vineMat = new THREE.MeshStandardMaterial({color:0x3f7a3a, roughness:0.9});
+const leafMat2 = new THREE.MeshStandardMaterial({color:0x6fae5a, roughness:0.8});
+for(let v=0; v<7; v++){
+  const vx = ghCX - ghW/2 + 0.4 + v*(ghW-0.8)/6;
+  const vz = ghZ0 + ghD - 0.15 - (v%2)*0.25;
+  const len = 0.5 + ((v*0.37)%1)*0.6;
+  const segs = Math.max(4, Math.floor(len/0.12));
+  for(let s=0; s<segs; s++){
+    const t = s/segs;
+    const sway = Math.sin(t*Math.PI*1.5 + v)*0.05*t;
+    const bead = new THREE.Mesh(new THREE.SphereGeometry(0.022,6,6), vineMat);
+    bead.position.set(vx+sway, H - 0.02 - t*len, vz);
+    room.add(bead);
+    if(s%2===1){
+      const lf = new THREE.Mesh(new THREE.SphereGeometry(0.045,6,6), leafMat2);
+      lf.scale.set(1,0.5,1.4);
+      lf.position.set(vx+sway+0.04, H - 0.02 - t*len, vz+0.02);
+      room.add(lf);
+    }
+  }
+}
+
+// a watering can on the bench
+const wcMat = new THREE.MeshStandardMaterial({color:0x8a9a8f, roughness:0.5, metalness:0.4});
+const wcBody = new THREE.Mesh(new THREE.CylinderGeometry(0.075,0.09,0.16,14), wcMat);
+wcBody.position.set(ghCX+0.28, 0.56, ghZc-0.3); room.add(wcBody);
+const wcSpout = new THREE.Mesh(new THREE.CylinderGeometry(0.012,0.02,0.16,8), wcMat);
+wcSpout.position.set(ghCX+0.28+0.11, 0.60, ghZc-0.3); wcSpout.rotation.z = Math.PI*0.32; room.add(wcSpout);
+const wcHandle = new THREE.Mesh(new THREE.TorusGeometry(0.045,0.008,6,12,Math.PI), wcMat);
+wcHandle.position.set(ghCX+0.28-0.05, 0.63, ghZc-0.3); wcHandle.rotation.z = Math.PI*0.5; room.add(wcHandle);
+
 // hanging lamp
 const lampBulb = new THREE.Mesh(new THREE.SphereGeometry(.12,16,16), new THREE.MeshBasicMaterial({color:0xffd9a0}));
 lampBulb.position.set(0,H-0.6,0); room.add(lampBulb);
