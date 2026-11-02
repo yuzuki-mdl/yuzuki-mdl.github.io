@@ -610,7 +610,7 @@ dLampLight.position.set(stX0+stW-0.62, 1.1, stZc-0.5); room.add(dLampLight);
 const stChairMat = new THREE.MeshStandardMaterial({color:0x4a3a2a, roughness:.85});
 const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.06,0.5), stChairMat);
 seat.position.set(stX0+stW-1.0, 0.45, stZc); room.add(seat);
-const back = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.55,0.5), chairMat);
+const back = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.55,0.5), stChairMat);
 back.position.set(stX0+stW-1.22, 0.72, stZc); room.add(back);
 for(const [dx,dz] of [[-0.2,-0.2],[0.2,-0.2],[-0.2,0.2],[0.2,0.2]]){
   const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.45,0.05), stChairMat);
