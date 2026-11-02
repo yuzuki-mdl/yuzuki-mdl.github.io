@@ -37,6 +37,7 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
 
+const propMat = (c,r=.85)=>new THREE.MeshStandardMaterial({color:c, roughness:r});
 // ---- room ----
 const W = 7, D = 7, H = 3.2; // width depth height
 const room = new THREE.Group();
@@ -410,7 +411,6 @@ for(let i=0;i<10;i++){
 
 // ---- decoratable props ----
 const props = [];
-const propMat = (c,r=.85)=>new THREE.MeshStandardMaterial({color:c, roughness:r});
 function addProp(g, x, z, name){
   g.position.set(x, 0, z);
   g.userData.name = name;
@@ -796,6 +796,7 @@ const clock = new THREE.Clock();
 const BOUND = {x: W/2-0.4, z: D/2-0.4};
 
 function tick(){
+  const now = performance.now();
   const dt = Math.min(clock.getDelta(), 0.05);
   const speed = 2.6;
   const dir = new THREE.Vector3();
@@ -857,7 +858,6 @@ function tick(){
   }
 
   // the cat plush blinks now and then
-  const now = performance.now();
   if(now > nextBlink){
     const t = (now - nextBlink)/140;
     if(t >= 1){ for(const e of catEyes) e.scale.y = 1; nextBlink = now + 2500 + Math.random()*4500; }
