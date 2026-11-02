@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>music garden</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  html,body{margin:0;height:100%;background:#0a0e12;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh;cursor:crosshair;touch-action:none}
+  #ui{position:fixed;left:14px;bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font:13px/1.2 ui-monospace,monospace;color:#cfe6e0;background:rgba(10,14,18,.7);padding:10px 12px;border-radius:12px;backdrop-filter:blur(6px);border:1px solid #1e2b33}
+  #ui button{font:inherit;background:#152028;color:#cfe6e0;border:1px solid #26363f;border-radius:8px;padding:6px 10px;cursor:pointer}
+  #ui button:hover{background:#1d2c35}
+  #ui label{display:flex;gap:6px;align-items:center}
+  #ui input[type=range]{width:90px;accent-color:#4fd1c5}
+  #ui .hint{opacity:.55}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <button id="play">▶ play</button>
+  <button id="clear">clear</button>
+  <button id="rand">random</button>
+  <label>speed <input id="spd" type="range" min="1" max="30" value="9"></label>
+  <span class="hint">drag to plant, click to wake it up</span>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,CS=16,COLS,ROWS,grid,next,dpr=Math.min(devicePixelRatio||1,2);
+
+function resize(){
+  W=innerWidth;H=innerHeight;
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  COLS=Math.ceil(W/CS);ROWS=Math.ceil(H/CS);
+  grid=new Uint8Array(COLS*ROWS);next=new Uint8Array(COLS*ROWS);
+}
+resize();addEventListener('resize',resize);
+
+const idx=(x,y)=>((y+ROWS)%ROWS)*COLS+((x+COLS)%COLS);
+const get=(x,y)=>grid[idx(x,y)];
+
+// pentatonic scale, a few octaves. always sounds ok
+const SCALE=[0,2,4,7,9];
+function noteFor(x,y){
+  const oct=Math.floor((y/ROWS)*3);      // vertical = octave
+  const deg=((x%5)+5)%5;                  // horizontal = scale degree
+  const semis=SCALE[deg]+oct*12+48;       // base C3-ish
+  return 440*Math.pow(2,(semis-69)/12);
+}
+
+let ac=null,playing=false,master=null;
+function audio(){
+  if(ac)return ac;
+  ac=new (window.AudioContext||window.webkitAudioContext)();
+  master=ac.createGain();master.gain.value=.18;master.connect(ac.destination);
+  return ac;
+}
+function blip(freq){
+  if(!ac)return;
+  const t=ac.currentTime;
+  const o=ac.createOscillator(),g=ac.createGain();
+  o.type='sine';o.frequency.value=freq;
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(.9,t+.01);
+  g.gain.exponentialRampToValueAtTime(.001,t+.6);
+  o.connect(g).connect(master);
+  o.start(t);o.stop(t+.65);
+}
+
+// life-like rule (B3/S23) but a bit livelier: B36/S23 (highlife-ish)
+function step(){
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    let n=0;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+      if(dx||dy)n+=get(x+dx,y+dy);
+    }
+    const alive=get(x,y);
+    const nv=alive?((n===2||n===3)?1:0):((n===3||n===6)?1:0);
+    next[idx(x,y)]=nv;
+  }
+  // born cells make sound
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    const i=idx(x,y);
+    if(next[i]&&!grid[i])blip(noteFor(x,y));
+  }
+  const t=grid;grid=next;next=t;
+}
+
+function draw(){
+  ctx.fillStyle='#0a0e12';ctx.fillRect(0,0,W,H);
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    if(grid[idx(x,y)]){
+      const h=(x/COLS)*120+160; // teal→green hue
+      ctx.fillStyle=`hsl(${h},70%,${55+Math.sin((x+y)*.3)*10}%)`;
+      ctx.fillRect(x*CS+1,y*CS+1,CS-2,CS-2);
+    }
+  }
+}
+
+let acc=0,last=performance.now();
+function loop(now){
+  const dt=now-last;last=now;
+  if(playing){
+    acc+=dt;
+    const interval=1000/(+document.getElementById('spd').value);
+    if(acc>interval){acc=0;step();}
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// drawing
+let down=false;
+cv.addEventListener('pointerdown',e=>{down=true;plant(e);audio();if(ac.state==='suspended')ac.resume();});
+cv.addEventListener('pointerup',()=>down=false);
+cv.addEventListener('pointerleave',()=>down=false);
+cv.addEventListener('pointermove',e=>{if(down)plant(e);});
+function plant(e){
+  const x=Math.floor(e.clientX/CS),y=Math.floor(e.clientY/CS);
+  for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+    if(Math.random()<.7)grid[idx(x+dx,y+dy)]=1;
+  }
+}
+
+// buttons
+document.getElementById('play').onclick=e=>{
+  audio();if(ac.state==='suspended')ac.resume();
+  playing=!playing;e.target.textContent=playing?'⏸ pause':'▶ play';
+};
+document.getElementById('clear').onclick=()=>{grid.fill(0);};
+document.getElementById('rand').onclick=()=>{
+  grid.fill(0);
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(Math.random()<.28)grid[idx(x,y)]=1;
+};
+
+// seed a little garden
+for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++)if(Math.random()<.22)grid[idx(x,y)]=1;
+</script>
+</body>
+</html>
