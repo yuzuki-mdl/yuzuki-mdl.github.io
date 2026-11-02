@@ -2,144 +2,133 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>life</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>life-like</title>
 <style>
-  html,body{margin:0;height:100%;background:#0a0e14;overflow:hidden;font-family:ui-monospace,monospace}
-  canvas{display:block;width:100vw;height:100vh;cursor:crosshair;touch-action:none}
-  #ui{position:fixed;left:14px;bottom:14px;color:#7a8aa0;font-size:12px;line-height:1.6;pointer-events:none;user-select:none}
-  #ui b{color:#a9c4e0;font-weight:600}
-  #hint{position:fixed;left:14px;top:14px;color:#5f6f85;font-size:12px;pointer-events:none;user-select:none;transition:opacity 1s}
+  html,body{margin:0;height:100%;background:#0b0b12;color:#cdd;font-family:ui-monospace,monospace;overflow:hidden}
+  #wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px}
+  canvas{background:#0b0b12;image-rendering:pixelated;border:1px solid #23233a;box-shadow:0 0 40px #000 inset;touch-action:none}
+  #bar{display:flex;gap:10px;align-items:center;font-size:13px;flex-wrap:wrap;justify-content:center;max-width:96vw}
+  input,select,button{background:#16162a;color:#cdd;border:1px solid #2a2a45;font-family:inherit;font-size:13px;padding:4px 7px;border-radius:4px}
+  button{cursor:pointer}
+  button:hover{border-color:#6cf}
+  #rule{width:110px;text-align:center;letter-spacing:2px;color:#fc6}
+  .dim{color:#556}
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
-<div id="hint">draw with ur cursor. cells come alive.</div>
-<div id="ui">
-  <b>space</b> pause &nbsp; <b>c</b> clear &nbsp; <b>r</b> random &nbsp; <b>s</b> step
+<div id="wrap">
+  <div id="bar">
+    <input id="rule" value="B3/S23" spellcheck="false">
+    <select id="preset">
+      <option value="B3/S23">Conway (B3/S23)</option>
+      <option value="B35678/S5678">Diamoeba</option>
+      <option value="B3/S1234">Mazectric</option>
+      <option value="B2/S">Seeds</option>
+      <option value="B3678/S34678">Day &amp; Night</option>
+      <option value="B3/S12345">Maze</option>
+      <option value="B2/S12345">Anne</option>
+      <option value="B1357/S1357">Replicator</option>
+      <option value="B36/S125">2x2</option>
+    </select>
+    <button id="run">pause</button>
+    <button id="rand">random</button>
+    <button id="clear">clear</button>
+    <span class="dim">click / drag to draw</span>
+  </div>
+  <canvas id="c"></canvas>
 </div>
 <script>
-const c = document.getElementById('c');
-const ctx = c.getContext('2d');
-const CELL = 8;
-let cols, rows, grid, next;
-let running = true;
-let last = 0;
-const SPEED = 120; // ms per generation
-let acc = 0;
+const CELL=6;
+const cv=document.getElementById('c'), cx=cv.getContext('2d');
+let cols, rows, grid, running=true, born, survive, last=0, speedMs=90;
 
-function resize(){
-  c.width = Math.floor(innerWidth / CELL);
-  c.height = Math.floor(innerHeight / CELL);
-  cols = c.width; rows = c.height;
-  grid = new Uint8Array(cols*rows);
-  next = new Uint8Array(cols*rows);
+function fit(){
+  const availW=Math.min(window.innerWidth-20, 1100);
+  const availH=window.innerHeight-120;
+  cols=Math.max(20,Math.floor(availW/CELL));
+  rows=Math.max(20,Math.floor(availH/CELL));
+  cv.width=cols*CELL; cv.height=rows*CELL;
+  grid=new Uint8Array(cols*rows);
+  seed();
+}
+
+function seed(){
+  for(let i=0;i<grid.length;i++) grid[i]=Math.random()<0.18?1:0;
   draw();
 }
 
-function idx(x,y){ return y*cols + x; }
-
-function seedRandom(p=0.28){
-  for(let i=0;i<grid.length;i++) grid[i] = Math.random() < p ? 1 : 0;
+function parseRule(s){
+  // B3/S23 style
+  const m=/B([0-8]*)\/?S([0-8]*)/i.exec(s.replace(/\s/g,''));
+  if(!m){ return false; }
+  born=new Set((m[1]||'').split('').map(Number));
+  survive=new Set((m[2]||'').split('').map(Number));
+  return true;
 }
 
 function step(){
+  const ng=new Uint8Array(grid.length);
   for(let y=0;y<rows;y++){
     for(let x=0;x<cols;x++){
-      let n = 0;
-      for(let dy=-1;dy<=1;dy++){
-        for(let dx=-1;dx<=1;dx++){
-          if(dx===0&&dy===0) continue;
-          const nx = (x+dx+cols)%cols;
-          const ny = (y+dy+rows)%rows;
-          n += grid[idx(nx,ny)];
-        }
+      let n=0;
+      for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){
+        if(dx===0&&dy===0)continue;
+        const nx=(x+dx+cols)%cols, ny=(y+dy+rows)%rows;
+        n+=grid[ny*cols+nx];
       }
-      const alive = grid[idx(x,y)];
-      next[idx(x,y)] = (alive ? (n===2||n===3) : n===3) ? 1 : 0;
+      const a=grid[y*cols+x];
+      ng[y*cols+x] = a ? (survive.has(n)?1:0) : (born.has(n)?1:0);
     }
   }
-  const t = grid; grid = next; next = t;
+  grid=ng;
 }
 
 function draw(){
-  ctx.fillStyle = '#0a0e14';
-  ctx.fillRect(0,0,c.width,c.height);
-  ctx.fillStyle = '#8fd0ff';
-  for(let y=0;y<rows;y++){
-    for(let x=0;x<cols;x++){
-      if(grid[idx(x,y)]) ctx.fillRect(x,y,1,1);
-    }
+  cx.fillStyle='#0b0b12'; cx.fillRect(0,0,cv.width,cv.height);
+  cx.fillStyle='#8f9';
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+    if(grid[y*cols+x]) cx.fillRect(x*CELL+1,y*CELL+1,CELL-2,CELL-2);
   }
 }
-
-// painting
-let painting = false;
-let paintVal = 1;
-function paintAt(clientX, clientY){
-  const x = Math.floor(clientX / CELL);
-  const y = Math.floor(clientY / CELL);
-  for(let dy=-1;dy<=1;dy++){
-    for(let dx=-1;dx<=1;dx++){
-      const nx = (x+dx+cols)%cols;
-      const ny = (y+dy+rows)%rows;
-      if(nx>=0&&nx<cols&&ny>=0&&ny<rows) grid[idx(nx,ny)] = paintVal;
-    }
-  }
-}
-
-c.addEventListener('pointerdown', e=>{
-  painting = true;
-  // toggle: if cell alive, erase; else draw
-  const x = Math.floor(e.clientX/CELL), y = Math.floor(e.clientY/CELL);
-  paintVal = grid[idx((x+cols)%cols,(y+rows)%rows)] ? 0 : 1;
-  paintAt(e.clientX, e.clientY);
-  const h = document.getElementById('hint');
-  h.style.opacity = 0;
-});
-c.addEventListener('pointermove', e=>{
-  if(painting){ paintAt(e.clientX, e.clientY); draw(); }
-});
-addEventListener('pointerup', ()=> painting = false);
-c.addEventListener('pointerleave', ()=> painting = false);
-
-addEventListener('keydown', e=>{
-  const k = e.key.toLowerCase();
-  if(k===' '){ running = !running; e.preventDefault(); }
-  else if(k==='c'){ grid.fill(0); draw(); }
-  else if(k==='r'){ seedRandom(); draw(); }
-  else if(k==='s'){ step(); draw(); }
-});
 
 function loop(t){
-  if(!last) last = t;
-  const dt = t - last; last = t;
-  if(running){
-    acc += dt;
-    if(acc > SPEED){ acc = 0; step(); draw(); }
-  }
   requestAnimationFrame(loop);
+  if(!running) return;
+  if(t-last<speedMs) return;
+  last=t;
+  step(); draw();
 }
 
-function place(pat, ox, oy){
-  for(let py=0;py<pat.length;py++) for(let px=0;px<pat[py].length;px++){
-    if(pat[py][px]){
-      const nx=(ox+px)%cols, ny=(oy+py)%rows;
-      grid[idx(nx,ny)] = 1;
-    }
-  }
+// draw with mouse / touch
+let drawing=false, drawVal=1;
+function paint(ev){
+  const r=cv.getBoundingClientRect();
+  const px=(ev.clientX-r.left)*(cv.width/r.width);
+  const py=(ev.clientY-r.top)*(cv.height/r.height);
+  const x=Math.floor(px/CELL), y=Math.floor(py/CELL);
+  if(x<0||y<0||x>=cols||y>=rows)return;
+  grid[y*cols+x]=drawVal; draw();
 }
+cv.addEventListener('pointerdown',e=>{ drawing=true; const r=cv.getBoundingClientRect(); const px=(e.clientX-r.left)*(cv.width/r.width); const py=(e.clientY-r.top)*(cv.height/r.height); const x=Math.floor(px/CELL),y=Math.floor(py/CELL); drawVal=grid[y*cols+x]?0:1; paint(e); });
+cv.addEventListener('pointermove',e=>{ if(drawing)paint(e); });
+window.addEventListener('pointerup',()=>drawing=false);
 
-addEventListener('resize', resize);
-resize();
-// start with something alive to look at
-const glider = [[0,1,0],[0,0,1],[1,1,1]];
-const pulsar = [[0,0,1,1,1,0,0],[0,0,0,0,0,0,0],[1,0,0,0,0,0,1],[1,0,0,0,0,0,1],[1,0,0,0,0,0,1],[0,0,0,0,0,0,0],[0,0,1,1,1,0,0]];
-place(pulsar, Math.floor(cols/2)-3, Math.floor(rows/2)-3);
-place(glider, Math.floor(cols*0.2), Math.floor(rows*0.3));
-place(glider, Math.floor(cols*0.75), Math.floor(rows*0.65));
-place(glider, Math.floor(cols*0.6), Math.floor(rows*0.2));
-draw();
+const ruleIn=document.getElementById('rule');
+function applyRule(){
+  if(parseRule(ruleIn.value)){ ruleIn.style.color='#fc6'; }
+  else ruleIn.style.color='#e55';
+}
+ruleIn.addEventListener('input',applyRule);
+document.getElementById('preset').addEventListener('change',e=>{ ruleIn.value=e.target.value; applyRule(); });
+document.getElementById('run').addEventListener('click',e=>{ running=!running; e.target.textContent=running?'pause':'run'; });
+document.getElementById('rand').addEventListener('click',seed);
+document.getElementById('clear').addEventListener('click',()=>{ grid.fill(0); draw(); });
+
+window.addEventListener('resize',()=>{ fit(); });
+
+parseRule('B3/S23');
+fit();
 requestAnimationFrame(loop);
 </script>
 </body>
