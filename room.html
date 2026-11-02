@@ -63,7 +63,23 @@ function wall(w,h,x,y,z,ry){
 }
 wall(W,H,0,H/2,-D/2,0);      // back
 wall(W,H,0,H/2, D/2,Math.PI); // front
-wall(D,H, W/2,H/2,0,-Math.PI/2); // right
+// right wall has a doorway out to the study
+const SD_Z = 0.8, SD_W = 1.8, SD_Y1 = 2.4;
+const srSegFront = (D/2) - (SD_Z + SD_W/2);
+if(srSegFront > 0.01){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(srSegFront,H), wallMat);
+  m.position.set(W/2, H/2, SD_Z+SD_W/2 + srSegFront/2); m.rotation.y = -Math.PI/2; room.add(m);
+}
+const srSegBack = (SD_Z - SD_W/2) - (-D/2);
+if(srSegBack > 0.01){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(srSegBack,H), wallMat);
+  m.position.set(W/2, H/2, -D/2 + srSegBack/2); m.rotation.y = -Math.PI/2; room.add(m);
+}
+const srLintelH = H - SD_Y1;
+if(srLintelH > 0.01){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(SD_W, srLintelH), wallMat);
+  m.position.set(W/2, SD_Y1 + srLintelH/2, SD_Z); m.rotation.y = -Math.PI/2; room.add(m);
+}
 
 // left wall has a doorway out to the balcony
 const OP_Z = 0.8, OP_W = 2.0, OP_Y0 = 0.0, OP_Y1 = 2.4;
@@ -401,6 +417,76 @@ winGlass.position.set(1.9, 1.75, D/2-0.05); winGlass.rotation.y = Math.PI; room.
 box(0.05,1.7,0.02, 0x2a2333, 1.9, 1.75, D/2-0.04);
 box(1.3,0.05,0.02, 0x2a2333, 1.9, 1.75, D/2-0.04);
 box(1.6,0.06,0.16, 0x2a2333, 1.9, 0.8, D/2-0.09);
+
+// ---- little study off the right wall ----
+const stW = 3.0, stD = 3.0;         // width (x) and depth (z)
+const stX0 = W/2;                    // starts at right wall
+const stXc = stX0 + stW/2;           // center x
+const stZc = SD_Z;                   // centered on doorway
+const stZ0 = stZc - stD/2, stZ1 = stZc + stD/2;
+const stFloorMat = new THREE.MeshStandardMaterial({color:0x6a5038, roughness:.9});
+const stFloor = new THREE.Mesh(new THREE.BoxGeometry(stW, 0.12, stD), stFloorMat);
+stFloor.position.set(stXc, 0.0, stZc); room.add(stFloor);
+const stWallMat = new THREE.MeshStandardMaterial({color:0x3a2f4a, roughness:1, side:THREE.DoubleSide});
+// far wall (+x)
+const stFar = new THREE.Mesh(new THREE.PlaneGeometry(stD, H), stWallMat);
+stFar.position.set(stX0+stW, H/2, stZc); stFar.rotation.y = -Math.PI/2; room.add(stFar);
+// side walls
+const stSideA = new THREE.Mesh(new THREE.PlaneGeometry(stW, H), stWallMat);
+stSideA.position.set(stXc, H/2, stZ0); room.add(stSideA);
+const stSideB = new THREE.Mesh(new THREE.PlaneGeometry(stW, H), stWallMat);
+stSideB.position.set(stXc, H/2, stZ1); stSideB.rotation.y = Math.PI; room.add(stSideB);
+// ceiling
+const stCeil = new THREE.Mesh(new THREE.PlaneGeometry(stW, stD), stWallMat);
+stCeil.position.set(stXc, H, stZc); stCeil.rotation.x = Math.PI/2; room.add(stCeil);
+// warm ceiling lamp
+const stLamp = new THREE.PointLight(0xffd9a0, 10, 8, 2);
+stLamp.position.set(stXc, H-0.2, stZc); room.add(stLamp);
+const stBulb = new THREE.Mesh(new THREE.SphereGeometry(0.07,10,10), new THREE.MeshStandardMaterial({color:0xffe0b0, emissive:0xffcf90, emissiveIntensity:2}));
+stBulb.position.set(stXc, H-0.2, stZc); room.add(stBulb);
+// desk along the far wall
+const deskMat = new THREE.MeshStandardMaterial({color:0x5a4a3a, roughness:.8});
+const desk = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.06, 1.4), deskMat);
+desk.position.set(stX0+stW-0.45, 0.75, stZc); room.add(desk);
+for(const dz of [-0.6, 0.6]){
+  const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.75,0.06), deskMat);
+  leg.position.set(stX0+stW-0.45, 0.375, stZc+dz); room.add(leg);
+}
+// desk lamp
+const dLampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.11,0.03,16), new THREE.MeshStandardMaterial({color:0x222222, roughness:.6}));
+dLampBase.position.set(stX0+stW-0.55, 0.8, stZc-0.5); room.add(dLampBase);
+const dLampArm = new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.35,8), new THREE.MeshStandardMaterial({color:0x333333}));
+dLampArm.position.set(stX0+stW-0.55, 0.97, stZc-0.5); dLampArm.rotation.z = 0.3; room.add(dLampArm);
+const dLampShade = new THREE.Mesh(new THREE.ConeGeometry(0.11,0.13,16), new THREE.MeshStandardMaterial({color:0xd8b070, roughness:.7}));
+dLampShade.position.set(stX0+stW-0.62, 1.12, stZc-0.5); dLampShade.rotation.z = 0.3; room.add(dLampShade);
+const dLampLight = new THREE.PointLight(0xffcf90, 6, 4, 2);
+dLampLight.position.set(stX0+stW-0.62, 1.1, stZc-0.5); room.add(dLampLight);
+// a little chair
+const stChairMat = new THREE.MeshStandardMaterial({color:0x4a3a2a, roughness:.85});
+const seat = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.06,0.5), stChairMat);
+seat.position.set(stX0+stW-1.0, 0.45, stZc); room.add(seat);
+const back = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.55,0.5), chairMat);
+back.position.set(stX0+stW-1.22, 0.72, stZc); room.add(back);
+for(const [dx,dz] of [[-0.2,-0.2],[0.2,-0.2],[-0.2,0.2],[0.2,0.2]]){
+  const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.45,0.05), stChairMat);
+  leg.position.set(stX0+stW-1.0+dx, 0.225, stZc+dz); room.add(leg);
+}
+// bookshelf on side wall A (-z side)
+const bsMat = new THREE.MeshStandardMaterial({color:0x3a2a1a, roughness:.85});
+const bsW = 1.4, bsX = stXc - 0.3;
+for(let i=0;i<4;i++){
+  const s = new THREE.Mesh(new THREE.BoxGeometry(bsW,0.05,0.3), bsMat);
+  s.position.set(bsX, 0.3+i*0.45, stZ0+0.2); room.add(s);
+}
+// a few colored books
+const bookCols = [0x8b3a3a, 0x3a6b8b, 0x6b8b3a, 0x8b6b3a, 0x5a3a8b];
+for(let i=0;i<5;i++){
+  const bk = new THREE.Mesh(new THREE.BoxGeometry(0.1,0.28,0.22), new THREE.MeshStandardMaterial({color:bookCols[i], roughness:.8}));
+  bk.position.set(bsX-0.5+i*0.12, 0.45, stZ0+0.2); room.add(bk);
+}
+// rug
+const stRug = new THREE.Mesh(new THREE.CircleGeometry(0.8, 32), new THREE.MeshStandardMaterial({color:0x5a4a6a, roughness:1}));
+stRug.rotation.x = -Math.PI/2; stRug.position.set(stXc, 0.08, stZc); room.add(stRug);
 
 // ---- decorations ----
 function box(w,h,d,color,x,y,z,rough=0.8){
@@ -1087,7 +1173,10 @@ function tick(){
   const onBalconyZ = (camera.position.z > OP_Z - (OP_W/2 - 0.3)) && (camera.position.z < nookZ0 + nookD - 0.3);
   const onGreenhouseZ = (camera.position.z > nookZ0 + nookD - 0.3) && (camera.position.z < ghZ0 + ghD - 0.3);
   const minX = (onBalconyZ || onGreenhouseZ) ? (-W/2 - 2.0 + 0.3) : -BOUND.x;
-  camera.position.x = Math.max(minX, Math.min(BOUND.x, camera.position.x));
+  // allow stepping into the study off the right wall
+  const inStudyZ = (camera.position.z > stZ0 + 0.3) && (camera.position.z < stZ1 - 0.3);
+  const maxX = inStudyZ ? (stX0 + stW - 0.3) : BOUND.x;
+  camera.position.x = Math.max(minX, Math.min(maxX, camera.position.x));
   camera.position.y = 1.6;
 
   const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
