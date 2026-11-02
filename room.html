@@ -485,11 +485,46 @@ function makeMug(){
   return g;
 }
 
+function makeStove(){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.6,0.85,0.6), propMat(0xd9d3c6,.6));
+  body.position.y=0.425; g.add(body);
+  const top=new THREE.Mesh(new THREE.BoxGeometry(0.62,0.05,0.62), propMat(0x2a2a33,.5));
+  top.position.y=0.86; g.add(top);
+  for(const [bx,bz] of [[-0.15,-0.15],[0.15,-0.15],[-0.15,0.15],[0.15,0.15]]){
+    const burn=new THREE.Mesh(new THREE.TorusGeometry(0.08,0.012,8,20), propMat(0x111114,.6));
+    burn.rotation.x=Math.PI/2; burn.position.set(bx,0.885,bz); g.add(burn);
+  }
+  const door=new THREE.Mesh(new THREE.BoxGeometry(0.44,0.34,0.02), propMat(0x1c1c22,.4));
+  door.position.set(0,0.45,0.31); g.add(door);
+  const handle=new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.36,8), propMat(0xb8b0a0,.4));
+  handle.rotation.z=Math.PI/2; handle.position.set(0,0.64,0.34); g.add(handle);
+  return g;
+}
+
+function makeFridge(){
+  const g=new THREE.Group();
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.7,1.7,0.65), propMat(0xe4e6e8,.45));
+  body.position.y=0.85; g.add(body);
+  const seam=new THREE.Mesh(new THREE.BoxGeometry(0.71,0.02,0.66), propMat(0xb8bcc0,.5));
+  seam.position.y=1.15; g.add(seam);
+  const h1=new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.35,8), propMat(0x9aa0a8,.4));
+  h1.position.set(0.28,0.9,0.34); g.add(h1);
+  const h2=new THREE.Mesh(new THREE.CylinderGeometry(0.018,0.018,0.25,8), propMat(0x9aa0a8,.4));
+  h2.position.set(0.28,1.42,0.34); g.add(h2);
+  return g;
+}
+
 addProp(makeLamp(),   2.6,  0.6, 'lamp');
 addProp(makeStool(),  1.3, -1.0, 'stool');
 addProp(makeCushion(),-1.0, 1.0, 'cushion');
 addProp(makePlant(),  2.4,  2.4, 'plant');
 addProp(makeBooks(),  1.6, -2.4, 'books');
+addProp(makeCounter(), -1.2, -2.9, 'counter');
+addProp(makeStove(),    0.1, -2.9, 'stove');
+addProp(makeFridge(),  -2.6, -2.9, 'fridge');
+addProp(makeKettle(),  -1.2, -2.9, 'kettle');
+addProp(makeMug(),     -0.8, -2.9, 'mug');
 
 // ---- grab / arrange ----
 const raycaster = new THREE.Raycaster();
@@ -536,7 +571,7 @@ function saveLayout(){
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   }catch(e){}
 }
-const MAKERS = {lamp:makeLamp, stool:makeStool, cushion:makeCushion, plant:makePlant, books:makeBooks, counter:makeCounter, kettle:makeKettle, mug:makeMug};
+const MAKERS = {lamp:makeLamp, stool:makeStool, cushion:makeCushion, plant:makePlant, books:makeBooks, counter:makeCounter, kettle:makeKettle, mug:makeMug, stove:makeStove, fridge:makeFridge};
 function loadLayout(){
   let data = null;
   try{ data = JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); }catch(e){}
