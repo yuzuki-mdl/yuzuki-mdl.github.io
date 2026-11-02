@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>orbits</title>
+<style>
+  html,body{margin:0;height:100%;background:#05060c;overflow:hidden;font-family:ui-monospace,monospace}
+  canvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+  #hud{position:fixed;left:12px;bottom:12px;color:#7a86a8;font-size:12px;line-height:1.5;pointer-events:none;user-select:none}
+  #hud b{color:#cfe0ff}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <b>drag</b> to fling a planet &nbsp;·&nbsp; <b>click</b> to drop one &nbsp;·&nbsp; <b>space</b> clears<br>
+  <span id="count">0</span> bodies
+</div>
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W, H, DPR;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = W*DPR; cv.height = H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+addEventListener('resize', resize); resize();
+
+const G = 2600;            // gravitational constant (tuned for feel)
+const SOFT = 24;           // softening so close passes don't explode
+const MAXB = 220;
+let bodies = [];
+const palette = ['#8fb7ff','#ffd27a','#ff8fb1','#9dffcf','#c9a6ff','#ffb27a'];
+
+function star(x,y,mass){
+  return {x,y,vx:0,vy:0,m:mass,r:Math.cbrt(mass)*0.9,
+          trail:[],hue:palette[(Math.random()*palette.length)|0]};
+}
+
+// a big central star
+function reset(){
+  bodies = [];
+  const m = 900;
+  bodies.push({x:W/2,y:H/2,vx:0,vy:0,m,r:14,trail:[],hue:'#fff3c4',fixed:false});
+  // a few starter planets already in orbit
+  for(let i=0;i<5;i++){
+    const a = Math.random()*Math.PI*2;
+    const dist = 90 + Math.random()*Math.min(W,H)*0.28;
+    const p = star(W/2+Math.cos(a)*dist, H/2+Math.sin(a)*dist, 4+Math.random()*14);
+    const v = Math.sqrt(G*m/dist);
+    p.vx = -Math.sin(a)*v;
+    p.vy =  Math.cos(a)*v;
+    bodies.push(p);
+  }
+}
+
+let drag=null;
+function pos(e){
+  const r = cv.getBoundingClientRect();
+  return {x:e.clientX-r.left, y:e.clientY-r.top};
+}
+cv.addEventListener('pointerdown', e=>{
+  const p = pos(e);
+  drag = {x:p.x, y:p.y, t:performance.now()};
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove', e=>{
+  if(!drag) return;
+  const p = pos(e);
+  drag.x = p.x; drag.y = p.y; drag.t = performance.now();
+});
+cv.addEventListener('pointerup', e=>{
+  if(!drag) return;
+  const p = pos(e);
+  const dt = Math.max(0.02, (performance.now()-drag.t)/1000);
+  const vx = (p.x-drag.x)/dt*0.4;
+  const vy = (p.y-drag.y)/dt*0.4;
+  // if it was basically a click, just drop one with a small nudge
+  let nvx = vx, nvy = vy, dist = Math.hypot(p.x-drag.x, p.y-drag.y);
+  if(dist < 4){ nvx = (Math.random()-0.5)*40; nvy = (Math.random()-0.5)*40; }
+  if(bodies.length < MAXB){
+    const b = star(p.x, p.y, 3+Math.random()*10);
+    b.vx = nvx; b.vy = nvy;
+    bodies.push(b);
+  }
+  drag = null;
+});
+addEventListener('keydown', e=>{ if(e.code==='Space'){ e.preventDefault(); reset(); } });
+
+// physics step (velocity verlet-ish, symplectic euler is fine here)
+function step(dt){
+  const n = bodies.length;
+  // compute accelerations
+  for(let i=0;i<n;i++){ bodies[i].ax=0; bodies[i].ay=0; }
+  for(let i=0;i<n;i++){
+    const a = bodies[i];
+    for(let j=i+1;j<n;j++){
+      const b = bodies[j];
+      let dx = b.x-a.x, dy = b.y-a.y;
+      let d2 = dx*dx+dy*dy+SOFT*SOFT;
+      let inv = 1/Math.sqrt(d2);
+      let f = G*inv*inv*inv; // G / d^3
+      a.ax += f*b.m*dx; a.ay += f*b.m*dy;
+      b.ax -= f*a.m*dx; b.ay -= f*a.m*dy;
+    }
+  }
+  for(let i=0;i<n;i++){
+    const a = bodies[i];
+    a.vx += a.ax*dt; a.vy += a.ay*dt;
+    a.x += a.vx*dt; a.y += a.vy*dt;
+  }
+  // merge bodies that get too close (heavier eats lighter)
+  for(let i=0;i<bodies.length;i++){
+    for(let j=i+1;j<bodies.length;j++){
+      const a=bodies[i], b=bodies[j];
+      const dx=b.x-a.x, dy=b.y-a.y;
+      const rr = a.r+b.r;
+      if(dx*dx+dy*dy < rr*rr*0.35){
+        const big = a.m>=b.m?a:b, small = a.m>=b.m?b:a;
+        const M = a.m+b.m;
+        big.x = (a.x*a.m+b.x*b.m)/M;
+        big.y = (a.y*a.m+b.y*b.m)/M;
+        big.vx = (a.vx*a.m+b.vx*b.m)/M;
+        big.vy = (a.vy*a.m+b.vy*b.m)/M;
+        big.m = M; big.r = Math.cbrt(M)*0.9;
+        bodies.splice(bodies.indexOf(small),1);
+        j--;
+      }
+    }
+  }
+  // keep a couple from drifting forever offscreen
+  for(const b of bodies){
+    if(b.x<-500||b.x>W+500||b.y<-500||b.y>H+500){
+      b.vx*=-0.15; b.vy*=-0.15; b.x+=b.vx; b.y+=b.vy;
+    }
+  }
+}
+
+let last = performance.now();
+const countEl = document.getElementById('count');
+function frame(now){
+  let dt = (now-last)/1000; last = now;
+  dt = Math.min(dt, 1/30);
+  step(dt);
+
+  // fade trails
+  ctx.fillStyle = 'rgba(5,6,12,0.28)';
+  ctx.fillRect(0,0,W,H);
+
+  // trails
+  for(const b of bodies){
+    b.trail.push(b.x, b.y);
+    if(b.trail.length > 60) b.trail.splice(0,2);
+    ctx.strokeStyle = b.hue;
+    ctx.globalAlpha = 0.35;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for(let i=0;i<b.trail.length;i+=2){
+      const x=b.trail[i], y=b.trail[i+1];
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // bodies
+  for(const b of bodies){
+    const g = ctx.createRadialGradient(b.x,b.y,0,b.x,b.y,b.r*2.2);
+    g.addColorStop(0, b.hue);
+    g.addColorStop(0.4, b.hue);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(b.x,b.y,b.r*2.2,0,7); ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath(); ctx.arc(b.x,b.y,Math.max(1,b.r*0.5),0,7); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  countEl.textContent = bodies.length;
+  requestAnimationFrame(frame);
+}
+reset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
