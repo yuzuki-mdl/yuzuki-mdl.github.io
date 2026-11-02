@@ -487,6 +487,36 @@ function makeBooks(){
   return g;
 }
 
+function makeShelf(){
+  const g=new THREE.Group();
+  const wood=propMat(0x5a3c2c,.85);
+  const w=0.9,h=1.7,d=0.32;
+  const sideL=new THREE.Mesh(new THREE.BoxGeometry(0.05,h,d),wood); sideL.position.set(-w/2+0.025,h/2,0); g.add(sideL);
+  const sideR=sideL.clone(); sideR.position.x=w/2-0.025; g.add(sideR);
+  const back=new THREE.Mesh(new THREE.BoxGeometry(w,h,0.02),propMat(0x4a3024,.9)); back.position.set(0,h/2,-d/2+0.01); g.add(back);
+  const cols=[0x8a3a3a,0x3a5a8a,0x5a7a3a,0x6a3a6a,0xb08040];
+  for(let s=0;s<3;s++){
+    const y=0.35+s*0.5;
+    const plank=new THREE.Mesh(new THREE.BoxGeometry(w-0.06,0.04,d),wood); plank.position.set(0,y,0); g.add(plank);
+    let x=-w/2+0.12;
+    const n=2+Math.floor(Math.random()*3);
+    for(let i=0;i<n;i++){
+      const bh=0.18+Math.random()*0.12;
+      const b=new THREE.Mesh(new THREE.BoxGeometry(0.06,bh,0.2),propMat(cols[Math.floor(Math.random()*cols.length)],.9));
+      b.position.set(x,y+0.02+bh/2,0); b.rotation.z=(Math.random()-0.5)*0.15; g.add(b);
+      x+=0.09+Math.random()*0.04;
+      if(x>w/2-0.15) break;
+    }
+  }
+  const top=new THREE.Mesh(new THREE.BoxGeometry(w,0.05,d),wood); top.position.set(0,h,0); g.add(top);
+  const p=makePlant(); p.scale.set(0.7,0.7,0.7); p.position.set(-0.15,h+0.02,0); g.add(p);
+  const frame=new THREE.Mesh(new THREE.BoxGeometry(0.26,0.2,0.03),propMat(0x2a2a33,.5));
+  frame.position.set(0.22,h+0.13,-0.05); frame.rotation.x=-0.12; g.add(frame);
+  const pic=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.14,0.005),propMat(0xcbb89a,.7));
+  pic.position.set(0.22,h+0.13,-0.03); pic.rotation.x=-0.12; g.add(pic);
+  return g;
+}
+
 function makeCounter(){
   const g=new THREE.Group();
   const body=new THREE.Mesh(new THREE.BoxGeometry(1.6,0.85,0.6), propMat(0x6a4a38,.85));
@@ -562,6 +592,7 @@ addProp(makeStove(),    0.1, -2.9, 'stove');
 addProp(makeFridge(),  -2.6, -2.9, 'fridge');
 addProp(makeKettle(),  -1.2, -2.9, 'kettle');
 addProp(makeMug(),     -0.8, -2.9, 'mug');
+const _shelf = addProp(makeShelf(), 3.0, 0.6, 'shelf'); _shelf.rotation.y = -Math.PI/2;
 
 // ---- grab / arrange ----
 const raycaster = new THREE.Raycaster();
@@ -674,7 +705,7 @@ function makeFireplace(){
   return g;
 }
 
-const MAKERS = {lamp:makeLamp, stool:makeStool, cushion:makeCushion, plant:makePlant, books:makeBooks, counter:makeCounter, kettle:makeKettle, mug:makeMug, stove:makeStove, fridge:makeFridge, rug:makeRug, cat:makeCat, fireplace:makeFireplace};
+const MAKERS = {lamp:makeLamp, stool:makeStool, cushion:makeCushion, plant:makePlant, books:makeBooks, counter:makeCounter, kettle:makeKettle, mug:makeMug, stove:makeStove, fridge:makeFridge, rug:makeRug, cat:makeCat, fireplace:makeFireplace, shelf:makeShelf};
 function loadLayout(){
   let data = null;
   try{ data = JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); }catch(e){}
