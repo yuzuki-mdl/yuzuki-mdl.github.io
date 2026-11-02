@@ -105,11 +105,29 @@ if(segFront > 0.01){
   const m = new THREE.Mesh(new THREE.PlaneGeometry(segFront,H), wallMat);
   m.position.set(-W/2, H/2, OP_Z+OP_W/2 + segFront/2); m.rotation.y = Math.PI/2; room.add(m);
 }
-// segment behind the opening (toward -z)
-const segBack = (OP_Z - OP_W/2) - (-D/2);
-if(segBack > 0.01){
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(segBack,H), wallMat);
-  m.position.set(-W/2, H/2, -D/2 + segBack/2); m.rotation.y = Math.PI/2; room.add(m);
+// segment behind the opening (toward -z), now split by the kitchen doorway
+const KZ = -1.8, KW = 1.0; // kitchen doorway center z + width
+const KZ0 = KZ - KW/2, KZ1 = KZ + KW/2;
+// segment between balcony opening and kitchen door
+const segMid0 = OP_Z - OP_W/2;   // -0.2
+const segMid1 = KZ1;             // -1.3
+if(segMid0 - segMid1 > 0.01){
+  const len = segMid0 - segMid1;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(len,H), wallMat);
+  m.position.set(-W/2, H/2, segMid1 + len/2); m.rotation.y = Math.PI/2; room.add(m);
+}
+// segment from back wall to kitchen door
+const segBk0 = -D/2, segBk1 = KZ0;
+if(segBk1 - segBk0 > 0.01){
+  const len = segBk1 - segBk0;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(len,H), wallMat);
+  m.position.set(-W/2, H/2, segBk0 + len/2); m.rotation.y = Math.PI/2; room.add(m);
+}
+// lintel over kitchen doorway
+{
+  const lh = H - 2.2;
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(KW, lh), wallMat);
+  m.position.set(-W/2, 2.2 + lh/2, KZ); m.rotation.y = Math.PI/2; room.add(m);
 }
 // lintel above the opening
 const lintelH = H - OP_Y1;
@@ -433,6 +451,57 @@ winGlass.position.set(1.9, 1.75, D/2-0.05); winGlass.rotation.y = Math.PI; room.
 box(0.05,1.7,0.02, 0x2a2333, 1.9, 1.75, D/2-0.04);
 box(1.3,0.05,0.02, 0x2a2333, 1.9, 1.75, D/2-0.04);
 box(1.6,0.06,0.16, 0x2a2333, 1.9, 0.8, D/2-0.09);
+
+// ---- little kitchen off the left wall ----
+const kD = 2.0, kW = 3.0;            // depth (x, extends -x) and width (z)
+const kX0 = -W/2;                    // starts at left wall
+const kXc = kX0 - kD/2;              // center x
+const kZc = KZ;                      // centered on kitchen doorway
+const kZ0 = kZc - kW/2, kZ1 = kZc + kW/2;
+const kFloorMat = new THREE.MeshStandardMaterial({color:0x5a4a3a, roughness:.9});
+const kFloor = new THREE.Mesh(new THREE.BoxGeometry(kD, 0.12, kW), kFloorMat);
+kFloor.position.set(kXc, 0.0, kZc); room.add(kFloor);
+const kWallMat = new THREE.MeshStandardMaterial({color:0x3a2f4a, roughness:1, side:THREE.DoubleSide});
+// far wall (-x)
+const kFar = new THREE.Mesh(new THREE.PlaneGeometry(kW, H), kWallMat);
+kFar.position.set(kX0-kD, H/2, kZc); kFar.rotation.y = Math.PI/2; room.add(kFar);
+// side walls
+const kSideA = new THREE.Mesh(new THREE.PlaneGeometry(kD, H), kWallMat);
+kSideA.position.set(kXc, H/2, kZ0); kSideA.rotation.y = Math.PI; room.add(kSideA);
+const kSideB = new THREE.Mesh(new THREE.PlaneGeometry(kD, H), kWallMat);
+kSideB.position.set(kXc, H/2, kZ1); room.add(kSideB);
+// ceiling
+const kCeil = new THREE.Mesh(new THREE.PlaneGeometry(kD, kW), kWallMat);
+kCeil.position.set(kXc, H, kZc); kCeil.rotation.x = Math.PI/2; room.add(kCeil);
+// warm ceiling lamp
+const kLamp = new THREE.PointLight(0xffe0b0, 10, 7, 2);
+kLamp.position.set(kXc, H-0.2, kZc); room.add(kLamp);
+const kBulb = new THREE.Mesh(new THREE.SphereGeometry(0.07,10,10), new THREE.MeshStandardMaterial({color:0xffe0b0, emissive:0xffcf90, emissiveIntensity:2}));
+kBulb.position.set(kXc, H-0.2, kZc); room.add(kBulb);
+// counter along far wall with sink + stove
+const cntMat = new THREE.MeshStandardMaterial({color:0x6a5a48, roughness:.8});
+const cntTop = new THREE.MeshStandardMaterial({color:0x8a7a68, roughness:.5});
+const counter = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.9, kW-0.4), cntMat);
+counter.position.set(kX0-kD+0.35, 0.45, kZc); room.add(counter);
+const ct = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.06, kW-0.34), cntTop);
+ct.position.set(kX0-kD+0.35, 0.93, kZc); room.add(ct);
+// sink basin
+const sink = new THREE.Mesh(new THREE.BoxGeometry(0.4,0.12,0.5), new THREE.MeshStandardMaterial({color:0xb8c0c8, roughness:.3, metalness:.6}));
+sink.position.set(kX0-kD+0.35, 0.9, kZc-0.7); room.add(sink);
+const tap = new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.2,10), new THREE.MeshStandardMaterial({color:0xc0c8d0, metalness:.8, roughness:.2}));
+tap.position.set(kX0-kD+0.15, 1.05, kZc-0.7); room.add(tap);
+// stove: dark top + 2 burners
+const stoveTop = new THREE.Mesh(new THREE.BoxGeometry(0.5,0.04,0.6), new THREE.MeshStandardMaterial({color:0x222222, roughness:.5}));
+stoveTop.position.set(kX0-kD+0.35, 0.97, kZc+0.6); room.add(stoveTop);
+for(const dz of [-0.13,0.13]){
+  const burner = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.02,16), new THREE.MeshStandardMaterial({color:0x111111, roughness:.6}));
+  burner.position.set(kX0-kD+0.35, 1.0, kZc+0.6+dz); room.add(burner);
+}
+// a little fridge against side wall
+const fridge = new THREE.Mesh(new THREE.BoxGeometry(0.6,1.5,0.55), new THREE.MeshStandardMaterial({color:0xcfd4d8, roughness:.4, metalness:.3}));
+fridge.position.set(kX0-0.35, 0.75, kZ1-0.4); room.add(fridge);
+const fridgeHandle = new THREE.Mesh(new THREE.BoxGeometry(0.04,0.5,0.04), new THREE.MeshStandardMaterial({color:0x888888, metalness:.7, roughness:.3}));
+fridgeHandle.position.set(kX0-0.06, 0.9, kZ1-0.4); room.add(fridgeHandle);
 
 // ---- little study off the right wall ----
 const stW = 3.0, stD = 3.0;         // width (x) and depth (z)
@@ -1312,7 +1381,8 @@ function tick(){
   // allow stepping out onto the balcony through the doorway, and into the far nook
   const onBalconyZ = (camera.position.z > OP_Z - (OP_W/2 - 0.3)) && (camera.position.z < nookZ0 + nookD - 0.3);
   const onGreenhouseZ = (camera.position.z > nookZ0 + nookD - 0.3) && (camera.position.z < ghZ0 + ghD - 0.3);
-  const minX = (onBalconyZ || onGreenhouseZ) ? (-W/2 - 2.0 + 0.3) : -BOUND.x;
+  const onKitchenZ = (camera.position.z > kZ0 + 0.3) && (camera.position.z < kZ1 - 0.3);
+  const minX = (onBalconyZ || onGreenhouseZ || onKitchenZ) ? (-W/2 - 2.0 + 0.3) : -BOUND.x;
   // allow stepping into the study off the right wall
   const inStudyZ = (camera.position.z > stZ0 + 0.3) && (camera.position.z < stZ1 - 0.3);
   const maxX = inStudyZ ? (stX0 + stW - 0.3) : BOUND.x;
