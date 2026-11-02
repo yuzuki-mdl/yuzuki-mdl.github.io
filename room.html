@@ -62,7 +62,23 @@ function wall(w,h,x,y,z,ry){
   m.position.set(x,y,z); m.rotation.y = ry; room.add(m); return m;
 }
 wall(W,H,0,H/2,-D/2,0);      // back
-wall(W,H,0,H/2, D/2,Math.PI); // front
+// front wall has a doorway out to the bedroom
+const BD_X = 0.0, BD_W = 1.6, BD_Y1 = 2.4;
+const frSegR = (W/2) - (BD_X + BD_W/2);
+if(frSegR > 0.01){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(frSegR,H), wallMat);
+  m.position.set(BD_X+BD_W/2 + frSegR/2, H/2, D/2); m.rotation.y = Math.PI; room.add(m);
+}
+const frSegL = (BD_X - BD_W/2) - (-W/2);
+if(frSegL > 0.01){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(frSegL,H), wallMat);
+  m.position.set(-W/2 + frSegL/2, H/2, D/2); m.rotation.y = Math.PI; room.add(m);
+}
+const frLintelH = H - BD_Y1;
+if(frLintelH > 0.01){
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(BD_W, frLintelH), wallMat);
+  m.position.set(BD_X, BD_Y1 + frLintelH/2, D/2); m.rotation.y = Math.PI; room.add(m);
+}
 // right wall has a doorway out to the study
 const SD_Z = 0.8, SD_W = 1.8, SD_Y1 = 2.4;
 const srSegFront = (D/2) - (SD_Z + SD_W/2);
@@ -519,6 +535,91 @@ stRug.rotation.x = -Math.PI/2; stRug.position.set(stXc, 0.08, stZc); room.add(st
   // cool moonlight spilling in
   const moonLight = new THREE.PointLight(0x9ab0ff, 3, 3, 2);
   moonLight.position.set(fx-0.3, winY, winZ); room.add(moonLight);
+}
+
+// ---- little bedroom off the front wall ----
+const bdW = 3.4, bdD = 3.0;
+const bdX0 = BD_X - bdW/2, bdX1 = BD_X + bdW/2;
+const bdZ0 = D/2, bdZ1 = D/2 + bdD;   // starts at front wall, extends +z
+{
+const bdZc = (bdZ0+bdZ1)/2;
+const bdFloor = new THREE.Mesh(new THREE.BoxGeometry(bdW, 0.12, bdD), new THREE.MeshStandardMaterial({color:0x5a4438, roughness:.9}));
+bdFloor.position.set(BD_X, 0.0, bdZc); room.add(bdFloor);
+const bdWallMat = new THREE.MeshStandardMaterial({color:0x342a44, roughness:1, side:THREE.DoubleSide});
+// far wall (+z)
+const bdFar = new THREE.Mesh(new THREE.PlaneGeometry(bdW, H), bdWallMat);
+bdFar.position.set(BD_X, H/2, bdZ1); bdFar.rotation.y = Math.PI; room.add(bdFar);
+// side walls
+const bdSideL = new THREE.Mesh(new THREE.PlaneGeometry(bdD, H), bdWallMat);
+bdSideL.position.set(bdX0, H/2, bdZc); bdSideL.rotation.y = Math.PI/2; room.add(bdSideL);
+const bdSideR = new THREE.Mesh(new THREE.PlaneGeometry(bdD, H), bdWallMat);
+bdSideR.position.set(bdX1, H/2, bdZc); bdSideR.rotation.y = -Math.PI/2; room.add(bdSideR);
+// ceiling
+const bdCeil = new THREE.Mesh(new THREE.PlaneGeometry(bdW, bdD), bdWallMat);
+bdCeil.position.set(BD_X, H, bdZc); bdCeil.rotation.x = Math.PI/2; room.add(bdCeil);
+// soft warm ceiling glow
+const bdGlow = new THREE.PointLight(0xffd0a0, 8, 7, 2);
+bdGlow.position.set(BD_X, H-0.25, bdZc); room.add(bdGlow);
+// ---- bed along the left side wall ----
+const bedMat = new THREE.MeshStandardMaterial({color:0x3a2a22, roughness:.85});
+const bedW = 1.2, bedL = 2.0, bedX = bdX0 + 0.75, bedZc = bdZc + 0.1;
+// frame
+const bedBase = new THREE.Mesh(new THREE.BoxGeometry(bedW, 0.3, bedL), bedMat);
+bedBase.position.set(bedX, 0.25, bedZc); room.add(bedBase);
+// mattress
+const mattress = new THREE.Mesh(new THREE.BoxGeometry(bedW-0.1, 0.2, bedL-0.1), new THREE.MeshStandardMaterial({color:0xd8d0c8, roughness:.9}));
+mattress.position.set(bedX, 0.5, bedZc); room.add(mattress);
+// blanket
+const blanket = new THREE.Mesh(new THREE.BoxGeometry(bedW-0.06, 0.14, bedL*0.62), new THREE.MeshStandardMaterial({color:0x6a4a7a, roughness:.95}));
+blanket.position.set(bedX, 0.6, bedZc + bedL*0.18); room.add(blanket);
+// pillow
+const pillow = new THREE.Mesh(new THREE.BoxGeometry(bedW-0.35, 0.14, 0.38), new THREE.MeshStandardMaterial({color:0xe8e0d8, roughness:.9}));
+pillow.position.set(bedX, 0.62, bedZc - bedL/2 + 0.35); room.add(pillow);
+// headboard against the side wall
+const headboard = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.0, bedW+0.1), bedMat);
+headboard.position.set(bdX0+0.05, 0.6, bedZc); headboard.rotation.y = Math.PI/2; room.add(headboard);
+// ---- nightstand with a little lamp, far side of the bed ----
+const nsMat = new THREE.MeshStandardMaterial({color:0x4a3528, roughness:.85});
+const nsX = bdX0 + 0.35, nsZ = bedZc + bedL/2 + 0.45;
+const ns = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), nsMat);
+ns.position.set(nsX, 0.25, nsZ); room.add(ns);
+// lamp base + shade
+const lBase = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.12,0.05,16), new THREE.MeshStandardMaterial({color:0x222222}));
+lBase.position.set(nsX, 0.53, nsZ); room.add(lBase);
+const lStem = new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.22,8), new THREE.MeshStandardMaterial({color:0x333333}));
+lStem.position.set(nsX, 0.65, nsZ); room.add(lStem);
+const lShade = new THREE.Mesh(new THREE.ConeGeometry(0.13,0.16,16), new THREE.MeshStandardMaterial({color:0xe8c890, emissive:0xffcf90, emissiveIntensity:.5, roughness:.7}));
+lShade.position.set(nsX, 0.8, nsZ); room.add(lShade);
+const lLight = new THREE.PointLight(0xffcf90, 4, 3, 2);
+lLight.position.set(nsX, 0.8, nsZ); room.add(lLight);
+// ---- a little window on the far wall, stars ----
+{
+  const winW = 1.0, winH = 0.9, winY = H*0.55, winX = BD_X + 0.6;
+  const frameMat = new THREE.MeshStandardMaterial({color:0x241c2c, roughness:.7});
+  const pane = new THREE.Mesh(new THREE.PlaneGeometry(winW, winH), new THREE.MeshBasicMaterial({color:0x0d1030}));
+  pane.position.set(winX, winY, bdZ1 - 0.02); pane.rotation.y = Math.PI; room.add(pane);
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(0.1, 24), new THREE.MeshBasicMaterial({color:0xf5f0d0}));
+  moon.position.set(winX-0.2, winY+0.24, bdZ1 - 0.03); moon.rotation.y = Math.PI; room.add(moon);
+  for(let i=0;i<12;i++){
+    const s = new THREE.Mesh(new THREE.CircleGeometry(0.006+Math.random()*0.007, 6), new THREE.MeshBasicMaterial({color:0xffffff}));
+    s.position.set(winX-0.4+Math.random()*0.8, winY-0.35+Math.random()*0.7, bdZ1 - 0.03);
+    s.rotation.y = Math.PI; room.add(s);
+  }
+  const barT = 0.05;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(winW, barT, 0.05), frameMat);
+  top.position.set(winX, winY+winH/2, bdZ1 + 0.01); room.add(top);
+  const bot = top.clone(); bot.position.y = winY-winH/2; room.add(bot);
+  const sA = new THREE.Mesh(new THREE.BoxGeometry(barT, winH+barT, 0.05), frameMat);
+  sA.position.set(winX-winW/2, winY, bdZ1 + 0.01); room.add(sA);
+  const sB = sA.clone(); sB.position.x = winX+winW/2; room.add(sB);
+  const sill = new THREE.Mesh(new THREE.BoxGeometry(winW+0.14, 0.04, 0.12), frameMat);
+  sill.position.set(winX, winY-winH/2-0.02, bdZ1 - 0.03); room.add(sill);
+  const mlight = new THREE.PointLight(0x9ab0ff, 2.5, 3, 2);
+  mlight.position.set(winX, winY, bdZ1 - 0.3); room.add(mlight);
+}
+// ---- rug ----
+const bdRug = new THREE.Mesh(new THREE.CircleGeometry(0.9, 32), new THREE.MeshStandardMaterial({color:0x6a4a5a, roughness:1}));
+bdRug.rotation.x = -Math.PI/2; bdRug.position.set(BD_X + 0.5, 0.08, bdZc); room.add(bdRug);
 }
 
 // ---- decorations ----
@@ -1201,7 +1302,13 @@ function tick(){
   vel.lerp(dir.multiplyScalar(speed), 1-Math.pow(0.001, dt));
   camera.position.x += vel.x*dt;
   camera.position.z += vel.z*dt;
-  camera.position.z = Math.max(-BOUND.z, Math.min(BOUND.z, camera.position.z));
+  // allow stepping into the bedroom through the front-wall doorway
+  const inDoorX = camera.position.x > BD_X - BD_W/2 + 0.25 && camera.position.x < BD_X + BD_W/2 - 0.25;
+  const inBedroomX = camera.position.x > bdX0 + 0.3 && camera.position.x < bdX1 - 0.3;
+  const alreadyIn = camera.position.z > D/2 + 0.1;
+  const canGoThrough = alreadyIn ? inBedroomX : inDoorX;
+  const maxZ = canGoThrough ? (bdZ1 - 0.3) : BOUND.z;
+  camera.position.z = Math.max(-BOUND.z, Math.min(maxZ, camera.position.z));
   // allow stepping out onto the balcony through the doorway, and into the far nook
   const onBalconyZ = (camera.position.z > OP_Z - (OP_W/2 - 0.3)) && (camera.position.z < nookZ0 + nookD - 0.3);
   const onGreenhouseZ = (camera.position.z > nookZ0 + nookD - 0.3) && (camera.position.z < ghZ0 + ghD - 0.3);
