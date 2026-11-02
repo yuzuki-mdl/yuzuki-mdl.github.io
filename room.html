@@ -209,8 +209,15 @@ const nookSlab = new THREE.Mesh(new THREE.BoxGeometry(nookW, 0.12, nookD), slabM
 nookSlab.position.set(nookCX, 0.0, nookZc); room.add(nookSlab);
 // back wall of nook (far +z)
 const nookWallMat = new THREE.MeshStandardMaterial({color:0x342a40, roughness:.95, side:THREE.DoubleSide});
-const nookBack = new THREE.Mesh(new THREE.PlaneGeometry(nookW, H), nookWallMat);
-nookBack.position.set(nookCX, H/2, nookZ0 + nookD); room.add(nookBack);
+// back wall of nook, with a doorway through to the greenhouse
+const nookDoorW = 1.0;
+const nookPanelW = (nookW - nookDoorW)/2;
+for(const s of [-1,1]){
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(nookPanelW, H), nookWallMat);
+  panel.position.set(nookCX + s*(nookDoorW/2 + nookPanelW/2), H/2, nookZ0 + nookD); room.add(panel);
+}
+const nookLintel = new THREE.Mesh(new THREE.PlaneGeometry(nookDoorW, H-2.2), nookWallMat);
+nookLintel.position.set(nookCX, 2.2 + (H-2.2)/2, nookZ0 + nookD); room.add(nookLintel);
 // side wall (far -x edge), the outer one, so the nook is sheltered from the city side
 const nookSide = new THREE.Mesh(new THREE.PlaneGeometry(nookD, H), nookWallMat);
 nookSide.position.set(nookCX - nookW/2, H/2, nookZc); nookSide.rotation.y = Math.PI/2; room.add(nookSide);
@@ -263,6 +270,64 @@ for(let i=0;i<9;i++){
 }
 const fairyLight = new THREE.PointLight(0xffcf8a, 2.5, 3.5, 2);
 fairyLight.position.set(nookCX, H-0.12, nookZc - nookD/2 + 0.1); room.add(fairyLight);
+
+// ---- little greenhouse/sunroom off the far end of the nook ----
+const ghZ0 = nookZ0 + nookD;        // 4.0, right where the nook ends
+const ghD = 2.0;                    // depth in z
+const ghW = nookW;                  // same width
+const ghCX = nookCX;
+const ghZc = ghZ0 + ghD/2;
+const glassMat = new THREE.MeshStandardMaterial({color:0x9fd4c8, roughness:.15, metalness:.1, transparent:true, opacity:0.18, side:THREE.DoubleSide});
+const ghFrameMat = new THREE.MeshStandardMaterial({color:0x3d5a4a, roughness:.8});
+// floor
+const ghFloor = new THREE.Mesh(new THREE.BoxGeometry(ghW, 0.12, ghD), slabMat);
+ghFloor.position.set(ghCX, 0.0, ghZc); room.add(ghFloor);
+// back glass wall
+const ghBack = new THREE.Mesh(new THREE.PlaneGeometry(ghW, H), glassMat);
+ghBack.position.set(ghCX, H/2, ghZ0+ghD); room.add(ghBack);
+// side glass walls
+const ghSide1 = new THREE.Mesh(new THREE.PlaneGeometry(ghD, H), glassMat);
+ghSide1.position.set(ghCX-ghW/2, H/2, ghZc); ghSide1.rotation.y=Math.PI/2; room.add(ghSide1);
+const ghSide2 = new THREE.Mesh(new THREE.PlaneGeometry(ghD, H), glassMat);
+ghSide2.position.set(ghCX+ghW/2, H/2, ghZc); ghSide2.rotation.y=Math.PI/2; room.add(ghSide2);
+// glass roof
+const ghRoof = new THREE.Mesh(new THREE.PlaneGeometry(ghW, ghD), glassMat);
+ghRoof.rotation.x = -Math.PI/2; ghRoof.position.set(ghCX, H, ghZc); room.add(ghRoof);
+// corner posts + roof beams
+for(const [dx,dz] of [[-ghW/2,-ghD/2],[ghW/2,-ghD/2],[-ghW/2,ghD/2],[ghW/2,ghD/2]]){
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.07,H,0.07), ghFrameMat);
+  post.position.set(ghCX+dx, H/2, ghZc+dz); room.add(post);
+}
+const beamMat = ghFrameMat;
+const beamBack = new THREE.Mesh(new THREE.BoxGeometry(ghW,0.06,0.06), beamMat);
+beamBack.position.set(ghCX, H, ghZ0+ghD); room.add(beamBack);
+// grow light
+const growLight = new THREE.PointLight(0xffe0b0, 5, 6, 2);
+growLight.position.set(ghCX, H-0.3, ghZc); room.add(growLight);
+// potted plants on a little shelf
+const ghShelfMat = new THREE.MeshStandardMaterial({color:0x5a4a3a, roughness:.9});
+const ghShelf = new THREE.Mesh(new THREE.BoxGeometry(ghW-0.3,0.05,0.35), ghShelfMat);
+ghShelf.position.set(ghCX, 0.7, ghZ0+ghD-0.2); room.add(ghShelf);
+for(let i=0;i<4;i++){
+  const px = ghCX - (ghW-0.6)/2 + i*(ghW-0.6)/3;
+  const potMat = new THREE.MeshStandardMaterial({color:[0x8a5a3a,0x6a6a7a,0x9a6a4a,0x5a7a5a][i], roughness:.9});
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.07,0.12,10), potMat);
+  pot.position.set(px, 0.79, ghZ0+ghD-0.2); room.add(pot);
+  const leafMat = new THREE.MeshStandardMaterial({color:[0x4a8a4a,0x5aa05a,0x6ab06a,0x3a7a3a][i], roughness:.8});
+  for(let l=0;l<5;l++){
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.05,8,8), leafMat);
+    const a = l/5*Math.PI*2;
+    leaf.position.set(px+Math.cos(a)*0.06, 0.9+Math.random()*0.08, ghZ0+ghD-0.2+Math.sin(a)*0.06);
+    leaf.scale.y = 1.6; room.add(leaf);
+  }
+}
+// a little bench to sit on
+const ghBench = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.06,0.35), ghShelfMat);
+ghBench.position.set(ghCX, 0.45, ghZc-0.3); room.add(ghBench);
+for(const dx of [-0.38,0.38]){
+  const bl = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.45,0.05), ghShelfMat);
+  bl.position.set(ghCX+dx, 0.225, ghZc-0.3); room.add(bl);
+}
 
 // hanging lamp
 const lampBulb = new THREE.Mesh(new THREE.SphereGeometry(.12,16,16), new THREE.MeshBasicMaterial({color:0xffd9a0}));
@@ -957,7 +1022,8 @@ function tick(){
   camera.position.z = Math.max(-BOUND.z, Math.min(BOUND.z, camera.position.z));
   // allow stepping out onto the balcony through the doorway, and into the far nook
   const onBalconyZ = (camera.position.z > OP_Z - (OP_W/2 - 0.3)) && (camera.position.z < nookZ0 + nookD - 0.3);
-  const minX = onBalconyZ ? (-W/2 - 2.0 + 0.3) : -BOUND.x;
+  const onGreenhouseZ = (camera.position.z > nookZ0 + nookD - 0.3) && (camera.position.z < ghZ0 + ghD - 0.3);
+  const minX = (onBalconyZ || onGreenhouseZ) ? (-W/2 - 2.0 + 0.3) : -BOUND.x;
   camera.position.x = Math.max(minX, Math.min(BOUND.x, camera.position.x));
   camera.position.y = 1.6;
 
