@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>julia</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:ui-monospace,monospace;color:#8ff}
+  canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
+  #hud{position:fixed;left:12px;bottom:10px;font-size:12px;opacity:.75;pointer-events:none;text-shadow:0 0 4px #000}
+  #seed{position:fixed;right:12px;bottom:10px;font-size:12px;opacity:.8}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">drag to move the seed · scroll to zoom · double-click reset</div>
+<div id="seed"></div>
+<script>
+const c=document.getElementById('c'), ctx=c.getContext('2d');
+const seedEl=document.getElementById('seed');
+let W=0,H=0,img=null;
+let view={cx:0,cy:0,scale:3.0};
+let seed={re:-0.8,im:0.156};
+const MAXI=200;
+
+function col(t){
+  // teal -> warm ramp
+  const r=Math.floor(255*Math.pow(t,0.55));
+  const g=Math.floor(180*Math.pow(t,0.8));
+  const b=Math.floor(90+120*(1-t));
+  return [r,g,b];
+}
+
+function render(){
+  const aspect=H/W;
+  const sx=view.scale, sy=view.scale*aspect;
+  const x0=view.cx-sx/2, y0=view.cy-sy/2;
+  const d=img.data;
+  for(let py=0;py<H;py++){
+    const im=y0+(py/H)*sy;
+    for(let px=0;px<W;px++){
+      const re=x0+(px/W)*sx;
+      let zr=re, zi=im, i=0;
+      for(;i<MAXI;i++){
+        const zr2=zr*zr, zi2=zi*zi;
+        if(zr2+zi2>4) break;
+        zi=2*zr*zi+seed.im;
+        zr=zr2-zi2+seed.re;
+      }
+      const idx=(py*W+px)*4;
+      if(i===MAXI){ d[idx]=0;d[idx+1]=0;d[idx+2]=0;d[idx+3]=255; }
+      else{
+        const t=i/MAXI;
+        const [r,g,b]=col(t);
+        d[idx]=r;d[idx+1]=g;d[idx+2]=b;d[idx+3]=255;
+      }
+    }
+  }
+  ctx.putImageData(img,0,0);
+  seedEl.textContent=`c = ${seed.re.toFixed(3)} + ${seed.im.toFixed(3)}i`;
+}
+
+function resize(){
+  const dpr=Math.min(window.devicePixelRatio||1,1.5);
+  W=Math.floor(innerWidth*dpr); H=Math.floor(innerHeight*dpr);
+  c.width=W;c.height=H;
+  img=ctx.createImageData(W,H);
+  render();
+}
+
+let dragging=false;
+function pick(e){
+  const rect=c.getBoundingClientRect();
+  const aspect=H/W;
+  const sx=view.scale, sy=view.scale*aspect;
+  const x0=view.cx-sx/2, y0=view.cy-sy/2;
+  const px=(e.clientX-rect.left)/rect.width;
+  const py=(e.clientY-rect.top)/rect.height;
+  seed.re=x0+px*sx;
+  seed.im=y0+py*sy;
+  render();
+}
+
+c.addEventListener('pointerdown',e=>{dragging=true;pick(e);});
+window.addEventListener('pointermove',e=>{if(dragging)pick(e);});
+window.addEventListener('pointerup',()=>{dragging=false;});
+c.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const f=e.deltaY>0?1.1:0.9;
+  view.scale*=f;
+  render();
+},{passive:false});
+c.addEventListener('dblclick',()=>{view={cx:0,cy:0,scale:3.0};render();});
+window.addEventListener('resize',resize);
+resize();
+</script>
+</body>
+</html>
