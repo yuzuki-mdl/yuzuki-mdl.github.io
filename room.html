@@ -61,7 +61,17 @@ function wall(w,h,x,y,z,ry){
   const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h), wallMat);
   m.position.set(x,y,z); m.rotation.y = ry; room.add(m); return m;
 }
-wall(W,H,0,H/2,-D/2,0);      // back
+// back wall, split by a bathroom doorway
+const BA_X = -2.4, BA_W = 0.9, BA_Y1 = 2.2; // bathroom doorway
+const BA_X0 = BA_X - BA_W/2, BA_X1 = BA_X + BA_W/2;
+{
+  const segL = BA_X0 - (-W/2);   // from left corner to door
+  if(segL > 0.01){ const m = new THREE.Mesh(new THREE.PlaneGeometry(segL,H), wallMat); m.position.set(-W/2 + segL/2, H/2, -D/2); room.add(m); }
+  const segR = W/2 - BA_X1;      // from door to right corner
+  if(segR > 0.01){ const m = new THREE.Mesh(new THREE.PlaneGeometry(segR,H), wallMat); m.position.set(BA_X1 + segR/2, H/2, -D/2); room.add(m); }
+  const lh = H - BA_Y1;
+  if(lh > 0.01){ const m = new THREE.Mesh(new THREE.PlaneGeometry(BA_W, lh), wallMat); m.position.set(BA_X, BA_Y1 + lh/2, -D/2); room.add(m); }
+}
 // front wall has a doorway out to the bedroom
 const BD_X = 0.0, BD_W = 1.6, BD_Y1 = 2.4;
 const frSegR = (W/2) - (BD_X + BD_W/2);
@@ -502,6 +512,56 @@ const fridge = new THREE.Mesh(new THREE.BoxGeometry(0.6,1.5,0.55), new THREE.Mes
 fridge.position.set(kX0-0.35, 0.75, kZ1-0.4); room.add(fridge);
 const fridgeHandle = new THREE.Mesh(new THREE.BoxGeometry(0.04,0.5,0.04), new THREE.MeshStandardMaterial({color:0x888888, metalness:.7, roughness:.3}));
 fridgeHandle.position.set(kX0-0.06, 0.9, kZ1-0.4); room.add(fridgeHandle);
+
+// ---- little bathroom off the back wall ----
+const baD = 2.2, baW = 2.4;
+const baZ0 = -D/2;                   // starts at back wall
+const baZc = baZ0 - baD/2;
+const baXc = BA_X;                    // centered on doorway
+const baX0 = baXc - baW/2, baX1 = baXc + baW/2;
+const baFloorMat = new THREE.MeshStandardMaterial({color:0x3d4a52, roughness:.85});
+const baFloor = new THREE.Mesh(new THREE.BoxGeometry(baW, 0.12, baD), baFloorMat);
+baFloor.position.set(baXc, 0.0, baZc); room.add(baFloor);
+const baWallMat = new THREE.MeshStandardMaterial({color:0x4a5a62, roughness:1, side:THREE.DoubleSide});
+const baFar = new THREE.Mesh(new THREE.PlaneGeometry(baW, H), baWallMat);
+baFar.position.set(baXc, H/2, baZ0-baD); room.add(baFar);
+const baSideA = new THREE.Mesh(new THREE.PlaneGeometry(baD, H), baWallMat);
+baSideA.position.set(baX0, H/2, baZc); baSideA.rotation.y = Math.PI/2; room.add(baSideA);
+const baSideB = new THREE.Mesh(new THREE.PlaneGeometry(baD, H), baWallMat);
+baSideB.position.set(baX1, H/2, baZc); baSideB.rotation.y = -Math.PI/2; room.add(baSideB);
+const baCeil = new THREE.Mesh(new THREE.PlaneGeometry(baW, baD), baWallMat);
+baCeil.position.set(baXc, H, baZc); baCeil.rotation.x = Math.PI/2; room.add(baCeil);
+const baLamp = new THREE.PointLight(0xdfeaff, 9, 6, 2);
+baLamp.position.set(baXc, H-0.2, baZc); room.add(baLamp);
+const baBulb = new THREE.Mesh(new THREE.SphereGeometry(0.06,10,10), new THREE.MeshStandardMaterial({color:0xeaf2ff, emissive:0xdfeaff, emissiveIntensity:2}));
+baBulb.position.set(baXc, H-0.2, baZc); room.add(baBulb);
+// vanity + sink against far wall
+const baVanMat = new THREE.MeshStandardMaterial({color:0xd8dde2, roughness:.5});
+const baVan = new THREE.Mesh(new THREE.BoxGeometry(0.9,0.8,0.5), baVanMat);
+baVan.position.set(baXc-0.4, 0.4, baZ0-baD+0.3); room.add(baVan);
+const baVanTop = new THREE.Mesh(new THREE.BoxGeometry(0.96,0.06,0.54), new THREE.MeshStandardMaterial({color:0xeef2f5, roughness:.3}));
+baVanTop.position.set(baXc-0.4, 0.83, baZ0-baD+0.3); room.add(baVanTop);
+const baSink = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.14,0.1,20), new THREE.MeshStandardMaterial({color:0xc8d0d6, roughness:.25, metalness:.5}));
+baSink.position.set(baXc-0.4, 0.86, baZ0-baD+0.3); room.add(baSink);
+const baTap = new THREE.Mesh(new THREE.CylinderGeometry(0.015,0.015,0.22,8), new THREE.MeshStandardMaterial({color:0xc0c8d0, metalness:.8, roughness:.2}));
+baTap.position.set(baXc-0.4, 0.97, baZ0-baD+0.12); room.add(baTap);
+// mirror above vanity
+const baMirror = new THREE.Mesh(new THREE.PlaneGeometry(0.7,0.7), new THREE.MeshStandardMaterial({color:0x9fb4c4, roughness:.1, metalness:.9}));
+baMirror.position.set(baXc-0.4, 1.6, baZ0-baD+0.06); room.add(baMirror);
+// toilet against side wall
+const baToiMat = new THREE.MeshStandardMaterial({color:0xeef2f5, roughness:.4});
+const baBowl = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.18,0.4,16), baToiMat);
+baBowl.position.set(baX1-0.3, 0.2, baZc+0.4); room.add(baBowl);
+const baSeat = new THREE.Mesh(new THREE.CylinderGeometry(0.24,0.24,0.06,16), baToiMat);
+baSeat.position.set(baX1-0.3, 0.42, baZc+0.4); room.add(baSeat);
+const baTank = new THREE.Mesh(new THREE.BoxGeometry(0.2,0.5,0.4), baToiMat);
+baTank.position.set(baX1-0.1, 0.45, baZc+0.4); room.add(baTank);
+// little tub against side wall
+const baTubMat = new THREE.MeshStandardMaterial({color:0xe8edf0, roughness:.35});
+const baTub = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.5,1.1), baTubMat);
+baTub.position.set(baX0+0.4, 0.25, baZc-0.2); room.add(baTub);
+const baTubIn = new THREE.Mesh(new THREE.BoxGeometry(0.56,0.3,0.96), new THREE.MeshStandardMaterial({color:0xbfe0ec, roughness:.15, metalness:.2}));
+baTubIn.position.set(baX0+0.4, 0.42, baZc-0.2); room.add(baTubIn);
 
 // ---- little study off the right wall ----
 const stW = 3.0, stD = 3.0;         // width (x) and depth (z)
@@ -1377,7 +1437,12 @@ function tick(){
   const alreadyIn = camera.position.z > D/2 + 0.1;
   const canGoThrough = alreadyIn ? inBedroomX : inDoorX;
   const maxZ = canGoThrough ? (bdZ1 - 0.3) : BOUND.z;
-  camera.position.z = Math.max(-BOUND.z, Math.min(maxZ, camera.position.z));
+  // allow stepping into the bathroom through the back-wall doorway
+  const inBathX = camera.position.x > baX0 + 0.3 && camera.position.x < baX1 - 0.3;
+  const alreadyInBath = camera.position.z < -D/2 - 0.1;
+  const canBath = alreadyInBath ? inBathX : (camera.position.x > BA_X0 + 0.25 && camera.position.x < BA_X1 - 0.25);
+  const minZ = canBath ? (baZ0 - baD + 0.3) : -BOUND.z;
+  camera.position.z = Math.max(minZ, Math.min(maxZ, camera.position.z));
   // allow stepping out onto the balcony through the doorway, and into the far nook
   const onBalconyZ = (camera.position.z > OP_Z - (OP_W/2 - 0.3)) && (camera.position.z < nookZ0 + nookD - 0.3);
   const onGreenhouseZ = (camera.position.z > nookZ0 + nookD - 0.3) && (camera.position.z < ghZ0 + ghD - 0.3);
