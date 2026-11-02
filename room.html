@@ -543,6 +543,16 @@ blanket.position.set(bedX, 0.53, bedZ+0.45); room.add(blanket);
 // a little folded edge of the blanket
 box(1.12,0.06,0.12, 0x7d5c8c, bedX, 0.6, bedZ-0.02, 1);
 
+// nightstand + little lamp beside the bed
+box(0.42,0.5,0.42, 0x4a3b55, bedX+0.78, 0.25, bedZ-0.85); // stand
+box(0.46,0.04,0.46, 0x5a4a63, bedX+0.78, 0.52, bedZ-0.85, 1); // top
+const nlampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.05,0.22,8), new THREE.MeshStandardMaterial({color:0x2a2233, roughness:.8}));
+nlampBase.position.set(bedX+0.78, 0.65, bedZ-0.85); room.add(nlampBase);
+const nlampShade = new THREE.Mesh(new THREE.ConeGeometry(0.15,0.16,16,1,true), new THREE.MeshStandardMaterial({color:0xffe0b0, emissive:0xffb060, emissiveIntensity:.7, roughness:1, side:THREE.DoubleSide}));
+nlampShade.position.set(bedX+0.78, 0.83, bedZ-0.85); room.add(nlampShade);
+const nlampGlow = new THREE.PointLight(0xffb060, 0.35, 3.5, 2);
+nlampGlow.position.set(bedX+0.78, 0.8, bedZ-0.85); room.add(nlampGlow);
+
 // string lights along back wall
 const bulbColors = [0xffd9a0,0xf5c2e7,0x89dceb,0xa6e3a1];
 for(let i=0;i<10;i++){
