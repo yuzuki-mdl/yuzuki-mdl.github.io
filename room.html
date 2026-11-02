@@ -98,28 +98,12 @@ for(const [x,z] of [[-.6,-1.55],[.6,-1.55],[-.6,-.85],[.6,-.85]]){
 
 // shelf on back wall
 const shelfMat = new THREE.MeshStandardMaterial({color:0x4a3a3a, roughness:.8});
+// raised + shifted right so the fridge (1.7 tall) and counter top clear them
+const SHELF_X = -0.9, SHELF_W = 2.2, SHELF_Y0 = 1.5, SHELF_DY = 0.6;
 for(let i=0;i<3;i++){
-  const s = new THREE.Mesh(new THREE.BoxGeometry(2.6,.06,.4), shelfMat);
-  s.position.set(-1.6, 0.9+i*0.7, -D/2+0.22); room.add(s);
+  const s = new THREE.Mesh(new THREE.BoxGeometry(SHELF_W,.06,.4), shelfMat);
+  s.position.set(SHELF_X, SHELF_Y0+i*SHELF_DY, -D/2+0.22); room.add(s);
 }
-// books on the shelves (varied colors + heights, some leaning)
-const bookCols = [0x8a3a3a,0x3a5a8a,0x5a7a3a,0x7a5a2a,0x6a3a6a,0x2a6a6a,0x9a7a4a,0x4a4a6a];
-for(let sh=0; sh<3; sh++){
-  let bx = -2.7;
-  const n = 4 + Math.floor(Math.random()*4);
-  for(let b=0;b<n;b++){
-    const h = 0.28 + Math.random()*0.18;
-    const w = 0.05 + Math.random()*0.05;
-    const col = bookCols[Math.floor(Math.random()*bookCols.length)];
-    const bk = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.28), new THREE.MeshStandardMaterial({color:col, roughness:.9}));
-    const lean = Math.random() < 0.25;
-    bk.position.set(bx + w/2, 0.9+sh*0.7 + 0.03 + h/2, -D/2+0.22);
-    if(lean){ bk.rotation.z = (Math.random()<0.5?-1:1) * (0.15+Math.random()*0.15); bk.position.y -= 0.02; }
-    room.add(bk);
-    bx += w + 0.012;
-  }
-}
-
 // moonlight spilling in through the doorway
 const winLight = new THREE.PointLight(0x8fb6ff, 6, 14, 2);
 winLight.position.set(-W/2+0.6, 1.9, OP_Z); room.add(winLight);
@@ -265,15 +249,15 @@ function cyl(rt,rb,h,color,x,y,z,seg=16){
 // books on shelves
 const bookColors = [0xc76b6b,0x6b8fc7,0x8fc76b,0xc7b06b,0x9b6bc7,0x6bc7b8,0xd99a5b];
 for(let sh=0; sh<3; sh++){
-  let bx = -2.7;
-  const y = 0.9+sh*0.7+0.19;
+  let bx = SHELF_X - SHELF_W/2 + 0.12;
+  const shelfTop = SHELF_Y0 + sh*SHELF_DY + 0.03;
   for(let i=0;i<9;i++){
     const bw = 0.06+Math.random()*0.06;
-    const bh = 0.24+Math.random()*0.12;
+    const bh = 0.22+Math.random()*0.1;
     const c = bookColors[(i+sh*3)%bookColors.length];
-    box(bw, bh, 0.26, c, bx+bw/2, y-bh/2+0.13, -D/2+0.22, .9);
+    box(bw, bh, 0.26, c, bx+bw/2, shelfTop+bh/2, -D/2+0.22, .9);
     bx += bw+0.015;
-    if(bx > -0.4) break;
+    if(bx > SHELF_X + SHELF_W/2 - 0.15) break;
   }
 }
 
@@ -320,13 +304,6 @@ const lampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.22,0.24,16,1,
 lampShade.position.set(-W/2+1.6, 1.55, D/2-0.7); room.add(lampShade);
 const floorLampLight = new THREE.PointLight(0xffcf7a, 1.6, 3.5, 2);
 floorLampLight.position.set(-W/2+1.6, 1.5, D/2-0.7); room.add(floorLampLight);
-
-// chair
-box(0.5,0.06,0.5, 0x3a3a44, W/2-0.95, 0.45, 0.8);
-box(0.5,0.5,0.06, 0x3a3a44, W/2-0.95, 0.7, 0.55);
-for(const [cx,cz] of [[-0.2,-0.2],[0.2,-0.2],[-0.2,0.2],[0.2,0.2]]){
-  box(0.05,0.45,0.05, 0x2a2a33, W/2-0.95+cx, 0.225, 0.8+cz);
-}
 
 // poster on back wall
 box(0.9,1.2,0.03, 0x2a2233, 1.8, 1.9, -D/2+0.03);
@@ -411,8 +388,8 @@ for(let i=0;i<10;i++){
 
 // ---- decoratable props ----
 const props = [];
-function addProp(g, x, z, name){
-  g.position.set(x, 0, z);
+function addProp(g, x, z, name, y=0){
+  g.position.set(x, y, z);
   g.userData.name = name;
   room.add(g);
   props.push(g);
@@ -582,18 +559,29 @@ function makeFridge(){
   return g;
 }
 
-addProp(makeLamp(),   2.6,  0.6, 'lamp');
-addProp(makeStool(),  1.3, -1.0, 'stool');
-addProp(makeCushion(),-1.0, 1.0, 'cushion');
-addProp(makePlant(),  2.4,  2.4, 'plant');
-addProp(makeBooks(),  1.6, -2.4, 'books');
-addProp(makeCounter(), -1.2, -2.9, 'counter');
-addProp(makeStove(),    0.1, -2.9, 'stove');
-addProp(makeFridge(),  -2.6, -2.9, 'fridge');
-addProp(makeKettle(),  -1.2, -2.9, 'kettle');
-addProp(makeMug(),     -0.8, -2.9, 'mug');
-const _shelf = addProp(makeShelf(), 3.0, 0.6, 'shelf'); _shelf.rotation.y = -Math.PI/2;
-const _rug = addProp(makeRug(), 0.2, 0.3, 'rug'); _rug.rotation.y = 0.15;
+const MAKERS = {lamp:makeLamp, stool:makeStool, cushion:makeCushion, plant:makePlant, books:makeBooks, counter:makeCounter, kettle:makeKettle, mug:makeMug, stove:makeStove, fridge:makeFridge, rug:makeRug, cat:makeCat, fireplace:makeFireplace, shelf:makeShelf};
+
+// default layout: kitchen pushed forward so the wall shelves stay clear,
+// shelf off the desk and against the right wall, kettle/mug up on the counter top
+const DEFAULT_LAYOUT = [
+  {name:'lamp',    x: 2.7,  z: 1.9},
+  {name:'stool',   x: 1.3,  z:-1.0},
+  {name:'cushion', x:-1.0,  z: 1.0},
+  {name:'plant',   x: 2.4,  z: 2.4},
+  {name:'books',   x: 1.6,  z:-2.4},
+  {name:'counter', x:-1.2,  z:-2.55},
+  {name:'stove',   x: 0.1,  z:-2.55},
+  {name:'fridge',  x:-2.6,  z:-2.55},
+  {name:'kettle',  x:-1.2,  z:-2.55, y:0.91},
+  {name:'mug',     x:-0.8,  z:-2.55, y:0.91},
+  {name:'shelf',   x: 3.3,  z:-1.4, ry:-Math.PI/2},
+  {name:'rug',     x: 0.2,  z: 0.3,  ry:0.15},
+  {name:'fireplace', x:-2.4, z: 3.15, ry:Math.PI},
+];
+for(const d of DEFAULT_LAYOUT){
+  const g = addProp(MAKERS[d.name](), d.x, d.z, d.name, d.y||0);
+  if(d.ry) g.rotation.y = d.ry;
+}
 
 // ---- grab / arrange ----
 const raycaster = new THREE.Raycaster();
@@ -620,7 +608,7 @@ function dropHeld(){
   const p = held; held = null;
   p.position.x = Math.max(-W/2+0.5, Math.min(W/2-0.5, p.position.x));
   p.position.z = Math.max(-D/2+0.5, Math.min(D/2-0.5, p.position.z));
-  p.position.y = 0;
+  p.position.y = Math.max(0, p.position.y);
   saveLayout();
 }
 
@@ -634,9 +622,16 @@ addEventListener('keydown', e=>{
 
 // ---- save / load layout ----
 const SAVE_KEY = 'room-layout-v1';
+// names that existed before shelf/rug were added — an old array-only save is
+// assumed to know about these, so we don't dump duplicates back into it.
+const LEGACY_DEFAULTS = ['lamp','stool','cushion','plant','books','counter','stove','fridge','kettle','mug'];
 function saveLayout(){
   try{
-    const data = props.map(p=>({name:p.userData.name, x:p.position.x, z:p.position.z, ry:p.rotation.y}));
+    const data = {
+      v: 2,
+      known: DEFAULT_LAYOUT.map(d=>d.name),
+      items: props.map(p=>({name:p.userData.name, x:p.position.x, y:p.position.y, z:p.position.z, ry:p.rotation.y})),
+    };
     localStorage.setItem(SAVE_KEY, JSON.stringify(data));
   }catch(e){}
 }
@@ -706,17 +701,28 @@ function makeFireplace(){
   return g;
 }
 
-const MAKERS = {lamp:makeLamp, stool:makeStool, cushion:makeCushion, plant:makePlant, books:makeBooks, counter:makeCounter, kettle:makeKettle, mug:makeMug, stove:makeStove, fridge:makeFridge, rug:makeRug, cat:makeCat, fireplace:makeFireplace, shelf:makeShelf};
 function loadLayout(){
-  let data = null;
-  try{ data = JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); }catch(e){}
-  if(!Array.isArray(data)) return;
+  let raw = null;
+  try{ raw = JSON.parse(localStorage.getItem(SAVE_KEY)||'null'); }catch(e){}
+  if(!raw) return;
+  let items, known;
+  if(Array.isArray(raw)){ items = raw; known = LEGACY_DEFAULTS.slice(); }
+  else if(raw && Array.isArray(raw.items)){ items = raw.items; known = Array.isArray(raw.known) ? raw.known : LEGACY_DEFAULTS.slice(); }
+  else return;
   for(const p of props.slice()){ room.remove(p); }
   props.length = 0;
-  for(const d of data){
+  const seen = new Set();
+  for(const d of items){
     const mk = MAKERS[d.name]; if(!mk) continue;
-    const g = addProp(mk(), d.x, d.z, d.name);
+    seen.add(d.name);
+    const g = addProp(mk(), d.x, d.z, d.name, d.y||0);
     g.rotation.y = d.ry||0;
+  }
+  // add defaults this save has never seen (props added to the game since)
+  for(const d of DEFAULT_LAYOUT){
+    if(known.includes(d.name) || seen.has(d.name)) continue;
+    const g = addProp(MAKERS[d.name](), d.x, d.z, d.name, d.y||0);
+    if(d.ry) g.rotation.y = d.ry;
   }
 }
 loadLayout();
@@ -867,7 +873,7 @@ function tick(){
   // held prop floats in front of u while u carry it
   if(held){
     const hold = new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)).multiplyScalar(0.9);
-    const target = new THREE.Vector3(camera.position.x+hold.x, 0, camera.position.z+hold.z);
+    const target = new THREE.Vector3(camera.position.x+hold.x, held.position.y, camera.position.z+hold.z);
     held.position.lerp(target, 1-Math.pow(0.0001, dt));
     promptEl.textContent = 'f place · r rotate';
     promptEl.style.opacity = '1';
