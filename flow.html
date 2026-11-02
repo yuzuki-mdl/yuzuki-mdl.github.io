@@ -48,7 +48,7 @@ function noise(x, y, s){
 let seed = Math.floor(Math.random()*10000);
 let SCALE = 0.0016;   // spatial frequency of the field
 let particles = [];
-const COUNT = 1400;
+const COUNT = 2200;
 
 function angleAt(x, y){
   // two octaves of noise -> smooth, organic flow
@@ -93,14 +93,14 @@ addEventListener('pointerdown', e=>{
 function frame(){
   if(paused){ requestAnimationFrame(frame); return; }
   // fade previous frame -> trails
-  ctx.fillStyle = 'rgba(11,11,16,0.055)';
+  ctx.fillStyle = 'rgba(11,11,16,0.028)';
   ctx.fillRect(0,0,W,H);
-  ctx.lineWidth = 1.1 * DPR;
+  ctx.lineWidth = 1.4 * DPR;
 
   for(const p of particles){
     const a = angleAt(p.x, p.y);
-    const nx = p.x + Math.cos(a)*p.spd*DPR*2.0;
-    const ny = p.y + Math.sin(a)*p.spd*DPR*2.0;
+    const nx = p.x + Math.cos(a)*p.spd*DPR*2.6;
+    const ny = p.y + Math.sin(a)*p.spd*DPR*2.6;
     ctx.strokeStyle = `hsla(${p.hue}, 80%, 62%, ${0.55*(1 - p.life/p.max)})`;
     ctx.beginPath();
     ctx.moveTo(p.x, p.y);
