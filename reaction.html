@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>reaction — gray-scott</title>
+<style>
+  html,body{margin:0;height:100%;background:#08090c;color:#cfd3dd;font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh;cursor:crosshair;touch-action:none}
+  #ui{position:fixed;left:12px;top:12px;background:rgba(10,12,18,.82);border:1px solid #232838;border-radius:10px;padding:10px 12px;backdrop-filter:blur(6px);max-width:min(92vw,340px)}
+  #ui h1{margin:0 0 8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#7d879e;font-weight:600}
+  .row{display:flex;align-items:center;gap:8px;margin:5px 0}
+  .row label{flex:0 0 44px;color:#8a93a8}
+  input[type=range]{flex:1;accent-color:#5fd0c0;height:16px}
+  .val{flex:0 0 52px;text-align:right;color:#9fe8dc;font-variant-numeric:tabular-nums}
+  .btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  button{background:#161b26;color:#cfd3dd;border:1px solid #2a3244;border-radius:7px;padding:5px 9px;font:inherit;cursor:pointer}
+  button:hover{background:#1e2534;border-color:#3a4560}
+  button.on{background:#1d3b36;border-color:#3f8f7f;color:#9fe8dc}
+  select{background:#161b26;color:#cfd3dd;border:1px solid #2a3244;border-radius:7px;padding:5px 7px;font:inherit}
+  .hint{margin-top:8px;color:#5f6a80;font-size:11px}
+  #toggle{position:fixed;right:12px;top:12px;z-index:2}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<button id="toggle">hide ui</button>
+<div id="ui">
+  <h1>gray-scott</h1>
+  <div class="row"><label>feed</label><input id="feed" type="range" min="0.005" max="0.06" step="0.001" value="0.037"><span class="val" id="feedv"></span></div>
+  <div class="row"><label>kill</label><input id="kill" type="range" min="0.045" max="0.075" step="0.001" value="0.061"><span class="val" id="killv"></span></div>
+  <div class="row"><label>speed</label><input id="speed" type="range" min="1" max="30" step="1" value="8"><span class="val" id="speedv"></span></div>
+  <div class="btns">
+    <button id="play" class="on">pause</button>
+    <button id="clear">clear</button>
+    <button id="seed">random seed</button>
+  </div>
+  <div class="row" style="margin-top:8px"><label>preset</label><select id="preset">
+    <option value="coral">coral</option>
+    <option value="mitosis">mitosis</option>
+    <option value="spirals">spirals</option>
+    <option value="worms">worms</option>
+    <option value="holes">holes</option>
+    <option value="spots">spots</option>
+  </select></div>
+  <div class="hint">drag to paint chemical B</div>
+</div>
+<script>
+(function(){
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d', {alpha:false});
+
+  // sim resolution (grid cells). canvas is scaled up to fit.
+  let W = 0, H = 0;
+  let A, B, A2, B2;
+  let img, pixels;
+
+  let feed = 0.037, kill = 0.061;
+  let speed = 8;
+  let running = true;
+  let raf = null;
+
+  const dA = 1.0, dB = 0.5;
+
+  function resize(){
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cv.width = Math.floor(window.innerWidth * dpr);
+    cv.height = Math.floor(window.innerHeight * dpr);
+    // grid ~ one cell per 3 device px, clamped
+    W = Math.max(80, Math.min(320, Math.floor(cv.width / 3)));
+    H = Math.max(60, Math.min(240, Math.floor(cv.height / 3)));
+    A = new Float32Array(W*H).fill(1);
+    B = new Float32Array(W*H).fill(0);
+    A2 = new Float32Array(W*H);
+    B2 = new Float32Array(W*H);
+    img = ctx.createImageData(W, H);
+    pixels = img.data;
+    seedRandom();
+  }
+
+  function idx(x,y){ return y*W + x; }
+
+  function seedBlob(cx, cy, r){
+    for(let y=Math.max(0,cy-r); y<Math.min(H,cy+r); y++){
+      for(let x=Math.max(0,cx-r); x<Math.min(W,cx+r); x++){
+        const dx=x-cx, dy=y-cy;
+        if(dx*dx+dy*dy <= r*r){ B[idx(x,y)] = 1; A[idx(x,y)] = 0; }
+      }
+    }
+  }
+
+  function seedRandom(){
+    A.fill(1); B.fill(0);
+    const n = 6 + Math.floor(Math.random()*8);
+    for(let i=0;i<n;i++){
+      seedBlob(Math.floor(Math.random()*W), Math.floor(Math.random()*H), 3 + Math.floor(Math.random()*6));
+    }
+  }
+
+  function step(){
+    const f = feed, k = kill;
+    for(let y=0;y<H;y++){
+      const ym = (y-1+H)%H, yp = (y+1)%H;
+      for(let x=0;x<W;x++){
+        const xm = (x-1+W)%W, xp = (x+1)%W;
+        const i = y*W + x;
+        const a = A[i], b = B[i];
+        const lapA = A[ym*W+xm] + A[ym*W+x] + A[ym*W+xp]
+                   + A[y*W+xm]  - 4*a + A[y*W+xp]
+                   + A[yp*W+xm] + A[yp*W+x] + A[yp*W+xp];
+        const lapB = B[ym*W+xm] + B[ym*W+x] + B[ym*W+xp]
+                   + B[y*W+xm]  - 4*b + B[y*W+xp]
+                   + B[yp*W+xm] + B[yp*W+x] + B[yp*W+xp];
+        const abb = a*b*b;
+        let na = a + (dA*lapA - abb + f*(1-a));
+        let nb = b + (dB*lapB + abb - (k+f)*b);
+        if(na < 0) na = 0; else if(na > 1) na = 1;
+        if(nb < 0) nb = 0; else if(nb > 1) nb = 1;
+        A2[i] = na; B2[i] = nb;
+      }
+    }
+    const tA=A, tB=B; A=A2; B=B2; A2=tA; B2=tB;
+  }
+
+  function draw(){
+    for(let i=0;i<W*H;i++){
+      const b = B[i];
+      // map B to a teal→warm ramp
+      const t = Math.min(1, b*2.2);
+      const r = Math.floor(20 + t*200);
+      const g = Math.floor(24 + t*200);
+      const bl = Math.floor(40 + t*120);
+      const p = i*4;
+      pixels[p] = r; pixels[p+1] = g; pixels[p+2] = bl; pixels[p+3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    // upscale
+    if(cv.width !== W || cv.height !== H){
+      const tmp = document.createElement('canvas');
+      tmp.width = W; tmp.height = H;
+      tmp.getContext('2d').putImageData(img, 0, 0);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(tmp, 0, 0, cv.width, cv.height);
+    }
+  }
+
+  function loop(){
+    raf = requestAnimationFrame(loop);
+    if(running){
+      for(let s=0;s<speed;s++) step();
+    }
+    draw();
+  }
+
+  // ---- input ----
+  let painting = false;
+  function paintAt(clientX, clientY){
+    const rect = cv.getBoundingClientRect();
+    const gx = Math.floor((clientX - rect.left) / rect.width * W);
+    const gy = Math.floor((clientY - rect.top) / rect.height * H);
+    for(let y=gy-3;y<=gy+3;y++){
+      for(let x=gx-3;x<=gx+3;x++){
+        if(x<0||y<0||x>=W||y>=H) continue;
+        const dx=x-gx, dy=y-gy;
+        if(dx*dx+dy*dy<=9){ B[idx(x,y)] = 1; A[idx(x,y)] = 0; }
+      }
+    }
+  }
+  cv.addEventListener('pointerdown', e=>{ painting = true; paintAt(e.clientX, e.clientY); cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', e=>{ if(painting) paintAt(e.clientX, e.clientY); });
+  cv.addEventListener('pointerup', ()=>{ painting = false; });
+  cv.addEventListener('pointercancel', ()=>{ painting = false; });
+
+  // ---- ui ----
+  const feedEl = document.getElementById('feed');
+  const killEl = document.getElementById('kill');
+  const speedEl = document.getElementById('speed');
+  const feedv = document.getElementById('feedv');
+  const killv = document.getElementById('killv');
+  const speedv = document.getElementById('speedv');
+  const playBtn = document.getElementById('play');
+  const presetEl = document.getElementById('preset');
+
+  function syncUI(){
+    feedv.textContent = feed.toFixed(3);
+    killv.textContent = kill.toFixed(3);
+    speedv.textContent = speed;
+  }
+  feedEl.addEventListener('input', ()=>{ feed = parseFloat(feedEl.value); syncUI(); });
+  killEl.addEventListener('input', ()=>{ kill = parseFloat(killEl.value); syncUI(); });
+  speedEl.addEventListener('input', ()=>{ speed = parseInt(speedEl.value); syncUI(); });
+  playBtn.addEventListener('click', ()=>{ running = !running; playBtn.textContent = running ? 'pause' : 'play'; playBtn.classList.toggle('on', running); });
+  document.getElementById('clear').addEventListener('click', ()=>{ A.fill(1); B.fill(0); });
+  document.getElementById('seed').addEventListener('click', seedRandom);
+
+  const presets = {
+    coral:   {f:0.037, k:0.061},
+    mitosis: {f:0.036, k:0.062},
+    spirals: {f:0.018, k:0.051},
+    worms:   {f:0.058, k:0.065},
+    holes:   {f:0.039, k:0.058},
+    spots:   {f:0.030, k:0.062}
+  };
+  presetEl.addEventListener('change', ()=>{
+    const p = presets[presetEl.value];
+    if(!p) return;
+    feed = p.f; kill = p.k;
+    feedEl.value = feed; killEl.value = kill;
+    syncUI();
+    seedRandom();
+  });
+
+  const toggle = document.getElementById('toggle');
+  const ui = document.getElementById('ui');
+  toggle.addEventListener('click', ()=>{
+    const hidden = ui.style.display === 'none';
+    ui.style.display = hidden ? '' : 'none';
+    toggle.textContent = hidden ? 'hide ui' : 'show ui';
+  });
+
+  let rt = null;
+  window.addEventListener('resize', ()=>{ clearTimeout(rt); rt = setTimeout(resize, 200); });
+
+  resize();
+  syncUI();
+  loop();
+})();
+</script>
+</body>
+</html>
