@@ -291,8 +291,8 @@ const lampBase = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.18,0.05,16), n
 lampBase.position.set(-W/2+1.6, 0.03, D/2-0.7); room.add(lampBase);
 const lampShade = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.22,0.24,16,1,true), new THREE.MeshStandardMaterial({color:0xe8d9a8, roughness:.9, side:THREE.DoubleSide, emissive:0xffcf7a, emissiveIntensity:0.4}));
 lampShade.position.set(-W/2+1.6, 1.55, D/2-0.7); room.add(lampShade);
-const lampLight = new THREE.PointLight(0xffcf7a, 1.6, 3.5, 2);
-lampLight.position.set(-W/2+1.6, 1.5, D/2-0.7); room.add(lampLight);
+const floorLampLight = new THREE.PointLight(0xffcf7a, 1.6, 3.5, 2);
+floorLampLight.position.set(-W/2+1.6, 1.5, D/2-0.7); room.add(floorLampLight);
 
 // chair
 box(0.5,0.06,0.5, 0x3a3a44, W/2-0.95, 0.45, 0.8);
@@ -371,6 +371,138 @@ for(let i=0;i<10;i++){
   room.add(b);
 }
 
+// ---- decoratable props ----
+const props = [];
+const propMat = (c,r=.85)=>new THREE.MeshStandardMaterial({color:c, roughness:r});
+function addProp(g, x, z, name){
+  g.position.set(x, 0, z);
+  g.userData.name = name;
+  room.add(g);
+  props.push(g);
+  return g;
+}
+
+function makeLamp(){
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.26,0.06,20), propMat(0x2a2a33,.6));
+  base.position.y=0.03; g.add(base);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,1.5,10), propMat(0x3a3a44,.5));
+  pole.position.y=0.78; g.add(pole);
+  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.32,0.34,20,1,true), propMat(0xd8b98a,.8));
+  shade.position.y=1.58; g.add(shade);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.07,10,10), new THREE.MeshBasicMaterial({color:0xffe0b0}));
+  bulb.position.y=1.5; g.add(bulb);
+  const pl = new THREE.PointLight(0xffd9a0, 4, 6, 2); pl.position.y=1.5; g.add(pl);
+  return g;
+}
+
+function makeStool(){
+  const g = new THREE.Group();
+  const seat = new THREE.Mesh(new THREE.CylinderGeometry(0.26,0.26,0.07,20), propMat(0x6b4a3a,.8));
+  seat.position.y=0.5; g.add(seat);
+  for(let i=0;i<3;i++){
+    const a=i/3*Math.PI*2;
+    const leg=new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.5,8), propMat(0x5a3a2a,.8));
+    leg.position.set(Math.cos(a)*0.2,0.25,Math.sin(a)*0.2);
+    leg.rotation.x=Math.sin(a)*0.12; leg.rotation.z=-Math.cos(a)*0.12;
+    g.add(leg);
+  }
+  return g;
+}
+
+function makeCushion(){
+  const g = new THREE.Group();
+  const c=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.16,0.5), propMat(0x7a3a5c,1));
+  c.position.y=0.09; c.rotation.y=0.4; g.add(c);
+  return g;
+}
+
+function makePlant(){
+  const g=new THREE.Group();
+  const pot=new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.12,0.26,14), propMat(0x8a5a44,.9));
+  pot.position.y=0.13; g.add(pot);
+  const leafMat=new THREE.MeshStandardMaterial({color:0x3f7a4a,roughness:.85});
+  for(let i=0;i<6;i++){
+    const a=i/6*Math.PI*2+Math.random();
+    const len=0.35+Math.random()*0.25;
+    const stem=new THREE.Mesh(new THREE.CylinderGeometry(0.01,0.016,len,6),leafMat);
+    stem.position.set(Math.cos(a)*0.06,0.26+len/2,Math.sin(a)*0.06);
+    stem.rotation.z=Math.cos(a)*0.2; stem.rotation.x=-Math.sin(a)*0.2;
+    g.add(stem);
+    const leaf=new THREE.Mesh(new THREE.SphereGeometry(0.08,8,6),leafMat);
+    leaf.scale.set(1,0.35,1.3);
+    leaf.position.set(Math.cos(a)*len*0.18,0.26+len,Math.sin(a)*len*0.18);
+    leaf.rotation.y=a; g.add(leaf);
+  }
+  return g;
+}
+
+function makeBooks(){
+  const g=new THREE.Group();
+  const cols=[0x8a3a3a,0x3a5a8a,0x5a7a3a,0x6a3a6a];
+  let y=0;
+  for(let i=0;i<4;i++){
+    const h=0.06+Math.random()*0.03;
+    const b=new THREE.Mesh(new THREE.BoxGeometry(0.34,h,0.24), propMat(cols[i%cols.length],.9));
+    b.position.y=y+h/2; b.rotation.y=(Math.random()-0.5)*0.5;
+    g.add(b); y+=h;
+  }
+  return g;
+}
+
+addProp(makeLamp(),   2.6,  0.6, 'lamp');
+addProp(makeStool(),  1.3, -1.0, 'stool');
+addProp(makeCushion(),-1.0, 1.0, 'cushion');
+addProp(makePlant(),  2.4,  2.4, 'plant');
+addProp(makeBooks(),  1.6, -2.4, 'books');
+
+// ---- grab / arrange ----
+const raycaster = new THREE.Raycaster();
+const centerNDC = new THREE.Vector2(0,0);
+let held = null;
+const REACH = 2.6;
+
+function propUnderCrosshair(){
+  raycaster.setFromCamera(centerNDC, camera);
+  const hits = raycaster.intersectObjects(props, true);
+  if(!hits.length || hits[0].distance > REACH) return null;
+  let o = hits[0].object;
+  while(o && !props.includes(o)) o = o.parent;
+  return o || null;
+}
+
+function tryGrab(){
+  if(held){ dropHeld(); return; }
+  const p = propUnderCrosshair();
+  if(p){ held = p; }
+}
+
+function dropHeld(){
+  const p = held; held = null;
+  p.position.x = Math.max(-W/2+0.5, Math.min(W/2-0.5, p.position.x));
+  p.position.z = Math.max(-D/2+0.5, Math.min(D/2-0.5, p.position.z));
+  p.position.y = 0;
+}
+
+addEventListener('keydown', e=>{
+  if(e.code==='KeyF') tryGrab();
+  if(e.code==='KeyR' && held) held.rotation.y += Math.PI/6;
+});
+
+const promptEl = document.createElement('div');
+Object.assign(promptEl.style, {
+  position:'fixed', left:'50%', bottom:'20%', transform:'translateX(-50%)',
+  color:'#e8dcc0', font:'14px system-ui,sans-serif', letterSpacing:'.05em',
+  background:'rgba(20,16,26,.55)', padding:'6px 12px', borderRadius:'8px',
+  pointerEvents:'none', opacity:'0', transition:'opacity .18s', textAlign:'center', whiteSpace:'nowrap'
+});
+document.body.appendChild(promptEl);
+
+const noteEl = document.createElement('div');
+noteEl.textContent='f pick up · r rotate';
+Object.assign(noteEl.style,{position:'fixed',left:'14px',bottom:'14px',color:'#9a8fa8',font:'12px system-ui,sans-serif',letterSpacing:'.04em',opacity:'.7',pointerEvents:'none'});
+document.body.appendChild(noteEl);
+
 // ---- controls ----
 const keys = {};
 addEventListener('keydown', e=>{ keys[e.code]=true; if(e.code==='KeyE') toggleLights(); });
@@ -444,6 +576,19 @@ function tick(){
     const t = (now - nextBlink)/140;
     if(t >= 1){ for(const e of catEyes) e.scale.y = 1; nextBlink = now + 2500 + Math.random()*4500; }
     else { const open = Math.abs(t - 0.5)*2; for(const e of catEyes) e.scale.y = Math.max(0.12, open); }
+  }
+
+  // held prop floats in front of u while u carry it
+  if(held){
+    const hold = new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)).multiplyScalar(0.9);
+    const target = new THREE.Vector3(camera.position.x+hold.x, 0, camera.position.z+hold.z);
+    held.position.lerp(target, 1-Math.pow(0.0001, dt));
+    promptEl.textContent = 'f place · r rotate';
+    promptEl.style.opacity = '1';
+  } else {
+    const p = propUnderCrosshair();
+    if(p){ promptEl.textContent = 'f pick up ' + (p.userData.name||''); promptEl.style.opacity='1'; }
+    else promptEl.style.opacity='0';
   }
 
   renderer.render(scene, camera);
