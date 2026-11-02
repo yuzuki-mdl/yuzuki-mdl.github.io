@@ -883,6 +883,80 @@ function tick(){
 }
 tick();
 
+// ---- touch controls (phones/tablets) ----
+const isTouch = matchMedia('(pointer:coarse)').matches || 'ontouchstart' in window;
+if(isTouch){
+  hint.classList.add('hide');
+  noteEl.style.display='none';
+  // drag anywhere on the canvas to look around
+  let lookId=null, lx=0, ly=0;
+  renderer.domElement.addEventListener('touchstart', e=>{
+    const t=e.changedTouches[0]; lookId=t.identifier; lx=t.clientX; ly=t.clientY;
+  }, {passive:true});
+  renderer.domElement.addEventListener('touchmove', e=>{
+    for(const t of e.changedTouches){
+      if(t.identifier!==lookId) continue;
+      yaw   -= (t.clientX-lx)*0.004;
+      pitch -= (t.clientY-ly)*0.004;
+      pitch = Math.max(-1.2, Math.min(1.2, pitch));
+      lx=t.clientX; ly=t.clientY;
+    }
+  }, {passive:true});
+  const endLook=e=>{ for(const t of e.changedTouches) if(t.identifier===lookId) lookId=null; };
+  renderer.domElement.addEventListener('touchend', endLook);
+  renderer.domElement.addEventListener('touchcancel', endLook);
+
+  // virtual joystick (bottom-left) drives the same WASD keys
+  const stick=document.createElement('div');
+  Object.assign(stick.style,{position:'fixed',left:'20px',bottom:'20px',width:'110px',height:'110px',borderRadius:'50%',background:'rgba(20,16,26,.45)',border:'1px solid #3a3048',zIndex:7,touchAction:'none'});
+  const knob=document.createElement('div');
+  Object.assign(knob.style,{position:'absolute',left:'50%',top:'50%',width:'46px',height:'46px',marginLeft:'-23px',marginTop:'-23px',borderRadius:'50%',background:'rgba(232,220,192,.5)'});
+  stick.appendChild(knob); document.body.appendChild(stick);
+  let stickId=null, sx=0, sy=0;
+  const R=38;
+  function moveStick(dx,dy){
+    const m=Math.hypot(dx,dy)||1; const c=Math.min(m,R)/m;
+    knob.style.transform='translate('+(dx*c)+'px,'+(dy*c)+'px)';
+    const nx=dx/m, ny=dy/m, dead=0.35;
+    keys['KeyW']=ny<-dead; keys['KeyS']=ny>dead;
+    keys['KeyA']=nx<-dead; keys['KeyD']=nx>dead;
+  }
+  stick.addEventListener('touchstart', e=>{
+    const t=e.changedTouches[0]; stickId=t.identifier;
+    const r=stick.getBoundingClientRect(); sx=r.left+r.width/2; sy=r.top+r.height/2;
+    moveStick(t.clientX-sx, t.clientY-sy); e.preventDefault();
+  }, {passive:false});
+  stick.addEventListener('touchmove', e=>{
+    for(const t of e.changedTouches) if(t.identifier===stickId) moveStick(t.clientX-sx, t.clientY-sy);
+    e.preventDefault();
+  }, {passive:false});
+  const endStick=e=>{
+    for(const t of e.changedTouches) if(t.identifier===stickId){
+      stickId=null; knob.style.transform='translate(0,0)';
+      keys['KeyW']=keys['KeyS']=keys['KeyA']=keys['KeyD']=false;
+    }
+  };
+  stick.addEventListener('touchend', endStick);
+  stick.addEventListener('touchcancel', endStick);
+
+  // action buttons (bottom-center)
+  const bar=document.createElement('div');
+  Object.assign(bar.style,{position:'fixed',left:'50%',bottom:'24px',transform:'translateX(-50%)',display:'flex',gap:'10px',zIndex:7});
+  function mkBtn(label, fn){
+    const b=document.createElement('button'); b.textContent=label;
+    Object.assign(b.style,{width:'52px',height:'52px',borderRadius:'50%',background:'rgba(20,16,26,.6)',color:'#e8dcc0',border:'1px solid #3a3048',font:'18px system-ui,sans-serif',touchAction:'none'});
+    b.addEventListener('touchstart', e=>{ e.preventDefault(); fn(); }, {passive:false});
+    bar.appendChild(b); return b;
+  }
+  mkBtn('✋', ()=>tryGrab());
+  mkBtn('⟳', ()=>{ if(held) held.rotation.y += Math.PI/6; });
+  mkBtn('🗑', ()=>{ if(held){ room.remove(held); props.splice(props.indexOf(held),1); held=null; saveLayout(); } });
+  document.body.appendChild(bar);
+
+  // the spawn palette needs to sit above the joystick on small screens
+  pal.style.bottom='84px';
+}
+
 addEventListener('resize', ()=>{
   camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
   renderer.setSize(innerWidth, innerHeight);
