@@ -487,6 +487,39 @@ for(let i=0;i<5;i++){
 // rug
 const stRug = new THREE.Mesh(new THREE.CircleGeometry(0.8, 32), new THREE.MeshStandardMaterial({color:0x5a4a6a, roughness:1}));
 stRug.rotation.x = -Math.PI/2; stRug.position.set(stXc, 0.08, stZc); room.add(stRug);
+// window on far wall with a night sky view
+{
+  const winW = 1.1, winH = 1.0, winY = H*0.55, winZ = stZc + 0.35;
+  const frameMat = new THREE.MeshStandardMaterial({color:0x2a2230, roughness:.7});
+  const fx = stX0+stW - 0.02;
+  // night sky pane
+  const skyMat = new THREE.MeshBasicMaterial({color:0x0d1030});
+  const pane = new THREE.Mesh(new THREE.PlaneGeometry(winW, winH), skyMat);
+  pane.position.set(fx, winY, winZ); pane.rotation.y = -Math.PI/2; room.add(pane);
+  // moon
+  const moon = new THREE.Mesh(new THREE.CircleGeometry(0.12, 24), new THREE.MeshBasicMaterial({color:0xf5f0d0}));
+  moon.position.set(fx-0.01, winY+0.28, winZ+0.3); moon.rotation.y = -Math.PI/2; room.add(moon);
+  // stars
+  for(let i=0;i<14;i++){
+    const s = new THREE.Mesh(new THREE.CircleGeometry(0.008+Math.random()*0.008, 6), new THREE.MeshBasicMaterial({color:0xffffff}));
+    s.position.set(fx-0.01, winY-0.4+Math.random()*0.8, winZ-0.45+Math.random()*0.9);
+    s.rotation.y = -Math.PI/2; room.add(s);
+  }
+  // frame: four bars
+  const barT = 0.06;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(0.05, barT, winW), frameMat);
+  top.position.set(fx+0.01, winY+winH/2, winZ); room.add(top);
+  const bot = top.clone(); bot.position.y = winY-winH/2; room.add(bot);
+  const sideA = new THREE.Mesh(new THREE.BoxGeometry(0.05, winH+barT, barT), frameMat);
+  sideA.position.set(fx+0.01, winY, winZ-winW/2); room.add(sideA);
+  const sideB = sideA.clone(); sideB.position.z = winZ+winW/2; room.add(sideB);
+  // sill
+  const sill = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, winW+0.15), frameMat);
+  sill.position.set(fx-0.03, winY-winH/2-0.02, winZ); room.add(sill);
+  // cool moonlight spilling in
+  const moonLight = new THREE.PointLight(0x9ab0ff, 3, 3, 2);
+  moonLight.position.set(fx-0.3, winY, winZ); room.add(moonLight);
+}
 
 // ---- decorations ----
 function box(w,h,d,color,x,y,z,rough=0.8){
