@@ -740,6 +740,21 @@ function makeFridge(){
   return g;
 }
 
+function makeRecordPlayer(){
+  const g=new THREE.Group();
+  const base=new THREE.Mesh(new THREE.BoxGeometry(0.5,0.09,0.4), propMat(0x2a2230,.6));
+  base.position.y=0.045; g.add(base);
+  const platter=new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,0.02,24), propMat(0x151218,.5));
+  platter.position.y=0.1; g.add(platter);
+  const vinyl=new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,0.008,24), propMat(0x0a0a10,.4));
+  vinyl.position.y=0.115; g.add(vinyl);
+  const label=new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,0.009,20), propMat(0xc47a3a,.7));
+  label.position.y=0.12; g.add(label);
+  const arm=new THREE.Mesh(new THREE.CylinderGeometry(0.008,0.008,0.2,8), propMat(0xb0b0b8,.5));
+  arm.position.set(0.16,0.13,0.05); arm.rotation.z=0.35; arm.rotation.x=0.5; g.add(arm);
+  return g;
+}
+
 function makeClock(){
   const g=new THREE.Group();
   // round case
@@ -767,7 +782,7 @@ function makeClock(){
   return g;
 }
 
-const MAKERS = {lamp:makeLamp, stool:makeStool, cushion:makeCushion, plant:makePlant, books:makeBooks, counter:makeCounter, kettle:makeKettle, mug:makeMug, stove:makeStove, fridge:makeFridge, rug:makeRug, cat:makeCat, fireplace:makeFireplace, shelf:makeShelf, aquarium:makeAquarium, clock:makeClock};
+const MAKERS = {lamp:makeLamp, stool:makeStool, cushion:makeCushion, plant:makePlant, books:makeBooks, counter:makeCounter, kettle:makeKettle, mug:makeMug, stove:makeStove, fridge:makeFridge, rug:makeRug, cat:makeCat, fireplace:makeFireplace, shelf:makeShelf, aquarium:makeAquarium, clock:makeClock, recordplayer:makeRecordPlayer};
 
 // default layout: kitchen pushed forward so the wall shelves stay clear,
 // shelf off the desk and against the right wall, kettle/mug up on the counter top
@@ -787,6 +802,7 @@ const DEFAULT_LAYOUT = [
   {name:'fireplace', x:-2.4, z: 3.15, ry:Math.PI},
   {name:'aquarium', x: 2.9, z:-2.55},
   {name:'clock',    x: 0.8,  z: 3.42, y:2.1, ry:Math.PI},
+  {name:'recordplayer', x: 1.7, z: 2.6, y:0, ry:0.4},
 ];
 for(const d of DEFAULT_LAYOUT){
   const g = addProp(MAKERS[d.name](), d.x, d.z, d.name, d.y||0);
