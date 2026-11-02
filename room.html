@@ -38,6 +38,7 @@ renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
 
 const propMat = (c,r=.85)=>new THREE.MeshStandardMaterial({color:c, roughness:r});
+const fireFlames = [];
 // ---- room ----
 const W = 7, D = 7, H = 3.2; // width depth height
 const room = new THREE.Group();
@@ -661,7 +662,6 @@ function makeCat(){
   return g;
 }
 
-const fireFlames = [];
 function makeFireplace(){
   const g=new THREE.Group();
   // hearth base
