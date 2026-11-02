@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>attractors</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  html,body{margin:0;height:100%;background:#07080c;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh}
+  #ui{position:fixed;left:14px;bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font:13px/1.2 ui-monospace,monospace;color:#dfe0ea;background:rgba(7,8,12,.72);padding:10px 12px;border-radius:12px;backdrop-filter:blur(6px);border:1px solid #22242e}
+  #ui button{font:inherit;background:#15171f;color:#dfe0ea;border:1px solid #2a2d3a;border-radius:8px;padding:6px 10px;cursor:pointer}
+  #ui button:hover{background:#1d202b}
+  #ui button.on{background:#3b2a55;border-color:#6a4d9a}
+  #ui .hint{opacity:.55}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <button data-a="dejong" class="on">de jong</button>
+  <button data-a="lorenz">lorenz</button>
+  <button data-a="clifford">clifford</button>
+  <button data-a="svensson">svensson</button>
+  <button id="reseed">↻ new</button>
+  <span class="hint">click canvas to respawn</span>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,dpr=Math.min(devicePixelRatio||1,2);
+function resize(){
+  W=innerWidth;H=innerHeight;
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+resize();addEventListener('resize',()=>{resize();clear();});
+
+function clear(){ctx.fillStyle='#07080c';ctx.fillRect(0,0,W,H);}
+clear();
+
+let kind='dejong';
+const rnd=(a,b)=>a+Math.random()*(b-a);
+let P={};
+
+function reseed(){
+  if(kind==='dejong'){P.a=rnd(-3,3);P.b=rnd(-3,3);P.c=rnd(-3,3);P.d=rnd(-3,3);}
+  else if(kind==='clifford'){P.a=rnd(-2.5,2.5);P.b=rnd(-2.5,2.5);P.c=rnd(-1.5,1.5);P.d=rnd(-1.5,1.5);}
+  else if(kind==='svensson'){P.a=rnd(.5,2.5);P.b=rnd(.5,2.5);P.c=rnd(-2,2);P.d=rnd(-2,2);}
+  else if(kind==='lorenz'){P.s=10;P.r=rnd(20,32);P.b=rnd(2,3.5);}
+}
+
+// color ramp teal→magenta
+function color(t){
+  const r=Math.floor(80+175*t), g=Math.floor(210-140*t), b=Math.floor(200-40*t);
+  return `rgba(${r},${g},${b},0.5)`;
+}
+
+function runDeJong(){
+  let x=rnd(-.1,.1),y=rnd(-.1,.1);
+  const N=1200000, scale=Math.min(W,H)/7;
+  const cx=W/2,cy=H/2;
+  for(let i=0;i<N;i++){
+    const nx=Math.sin(P.a*y)-Math.cos(P.b*x);
+    const ny=Math.sin(P.c*x)-Math.cos(P.d*y);
+    x=nx;y=ny;
+    if(i>20){
+      const px=cx+x*scale, py=cy+y*scale;
+      const t=Math.min(1,i/N*3);
+      ctx.fillStyle=color((i%1000)/1000);
+      ctx.fillRect(px,py,1,1);
+    }
+  }
+}
+function runClifford(){
+  let x=rnd(-.1,.1),y=rnd(-.1,.1);
+  const N=1200000, scale=Math.min(W,H)/6;
+  const cx=W/2,cy=H/2;
+  for(let i=0;i<N;i++){
+    const nx=Math.sin(P.a*y)+P.c*Math.cos(P.a*x);
+    const ny=Math.sin(P.b*x)+P.d*Math.cos(P.b*y);
+    x=nx;y=ny;
+    if(i>20){
+      const px=cx+x*scale, py=cy+y*scale;
+      ctx.fillStyle=color((i%1000)/1000);
+      ctx.fillRect(px,py,1,1);
+    }
+  }
+}
+function runSvensson(){
+  let x=rnd(-.1,.1),y=rnd(-.1,.1);
+  const N=1200000, scale=Math.min(W,H)/6;
+  const cx=W/2,cy=H/2;
+  for(let i=0;i<N;i++){
+    const nx=P.d*Math.sin(P.a*x)-Math.sin(P.b*y);
+    const ny=P.c*Math.cos(P.a*x)+Math.cos(P.b*y);
+    x=nx;y=ny;
+    if(i>20){
+      const px=cx+x*scale, py=cy+y*scale;
+      ctx.fillStyle=color((i%1000)/1000);
+      ctx.fillRect(px,py,1,1);
+    }
+  }
+}
+function runLorenz(){
+  let x=.01,y=0,z=0;
+  const dt=.005, N=1400000;
+  const scale=Math.min(W,H)/45;
+  const cx=W/2,cy=H/2;
+  for(let i=0;i<N;i++){
+    const dx=P.s*(y-x), dy=x*(P.r-z)-y, dz=x*y-P.b*z;
+    x+=dx*dt;y+=dy*dt;z+=dz*dt;
+    if(i>100){
+      // project xz plane, x horizontal, z vertical
+      const px=cx+x*scale, py=cy-(z-P.r)*scale;
+      ctx.fillStyle=color((i%2000)/2000);
+      ctx.fillRect(px,py,1,1);
+    }
+  }
+}
+
+function render(){
+  clear();
+  if(kind==='dejong')runDeJong();
+  else if(kind==='clifford')runClifford();
+  else if(kind==='svensson')runSvensson();
+  else runLorenz();
+}
+
+function go(){reseed();render();}
+go();
+
+// buttons
+document.querySelectorAll('#ui button[data-a]').forEach(b=>{
+  b.onclick=()=>{
+    kind=b.dataset.a;
+    document.querySelectorAll('#ui button[data-a]').forEach(x=>x.classList.toggle('on',x===b));
+    go();
+  };
+});
+document.getElementById('reseed').onclick=go;
+cv.addEventListener('pointerdown',go);
+</script>
+</body>
+</html>
