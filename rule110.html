@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>1d automata</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a0c;overflow:hidden;font-family:ui-monospace,monospace;color:#cfd8e8}
+  canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+  #ui{position:fixed;left:12px;bottom:12px;font-size:12px;opacity:.6;line-height:1.6;pointer-events:none}
+  #ui b{color:#7ad0ff}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  rule <b id="r">110</b> · click to randomize · space = next rule<br>
+  <span id="bin"></span>
+</div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let W,H,cols,rows,cell;
+let grid, y=0, rule=110;
+
+function resize(){
+  W=cv.width=innerWidth; H=cv.height=innerHeight;
+  cell = Math.max(3, Math.floor(W/260));
+  cols = Math.floor(W/cell);
+  rows = Math.floor(H/cell);
+  reset();
+}
+function reset(){
+  grid = new Uint8Array(cols);
+  // seed: single cell in middle
+  grid[Math.floor(cols/2)] = 1;
+  y = 0;
+  ctx.fillStyle='#0a0a0c'; ctx.fillRect(0,0,W,H);
+}
+
+function bits(n){ return n.toString(2).padStart(8,'0'); }
+
+function step(){
+  const next = new Uint8Array(cols);
+  for (let i=0;i<cols;i++){
+    const l = grid[(i-1+cols)%cols];
+    const c = grid[i];
+    const r = grid[(i+1)%cols];
+    const idx = (l<<2)|(c<<1)|r; // 0..7
+    // rule bit idx (msb = pattern 111)
+    next[i] = (rule >> (7-idx)) & 1;
+  }
+  // draw row
+  for (let i=0;i<cols;i++){
+    if (next[i]){
+      ctx.fillStyle = 'hsl('+(200 + (i/cols)*90)+',80%,62%)';
+      ctx.fillRect(i*cell, y*cell, cell, cell);
+    }
+  }
+  grid = next;
+  y++;
+  if (y >= rows){ y = 0; ctx.fillStyle='#0a0a0c'; ctx.fillRect(0,0,W,H); }
+}
+
+let acc=0, last=performance.now();
+function loop(t){
+  const dt = t-last; last=t;
+  acc += dt;
+  const per = 33; // ms per row
+  let guard=0;
+  while (acc > per && guard<8){ step(); acc-=per; guard++; }
+  requestAnimationFrame(loop);
+}
+
+function setRule(n){
+  rule = ((n%256)+256)%256;
+  document.getElementById('r').textContent = rule;
+  document.getElementById('bin').textContent = bits(rule).split('').join(' ');
+  reset();
+}
+
+addEventListener('keydown', e=>{
+  if (e.code==='Space'){ e.preventDefault(); setRule(rule+1); }
+});
+cv.addEventListener('pointerdown', ()=>{
+  // randomize rule
+  setRule(Math.floor(Math.random()*256));
+});
+
+addEventListener('resize', resize);
+resize();
+setRule(110);
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
