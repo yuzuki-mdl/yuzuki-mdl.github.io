@@ -251,6 +251,17 @@ for(let i=0;i<5;i++){
   leaf.scale.y = 1.4; room.add(leaf);
 }
 
+// little string of fairy lights along the nook roof edge
+const fairyMat = new THREE.MeshBasicMaterial({color:0xffe8b0});
+for(let i=0;i<9;i++){
+  const t = i/8;
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.028,8,8), fairyMat);
+  bulb.position.set(nookCX - nookW/2 + 0.15 + t*(nookW-0.3), H-0.06 - Math.sin(t*Math.PI)*0.09, nookZc - nookD/2 + 0.08);
+  room.add(bulb);
+}
+const fairyLight = new THREE.PointLight(0xffcf8a, 2.5, 3.5, 2);
+fairyLight.position.set(nookCX, H-0.12, nookZc - nookD/2 + 0.1); room.add(fairyLight);
+
 // hanging lamp
 const lampBulb = new THREE.Mesh(new THREE.SphereGeometry(.12,16,16), new THREE.MeshBasicMaterial({color:0xffd9a0}));
 lampBulb.position.set(0,H-0.6,0); room.add(lampBulb);
