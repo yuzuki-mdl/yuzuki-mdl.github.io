@@ -77,11 +77,11 @@ function frame(now){
   const targetGrin = chasing ? -1 : near;
   v.grin += (targetGrin - v.grin) * Math.min(1, dt*6);
 
-  draw(now);
+  draw(now, chasing);
   requestAnimationFrame(frame);
 }
 
-function draw(now){
+function draw(now, chasing){
   ctx.fillStyle = '#0a0a0c';
   ctx.fillRect(0,0,W,H);
 
