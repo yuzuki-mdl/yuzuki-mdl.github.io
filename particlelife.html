@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>particle life</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a0f;overflow:hidden;font-family:ui-monospace,monospace;color:#cfd0e0}
+  canvas{display:block}
+  #ui{position:fixed;top:12px;left:12px;background:rgba(10,10,18,.82);border:1px solid #23233a;border-radius:10px;padding:10px 12px;backdrop-filter:blur(4px);font-size:12px;line-height:1.4}
+  #ui h1{margin:0 0 8px;font-size:12px;font-weight:600;color:#8f8fb0;letter-spacing:.08em;text-transform:uppercase}
+  table{border-collapse:collapse}
+  td{width:24px;height:24px;text-align:center;border:1px solid #1a1a2a;cursor:pointer;font-size:11px;user-select:none;color:#e8e8f0;transition:background .05s}
+  td.hdr{border:none;cursor:default;color:#6a6a90;font-size:10px;width:18px;height:18px}
+  #btns{margin-top:8px;display:flex;gap:6px;flex-wrap:wrap}
+  button{background:#1b1b2e;color:#cfd0e0;border:1px solid #2c2c46;border-radius:6px;padding:4px 9px;font:inherit;font-size:11px;cursor:pointer}
+  button:hover{background:#26263e}
+  #hint{position:fixed;bottom:10px;left:12px;font-size:11px;color:#55557a}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <h1>attraction matrix</h1>
+  <table id="mat"></table>
+  <div id="btns">
+    <button id="rand">randomize</button>
+    <button id="zero">zero</button>
+    <button id="reset">reset</button>
+  </div>
+</div>
+<div id="hint">click a cell to cycle attraction · drag on the canvas to stir</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',resize);
+
+const NTYPES=5;
+const COLORS=['#ff5c8a','#5cc8ff','#ffd45c','#8cff9e','#c58cff'];
+const PALETTE=[-1,-0.6,-0.2,0,0.2,0.6,1];
+let M=[]; // matrix[typeA][typeB] attraction
+function resetMatrix(){
+  M=[];
+  const base=[[0,1,-0.5,0.4,0],[1,0.3,-0.8,0.2,0.6],[-0.5,-0.8,0.7,0,0.3],[0.4,0.2,0,0.5,-0.3],[0,0.6,0.3,-0.3,0.8]];
+  for(let i=0;i<NTYPES;i++){M.push(base[i].slice());}
+}
+resetMatrix();
+
+const R=90, FRICTION=0.82, FORCE=1400;
+let parts=[];
+const COUNT=Math.min(1400,Math.floor(W*H/700));
+function spawn(){
+  parts=[];
+  for(let i=0;i<COUNT;i++){
+    parts.push({x:Math.random()*W,y:Math.random()*H,vx:0,vy:0,t:Math.floor(Math.random()*NTYPES)});
+  }
+}
+spawn();
+
+let mouse={x:-1e9,y:-1e9,down:false};
+cv.addEventListener('pointerdown',e=>{mouse.down=true;mouse.x=e.clientX;mouse.y=e.clientY;});
+addEventListener('pointerup',()=>{mouse.down=false;mouse.x=-1e9;mouse.y=-1e9;});
+cv.addEventListener('pointermove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;});
+
+function step(){
+  const n=parts.length;
+  for(let i=0;i<n;i++){
+    const a=parts[i];
+    let fx=0,fy=0;
+    for(let j=0;j<n;j++){
+      if(i===j)continue;
+      const b=parts[j];
+      let dx=b.x-a.x, dy=b.y-a.y;
+      const d2=dx*dx+dy*dy;
+      if(d2>R*R||d2<0.01)continue;
+      const d=Math.sqrt(d2);
+      const f=M[a.t][b.t]*(1-d/R)/d;
+      fx+=dx*f; fy+=dy*f;
+    }
+    if(mouse.down){
+      let dx=mouse.x-a.x, dy=mouse.y-a.y;
+      const d2=dx*dx+dy*dy;
+      if(d2<40000){const d=Math.sqrt(d2)+0.1;fx+=dx/d*0.6;fy+=dy/d*0.6;}
+    }
+    a.vx=(a.vx+fx*FORCE*0.016)*FRICTION;
+    a.vy=(a.vy+fy*FORCE*0.016)*FRICTION;
+  }
+  for(const p of parts){
+    p.x+=p.vx; p.y+=p.vy;
+    if(p.x<0)p.x+=W; else if(p.x>=W)p.x-=W;
+    if(p.y<0)p.y+=H; else if(p.y>=H)p.y-=H;
+  }
+}
+
+function draw(){
+  ctx.fillStyle='rgba(10,10,15,0.35)';
+  ctx.fillRect(0,0,W,H);
+  for(const p of parts){
+    ctx.fillStyle=COLORS[p.t];
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,2.2,0,6.2832);
+    ctx.fill();
+  }
+}
+
+function loop(){step();draw();requestAnimationFrame(loop);}
+loop();
+
+// matrix editor
+const mat=document.getElementById('mat');
+function colorFor(v){
+  if(v>0){const a=Math.min(1,v);return `rgba(120,255,170,${0.15+a*0.7})`;}
+  if(v<0){const a=Math.min(1,-v);return `rgba(255,90,120,${0.15+a*0.7})`;}
+  return 'rgba(60,60,90,0.4)';
+}
+function buildMatrix(){
+  mat.innerHTML='';
+  const hdr=document.createElement('tr');
+  hdr.appendChild(document.createElement('td')).className='hdr';
+  for(let j=0;j<NTYPES;j++){const td=document.createElement('td');td.className='hdr';td.textContent='';td.style.background=COLORS[j];td.style.borderRadius='50%';hdr.appendChild(td);}
+  mat.appendChild(hdr);
+  for(let i=0;i<NTYPES;i++){
+    const tr=document.createElement('tr');
+    const rc=document.createElement('td');rc.className='hdr';rc.style.background=COLORS[i];rc.style.borderRadius='50%';tr.appendChild(rc);
+    for(let j=0;j<NTYPES;j++){
+      const td=document.createElement('td');
+      td.dataset.i=i;td.dataset.j=j;
+      td.textContent=M[i][j].toFixed(1);
+      td.style.background=colorFor(M[i][j]);
+      td.onclick=()=>{
+        let v=M[i][j];
+        let idx=PALETTE.findIndex(p=>Math.abs(p-v)<0.05);
+        idx=(idx+1)%PALETTE.length;
+        M[i][j]=PALETTE[idx];
+        td.textContent=M[i][j].toFixed(1);
+        td.style.background=colorFor(M[i][j]);
+      };
+      tr.appendChild(td);
+    }
+    mat.appendChild(tr);
+  }
+}
+buildMatrix();
+
+document.getElementById('rand').onclick=()=>{
+  for(let i=0;i<NTYPES;i++)for(let j=0;j<NTYPES;j++)M[i][j]=+(Math.random()*2-1).toFixed(1);
+  buildMatrix();
+};
+document.getElementById('zero').onclick=()=>{
+  for(let i=0;i<NTYPES;i++)for(let j=0;j<NTYPES;j++)M[i][j]=0;
+  buildMatrix();
+};
+document.getElementById('reset').onclick=()=>{resetMatrix();buildMatrix();spawn();};
+</script>
+</body>
+</html>
