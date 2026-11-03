@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>epicycles</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a10;overflow:hidden;font-family:ui-monospace,monospace;color:#9fb}
+  canvas{display:block;touch-action:none}
+  #hud{position:fixed;left:12px;top:12px;font-size:12px;line-height:1.5;color:#6d7f8c;pointer-events:none}
+  #hud b{color:#9fe}
+  #hint{position:fixed;left:0;right:0;bottom:14px;text-align:center;font-size:12px;color:#4a5762;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id=c></canvas>
+<div id=hud>terms <b id=nt>0</b> · speed <b id=sp>1.0x</b></div>
+<div id=hint>draw a path · wheel = terms · space = replay · c = clear</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',()=>{resize();});
+
+let path=[];        // user drawn points {x,y} centered
+let drawing=false;
+let coeffs=[];      // {freq, amp, phase} sorted by amp
+let maxTerms=120, terms=40, speed=1, t=0, playing=false;
+let dispPath=[];    // resampled points (centered)
+
+const ntEl=document.getElementById('nt'),spEl=document.getElementById('sp');
+
+function recenter(pts){
+  let cx=0,cy=0;for(const p of pts){cx+=p.x;cy+=p.y;}cx/=pts.length;cy/=pts.length;
+  return pts.map(p=>({x:p.x-cx,y:p.y-cy}));
+}
+
+function resample(pts,N){
+  // cumulative length resample to N points evenly
+  let L=0,seg=[];
+  for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length];const d=Math.hypot(b.x-a.x,b.y-a.y);seg.push(d);L+=d;}
+  if(L===0)return [];
+  const out=[];let target=0,acc=0,i=0,step=L/N;
+  let cur=pts[0];
+  for(let k=0;k<N;k++){
+    const goal=k*step;
+    while(acc+seg[i]<goal && i<seg.length-1){acc+=seg[i];i++;}
+    const a=pts[i],b=pts[(i+1)%pts.length];
+    const f=seg[i]?((goal-acc)/seg[i]):0;
+    out.push({x:a.x+(b.x-a.x)*f,y:a.y+(b.y-a.y)*f});
+  }
+  return out;
+}
+
+function dft(pts){
+  const N=pts.length,res=[];
+  for(let k=0;k<N;k++){
+    let re=0,im=0;
+    for(let n=0;n<N;n++){
+      const ang=-2*Math.PI*k*n/N;
+      re+=pts[n].x*Math.cos(ang)-pts[n].y*Math.sin(ang);
+      im+=pts[n].x*Math.sin(ang)+pts[n].y*Math.cos(ang);
+    }
+    re/=N;im/=N;
+    res.push({freq:k,amp:Math.hypot(re,im),phase:Math.atan2(im,re)});
+  }
+  res.sort((a,b)=>b.amp-a.amp);
+  return res;
+}
+
+function build(){
+  if(path.length<6){coeffs=[];dispPath=[];playing=false;ntEl.textContent=0;return;}
+  const c=recenter(path);
+  const rs=resample(c,512);
+  dispPath=rs;
+  coeffs=dft(rs);
+  t=0;playing=true;
+  ntEl.textContent=Math.min(terms,coeffs.length);
+}
+
+// pointer draw
+function pos(e){const r=cv.getBoundingClientRect();return{x:e.clientX-r.left-W/2,y:e.clientY-r.top-H/2};}
+cv.addEventListener('pointerdown',e=>{cv.setPointerCapture(e.pointerId);path=[pos(e)];drawing=true;playing=false;coeffs=[];dispPath=[];});
+cv.addEventListener('pointermove',e=>{if(!drawing)return;const p=pos(e);const l=path[path.length-1];if(Math.hypot(p.x-l.x,p.y-l.y)>2)path.push(p);});
+cv.addEventListener('pointerup',()=>{if(!drawing)return;drawing=false;build();});
+cv.addEventListener('wheel',e=>{e.preventDefault();terms=Math.max(1,Math.min(maxTerms,terms+(e.deltaY<0?2:-2)));ntEl.textContent=Math.min(terms,coeffs.length||0);},{passive:false});
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();t=0;playing=coeffs.length>0;}
+  if(e.key==='c'||e.key==='C'){path=[];coeffs=[];dispPath=[];playing=false;ntEl.textContent=0;}
+  if(e.key==='='){speed=Math.min(4,speed+0.5);spEl.textContent=speed.toFixed(1)+'x';}
+  if(e.key==='-'){speed=Math.max(0.25,speed-0.5);spEl.textContent=speed.toFixed(1)+'x';}
+});
+
+let trail=[];
+function frame(){
+  ctx.fillStyle='rgba(10,10,16,0.22)';ctx.fillRect(0,0,W,H);
+  const cx=W/2,cy=H/2;
+
+  if(!coeffs.length){
+    // show raw path being drawn
+    if(path.length>1){
+      ctx.strokeStyle='#3a5';ctx.lineWidth=1.5;ctx.beginPath();
+      ctx.moveTo(path[0].x+W/2,path[0].y+H/2);
+      for(let i=1;i<path.length;i++)ctx.lineTo(path[i].x+W/2,path[i].y+H/2);
+      ctx.stroke();
+    }
+    requestAnimationFrame(frame);return;
+  }
+
+  const N=coeffs.length;
+  const use=Math.min(terms,N);
+  // advance t
+  let x=cx,y=cy;
+  ctx.lineWidth=1;
+  for(let i=0;i<use;i++){
+    const c=coeffs[i];
+    const px=x,py=y;
+    const ang=c.freq*t*c.amp+c.phase;
+    const nx=x+c.amp*Math.cos(ang);
+    const ny=y+c.amp*Math.sin(ang);
+    // circle
+    if(i<use-1){
+      ctx.strokeStyle='rgba(90,120,150,0.25)';
+      ctx.beginPath();ctx.arc(x,y,c.amp,0,Math.PI*2);ctx.stroke();
+    }
+    // arm
+    ctx.strokeStyle='rgba(120,200,160,0.5)';
+    ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(nx,ny);ctx.stroke();
+    x=nx;y=ny;
+  }
+  // tip
+  ctx.fillStyle='#9fe';ctx.beginPath();ctx.arc(x,y,2.5,0,Math.PI*2);ctx.fill();
+
+  if(playing){
+    trail.push({x,y});
+    if(trail.length>900)trail.shift();
+    t+=0.01*speed;
+  }
+  // draw trail
+  ctx.strokeStyle='rgba(159,254,230,0.9)';ctx.lineWidth=1.5;ctx.beginPath();
+  for(let i=0;i<trail.length;i++){const p=trail[i];if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}
+  ctx.stroke();
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
