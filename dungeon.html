@@ -21,6 +21,7 @@
     <span>floor <span id="fl">1</span>/5</span>
     <span class="key">keys <span id="ky">0</span></span>
     <span class="dim">kills <span id="kl">0</span></span>
+    <span class="dim">atk <span id="atk">1</span></span>
     <span class="dim">wasd / arrows &middot; bump to attack</span>
   </div>
   <canvas id="c"></canvas>
@@ -33,7 +34,7 @@ const cv=document.getElementById('c');
 cv.width=W*T; cv.height=H*T;
 const cx=cv.getContext('2d');
 
-const WALL=0, FLOOR=1, DOOR=2, STAIRS=3, KEY=4, POTION=5, TRAP=6;
+const WALL=0, FLOOR=1, DOOR=2, STAIRS=3, KEY=4, POTION=5, TRAP=6, CHEST=7;
 let grid, player, enemies, keys, potions, kills, floorNum, msgT;
 const MAXFLOOR=5;
 const THEMES=[
@@ -74,7 +75,7 @@ function genFloor(f){
     rooms.push({x:2,y:2,w:W-4,h:H-4,cx:3,cy:3});
   }
   const start=rooms[0];
-  player={x:start.cx,y:start.cy,hp:10,maxhp:10};
+  player={x:start.cx,y:start.cy,hp:10,maxhp:10,atk:1};
 
   // stairs in last room
   const last=rooms[rooms.length-1];
@@ -101,6 +102,11 @@ function genFloor(f){
     let px=r.cx+rnd(-1,2), py=r.cy+rnd(-1,2);
     if(grid[py]&&grid[py][px]===FLOOR && !(px===player.x&&py===player.y) && !potions.find(p=>p.x===px&&p.y===py))
       potions.push({x:px,y:py});
+  }
+  // treasure chest: one per floor, gives +1 atk
+  { let tries=0, cxx,cyy;
+    do{ cxx=rnd(1,W-1); cyy=rnd(1,H-1); tries++; }while(grid[cyy][cxx]!==FLOOR && tries<200);
+    if(grid[cyy][cxx]===FLOOR && !(cxx===player.x&&cyy===player.y)) grid[cyy][cxx]=CHEST;
   }
   // traps: spike tiles on deeper floors
   if(f>=2){
@@ -140,6 +146,7 @@ function updateHud(){
   document.getElementById('fl').textContent=floorNum;
   document.getElementById('ky').textContent=keys.length;
   document.getElementById('kl').textContent=kills||0;
+  document.getElementById('atk').textContent=player.atk||1;
 }
 
 function msg(t){ document.getElementById('msg').textContent=t; msgT=Date.now(); }
@@ -158,6 +165,8 @@ function render(){
   }
   // keys
   for(const k of keys){ cx.fillStyle='#fd5'; cx.font='22px monospace'; cx.fillText('⚷',k.x*T+5,k.y*T+24); }
+  // chests
+  for(let yy=0;yy<H;yy++)for(let xx=0;xx<W;xx++){ if(grid[yy][xx]===CHEST){ cx.fillStyle='#b8862a'; cx.fillRect(xx*T+6,yy*T+12,20,14); cx.fillStyle='#ffd76a'; cx.fillRect(xx*T+6,yy*T+12,20,4); cx.fillStyle='#6b4a12'; cx.fillRect(xx*T+15,yy*T+18,3,6);} }
   // potions
   for(const p of potions){ cx.fillStyle='#e46'; cx.fillRect(p.x*T+11,p.y*T+12,10,14); cx.fillStyle='#f9b'; cx.fillRect(p.x*T+13,p.y*T+8,6,5); }
   // enemies
@@ -183,11 +192,12 @@ function bumpEnemy(x,y){
 function playerMove(dx,dy){
   const nx=player.x+dx, ny=player.y+dy;
   const en=bumpEnemy(nx,ny);
-  if(en){ en.hp-=2; if(en.hp<=0){ const ex=en.x, ey=en.y; const wasBoss=en.boss; enemies=enemies.filter(e=>e!==en); kills=(kills||0)+1; let drop=''; if(wasBoss){ keys.push({x:ex,y:ey}); drop=' + a key'; } else if(Math.random()<0.35){ potions.push({x:ex,y:ey}); drop=' + a potion'; } else if(Math.random()<0.12){ keys.push({x:ex,y:ey}); drop=' + a key'; } msg((wasBoss?'BOSS DOWN 🗝':'killed')+drop); } else msg('hit'); afterTurn(); return; }
+  if(en){ en.hp-=(player.atk||1)*2; if(en.hp<=0){ const ex=en.x, ey=en.y; const wasBoss=en.boss; enemies=enemies.filter(e=>e!==en); kills=(kills||0)+1; let drop=''; if(wasBoss){ keys.push({x:ex,y:ey}); drop=' + a key'; } else if(Math.random()<0.35){ potions.push({x:ex,y:ey}); drop=' + a potion'; } else if(Math.random()<0.12){ keys.push({x:ex,y:ey}); drop=' + a key'; } msg((wasBoss?'BOSS DOWN 🗝':'killed')+drop); } else msg('hit'); afterTurn(); return; }
   if(!walkable(nx,ny)) return;
   player.x=nx; player.y=ny;
   // potion pickup
   if(grid[ny][nx]===TRAP){ player.hp-=2; grid[ny][nx]=FLOOR; msg('spikes! -2 hp'); updateHud(); if(player.hp<=0){ lose(); return; } }
+  if(grid[ny][nx]===CHEST){ grid[ny][nx]=FLOOR; player.atk=(player.atk||1)+1; msg('found a blade. atk '+player.atk); updateHud(); }
   const pot=potions.find(p=>p.x===nx&&p.y===ny);
   if(pot){ potions=potions.filter(p=>p!==pot); player.hp=Math.min(player.maxhp,player.hp+5); msg('+5 hp'); updateHud(); }
   if(grid[ny][nx]===STAIRS){
