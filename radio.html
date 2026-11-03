@@ -1,0 +1,141 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>radio</title>
+<style>
+html,body{margin:0;height:100%;background:#0a0a0c;color:#cfd3d8;font-family:ui-monospace,monospace;overflow:hidden}
+#wrap{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px}
+canvas{max-width:92vw;border-radius:10px;background:#0d0f12;box-shadow:0 0 40px #000 inset}
+#hud{font-size:13px;letter-spacing:.05em;color:#6b737d;text-align:center;line-height:1.7}
+#hud b{color:#9fb0c0}
+#freq{font-size:26px;color:#7fe0c0;letter-spacing:.1em}
+.small{font-size:11px;color:#4a515a}
+</style></head><body>
+<div id="wrap">
+<canvas id="c" width="720" height="220"></canvas>
+<div id="freq">88.0 MHz</div>
+<div id="hud"><b id="found">0</b> stations found &nbsp;·&nbsp; arrows / drag to tune</div>
+<div class="small">there are things out there in the static</div>
+</div>
+<script>
+const cv=document.getElementById('c'),g=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+let audioCtx=null,master=null,noiseNode=null,noiseGain=null;
+let freq=88.0;
+const LO=88,HI=108;
+let stations=[];
+let found=new Set();
+let dragging=false,lastX=0;
+
+function makeStations(){
+  stations=[];
+  const n=7;
+  const scales=[[0,2,4,7,9],[0,3,5,7,10],[0,2,3,5,7,8,10],[0,4,7,9],[0,2,5,7,9]];
+  for(let i=0;i<n;i++){
+    const f=LO+1+Math.random()*(HI-LO-2);
+    const sc=scales[Math.floor(Math.random()*scales.length)];
+    const root=[220,246.9,261.6,293.7,329.6][Math.floor(Math.random()*5)];
+    const tempo=0.18+Math.random()*0.35;
+    stations.push({f,sc,root,tempo});
+  }
+  stations.sort((a,b)=>a.f-b.f);
+}
+makeStations();
+
+function initAudio(){
+  if(audioCtx)return;
+  audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  master=audioCtx.createGain();master.gain.value=0.25;master.connect(audioCtx.destination);
+  const buf=audioCtx.createBuffer(1,audioCtx.sampleRate*2,audioCtx.sampleRate);
+  const d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
+  noiseNode=audioCtx.createBufferSource();noiseNode.buffer=buf;noiseNode.loop=true;
+  noiseGain=audioCtx.createGain();noiseGain.gain.value=0.08;
+  noiseNode.connect(noiseGain);noiseGain.connect(master);noiseNode.start();
+}
+
+let lastNote=0;
+function nearestStation(){
+  let best=null,bd=1e9;
+  for(const s of stations){const d=Math.abs(s.f-freq);if(d<bd){bd=d;best=s;}}
+  return {s:best,d:bd};
+}
+
+function playNote(s){
+  if(!audioCtx)return;
+  const deg=s.sc[Math.floor(Math.random()*s.sc.length)];
+  const oct=Math.random()<0.25?2:1;
+  const f=s.root*Math.pow(2,deg/12)*oct;
+  const o=audioCtx.createOscillator();
+  const gain=audioCtx.createGain();
+  o.type=Math.random()<0.3?'triangle':'sine';
+  o.frequency.value=f;
+  const t=audioCtx.currentTime;
+  gain.gain.setValueAtTime(0,t);
+  gain.gain.linearRampToValueAtTime(0.18,t+0.02);
+  gain.gain.exponentialRampToValueAtTime(0.001,t+0.6);
+  o.connect(gain);gain.connect(master);
+  o.start(t);o.stop(t+0.65);
+}
+
+function tick(ts){
+  const {s,d}=nearestStation();
+  if(audioCtx){
+    const closeness=Math.max(0,1-d/4);
+    noiseGain.gain.value=0.10*(1-closeness*0.92);
+    if(s&&d<0.35){
+      found.add(stations.indexOf(s));
+      if(ts-lastNote>s.tempo*1000){lastNote=ts;playNote(s);}
+    }
+  }
+  draw(Math.max(0,1-d/4));
+  document.getElementById('freq').textContent=freq.toFixed(1)+' MHz';
+  document.getElementById('found').textContent=found.size;
+  requestAnimationFrame(tick);
+}
+
+function draw(closeness){
+  g.clearRect(0,0,W,H);
+  g.strokeStyle='#1a1e24';g.lineWidth=1;
+  for(let f=LO;f<=HI;f++){
+    const x=(f-LO)/(HI-LO)*W;
+    const big=Math.round(f)%5===0;
+    g.beginPath();g.moveTo(x,H-20);g.lineTo(x,H-(big?46:30));g.stroke();
+    if(big){g.fillStyle='#3a424c';g.font='11px monospace';g.textAlign='center';g.fillText(f,x,H-56);}
+  }
+  g.beginPath();
+  const noiseAmp=26*(1-closeness*0.9);
+  for(let x=0;x<W;x++){
+    const y=H/2-40+(Math.random()*2-1)*noiseAmp+Math.sin(x*0.05+Date.now()*0.004)*8;
+    if(x===0)g.moveTo(x,y);else g.lineTo(x,y);
+  }
+  g.strokeStyle='rgba(120,200,160,'+(0.25+closeness*0.6)+')';g.lineWidth=1.5;g.stroke();
+  for(const i of found){
+    const s=stations[i];
+    const x=(s.f-LO)/(HI-LO)*W;
+    g.fillStyle='#7fe0c0';g.beginPath();g.arc(x,H-90,3,0,7);g.fill();
+    g.fillStyle='#5a8f7a';g.font='10px monospace';g.textAlign='center';g.fillText(s.f.toFixed(1),x,H-100);
+  }
+  const nx=(freq-LO)/(HI-LO)*W;
+  g.strokeStyle='#ff6b6b';g.lineWidth=2;
+  g.beginPath();g.moveTo(nx,20);g.lineTo(nx,H-20);g.stroke();
+  g.fillStyle='#ff6b6b';g.beginPath();g.moveTo(nx-6,20);g.lineTo(nx+6,20);g.lineTo(nx,30);g.closePath();g.fill();
+}
+
+function setFreq(v){freq=Math.max(LO,Math.min(HI,v));}
+
+window.addEventListener('keydown',e=>{
+  initAudio();
+  if(e.key==='ArrowRight'||e.key==='ArrowUp')setFreq(freq+0.1);
+  if(e.key==='ArrowLeft'||e.key==='ArrowDown')setFreq(freq-0.1);
+  if(e.key==='r'||e.key==='R'){makeStations();found.clear();}
+});
+cv.addEventListener('pointerdown',e=>{initAudio();dragging=true;lastX=e.clientX;});
+window.addEventListener('pointermove',e=>{
+  if(!dragging)return;
+  const dx=e.clientX-lastX;lastX=e.clientX;
+  setFreq(freq+dx/W*(HI-LO)*1.2);
+});
+window.addEventListener('pointerup',()=>dragging=false);
+cv.addEventListener('wheel',e=>{initAudio();e.preventDefault();setFreq(freq-e.deltaY*0.002*(HI-LO));},{passive:false});
+
+requestAnimationFrame(tick);
+</script></body></html>
