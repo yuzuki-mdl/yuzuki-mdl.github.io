@@ -15,7 +15,7 @@
 <body>
 <canvas id="c"></canvas>
 <div id="hud"><b>slime</b> — soft body playground<br>drag to draw a slime · grab &amp; fling it · R clear</div>
-<div id="hint">drag empty space to draw · grab a slime to throw · tap inside to poke</div>
+<div id="hint">drag empty space to draw · grab a slime to throw · tap inside to poke · poke a big one hard to split it</div>
 <script>
 const cv=document.getElementById('c'),cx=cv.getContext('2d');
 let W,H,DPR;
@@ -39,6 +39,37 @@ function makeBlob(outline){
     addSpring(b,i,ci,0.5);
   }
   return b;
+}
+// slice a blob in two along the line through p perpendicular to the centroid->p direction.
+// returns [blobA,blobB] or null if the cut doesn't cross the outline cleanly.
+function splitBlob(b,p){
+  const n=b.pts.length-1;
+  const c=b.pts[n];
+  let nx=p.x-c.x,ny=p.y-c.y;let nl=Math.hypot(nx,ny)||1;nx/=nl;ny/=nl;
+  const sd=[];for(let i=0;i<n;i++)sd.push((b.pts[i].x-p.x)*nx+(b.pts[i].y-p.y)*ny);
+  const cross=[];
+  for(let i=0;i<n;i++){
+    const j=(i+1)%n;
+    if((sd[i]<0)!==(sd[j]<0)){
+      const t=sd[i]/(sd[i]-sd[j]);
+      const a=b.pts[i],c2=b.pts[j];
+      cross.push({i,t,x:a.x+(c2.x-a.x)*t,y:a.y+(c2.y-a.y)*t});
+    }
+  }
+  if(cross.length!==2)return null;
+  let [c1,c2]=cross;
+  if(c1.i>c2.i){const tmp=c1;c1=c2;c2=tmp;}
+  const arcA=[{x:c1.x,y:c1.y}];
+  for(let i=(c1.i+1)%n;i!==(c2.i+1)%n;i=(i+1)%n){arcA.push({x:b.pts[i].x,y:b.pts[i].y});if(arcA.length>n+2)break;}
+  arcA.push({x:c2.x,y:c2.y});
+  const arcB=[{x:c2.x,y:c2.y}];
+  for(let i=(c2.i+1)%n;i!==(c1.i+1)%n;i=(i+1)%n){arcB.push({x:b.pts[i].x,y:b.pts[i].y});if(arcB.length>n+2)break;}
+  arcB.push({x:c1.x,y:c1.y});
+  if(arcA.length<4||arcB.length<4)return null;
+  const A=makeBlob(arcA),B=makeBlob(arcB);
+  for(const q of A.pts){q.px-=nx*3;q.py-=ny*3;}
+  for(const q of B.pts){q.px+=nx*3;q.py+=ny*3;}
+  return [A,B];
 }
 function step(){
   for(const b of blobs){
@@ -154,7 +185,9 @@ function down(e){
   }
   if(best){mode='grab';grabbed=best;return;}
   // poke: click inside a blob pushes it away from the click (a squishy pop)
-  for(const b of blobs){
+  // if the blob is big enough, a hard poke splits it into two along a cut through the click
+  for(let bi=0;bi<blobs.length;bi++){
+    const b=blobs[bi];
     const n=b.pts.length-1;
     if(inPoly(b.pts,n,p.x,p.y)){
       for(let i=0;i<n;i++){
@@ -162,6 +195,10 @@ function down(e){
         let dx=q.x-p.x,dy=q.y-p.y;const d=Math.hypot(dx,dy)||1;
         const k=Math.min(1,40/d)*10;
         q.px-=dx/d*k; q.py-=dy/d*k;
+      }
+      if(b.restArea>5200 && blobs.length<7){
+        const two=splitBlob(b,p);
+        if(two){blobs.splice(bi,1,...two);}
       }
       return;
     }
