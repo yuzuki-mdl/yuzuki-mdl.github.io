@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ca music</title>
+<style>
+  :root{--bg:#0a0a10;--fg:#e8e8f0;--dim:#6a6a80;--accent:#7cf0c0}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:ui-monospace,monospace}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px}
+  canvas{background:#050508;border:1px solid #1c1c2a;border-radius:6px;width:min(92vw,760px);height:auto;image-rendering:pixelated;touch-action:none}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;font-size:13px;color:var(--dim)}
+  button{background:#14141f;color:var(--fg);border:1px solid #2a2a3a;border-radius:5px;padding:7px 12px;font-family:inherit;font-size:13px;cursor:pointer}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button.on{border-color:var(--accent);color:var(--accent)}
+  select{background:#14141f;color:var(--fg);border:1px solid #2a2a3a;border-radius:5px;padding:6px;font-family:inherit;font-size:13px}
+  .rule{color:var(--accent)}
+</style>
+</head>
+<body>
+<canvas id="c" width="256" height="128"></canvas>
+<div class="bar">
+  <select id="rule">
+    <option value="30">rule 30</option>
+    <option value="90">rule 90</option>
+    <option value="110" selected>rule 110</option>
+    <option value="150">rule 150</option>
+    <option value="18">rule 18</option>
+    <option value="54">rule 54</option>
+    <option value="60">rule 60</option>
+    <option value="22">rule 22</option>
+  </select>
+  <button id="play">▶ play</button>
+  <button id="reroll">reroll seed</button>
+  <span class="rule" id="info"></span>
+</div>
+<div class="bar">each row = a moment. each lit cell = a note. drag on the canvas to seed it.</div>
+<script>
+const c=document.getElementById('c'), ctx=c.getContext('2d');
+const W=c.width,H=c.height;
+let rule=110, grid=new Uint8Array(W*H), row=0, playing=false, timer=null;
+let audio=null, master=null;
+
+function bits(n){return n.toString(2).padStart(8,'0').split('').map(Number)}
+function newRow(above){
+  const out=new Uint8Array(W);
+  const r=bits(rule);
+  for(let x=0;x<W;x++){
+    const l=above[(x-1+W)%W], m=above[x], rr=above[(x+1)%W];
+    out[x]=r[7-(l*4+m*2+rr)];
+  }
+  return out;
+}
+function seed(){
+  grid.fill(0); row=0;
+  const mid=W>>1;
+  grid[mid]=1;
+  // pre-evolve a few rows so the pattern is visible before playing
+  for(let i=0;i<40;i++){
+    const above=grid.subarray(row*W,(row+1)*W);
+    grid.set(newRow(above),(row+1)*W);
+    row++;
+  }
+  draw();
+}
+function draw(){
+  ctx.fillStyle='#050508'; ctx.fillRect(0,0,W,H);
+  ctx.fillStyle='#7cf0c0';
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      if(grid[y*W+x]) ctx.fillRect(x,y,1,1);
+    }
+  }
+}
+function step(){
+  if(row>=H-1) return;
+  const above=grid.subarray(row*W,(row+1)*W);
+  const next=newRow(above);
+  grid.set(next,(row+1)*W);
+  row++;
+  draw();
+  playRow(next);
+}
+function initAudio(){
+  if(audio) return;
+  audio=new (window.AudioContext||window.webkitAudioContext)();
+  master=audio.createGain(); master.gain.value=0.12; master.connect(audio.destination);
+}
+const scale=[0,2,4,5,7,9,11];
+function playRow(cells){
+  if(!audio) return;
+  const t=audio.currentTime;
+  for(let x=0;x<W;x++){
+    if(!cells[x]) continue;
+    const oct=Math.floor(x/32);
+    const deg=scale[x%7];
+    const semi=deg+12*(oct%3);
+    const freq=130.81*Math.pow(2,semi/12);
+    const o=audio.createOscillator(), g=audio.createGain();
+    o.type='triangle'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0,t);
+    g.gain.linearRampToValueAtTime(0.3,t+0.008);
+    g.gain.exponentialRampToValueAtTime(0.001,t+0.35);
+    o.connect(g); g.connect(master);
+    o.start(t); o.stop(t+0.4);
+  }
+}
+const playBtn=document.getElementById('play');
+playBtn.onclick=()=>{
+  initAudio();
+  if(audio.state==='suspended') audio.resume();
+  playing=!playing;
+  playBtn.textContent=playing?'⏸ pause':'▶ play';
+  playBtn.classList.toggle('on',playing);
+  if(playing && row>=H-1) seed();
+  if(playing){
+    timer=setInterval(()=>{ if(row>=H-1){ playing=false; clearInterval(timer); playBtn.textContent='▶ play'; playBtn.classList.remove('on'); } else step(); },120);
+  } else clearInterval(timer);
+};
+document.getElementById('reroll').onclick=()=>{ seed(); };
+document.getElementById('rule').onchange=e=>{ rule=+e.target.value; document.getElementById('info').textContent='rule '+rule; seed(); };
+
+// drag to seed
+let down=false;
+c.addEventListener('pointerdown',e=>{ down=true; paint(e); });
+c.addEventListener('pointermove',e=>{ if(down) paint(e); });
+window.addEventListener('pointerup',()=>down=false);
+function paint(e){
+  const r=c.getBoundingClientRect();
+  const x=Math.floor((e.clientX-r.left)/r.width*W);
+  const y=Math.floor((e.clientY-r.top)/r.height*H);
+  if(x<0||x>=W||y<0||y>=H) return;
+  grid[y*W+x]^=1; draw();
+}
+
+document.getElementById('info').textContent='rule '+rule;
+seed();
+</script>
+</body>
+</html>
