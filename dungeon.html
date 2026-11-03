@@ -35,7 +35,7 @@ cv.width=W*T; cv.height=H*T;
 const cx=cv.getContext('2d');
 
 const WALL=0, FLOOR=1, DOOR=2, STAIRS=3, KEY=4, POTION=5, TRAP=6, CHEST=7, SCROLL=8;
-let grid, player, enemies, keys, potions, kills, floorNum, msgT, revealUntil=0, seen;
+let grid, player, enemies, keys, potions, torches, kills, floorNum, msgT, revealUntil=0, seen;
 const MAXFLOOR=5;
 const THEMES=[
   null,
@@ -83,7 +83,7 @@ function genFloor(f){
   grid[last.cy][last.cx]=STAIRS;
 
   // keys: place f+1 doors on corridors, keys in other rooms
-  keys=[]; enemies=[]; potions=[];
+  keys=[]; enemies=[]; potions=[]; torches=[];
   const nkeys=Math.min(rooms.length-1, 1+Math.floor(f/2));
   const placedDoors=[];
   for(let i=0;i<nkeys;i++){
@@ -108,6 +108,12 @@ function genFloor(f){
   { let tries=0, cxx,cyy;
     do{ cxx=rnd(1,W-1); cyy=rnd(1,H-1); tries++; }while(grid[cyy][cxx]!==FLOOR && tries<200);
     if(grid[cyy][cxx]===FLOOR && !(cxx===player.x&&cyy===player.y)) grid[cyy][cxx]=CHEST;
+  }
+  // torch: widens what u can see, one on deeper floors
+  if(f>=2){
+    let tries=0, tx2,ty2;
+    do{ tx2=rnd(1,W-1); ty2=rnd(1,H-1); tries++; }while(grid[ty2][tx2]!==FLOOR && tries<100);
+    if(grid[ty2][tx2]===FLOOR && !(tx2===player.x&&ty2===player.y)) torches.push({x:tx2,y:ty2});
   }
   // traps: spike tiles on deeper floors
   if(f>=2){
@@ -178,6 +184,8 @@ function render(){
   for(let yy=0;yy<H;yy++)for(let xx=0;xx<W;xx++){ if(grid[yy][xx]===SCROLL){ cx.fillStyle='#e8d9b0'; cx.fillRect(xx*T+8,yy*T+9,17,15); cx.fillStyle='#8a6a3a'; for(let l=0;l<3;l++)cx.fillRect(xx*T+11,yy*T+13+l*4,11,1); } }
   // potions
   for(const p of potions){ cx.fillStyle='#e46'; cx.fillRect(p.x*T+11,p.y*T+12,10,14); cx.fillStyle='#f9b'; cx.fillRect(p.x*T+13,p.y*T+8,6,5); }
+  // torches
+  for(const t of torches){ cx.fillStyle='#6b4a12'; cx.fillRect(t.x*T+14,t.y*T+16,4,10); cx.fillStyle='#ffb020'; cx.beginPath(); cx.arc(t.x*T+16,t.y*T+12,6,0,7); cx.fill(); cx.fillStyle='#ffe680'; cx.beginPath(); cx.arc(t.x*T+16,t.y*T+11,3,0,7); cx.fill(); }
   // enemies
   for(const e of enemies){ const R=e.boss?14:10; cx.fillStyle=e.boss?'#c33':'#e55'; cx.beginPath(); cx.arc(e.x*T+T/2,e.y*T+T/2,R,0,7); cx.fill(); cx.fillStyle='#300'; const o=e.boss?8:10; cx.fillRect(e.x*T+o,e.y*T+12,4,4); cx.fillRect(e.x*T+T-o-4,e.y*T+12,4,4); }
   // map reveal overlay
@@ -190,7 +198,7 @@ function render(){
     cx.globalAlpha=1;
   }
   // darkness: reveal tiles near player, dim the rest
-  const R2=4.7*4.7;
+  const rr=player.torch?7.8:4.7, R2=rr*rr;
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){
     const dx=x-player.x, dy=y-player.y, d2=dx*dx+dy*dy;
     if(d2<R2) seen[y][x]=true;
@@ -227,6 +235,8 @@ function playerMove(dx,dy){
   if(grid[ny][nx]===SCROLL){ grid[ny][nx]=FLOOR; revealUntil=Date.now()+4000; msg('the map unfolds'); }
   const pot=potions.find(p=>p.x===nx&&p.y===ny);
   if(pot){ potions=potions.filter(p=>p!==pot); player.hp=Math.min(player.maxhp,player.hp+5); msg('+5 hp'); updateHud(); }
+  const tor=torches.find(t=>t.x===nx&&t.y===ny);
+  if(tor){ torches=torches.filter(t=>t!==tor); player.torch=true; msg('a torch. u can see further now'); updateHud(); }
   if(grid[ny][nx]===STAIRS){
     if(enemies.some(e=>e.boss)){ msg('the boss blocks the way'); return; }
     if(floorNum>=MAXFLOOR){ win(); return; } genFloor(floorNum+1); return;
