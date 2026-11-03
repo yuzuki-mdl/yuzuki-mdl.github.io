@@ -36,6 +36,15 @@ const cx=cv.getContext('2d');
 const WALL=0, FLOOR=1, DOOR=2, STAIRS=3, KEY=4, POTION=5;
 let grid, player, enemies, keys, potions, kills, floorNum, msgT;
 const MAXFLOOR=5;
+const THEMES=[
+  null,
+  {name:'the cellar',   wall:'#16162a', wall2:'#1e1e38', floor:'#0e0e1c'},
+  {name:'the flooded halls', wall:'#0f2430', wall2:'#163a48', floor:'#08141a'},
+  {name:'the mossy deep', wall:'#16281a', wall2:'#22402a', floor:'#0b160e'},
+  {name:'the ember vaults', wall:'#2a1616', wall2:'#3e1e1e', floor:'#180c0c'},
+  {name:'the gilded hoard', wall:'#2a2410', wall2:'#443a18', floor:'#16130a'}
+];
+function theme(){ return THEMES[Math.min(floorNum,MAXFLOOR)] || THEMES[1]; }
 
 function rnd(a,b){return Math.floor(a+Math.random()*(b-a));}
 
@@ -114,7 +123,7 @@ function genFloor(f){
   floorNum=f;
   updateHud();
   render();
-  msg('floor '+f);
+  msg('floor '+f+' — '+theme().name);
 }
 
 function updateHud(){
@@ -131,10 +140,11 @@ function render(){
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){
     const v=grid[y][x];
     const px=x*T, py=y*T;
-    if(v===WALL){ cx.fillStyle='#16162a'; cx.fillRect(px,py,T,T); cx.fillStyle='#1e1e38'; cx.fillRect(px+2,py+2,T-4,T-4); }
-    else if(v===FLOOR){ cx.fillStyle='#0e0e1c'; cx.fillRect(px,py,T,T); }
-    else if(v===DOOR){ cx.fillStyle='#0e0e1c'; cx.fillRect(px,py,T,T); cx.fillStyle='#7a4a1e'; cx.fillRect(px+6,py+3,T-12,T-6); cx.fillStyle='#fd5'; cx.fillRect(px+T/2-2,py+T/2-2,4,4); }
-    else if(v===STAIRS){ cx.fillStyle='#0e0e1c'; cx.fillRect(px,py,T,T); cx.fillStyle='#6cf'; for(let s=0;s<4;s++)cx.fillRect(px+6+s*4,py+T-8-s*5,T-12-s*8,3); }
+    const th=theme();
+    if(v===WALL){ cx.fillStyle=th.wall; cx.fillRect(px,py,T,T); cx.fillStyle=th.wall2; cx.fillRect(px+2,py+2,T-4,T-4); }
+    else if(v===FLOOR){ cx.fillStyle=th.floor; cx.fillRect(px,py,T,T); }
+    else if(v===DOOR){ cx.fillStyle=th.floor; cx.fillRect(px,py,T,T); cx.fillStyle='#7a4a1e'; cx.fillRect(px+6,py+3,T-12,T-6); cx.fillStyle='#fd5'; cx.fillRect(px+T/2-2,py+T/2-2,4,4); }
+    else if(v===STAIRS){ cx.fillStyle=th.floor; cx.fillRect(px,py,T,T); cx.fillStyle='#6cf'; for(let s=0;s<4;s++)cx.fillRect(px+6+s*4,py+T-8-s*5,T-12-s*8,3); }
   }
   // keys
   for(const k of keys){ cx.fillStyle='#fd5'; cx.font='22px monospace'; cx.fillText('⚷',k.x*T+5,k.y*T+24); }
