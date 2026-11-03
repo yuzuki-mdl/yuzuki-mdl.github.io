@@ -162,7 +162,7 @@ function bumpEnemy(x,y){
 function playerMove(dx,dy){
   const nx=player.x+dx, ny=player.y+dy;
   const en=bumpEnemy(nx,ny);
-  if(en){ en.hp-=2; if(en.hp<=0){ enemies=enemies.filter(e=>e!==en); kills=(kills||0)+1; msg(en.boss?'BOSS DOWN 🗝':'killed'); } else msg('hit'); afterTurn(); return; }
+  if(en){ en.hp-=2; if(en.hp<=0){ const ex=en.x, ey=en.y; const wasBoss=en.boss; enemies=enemies.filter(e=>e!==en); kills=(kills||0)+1; let drop=''; if(wasBoss){ keys.push({x:ex,y:ey}); drop=' + a key'; } else if(Math.random()<0.35){ potions.push({x:ex,y:ey}); drop=' + a potion'; } else if(Math.random()<0.12){ keys.push({x:ex,y:ey}); drop=' + a key'; } msg((wasBoss?'BOSS DOWN 🗝':'killed')+drop); } else msg('hit'); afterTurn(); return; }
   if(!walkable(nx,ny)) return;
   player.x=nx; player.y=ny;
   // potion pickup
