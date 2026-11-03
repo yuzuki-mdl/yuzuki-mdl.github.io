@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>crawler — a worm that inches along</title>
+<style>
+  :root{--bg:#0a0b10;--fg:#dfe3ff;--dim:#6a6f8a;--acc:#8affc1;}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  .hud{position:fixed;left:16px;bottom:14px;font-size:12px;color:var(--dim);line-height:1.6;pointer-events:none;user-select:none}
+  .hud b{color:var(--acc);font-weight:500}
+  .title{position:fixed;left:16px;top:14px;font-size:13px;color:var(--dim)}
+  .title span{color:var(--fg)}
+  .ctrl{position:fixed;right:16px;top:14px;display:flex;gap:8px}
+  button{background:#151827;color:var(--fg);border:1px solid #262b40;border-radius:8px;padding:7px 11px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="title">soft-body <span>crawler</span></div>
+<div class="ctrl"><button id="reset">reset</button><button id="kick">kick</button></div>
+<div class="hud">
+  drag a node to fling it · the worm <b>pulses</b> its own muscles to inch along<br>
+  distance: <b id="dist">0</b> px
+</div>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=c.clientWidth;H=c.clientHeight;c.width=W*DPR;c.height=H*DPR;x.setTransform(DPR,0,0,DPR,0,0)}
+addEventListener('resize',resize);resize();
+
+const GRAV=0.5, FRICTION=0.98, DAMP=0.985, ITER=8;
+const GROUND=()=>H-40;
+
+let pts=[],sticks=[],startX=0,t=0;
+const N=14, SEG=22, RAD=11;
+
+function mk(x,y){return{x,y,px:x,py:y,pin:false}}
+function build(){
+  pts=[];sticks=[];
+  const cx=W*0.22, baseY=GROUND()-RAD;
+  for(let i=0;i<N;i++)pts.push(mk(cx+i*SEG, baseY));
+  // springs between consecutive nodes (the worm's body)
+  for(let i=0;i<N-1;i++){
+    const rest=SEG; sticks.push({a:i,b:i+1,rest,stiff:0.9,idx:i});
+  }
+  // a few long-range springs to keep it from folding flat (bending stiffness)
+  for(let i=0;i<N-2;i++){
+    const rest=SEG*2*0.96; sticks.push({a:i,b:i+2,rest,stiff:0.35,idx:-1});
+  }
+  startX=avgX();
+}
+function avgX(){let s=0;for(const p of pts)s+=p.x;return s/pts.length}
+
+function step(){
+  t+=0.06;
+  // each segment muscle oscillates; alternate phase so a wave travels down the body
+  for(const p of pts){
+    if(p.pin)continue;
+    const vx=(p.x-p.px)*DAMP, vy=(p.y-p.py)*DAMP;
+    p.px=p.x; p.py=p.y;
+    p.x+=vx; p.y+=vy+GRAV;
+  }
+  for(let it=0;it<ITER;it++){
+    for(const s of sticks){
+      const p=pts[s.a],q=pts[s.b];
+      let dx=q.x-p.x,dy=q.y-p.y;let d=Math.hypot(dx,dy)||0.001;
+      let rest=s.rest;
+      if(s.idx>=0){
+        // muscle: contract/expand, phase travels backward so it pushes forward
+        const phase=t - s.idx*0.5;
+        rest*=1 + 0.16*Math.sin(phase);
+      }
+      const diff=(rest-d)/d*0.5*s.stiff;
+      const ox=dx*diff,oy=dy*diff;
+      if(!p.pin){p.x-=ox;p.y-=oy}
+      if(!q.pin){q.x+=ox;q.y+=oy}
+      // propulsion: a contracting muscle grips the ground and shoves the body forward
+      if(s.idx>=0 && d<rest*0.99){
+        const push=0.06*s.stiff;
+        if(!p.pin)p.x+=push;
+        if(!q.pin)q.x+=push;
+      }
+    }
+    const g=GROUND();
+    for(const p of pts){
+      if(p.y>g-RAD){p.y=g-RAD; p.py=p.y+(p.py-p.y)*0.3; p.x+=(p.x-p.px)*FRICTION}
+      if(p.x<RAD)p.x=RAD; if(p.x>W-RAD)p.x=W-RAD;
+    }
+  }
+}
+
+let drag=null;
+function pos(e){const r=c.getBoundingClientRect();const cx=(e.touches?e.touches[0]:e).clientX-r.left;const cy=(e.touches?e.touches[0]:e).clientY-r.top;return{cx,cy}}
+function down(e){const{cx,cy}=pos(e);let best=-1,bd=1e9;for(let i=0;i<pts.length;i++){const d=Math.hypot(pts[i].x-cx,pts[i].y-cy);if(d<bd){bd=d;best=i}}if(bd<40){drag=best;pts[best].pin=true;e.preventDefault()}}
+function move(e){if(drag==null)return;const{cx,cy}=pos(e);const p=pts[drag];p.x=cx;p.y=cy;p.px=cx;p.py=cy;e.preventDefault()}
+function up(){if(drag!=null){pts[drag].pin=false;drag=null}}
+c.addEventListener('mousedown',down);c.addEventListener('mousemove',move);addEventListener('mouseup',up);
+c.addEventListener('touchstart',down,{passive:false});c.addEventListener('touchmove',move,{passive:false});addEventListener('touchend',up);
+
+document.getElementById('reset').onclick=build;
+document.getElementById('kick').onclick=()=>{for(const p of pts){p.px-=7;p.py-=4}};
+
+function draw(){
+  x.clearRect(0,0,W,H);
+  const g=GROUND();
+  const grd=x.createLinearGradient(0,g-2,0,H);grd.addColorStop(0,'#1a1f30');grd.addColorStop(1,'#0a0b10');
+  x.fillStyle=grd;x.fillRect(0,g,W,H-g);
+  x.strokeStyle='#2a3050';x.lineWidth=1;x.beginPath();x.moveTo(0,g);x.lineTo(W,g);x.stroke();
+  // body: smooth tube through points
+  x.lineCap='round';x.lineJoin='round';
+  x.beginPath();x.moveTo(pts[0].x,pts[0].y);
+  for(let i=1;i<N;i++){
+    const a=pts[i-1],b=pts[i];
+    const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;
+    x.quadraticCurveTo(a.x,a.y,mx,my);
+  }
+  x.lineTo(pts[N-1].x,pts[N-1].y);
+  x.strokeStyle='rgba(138,255,193,.85)';x.lineWidth=RAD*2;x.stroke();
+  x.strokeStyle='rgba(138,255,193,.25)';x.lineWidth=RAD*2+6;x.stroke();
+  // eyes on the head
+  const h=pts[N-1];
+  x.fillStyle='#0a0b10';x.beginPath();x.arc(h.x+3,h.y-3,2.3,0,7);x.arc(h.x+3,h.y+3,2.3,0,7);x.fill();
+  document.getElementById('dist').textContent=Math.max(0,Math.round(avgX()-startX));
+}
+
+function loop(){step();draw();requestAnimationFrame(loop)}
+build();loop();
+</script>
+</body>
+</html>
