@@ -15,7 +15,7 @@
 <body>
 <canvas id="c"></canvas>
 <div id="hud"><b>slime</b> — soft body playground<br>drag to draw a slime · grab &amp; fling it · R clear</div>
-<div id="hint">drag empty space to draw · grab a slime to throw · tap inside to poke · poke a big one hard to split it</div>
+<div id="hint">drag empty space to draw · grab a slime to throw · tap inside to poke · poke a big one hard to split it · push two together to fuse</div>
 <script>
 const cv=document.getElementById('c'),cx=cv.getContext('2d');
 let W,H,DPR;
@@ -71,6 +71,29 @@ function splitBlob(b,p){
   for(const q of B.pts){q.px+=nx*3;q.py+=ny*3;}
   return [A,B];
 }
+function mergeBlobs(a,b){
+  const na=a.pts.length-1, nb=b.pts.length-1;
+  const keep=[];
+  for(let i=0;i<na;i++){const p=a.pts[i];if(!inPoly(b.pts,nb,p.x,p.y))keep.push(p);}
+  for(let i=0;i<nb;i++){const p=b.pts[i];if(!inPoly(a.pts,na,p.x,p.y))keep.push(p);}
+  if(keep.length<6)return null;
+  let mx=0,my=0;for(const p of keep){mx+=p.x;my+=p.y;}mx/=keep.length;my/=keep.length;
+  keep.sort((p,q)=>Math.atan2(p.y-my,p.x-mx)-Math.atan2(q.y-my,q.x-mx));
+  return makeBlob(keep);
+}
+function tryMerge(){
+  for(let i=0;i<blobs.length;i++)for(let j=i+1;j<blobs.length;j++){
+    const A=blobs[i],B=blobs[j];
+    const ca=A.pts[A.pts.length-1],cb=B.pts[B.pts.length-1];
+    const rA=Math.sqrt(A.restArea/Math.PI), rB=Math.sqrt(B.restArea/Math.PI);
+    const d=Math.hypot(ca.x-cb.x,ca.y-cb.y);
+    if(d<(rA+rB)*0.62){
+      const m=mergeBlobs(A,B);
+      if(m){blobs.splice(j,1);blobs.splice(i,1,m);return true;}
+    }
+  }
+  return false;
+}
 function step(){
   for(const b of blobs){
     for(const p of b.pts){
@@ -121,6 +144,7 @@ function step(){
       }
     }
   }
+  tryMerge();
   // blob-vs-blob: push points of different blobs apart so jellies squish instead of overlapping
   const MD=17, MD2=MD*MD;
   for(let i=0;i<blobs.length;i++){
