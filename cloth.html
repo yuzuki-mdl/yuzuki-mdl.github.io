@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cloth</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d12;overflow:hidden;font-family:ui-monospace,monospace}
+  canvas{display:block;touch-action:none;cursor:grab}
+  canvas:active{cursor:grabbing}
+  #hud{position:fixed;left:14px;bottom:12px;color:#5a6472;font-size:12px;line-height:1.5;pointer-events:none;user-select:none}
+  #hud b{color:#8ea0b8;font-weight:600}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><b>drag</b> the cloth &nbsp;·&nbsp; <b>space</b> reset &nbsp;·&nbsp; <b>t</b> tear mode</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',()=>{resize();build();});
+
+const COLS=34,ROWS=22,SPACING=0,SPRING=0.9,GRAV=0.5,FRICTION=0.985,ITER=3,DAMP=0.985;
+let pts=[],sticks=[],tearMode=false;
+let dragPt=null,dragPrev=null;
+
+function build(){
+  pts=[];sticks=[];
+  const spacing=Math.min((W*0.72)/(COLS-1),(H*0.62)/(ROWS-1));
+  const startX=(W-(COLS-1)*spacing)/2, startY=H*0.14;
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    const px=startX+x*spacing, py=startY+y*spacing;
+    pts.push({x:px,y:py,ox:px,oy:py,pinned:y===0});
+  }
+  const idx=(x,y)=>y*COLS+x;
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    if(x<COLS-1)sticks.push({a:idx(x,y),b:idx(x+1,y),len:spacing});
+    if(y<ROWS-1)sticks.push({a:idx(x,y),b:idx(x,y+1),len:spacing});
+  }
+}
+build();
+
+function loop(){
+  // verlet
+  for(const p of pts){
+    if(p.pinned||p===dragPt)continue;
+    const vx=(p.x-p.ox)*FRICTION, vy=(p.y-p.oy)*FRICTION;
+    p.ox=p.x;p.oy=p.y;
+    p.x+=vx; p.y+=vy+GRAV;
+  }
+  // constraints
+  for(let k=0;k<ITER;k++){
+    for(const s of sticks){
+      const a=pts[s.a],b=pts[s.b];
+      let dx=b.x-a.x,dy=b.y-a.y;
+      const d=Math.hypot(dx,dy)||0.0001;
+      const diff=(s.len-d)/d*0.5;
+      const ox=dx*diff,oy=dy*diff;
+      if(!a.pinned&&a!==dragPt){a.x-=ox;a.y-=oy;}
+      if(!b.pinned&&b!==dragPt){b.x+=ox;b.y+=oy;}
+    }
+  }
+  // draw
+  ctx.clearRect(0,0,W,H);
+  // fill mesh
+  ctx.beginPath();
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    const p=pts[y*COLS+x];
+    if(x===0&&y===0)ctx.moveTo(p.x,p.y);
+    else ctx.lineTo(p.x,p.y);
+  }
+  ctx.lineWidth=1;
+  // draw as lines for a woven look
+  ctx.strokeStyle='rgba(120,150,200,0.55)';
+  ctx.beginPath();
+  for(const s of sticks){const a=pts[s.a],b=pts[s.b];ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);}
+  ctx.stroke();
+  // highlight drag point
+  if(dragPt){ctx.beginPath();ctx.arc(dragPt.x,dragPt.y,6,0,7);ctx.fillStyle='#ffd479';ctx.fill();}
+  requestAnimationFrame(loop);
+}
+loop();
+
+function nearest(x,y){
+  let best=null,bd=1e9;
+  for(const p of pts){if(p.pinned)continue;const d=(p.x-x)**2+(p.y-y)**2;if(d<bd){bd=d;best=p;}}
+  return bd<2500?best:null;
+}
+
+cv.addEventListener('pointerdown',e=>{
+  const x=e.clientX,y=e.clientY;
+  if(tearMode){
+    // remove sticks near click
+    sticks=sticks.filter(s=>{const a=pts[s.a],b=pts[s.b];const mx=(a.x+b.x)/2,my=(a.y+b.y)/2;return (mx-x)**2+(my-y)**2>1400;});
+  }else{
+    dragPt=nearest(x,y);
+    if(dragPt){dragPrev={x:dragPt.x,y:dragPt.y};}
+  }
+});
+cv.addEventListener('pointermove',e=>{
+  if(dragPt){dragPt.x=e.clientX;dragPt.y=e.clientY;}
+});
+addEventListener('pointerup',()=>{dragPt=null;dragPrev=null;});
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();build();}
+  if(e.key==='t'||e.key==='T'){tearMode=!tearMode;document.getElementById('hud').innerHTML=tearMode?'<b>TEAR</b> mode · click to rip · <b>t</b> off':'<b>drag</b> the cloth &nbsp;·&nbsp; <b>space</b> reset &nbsp;·&nbsp; <b>t</b> tear mode';}
+});
+</script>
+</body>
+</html>
