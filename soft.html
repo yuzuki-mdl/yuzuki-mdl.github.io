@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>jello</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d12;overflow:hidden;font-family:ui-monospace,Menlo,monospace;color:#cfd3dc;touch-action:none}
+  canvas{display:block;width:100vw;height:100vh}
+  #hud{position:fixed;left:14px;top:12px;font-size:12px;line-height:1.6;opacity:.65;pointer-events:none;text-shadow:0 1px 2px #000}
+  #hud b{color:#ffb020;font-weight:600}
+  #hint{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);font-size:12px;opacity:.4;pointer-events:none;white-space:nowrap}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><b>jello</b> — soft body playground<br>drag to draw a blob · grab &amp; fling it · R clear</div>
+<div id="hint">drag on empty space to draw · grab a blob to throw it</div>
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',resize);
+const G=0.55, DAMP=0.992, ITER=3;
+let blobs=[];
+function addPoint(b,x,y){b.pts.push({x,y,px:x,py:y});}
+function addSpring(b,ia,ib,stiff){const a=b.pts[ia],c=b.pts[ib];const rest=Math.hypot(a.x-c.x,a.y-c.y);b.springs.push({a:ia,b:ib,rest,stiff:stiff||1});}
+function makeBlob(outline){
+  const b={pts:[],springs:[]};
+  let cxm=0,cym=0;for(const p of outline){cxm+=p.x;cym+=p.y;}cxm/=outline.length;cym/=outline.length;
+  for(const p of outline)addPoint(b,p.x,p.y);
+  const ci=b.pts.length; addPoint(b,cxm,cym);
+  const n=outline.length;
+  for(let i=0;i<n;i++){
+    addSpring(b,i,(i+1)%n,1);
+    addSpring(b,i,(i+2)%n,0.6);
+    addSpring(b,i,ci,0.5);
+  }
+  return b;
+}
+function step(){
+  for(const b of blobs){
+    for(const p of b.pts){
+      const vx=(p.x-p.px)*DAMP, vy=(p.y-p.py)*DAMP;
+      p.px=p.x; p.py=p.y;
+      p.x+=vx; p.y+=vy+G;
+    }
+    for(let k=0;k<ITER;k++){
+      for(const s of b.springs){
+        const a=b.pts[s.a],c=b.pts[s.b];
+        let dx=c.x-a.x,dy=c.y-a.y;let d=Math.hypot(dx,dy)||0.0001;
+        const diff=(d-s.rest)/d*0.5*s.stiff;
+        const ox=dx*diff,oy=dy*diff;
+        a.x+=ox;a.y+=oy;c.x-=ox;c.y-=oy;
+      }
+      for(const p of b.pts){
+        if(p.y>H-2){p.y=H-2; p.px+=(p.x-p.px)*0.5;}
+        if(p.y<2){p.y=2;}
+        if(p.x<2){p.x=2;}
+        if(p.x>W-2){p.x=W-2;}
+      }
+    }
+  }
+}
+function draw(){
+  cx.clearRect(0,0,W,H);
+  for(const b of blobs){
+    const ci=b.pts.length-1;
+    const n=b.pts.length-1;
+    cx.beginPath();
+    cx.moveTo(b.pts[0].x,b.pts[0].y);
+    for(let i=1;i<n;i++)cx.lineTo(b.pts[i].x,b.pts[i].y);
+    cx.closePath();
+    cx.fillStyle='rgba(255,176,32,0.10)';cx.fill();
+    cx.beginPath();
+    cx.moveTo(b.pts[0].x,b.pts[0].y);
+    for(let i=1;i<n;i++)cx.lineTo(b.pts[i].x,b.pts[i].y);
+    cx.closePath();
+    cx.lineWidth=2;cx.strokeStyle='#ffb020';cx.stroke();
+    cx.beginPath();cx.arc(b.pts[ci].x,b.pts[ci].y,2.5,0,7);cx.fillStyle='#ffe680';cx.fill();
+  }
+}
+let mode=null;
+let drawing=null;
+let grabbed=null;
+function pos(e){const t=e.touches?e.touches[0]:e;return{x:t.clientX,y:t.clientY};}
+function down(e){
+  const p=pos(e);
+  let best=null,bd=24*24;
+  for(const b of blobs)for(let i=0;i<b.pts.length;i++){
+    const q=b.pts[i];const d=(q.x-p.x)**2+(q.y-p.y)**2;
+    if(d<bd){bd=d;best={b,i};}
+  }
+  if(best){mode='grab';grabbed=best;return;}
+  mode='draw';drawing={outline:[{x:p.x,y:p.y}]};
+}
+function move(e){
+  const p=pos(e);
+  if(mode==='grab'&&grabbed){
+    const q=grabbed.b.pts[grabbed.i];
+    q.px=q.x;q.py=q.y;q.x=p.x;q.y=p.y;
+    e.preventDefault&&e.preventDefault();
+  } else if(mode==='draw'&&drawing){
+    const last=drawing.outline[drawing.outline.length-1];
+    if(Math.hypot(p.x-last.x,p.y-last.y)>14)drawing.outline.push({x:p.x,y:p.y});
+  }
+}
+function up(){
+  if(mode==='draw'&&drawing){
+    if(drawing.outline.length>=4){
+      const o=drawing.outline;
+      const a=o[0],z=o[o.length-1];
+      if(Math.hypot(a.x-z.x,a.y-z.y)>30)o.push({x:a.x,y:a.y});
+      blobs.push(makeBlob(o));
+      if(blobs.length>6)blobs.shift();
+    }
+    drawing=null;
+  }
+  mode=null;grabbed=null;
+}
+cv.addEventListener('mousedown',down);
+addEventListener('mousemove',move,{passive:false});
+addEventListener('mouseup',up);
+cv.addEventListener('touchstart',e=>{e.preventDefault();down(e);},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();move(e);},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();up();},{passive:false});
+addEventListener('keydown',e=>{if(e.key==='r'||e.key==='R'){blobs=[];}});
+function loop(){
+  step();
+  draw();
+  if(drawing){
+    const o=drawing.outline;cx.beginPath();cx.moveTo(o[0].x,o[0].y);for(let i=1;i<o.length;i++)cx.lineTo(o[i].x,o[i].y);cx.strokeStyle='rgba(255,176,32,0.5)';cx.lineWidth=2;cx.stroke();
+  }
+  requestAnimationFrame(loop);
+}
+(function seed(){
+  const o=[];const cx0=W/2,cy0=140,r=70;
+  for(let i=0;i<12;i++){const a=i/12*Math.PI*2;o.push({x:cx0+Math.cos(a)*r,y:cy0+Math.sin(a)*r});}
+  blobs.push(makeBlob(o));
+})();
+loop();
+</script>
+</body>
+</html>
