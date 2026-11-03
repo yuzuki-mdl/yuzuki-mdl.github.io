@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>verity</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a0c;overflow:hidden;cursor:crosshair}
+  canvas{display:block}
+  #hint{position:fixed;left:14px;bottom:12px;font:13px ui-monospace,monospace;color:#5a5a66;pointer-events:none;user-select:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">move — she follows · click her a lot — dont</div>
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W,H;
+function resize(){W=cv.width=innerWidth;H=cv.height=innerHeight;}
+resize();addEventListener('resize',resize);
+
+const m = {x:innerWidth/2,y:innerHeight/2};
+addEventListener('mousemove',e=>{m.x=e.clientX;m.y=e.clientY;});
+
+const v = {
+  x: innerWidth/2, y: innerHeight/2,
+  vx:0, vy:0,
+  r: 46,
+  anger: 0,
+  shake: 0,
+  grin: 0
+};
+
+let clicks = [];
+
+function clickAt(x,y){
+  // did we hit her?
+  const d = Math.hypot(x-v.x, y-v.y);
+  if(d < v.r*1.2){
+    v.anger = Math.min(1, v.anger + 0.18);
+    v.shake = 1;
+    clicks.push({x,y,t:performance.now()});
+  }
+}
+addEventListener('mousedown',e=>clickAt(e.clientX,e.clientY));
+addEventListener('touchstart',e=>{const t=e.touches[0];clickAt(t.clientX,t.clientY);},{passive:true});
+
+let last = performance.now();
+function frame(now){
+  const dt = Math.min(0.05,(now-last)/1000); last = now;
+
+  // anger decays slowly
+  v.anger = Math.max(0, v.anger - dt*0.12);
+  v.shake = Math.max(0, v.shake - dt*2.2);
+
+  // target: cursor normally, but when angry she chases
+  const chasing = v.anger > 0.55;
+  const tx = chasing ? m.x : m.x;
+  const ty = chasing ? m.y : m.y;
+  const pull = chasing ? 3.4 : 0.9;
+
+  v.vx += (tx - v.x) * pull * dt;
+  v.vy += (ty - v.y) * pull * dt;
+  // drag
+  v.vx *= Math.pow(0.0025, dt);
+  v.vy *= Math.pow(0.0025, dt);
+  v.x += v.vx * dt * 60 * 0.12;
+  v.y += v.vy * dt * 60 * 0.12;
+
+  // keep on screen
+  v.x = Math.max(v.r, Math.min(W-v.r, v.x));
+  v.y = Math.max(v.r, Math.min(H-v.r, v.y));
+
+  // grin widens with closeness to cursor when calm; frowns when angry
+  const near = Math.max(0, 1 - Math.hypot(m.x-v.x,m.y-v.y)/420);
+  const targetGrin = chasing ? -1 : near;
+  v.grin += (targetGrin - v.grin) * Math.min(1, dt*6);
+
+  draw(now);
+  requestAnimationFrame(frame);
+}
+
+function draw(now){
+  ctx.fillStyle = '#0a0a0c';
+  ctx.fillRect(0,0,W,H);
+
+  // glow
+  const g = ctx.createRadialGradient(v.x,v.y,0,v.x,v.y,v.r*3.2);
+  const warm = chasing ? '255,120,90' : '255,225,90';
+  g.addColorStop(0, `rgba(${warm},0.28)`);
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath(); ctx.arc(v.x,v.y,v.r*3.2,0,7); ctx.fill();
+
+  // shake offset
+  const sx = (Math.random()-0.5)*v.shake*10;
+  const sy = (Math.random()-0.5)*v.shake*10;
+  const cx = v.x + sx, cy = v.y + sy;
+
+  // sphere
+  const sgrad = ctx.createRadialGradient(cx-v.r*0.35, cy-v.r*0.4, v.r*0.15, cx, cy, v.r);
+  if(chasing){
+    sgrad.addColorStop(0,'#ffd0a0'); sgrad.addColorStop(0.6,'#ff8a5c'); sgrad.addColorStop(1,'#c0432a');
+  } else {
+    sgrad.addColorStop(0,'#fff6b0'); sgrad.addColorStop(0.6,'#ffe23a'); sgrad.addColorStop(1,'#c9a800');
+  }
+  ctx.fillStyle = sgrad;
+  ctx.beginPath(); ctx.arc(cx,cy,v.r,0,7); ctx.fill();
+
+  // eyes
+  const eyeY = cy - v.r*0.15;
+  const eyeDX = v.r*0.34;
+  const eyeR = v.r*0.13;
+  ctx.fillStyle = '#1a1408';
+  ctx.beginPath(); ctx.arc(cx-eyeDX, eyeY, eyeR, 0, 7); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx+eyeDX, eyeY, eyeR, 0, 7); ctx.fill();
+
+  // little angry brows when chasing
+  if(chasing){
+    ctx.strokeStyle='#1a1408'; ctx.lineWidth=Math.max(2,v.r*0.06); ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(cx-eyeDX-eyeR, eyeY-eyeR*1.4); ctx.lineTo(cx-eyeDX+eyeR, eyeY-eyeR*1.9); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cx+eyeDX+eyeR, eyeY-eyeR*1.4); ctx.lineTo(cx+eyeDX-eyeR, eyeY-eyeR*1.9); ctx.stroke();
+  }
+
+  // mouth: grin (positive) or frown (negative)
+  const mouthY = cy + v.r*0.32;
+  const w = v.r*0.5;
+  const curve = v.grin * v.r*0.38;
+  ctx.strokeStyle='#1a1408';
+  ctx.lineWidth=Math.max(2.5, v.r*0.075);
+  ctx.lineCap='round';
+  ctx.beginPath();
+  ctx.moveTo(cx-w, mouthY);
+  ctx.quadraticCurveTo(cx, mouthY + curve, cx+w, mouthY);
+  ctx.stroke();
+
+  // click ripples
+  for(let i=clicks.length-1;i>=0;i--){
+    const c=clicks[i];
+    const age=(now-c.t)/1000;
+    if(age>0.6){clicks.splice(i,1);continue;}
+    ctx.strokeStyle=`rgba(255,120,90,${(1-age/0.6)*0.5})`;
+    ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(c.x,c.y,age*140,0,7); ctx.stroke();
+  }
+
+  // anger bar (subtle)
+  if(v.anger>0.02){
+    ctx.fillStyle=`rgba(255,90,60,${0.25+v.anger*0.5})`;
+    ctx.fillRect(0,0,W*v.anger,3);
+  }
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
