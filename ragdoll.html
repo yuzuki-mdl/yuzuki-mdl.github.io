@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ragdoll</title>
+<style>
+  html,body{margin:0;height:100%;background:#0e0f13;overflow:hidden;font-family:ui-monospace,monospace}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none;cursor:grab}
+  canvas:active{cursor:grabbing}
+  #hud{position:fixed;left:14px;bottom:12px;color:#6b7280;font-size:12px;pointer-events:none;line-height:1.5}
+  #hud b{color:#c9d1d9;font-weight:600}
+</style>
+</head>
+<body>
+<canvas id=c></canvas>
+<div id=hud>drag the ragdoll and <b>fling</b> it · space = reset · gravity is a suggestion</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+
+const GRAV=0.55, DAMP=0.992, ITER=8;
+let pts=[],sticks=[],grabbed=null,grabOff={x:0,y:0};
+
+function P(x,y,mass=1){return {x,y,px:x,py:y,m:mass,r:mass*4+3};}
+function S(a,b,len,stiff=1){return {a,b,len:len||dist(a,b),stiff};}
+function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+
+function build(){
+  pts=[];sticks=[];
+  const cx=W/2, cy=H*0.35, u=Math.min(W,H)/22; // unit scale
+  // joints
+  const head = P(cx, cy-u*2.2, 1.4);
+  const neck = P(cx, cy-u*1.2, 1);
+  const chest= P(cx, cy, 1.3);
+  const pelvis=P(cx, cy+u*1.4, 1.3);
+  const lSh  = P(cx-u*1.1, cy-u*0.4,1);
+  const rSh  = P(cx+u*1.1, cy-u*0.4,1);
+  const lEl  = P(cx-u*1.7, cy+u*0.9,1);
+  const rEl  = P(cx+u*1.7, cy+u*0.9,1);
+  const lHa  = P(cx-u*2.0, cy+u*2.2,0.8);
+  const rHa  = P(cx+u*2.0, cy+u*2.2,0.8);
+  const lHi  = P(cx-u*0.7, cy+u*2.6,1);
+  const rHi  = P(cx+u*0.7, cy+u*2.6,1);
+  const lKn  = P(cx-u*0.8, cy+u*4.0,1);
+  const rKn  = P(cx+u*0.8, cy+u*4.0,1);
+  const lFo  = P(cx-u*0.8, cy+u*5.2,0.9);
+  const rFo  = P(cx+u*0.8, cy+u*5.2,0.9);
+  pts=[head,neck,chest,pelvis,lSh,rSh,lEl,rEl,lHa,rHa,lHi,rHi,lKn,rKn,lFo,rFo];
+  const link=(a,b,s=1)=>sticks.push(S(a,b,0,s));
+  // spine
+  link(head,neck);link(neck,chest);link(chest,pelvis);
+  // shoulders
+  link(chest,lSh);link(chest,rSh);link(lSh,neck);link(rSh,neck);
+  // arms
+  link(lSh,lEl);link(lEl,lHa);link(rSh,rEl);link(rEl,rHa);
+  // hips
+  link(pelvis,lHi);link(pelvis,rHi);
+  // legs
+  link(lHi,lKn);link(lKn,lFo);link(rHi,rKn);link(rKn,rFo);
+  // cross-braces for rigidity-ish
+  link(lSh,rSh,0.35);link(lHi,rHi,0.35);link(lSh,pelvis,0.2);link(rSh,pelvis,0.2);
+  // head neck stiffness
+  sticks.forEach(s=>{if(s.len===0)s.len=dist(s.a,s.b);});
+  grabbed=null;
+}
+build();
+
+function step(){
+  for(const p of pts){
+    if(p===grabbed)continue;
+    const vx=(p.x-p.px)*DAMP, vy=(p.y-p.py)*DAMP;
+    p.px=p.x; p.py=p.y;
+    p.x+=vx; p.y+=vy+GRAV;
+  }
+  for(let it=0;it<ITER;it++){
+    for(const s of sticks){
+      const a=s.a,b=s.b;
+      let dx=b.x-a.x, dy=b.y-a.y;
+      let d=Math.hypot(dx,dy)||0.0001;
+      const diff=(s.len-d)/d*0.5*s.stiff;
+      const ox=dx*diff, oy=dy*diff;
+      const ma=a.m, mb=b.m, tot=ma+mb;
+      if(a!==grabbed){a.x-=ox*(mb/tot);a.y-=oy*(mb/tot);}
+      if(b!==grabbed){b.x+=ox*(ma/tot);b.y+=oy*(ma/tot);}
+    }
+    // ground + walls
+    for(const p of pts){
+      if(p.y>H-p.r){p.y=H-p.r; p.py=p.y+(p.py-p.y)*0.3; p.px=p.x-(p.x-p.px)*0.6;}
+      if(p.x<p.r){p.x=p.r;}
+      if(p.x>W-p.r){p.x=W-p.r;}
+      if(p.y<-200){p.y=-200;}
+    }
+  }
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // ground
+  const g=ctx.createLinearGradient(0,H-80,0,H);
+  g.addColorStop(0,'rgba(120,140,200,0)');g.addColorStop(1,'rgba(120,140,200,0.12)');
+  ctx.fillStyle=g;ctx.fillRect(0,H-80,W,80);
+  // sticks
+  ctx.lineCap='round';
+  for(const s of sticks){
+    const w=Math.max(2, (s.a.m+s.b.m)*1.6);
+    ctx.strokeStyle='#2b3040';ctx.lineWidth=w+3;
+    ctx.beginPath();ctx.moveTo(s.a.x,s.a.y);ctx.lineTo(s.b.x,s.b.y);ctx.stroke();
+    ctx.strokeStyle='#7c8bff';ctx.lineWidth=w;
+    ctx.beginPath();ctx.moveTo(s.a.x,s.a.y);ctx.lineTo(s.b.x,s.b.y);ctx.stroke();
+  }
+  // joints
+  for(const p of pts){
+    ctx.beginPath();
+    ctx.fillStyle=p===grabbed?'#ffd166':'#c9d1f7';
+    ctx.arc(p.x,p.y,p.r,0,7);
+    ctx.fill();
+  }
+  // head highlight
+  const head=pts[0];
+  ctx.beginPath();ctx.fillStyle='#1a1d28';
+  ctx.arc(head.x,head.y,head.r*0.55,0,7);ctx.fill();
+}
+
+function loop(){step();draw();requestAnimationFrame(loop);}
+loop();
+
+// input
+function nearest(x,y){
+  let best=null,bd=1e9;
+  for(const p of pts){const d=Math.hypot(p.x-x,p.y-y);if(d<bd){bd=d;best=p;}}
+  return bd<60?best:null;
+}
+cv.addEventListener('pointerdown',e=>{
+  const x=e.clientX,y=e.clientY;
+  const p=nearest(x,y);
+  if(p){grabbed=p;grabOff={x:p.x-x,y:p.y-y};}
+});
+cv.addEventListener('pointermove',e=>{
+  if(grabbed){grabbed.x=e.clientX+grabOff.x;grabbed.y=e.clientY+grabOff.y;}
+});
+function release(){grabbed=null;}
+cv.addEventListener('pointerup',release);
+cv.addEventListener('pointercancel',release);
+cv.addEventListener('pointerleave',release);
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();build();}});
+</script>
+</body>
+</html>
