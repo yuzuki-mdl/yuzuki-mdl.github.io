@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>dominoes</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d12;overflow:hidden;font-family:ui-monospace,Menlo,monospace;color:#cfd3dc;touch-action:none}
+  canvas{display:block;width:100vw;height:100vh}
+  #hud{position:fixed;left:14px;top:12px;font-size:12px;line-height:1.6;opacity:.65;pointer-events:none;text-shadow:0 1px 2px #000}
+  #hud b{color:#ffb020;font-weight:600}
+  #hint{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);font-size:12px;opacity:.4;pointer-events:none;white-space:nowrap}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><b>dominoes</b> — click to place a line, tap one to topple<br>drag to place a row · R clear</div>
+<div id="hint">drag to lay dominoes in a line · tap any domino to push it</div>
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',resize);
+
+const DW=10, DH=44, GAP=22; // domino width, height, spacing
+let doms=[]; // {x,y,ang,angV,falling,pushed}
+const GRAV=0.0016, DAMP=0.985, REST=1.15; // topple dynamics
+
+function makeRow(x1,y1,x2,y2){
+  const dist=Math.hypot(x2-x1,y2-y1);
+  const n=Math.max(2,Math.floor(dist/GAP));
+  const ax=(x2-x1)/dist, ay=(y2-y1)/dist;
+  const perp=-Math.PI/2; // stand upright relative to travel dir? simpler: upright vertical
+  for(let i=0;i<n;i++){
+    const t=i/(n-1);
+    doms.push({x:x1+ax*dist*t, y:y1+ay*dist*t, ang:0, angV:0, falling:false, pushed:false});
+  }
+}
+
+function topple(startIdx, dir){
+  const d=doms[startIdx];
+  if(!d||d.falling)return;
+  d.falling=true; d.angV=dir*0.02;
+}
+
+function step(){
+  // physics: each falling domino gains angular velocity, and when it leans
+  // far enough it knocks the next one in the chain
+  for(let i=0;i<doms.length;i++){
+    const d=doms[i];
+    if(d.falling){
+      d.angV+=GRAV*Math.sin(d.ang+0.001);
+      d.ang+=d.angV;
+      d.angV*=DAMP;
+      if(Math.abs(d.ang)>Math.PI/2*0.95){
+        d.ang=Math.sign(d.ang)*Math.PI/2*0.95;
+        d.angV=0;
+      }
+    }
+  }
+  // chain reaction: a leaning domino hits its neighbors along x
+  for(let i=0;i<doms.length;i++){
+    const d=doms[i];
+    if(!d.falling||Math.abs(d.ang)<0.5)continue;
+    const reach=DH*Math.sin(Math.abs(d.ang))*0.9;
+    const sign=Math.sign(d.ang);
+    for(let j=0;j<doms.length;j++){
+      if(j===i)continue;
+      const o=doms[j];
+      if(o.falling)continue;
+      const dx=o.x-d.x, dy=o.y-d.y;
+      const dist=Math.hypot(dx,dy);
+      if(dist<reach+DW && dist>1){
+        // hit if it's roughly in the falling direction
+        const dot=(dx*Math.sin(d.ang)+dy*Math.cos(d.ang));
+        if(dot>0){
+          o.falling=true;
+          o.angV=sign*0.016 + (Math.random()-0.5)*0.004;
+        }
+      }
+    }
+  }
+}
+
+function draw(){
+  cx.clearRect(0,0,W,H);
+  for(const d of doms){
+    cx.save();
+    cx.translate(d.x,d.y);
+    cx.rotate(d.ang);
+    cx.fillStyle=d.falling?'#ffb020':'#3a4152';
+    cx.fillRect(-DW/2,-DH,DW,DH);
+    cx.strokeStyle=d.falling?'#ffe680':'#5a6478';
+    cx.lineWidth=1.5;
+    cx.strokeRect(-DW/2,-DH,DW,DH);
+    cx.restore();
+  }
+}
+
+let drag=null;
+function pos(e){const t=e.touches?e.touches[0]:e;return{x:t.clientX,y:t.clientY};}
+function down(e){
+  const p=pos(e);
+  // tap near a domino -> topple it
+  for(let i=0;i<doms.length;i++){
+    const d=doms[i];
+    if(Math.abs(p.x-d.x)<DW && p.y>d.y-DH && p.y<d.y){
+      topple(i, p.x<d.x?-1:1);
+      return;
+    }
+  }
+  drag={x:p.x,y:p.y};
+}
+function move(e){
+  if(!drag)return;
+  const p=pos(e);
+  if(Math.hypot(p.x-drag.x,p.y-drag.y)>GAP*2){
+    makeRow(drag.x,drag.y,p.x,p.y);
+    drag.x=p.x; drag.y=p.y;
+  }
+  e.preventDefault&&e.preventDefault();
+}
+function up(){drag=null;}
+
+cv.addEventListener('mousedown',down);
+addEventListener('mousemove',move,{passive:false});
+addEventListener('mouseup',up);
+cv.addEventListener('touchstart',e=>{e.preventDefault();down(e);},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();move(e);},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();up();},{passive:false});
+addEventListener('keydown',e=>{if(e.key==='r'||e.key==='R'){doms=[];}});
+
+function loop(){step();draw();requestAnimationFrame(loop);}
+
+(function seed(){
+  // a gentle S curve to start
+  const pts=[];
+  for(let i=0;i<=40;i++){
+    const t=i/40;
+    const x=W*0.15+t*W*0.7;
+    const y=H*0.55+Math.sin(t*Math.PI*2)*H*0.12;
+    pts.push({x,y});
+  }
+  for(let i=0;i<pts.length-1;i++)makeRow(pts[i].x,pts[i].y,pts[i+1].x,pts[i+1].y);
+})();
+loop();
+</script>
+</body>
+</html>
