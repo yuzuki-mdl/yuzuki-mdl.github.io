@@ -34,8 +34,8 @@ const cv=document.getElementById('c');
 cv.width=W*T; cv.height=H*T;
 const cx=cv.getContext('2d');
 
-const WALL=0, FLOOR=1, DOOR=2, STAIRS=3, KEY=4, POTION=5, TRAP=6, CHEST=7;
-let grid, player, enemies, keys, potions, kills, floorNum, msgT;
+const WALL=0, FLOOR=1, DOOR=2, STAIRS=3, KEY=4, POTION=5, TRAP=6, CHEST=7, SCROLL=8;
+let grid, player, enemies, keys, potions, kills, floorNum, msgT, revealUntil=0;
 const MAXFLOOR=5;
 const THEMES=[
   null,
@@ -117,6 +117,12 @@ function genFloor(f){
       if(grid[ty][tx]===FLOOR && !(tx===player.x&&ty===player.y)) grid[ty][tx]=TRAP;
     }
   }
+  // scroll: one per floor from f2, reveals the whole map for a few secs
+  if(f>=2){
+    let tries=0, sx,sy;
+    do{ sx=rnd(1,W-1); sy=rnd(1,H-1); tries++; }while(grid[sy][sx]!==FLOOR && tries<200);
+    if(grid[sy][sx]===FLOOR && !(sx===player.x&&sy===player.y)) grid[sy][sx]=SCROLL;
+  }
   // enemies scale with floor
   const nen=2+Math.floor(f*1.2);
   for(let i=0;i<nen;i++){
@@ -167,10 +173,21 @@ function render(){
   for(const k of keys){ cx.fillStyle='#fd5'; cx.font='22px monospace'; cx.fillText('⚷',k.x*T+5,k.y*T+24); }
   // chests
   for(let yy=0;yy<H;yy++)for(let xx=0;xx<W;xx++){ if(grid[yy][xx]===CHEST){ cx.fillStyle='#b8862a'; cx.fillRect(xx*T+6,yy*T+12,20,14); cx.fillStyle='#ffd76a'; cx.fillRect(xx*T+6,yy*T+12,20,4); cx.fillStyle='#6b4a12'; cx.fillRect(xx*T+15,yy*T+18,3,6);} }
+  // scrolls
+  for(let yy=0;yy<H;yy++)for(let xx=0;xx<W;xx++){ if(grid[yy][xx]===SCROLL){ cx.fillStyle='#e8d9b0'; cx.fillRect(xx*T+8,yy*T+9,17,15); cx.fillStyle='#8a6a3a'; for(let l=0;l<3;l++)cx.fillRect(xx*T+11,yy*T+13+l*4,11,1); } }
   // potions
   for(const p of potions){ cx.fillStyle='#e46'; cx.fillRect(p.x*T+11,p.y*T+12,10,14); cx.fillStyle='#f9b'; cx.fillRect(p.x*T+13,p.y*T+8,6,5); }
   // enemies
   for(const e of enemies){ const R=e.boss?14:10; cx.fillStyle=e.boss?'#c33':'#e55'; cx.beginPath(); cx.arc(e.x*T+T/2,e.y*T+T/2,R,0,7); cx.fill(); cx.fillStyle='#300'; const o=e.boss?8:10; cx.fillRect(e.x*T+o,e.y*T+12,4,4); cx.fillRect(e.x*T+T-o-4,e.y*T+12,4,4); }
+  // map reveal overlay
+  if(Date.now()<revealUntil){
+    cx.globalAlpha=0.85; cx.fillStyle='#0b0d1a'; cx.fillRect(0,0,cv.width,cv.height);
+    for(let y=0;y<H;y++)for(let x=0;x<W;x++){ const v=grid[y][x]; if(v===WALL) continue;
+      cx.fillStyle = v===STAIRS?'#6cf' : v===DOOR?'#7a4a1e' : v===TRAP?'#a33' : v===CHEST?'#ffd76a' : v===SCROLL?'#e8d9b0' : '#3a4a5a';
+      cx.fillRect(x*T+3,y*T+3,T-6,T-6); }
+    cx.fillStyle='#8f9'; cx.fillRect(player.x*T+6,player.y*T+6,T-12,T-12);
+    cx.globalAlpha=1;
+  }
   // player
   cx.fillStyle='#8f9'; cx.beginPath(); cx.arc(player.x*T+T/2,player.y*T+T/2,11,0,7); cx.fill();
   cx.fillStyle='#042'; cx.fillRect(player.x*T+11,player.y*T+12,3,4); cx.fillRect(player.x*T+18,player.y*T+12,3,4);
@@ -198,6 +215,7 @@ function playerMove(dx,dy){
   // potion pickup
   if(grid[ny][nx]===TRAP){ player.hp-=2; grid[ny][nx]=FLOOR; msg('spikes! -2 hp'); updateHud(); if(player.hp<=0){ lose(); return; } }
   if(grid[ny][nx]===CHEST){ grid[ny][nx]=FLOOR; player.atk=(player.atk||1)+1; msg('found a blade. atk '+player.atk); updateHud(); }
+  if(grid[ny][nx]===SCROLL){ grid[ny][nx]=FLOOR; revealUntil=Date.now()+4000; msg('the map unfolds'); }
   const pot=potions.find(p=>p.x===nx&&p.y===ny);
   if(pot){ potions=potions.filter(p=>p!==pot); player.hp=Math.min(player.maxhp,player.hp+5); msg('+5 hp'); updateHud(); }
   if(grid[ny][nx]===STAIRS){
