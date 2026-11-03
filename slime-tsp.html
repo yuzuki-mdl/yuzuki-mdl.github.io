@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>slime tsp</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d10;color:#cfe;font-family:ui-monospace,monospace;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none}
+  #hud{position:fixed;left:12px;bottom:12px;font-size:13px;line-height:1.5;color:#7f9;opacity:.85;pointer-events:none;text-shadow:0 0 6px #000}
+  #hud b{color:#cfe}
+</style>
+</head>
+<body>
+<canvas id=c></canvas>
+<div id=hud><b>slime tsp</b> — click to add food · space = run · r = reset<br><span id=info></span></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const info=document.getElementById('info');
+let W,H;function resize(){W=cv.width=innerWidth*devicePixelRatio;H=cv.height=innerHeight*devicePixelRatio;ctx.scale(1,1);}
+resize();addEventListener('resize',()=>{cv.width=innerWidth*devicePixelRatio;cv.height=innerHeight*devicePixelRatio;});
+
+// grid of trails: each cell has a value (pheromone). agents wander toward food, deposit, evaporate.
+let GX,GY,cell=6;
+let grid,agents,nodes=[],running=false,gen=0;
+function buildGrid(){GX=Math.ceil(W/cell);GY=Math.ceil(H/cell);grid=new Float32Array(GX*GY);}
+buildGrid();
+
+function addNode(x,y){nodes.push({x:x*devicePixelRatio,y:y*devicePixelRatio});}
+
+function rnd(a,b){return a+Math.random()*(b-a);}
+
+function spawnAgents(n){agents=[];for(let i=0;i<n;i++){const a=nodes[Math.floor(Math.random()*nodes.length)];agents.push({x:a.x,y:a.y,h:rnd(0,6.28),life:rnd(200,600),carry:0});}}
+
+function step(){
+  // evaporate
+  for(let i=0;i<grid.length;i++)grid[i]*=0.985;
+  for(const ag of agents){
+    // sense: sample three directions ahead, steer toward strongest trail / nearest food
+    let best=null,bestv=-1;
+    for(const da of [-0.6,0,0.6]){
+      const h=ag.h+da;
+      const sx=ag.x+Math.cos(h)*cell*4, sy=ag.y+Math.sin(h)*cell*4;
+      const gx=Math.floor(sx/cell), gy=Math.floor(sy/cell);
+      let v=0;
+      if(gx>=0&&gx<GX&&gy>=0&&gy<GY){v=grid[gy*GX+gx];}
+      // bias toward nearest node
+      let nd=1e9,ni=-1;
+      for(let k=0;k<nodes.length;k++){const dx=nodes[k].x-ag.x,dy=nodes[k].y-ag.y;const d=dx*dx+dy*dy;if(d<nd){nd=d;ni=k;}}
+      if(ni>=0){const dx=nodes[ni].x-ag.x,dy=nodes[ni].y-ag.y;const ang=Math.atan2(dy,dx);let diff=Math.abs(((ang-h+Math.PI*3)%(Math.PI*2))-Math.PI);v+= (1-diff/Math.PI)*0.15;}
+      if(v>bestv){bestv=v;best=h;}
+    }
+    ag.h=best+rnd(-0.25,0.25);
+    ag.x+=Math.cos(ag.h)*cell*0.9;
+    ag.y+=Math.sin(ag.h)*cell*0.9;
+    ag.life--;
+    const gx=Math.floor(ag.x/cell),gy=Math.floor(ag.y/cell);
+    if(gx>=0&&gx<GX&&gy>=0&&gy<GY){grid[gy*GX+gx]+=1;}
+    // reached node → respawn at random node, keeps network alive
+    for(const nd of nodes){const dx=nd.x-ag.x,dy=nd.y-ag.y;if(dx*dx+dy*dy<cell*cell*2){ag.x=nd.x;ag.y=nd.y;ag.h=rnd(0,6.28);ag.carry++;}}
+    if(ag.life<=0||ag.x<0||ag.x>W||ag.y<0||ag.y>H){const a=nodes[Math.floor(Math.random()*nodes.length)];ag.x=a.x;ag.y=a.y;ag.h=rnd(0,6.28);ag.life=rnd(200,600);}
+  }
+  // respawn dead agents
+  while(agents.length<260){const a=nodes[Math.floor(Math.random()*nodes.length)];if(!a)break;agents.push({x:a.x,y:a.y,h:rnd(0,6.28),life:rnd(200,600),carry:0});}
+}
+
+let last=0;
+function frame(t){
+  if(running&&nodes.length>1){for(let s=0;s<2;s++)step();}
+  // draw
+  ctx.fillStyle='rgba(11,13,16,0.28)';ctx.fillRect(0,0,W,H);
+  ctx.globalCompositeOperation='lighter';
+  for(let gy=0;gy<GY;gy++)for(let gx=0;gx<GX;gx++){
+    const v=grid[gy*GX+gx];if(v<0.4)continue;
+    const a=Math.min(0.7,v*0.22);
+    ctx.fillStyle='rgba(90,200,150,'+a.toFixed(3)+')';
+    ctx.fillRect(gx*cell,gy*cell,cell,cell);
+  }
+  ctx.globalCompositeOperation='source-over';
+  // nodes
+  for(const nd of nodes){ctx.beginPath();ctx.arc(nd.x,nd.y,7,0,6.28);ctx.fillStyle='#ffd166';ctx.fill();ctx.strokeStyle='#fff';ctx.lineWidth=1;ctx.stroke();}
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+cv.addEventListener('pointerdown',e=>{if(e.button===2)return;addNode(e.clientX,e.clientY);if(nodes.length>1&&!running){spawnAgents(260);running=true;}});
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();if(nodes.length>1){if(!agents||!agents.length)spawnAgents(260);running=!running;}}
+  if(e.key==='r'||e.key==='R'){nodes=[];buildGrid();agents=[];running=false;ctx.clearRect(0,0,W,H);}
+});
+setInterval(()=>{info.textContent=nodes.length+' food · '+(running?'running':'paused')+' · '+(agents?agents.length:0)+' agents';},500);
+</script>
+</body>
+</html>
