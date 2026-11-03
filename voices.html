@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>voices</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body{margin:0;background:#050505;color:#c9c4b8;font:14px/1.5 ui-monospace,Menlo,monospace;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  #stage{flex:1;position:relative;background:#000}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  #voices{position:absolute;left:0;right:0;bottom:0;padding:14px 18px 20px;background:linear-gradient(transparent,#000 30%);max-height:52%;overflow:hidden}
+  .v{margin:6px 0;opacity:.9;transition:opacity .4s}
+  .v.fresh{opacity:1}
+  .who{color:#6d675c}
+  #hint{position:absolute;top:12px;left:18px;color:#4a463f;font-size:12px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <div id="hint">arrows / wasd to move · u cannot see · listen</div>
+    <div id="voices"></div>
+  </div>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const vbox=document.getElementById('voices');
+let W=0,H=0,DPR=Math.min(devicePixelRatio||1,2);
+function resize(){W=cv.clientWidth;H=cv.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);
+
+// world: things scattered around. player at center-ish.
+const things=[
+  {x:0,y:0,kind:'stone',words:['a stone','a flat cold stone','a grey stone, worn smooth']},
+  {x:0,y:0,kind:'water',words:['water','a pool','something wet, moving']},
+  {x:0,y:0,kind:'tree',words:['a tree','a tall dark tree','branches, many']},
+  {x:0,y:0,kind:'fire',words:['a small fire','warmth','something burning, low']},
+  {x:0,y:0,kind:'door',words:['a door','a way out, maybe','a frame, closed']},
+  {x:0,y:0,kind:'bone',words:['a bone','something white on the ground','old bone']},
+  {x:0,y:0,kind:'bell',words:['a bell','something that could ring','metal, hanging']},
+  {x:0,y:0,kind:'flower',words:['a flower','one small flower','something growing, pink']},
+];
+const R=260; // world radius
+for(const t of things){const a=Math.random()*Math.PI*2,r=30+Math.random()*R;t.x=Math.cos(a)*r;t.y=Math.sin(a)*r;}
+
+// voices: observers standing in the world. each has a limited sight (they see only things near them).
+const voices=[
+  {name:'the one by the water',x:-180,y:60,range:170},
+  {name:'the one up high',x:120,y:-170,range:200},
+  {name:'the one who is cold',x:200,y:180,range:150},
+  {name:'the one who waits',x:-40,y:-220,range:190},
+];
+const player={x:0,y:0};
+const keys={};
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true;if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(e.key.toLowerCase()))e.preventDefault();});
+addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false;});
+
+// what a voice can see: things within their range
+function seenBy(v){
+  return things.filter(t=>Math.hypot(t.x-v.x,t.y-v.y)<v.range);
+}
+// how a voice describes the player's situation: nearest thing to the player that this voice can also see
+function describe(v){
+  const inSight=seenBy(v);
+  if(!inSight.length) return null;
+  let best=null,bd=1e9;
+  for(const t of inSight){const d=Math.hypot(t.x-player.x,t.y-player.y);if(d<bd){bd=d;best=t;}}
+  return {thing:best,dist:bd};
+}
+
+// each voice speaks on its own rhythm
+let t0=performance.now(),speakTimers=voices.map(()=>1+Math.random()*3);
+
+function speak(v,i){
+  const d=describe(v);
+  if(!d) return;
+  const w=d.thing.words;
+  const pick=w[Math.floor(Math.random()*w.length)];
+  const dist=Math.round(d.dist);
+  let line;
+  if(dist<40) line=`${pick} — very close to u`;
+  else if(dist<110) line=`${pick} — near, maybe ${dist} steps`;
+  else line=`${pick} — far off, ${dist} steps or so`;
+  addLine(v.name,line);
+}
+
+const lines=[];
+function addLine(who,what){
+  lines.push({who,what,t:performance.now()});
+  while(lines.length>6) lines.shift();
+  renderVoices();
+}
+function renderVoices(){
+  const now=performance.now();
+  vbox.innerHTML=lines.map(l=>{
+    const fresh=now-l.t<2500?' fresh':'';
+    return `<div class="v${fresh}"><span class="who">${l.who}:</span> ${l.what}</div>`;
+  }).join('');
+}
+
+function tick(dt){
+  const sp=60*dt;
+  let dx=0,dy=0;
+  if(keys['arrowleft']||keys['a'])dx-=1;
+  if(keys['arrowright']||keys['d'])dx+=1;
+  if(keys['arrowup']||keys['w'])dy-=1;
+  if(keys['arrowdown']||keys['s'])dy+=1;
+  if(dx||dy){const m=Math.hypot(dx,dy);player.x+=dx/m*sp;player.y+=dy/m*sp;}
+  const r=Math.hypot(player.x,player.y);
+  if(r>R){player.x*=R/r;player.y*=R/r;}
+
+  // voices speak on timers
+  for(let i=0;i<voices.length;i++){
+    speakTimers[i]-=dt;
+    if(speakTimers[i]<=0){speak(voices[i],i);speakTimers[i]=2.5+Math.random()*3;}
+  }
+}
+
+function draw(){
+  ctx.fillStyle='#000';ctx.fillRect(0,0,W,H);
+  // the world is never drawn. only a faint sense of where u are (a dot that is u)
+  const cx=W/2,cy=H/2;
+  ctx.save();ctx.translate(cx,cy);
+  ctx.fillStyle='rgba(200,190,170,.18)';
+  ctx.beginPath();ctx.arc(0,0,2.5,0,7);ctx.fill();
+  ctx.restore();
+  // subtle vignette pulse so it's alive
+  const p=0.5+0.5*Math.sin(performance.now()/1400);
+  ctx.fillStyle=`rgba(0,0,0,${0.03*p})`;ctx.fillRect(0,0,W,H);
+}
+
+let last=performance.now();
+function loop(now){
+  const dt=Math.min((now-last)/1000,0.05);last=now;
+  tick(dt);draw();
+  requestAnimationFrame(loop);
+}
+resize();
+// opening line
+addLine('the one by the water','something moves. hello?');
+addLine('the one up high','i can see u, i think. barely.');
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
