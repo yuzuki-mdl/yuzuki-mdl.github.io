@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>jello</title>
+<title>slime</title>
 <style>
   html,body{margin:0;height:100%;background:#0b0d12;overflow:hidden;font-family:ui-monospace,Menlo,monospace;color:#cfd3dc;touch-action:none}
   canvas{display:block;width:100vw;height:100vh}
@@ -14,7 +14,7 @@
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="hud"><b>jello</b> — soft body playground<br>drag to draw a blob · grab &amp; fling it · R clear</div>
+<div id="hud"><b>slime</b> — soft body playground<br>drag to draw a slime · grab &amp; fling it · R clear</div>
 <div id="hint">drag on empty space to draw · grab a blob to throw it</div>
 <script>
 const cv=document.getElementById('c'),cx=cv.getContext('2d');
@@ -104,13 +104,20 @@ function draw(){
     cx.moveTo(b.pts[0].x,b.pts[0].y);
     for(let i=1;i<n;i++)cx.lineTo(b.pts[i].x,b.pts[i].y);
     cx.closePath();
-    cx.fillStyle='rgba(255,176,32,0.10)';cx.fill();
+    // slime body: translucent green with a soft inner glow
+    const gx=cx.createRadialGradient(b.pts[ci].x,b.pts[ci].y-10,4,b.pts[ci].x,b.pts[ci].y,90);
+    gx.addColorStop(0,'rgba(120,255,170,0.42)');
+    gx.addColorStop(0.6,'rgba(60,210,130,0.22)');
+    gx.addColorStop(1,'rgba(30,150,95,0.10)');
+    cx.fillStyle=gx;cx.fill();
     cx.beginPath();
     cx.moveTo(b.pts[0].x,b.pts[0].y);
     for(let i=1;i<n;i++)cx.lineTo(b.pts[i].x,b.pts[i].y);
     cx.closePath();
-    cx.lineWidth=2;cx.strokeStyle='#ffb020';cx.stroke();
-    cx.beginPath();cx.arc(b.pts[ci].x,b.pts[ci].y,2.5,0,7);cx.fillStyle='#ffe680';cx.fill();
+    cx.lineWidth=2.2;cx.strokeStyle='rgba(130,255,180,0.85)';cx.stroke();
+    // glossy highlight blob near the top
+    cx.beginPath();cx.ellipse(b.pts[ci].x-12,b.pts[ci].y-14,10,6,-0.5,0,7);
+    cx.fillStyle='rgba(220,255,235,0.35)';cx.fill();
   }
 }
 let mode=null;
