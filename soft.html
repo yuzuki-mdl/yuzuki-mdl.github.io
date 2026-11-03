@@ -14,7 +14,7 @@
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="hud"><b>slime</b> — soft body playground<br>drag to draw a slime · grab &amp; fling it · R clear</div>
+<div id="hud"><b>slime</b> — soft body playground<br>drag to draw a slime · grab &amp; fling it · eat dots to grow · R clear<br>eaten: <b id="sc">0</b></div>
 <div id="hint">drag empty space to draw · grab a slime to throw · tap inside to poke · poke a big one hard to split it · push two together to fuse</div>
 <script>
 const cv=document.getElementById('c'),cx=cv.getContext('2d');
@@ -145,6 +145,7 @@ function step(){
     }
   }
   tryMerge();
+  eatFood();
   // blob-vs-blob: push points of different blobs apart so jellies squish instead of overlapping
   const MD=17, MD2=MD*MD;
   for(let i=0;i<blobs.length;i++){
@@ -165,6 +166,14 @@ function step(){
 }
 function draw(){
   cx.clearRect(0,0,W,H);
+  const tt=performance.now()/400;
+  for(const f of foods){
+    const pr=1+Math.sin(tt+f.ph)*0.16;
+    cx.beginPath();cx.arc(f.x,f.y,f.r*pr,0,7);
+    cx.fillStyle='rgba(255,205,90,0.9)';cx.fill();
+    cx.beginPath();cx.arc(f.x-1.5,f.y-1.5,f.r*0.35,0,7);
+    cx.fillStyle='rgba(255,245,200,0.8)';cx.fill();
+  }
   for(const b of blobs){
     const ci=b.pts.length-1;
     const n=b.pts.length-1;
@@ -186,6 +195,20 @@ function draw(){
     // glossy highlight blob near the top
     cx.beginPath();cx.ellipse(b.pts[ci].x-12,b.pts[ci].y-14,10,6,-0.5,0,7);
     cx.fillStyle='rgba(220,255,235,0.35)';cx.fill();
+  }
+}
+let foods=[];let score=0;
+function spawnFood(){foods.push({x:30+Math.random()*(W-60),y:30+Math.random()*(H-60),r:5,ph:Math.random()*6.28});}
+function eatFood(){
+  for(let fi=foods.length-1;fi>=0;fi--){
+    const f=foods[fi];
+    for(const b of blobs){
+      const n=b.pts.length-1;
+      if(inPoly(b.pts,n,f.x,f.y)){
+        b.restArea+=520;score++;
+        foods.splice(fi,1);spawnFood();break;
+      }
+    }
   }
 }
 let mode=null;
@@ -263,6 +286,7 @@ addEventListener('keydown',e=>{if(e.key==='r'||e.key==='R'){blobs=[];}});
 function loop(){
   step();
   draw();
+  document.getElementById('sc').textContent=score;
   if(drawing){
     const o=drawing.outline;cx.beginPath();cx.moveTo(o[0].x,o[0].y);for(let i=1;i<o.length;i++)cx.lineTo(o[i].x,o[i].y);cx.strokeStyle='rgba(255,176,32,0.5)';cx.lineWidth=2;cx.stroke();
   }
@@ -272,6 +296,7 @@ function loop(){
   const o=[];const cx0=W/2,cy0=140,r=70;
   for(let i=0;i<12;i++){const a=i/12*Math.PI*2;o.push({x:cx0+Math.cos(a)*r,y:cy0+Math.sin(a)*r});}
   blobs.push(makeBlob(o));
+  for(let i=0;i<9;i++)spawnFood();
 })();
 loop();
 </script>
