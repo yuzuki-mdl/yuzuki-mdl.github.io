@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>garden</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0f0c;overflow:hidden;font-family:ui-monospace,monospace;color:#cfe}
+  canvas{display:block;width:100%;height:100%}
+  #hud{position:fixed;left:16px;bottom:14px;font-size:12px;line-height:1.7;color:#8fb08f;pointer-events:none;text-shadow:0 1px 2px #000}
+  #hud b{color:#cfe;font-weight:600}
+  #seed{position:fixed;right:16px;bottom:14px;font-size:11px;color:#5f7f5f;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div><b id="name">plant</b> · iter <b id="it">5</b> · angle <b id="an">25°</b></div>
+  <div>space reroll · ← → rule · ↑ ↓ depth · a/d angle</div>
+</div>
+<div id="seed"></div>
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cx.setTransform(DPR,0,0,DPR,0,0);draw();}
+addEventListener('resize',resize);
+
+// rule sets: axiom + productions + default angle
+const RULES=[
+ {name:'plant', ax:'X', ang:25, prod:{X:'F+[[X]-X]-F[-FX]+X', F:'FF'}},
+ {name:'bush',  ax:'F', ang:22, prod:{F:'FF+[+F-F-F]-[-F+F+F]'}},
+ {name:'weed',  ax:'F', ang:20, prod:{F:'F[+F]F[-F]F'}},
+ {name:'fern',  ax:'X', ang:25, prod:{X:'F[+X][-X]FX', F:'FF'}},
+ {name:'koch',  ax:'F', ang:60, prod:{F:'F+F-F-F+F'}},
+ {name:'dragon',ax:'FX',ang:90, prod:{X:'X+YF+', Y:'-FX-Y'}},
+];
+let ri=0, iter=5, angOff=0, seed=1;
+const elName=document.getElementById('name'),elIt=document.getElementById('it'),elAn=document.getElementById('an'),elSeed=document.getElementById('seed');
+
+function rnd(){seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;}
+
+function expand(rule,it){
+  let s=rule.ax;
+  for(let i=0;i<it;i++){
+    let out='';
+    for(const ch of s) out+= rule.prod[ch]!==undefined? rule.prod[ch] : ch;
+    s=out;
+    if(s.length>400000) break;
+  }
+  return s;
+}
+
+function draw(){
+  const rule=RULES[ri];
+  const ang=(rule.ang+angOff)*Math.PI/180;
+  const str=expand(rule,iter);
+  cx.clearRect(0,0,W,H);
+  // background glow
+  const g=cx.createRadialGradient(W*0.5,H*0.35,0,W*0.5,H*0.35,Math.max(W,H)*0.7);
+  g.addColorStop(0,'#0f1a12');g.addColorStop(1,'#070a08');
+  cx.fillStyle=g;cx.fillRect(0,0,W,H);
+
+  // turtle
+  const startLen = Math.min(W,H)*0.42;
+  cx.lineCap='round';
+  // precompute bounds first (dry run) to fit & center
+  let x=0,y=0,dir=-Math.PI/2,minx=0,maxx=0,miny=0,maxy=0;
+  const stack=[];
+  const pts=[];
+  const stepStr=str;
+  // two passes: measure with unit len
+  for(const ch of stepStr){
+    if(ch==='F'||ch==='G'){const nx=x+Math.cos(dir),ny=y+Math.sin(dir);pts.push([x,y,nx,ny]);x=nx;y=ny;}
+    else if(ch==='+'){dir+=ang;}
+    else if(ch==='-'){dir-=ang;}
+    else if(ch==='['){stack.push([x,y,dir]);}
+    else if(ch===']'){const s=stack.pop();if(s){x=s[0];y=s[1];dir=s[2];}}
+    if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;
+  }
+  const w=maxx-minx||1, h=maxy-miny||1;
+  const scale=Math.min((W*0.82)/w,(H*0.82)/h);
+  const ox=W/2-(minx+maxx)/2*scale, oy=H/2-(miny+maxy)/2*scale;
+
+  // color by depth via bracket depth tracking
+  const total=pts.length;
+  let i=0;
+  const hueBase=120+ (rnd()*40-20);
+  for(const [ax,ay,bx,by] of pts){
+    const t=i/total;
+    const lw=Math.max(0.6,scale*2.2*(1-t*0.85));
+    const hue=hueBase - t*50 + (rnd()*10-5);
+    const light=38 + t*18;
+    cx.strokeStyle=`hsl(${hue},55%,${light}%)`;
+    cx.lineWidth=lw;
+    cx.beginPath();
+    cx.moveTo(ox+ax*scale,oy+ay*scale);
+    cx.lineTo(ox+bx*scale,oy+by*scale);
+    cx.stroke();
+    i++;
+  }
+  elName.textContent=rule.name;
+  elIt.textContent=iter;
+  elAn.textContent=(rule.ang+angOff)+'°';
+  elSeed.textContent='seed '+seed.toString(16);
+}
+
+function reroll(){seed=(Math.random()*1e9)|0;angOff=Math.round((rnd()*8-4));draw();}
+
+addEventListener('keydown',e=>{
+  if(e.key===' '){e.preventDefault();reroll();}
+  else if(e.key==='ArrowRight'){ri=(ri+1)%RULES.length;angOff=0;iter=Math.min(iter,RULES[ri].name==='dragon'?12:6);draw();}
+  else if(e.key==='ArrowLeft'){ri=(ri-1+RULES.length)%RULES.length;angOff=0;draw();}
+  else if(e.key==='ArrowUp'){iter=Math.min(iter+1,13);draw();}
+  else if(e.key==='ArrowDown'){iter=Math.max(1,iter-1);draw();}
+  else if(e.key==='a'){angOff-=1;draw();}
+  else if(e.key==='d'){angOff+=1;draw();}
+});
+
+// touch: tap to reroll, swipe up/down for depth
+let ty=null;
+cv.addEventListener('touchstart',e=>{ty=e.touches[0].clientY;},{passive:true});
+cv.addEventListener('touchend',e=>{
+  const dy=e.changedTouches[0].clientY-ty;
+  if(Math.abs(dy)<20) reroll();
+  else if(dy<0){iter=Math.min(iter+1,13);draw();}
+  else {iter=Math.max(1,iter-1);draw();}
+});
+cv.addEventListener('click',reroll);
+
+resize();
+</script>
+</body>
+</html>
