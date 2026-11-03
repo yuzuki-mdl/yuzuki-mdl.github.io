@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>wind by its effects</title>
+<style>
+  html,body{margin:0;height:100%;background:#0e0f14;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
+  #hud{position:fixed;left:14px;bottom:12px;font:12px/1.5 ui-monospace,Menlo,monospace;color:#6c7180;pointer-events:none;user-select:none}
+  #hud b{color:#c7ccd8;font-weight:500}
+  #t{position:fixed;left:14px;top:12px;font:12px/1.4 ui-monospace,Menlo,monospace;color:#4a4f5c;pointer-events:none;user-select:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="t">wind by its effects — you never see the air</div>
+<div id="hud"><b>space</b> reroll scene &nbsp; <b>drag</b> blow a gust &nbsp; <b>1–3</b> strength</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+
+// ---- a wind field: smooth curl noise. we never draw it, only what it does.
+let seed=Math.random()*1000;
+const noise=(x,y,t)=>{
+  // cheap layered sin field, drifting in time
+  return Math.sin(x*0.9+seed+Math.sin(y*0.7+t*0.3)*1.4)
+       + Math.sin(y*1.1-seed*0.7+Math.cos(x*0.6-t*0.25)*1.2)
+       + 0.5*Math.sin((x+y)*0.5+t*0.5+seed);
+};
+function windAt(x,y,t,strength){
+  const nx=x*0.006, ny=y*0.006;
+  const a=noise(nx,ny,t)*Math.PI;
+  const s=(0.6+0.4*Math.sin(nx*3+ny*2+t))*strength;
+  return {x:Math.cos(a)*s, y:Math.sin(a)*s*0.6};
+}
+
+// ---- scene: things that only move if the wind moves them.
+let items=[],grass=[],cloth=null,cat=null,hat=null,leaves=[];
+let gust={active:false,x:0,y:0,strength:0};
+let strength=1.6;
+
+function buildScene(){
+  seed=Math.random()*1000;
+  items=[];grass=[];leaves=[];
+  const gy=H*0.78; // ground line
+  // picnic cloth: a quad of 4 stones at corners, cloth between
+  const cw=Math.min(W*0.34,300), cx=W*0.5, cy=gy;
+  cloth={cx,cy,w:cw,h:cw*0.55,stones:[],wave:0,wv:0};
+  for(const [sx,sy] of [[-1,-1],[1,-1],[-1,1],[1,1]]){
+    cloth.stones.push({x:cx+sx*cw*0.5, y:cy+sy*cw*0.28, r:6+Math.random()*3});
+  }
+  // cat crouched behind a chimney (left)
+  cat={x:W*0.18, y:gy-6, ear:0, crouch:0, base:gy-6};
+  // a person holding their hat with both hands (right)
+  hat={x:W*0.82, y:gy-120, tilt:0, base:gy-120, hold:0};
+  // grass blades along the ground
+  for(let i=0;i<Math.floor(W/9);i++){
+    grass.push({x:Math.random()*W, y:gy+Math.random()*14, h:8+Math.random()*22, bend:0, bv:0});
+  }
+  // loose leaves that get carried
+  for(let i=0;i<14;i++){
+    leaves.push({x:Math.random()*W, y:gy-20-Math.random()*H*0.4, vx:0, vy:0, rot:Math.random()*6.28, rv:0, size:3+Math.random()*3});
+  }
+}
+buildScene();
+
+let t=0, last=performance.now();
+function frame(now){
+  const dt=Math.min((now-last)/1000,0.05); last=now; t+=dt;
+  // gust decays
+  if(gust.active){ gust.strength*=Math.pow(0.02,dt); if(gust.strength<0.05) gust.active=false; }
+
+  ctx.clearRect(0,0,W,H);
+  const gy=H*0.78;
+
+  // sky wash
+  const g=ctx.createLinearGradient(0,0,0,gy);
+  g.addColorStop(0,'#12141c'); g.addColorStop(1,'#1b1e28');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,gy);
+  ctx.fillStyle='#0b0c10'; ctx.fillRect(0,gy,W,H-gy);
+
+  // helper: local wind incl gust
+  function localWind(x,y){
+    let w=windAt(x,y,t,strength);
+    if(gust.active){
+      const dx=x-gust.x, dy=y-gust.y, d=Math.hypot(dx,dy);
+      const fall=Math.max(0,1-d/(Math.max(W,H)*0.5));
+      w.x+=gust.strength*fall*fall*3.2;
+      w.y+=gust.strength*fall*fall*1.1;
+    }
+    return w;
+  }
+
+  // ---- grass blades lean
+  ctx.lineWidth=1.4;
+  for(const b of grass){
+    const w=localWind(b.x,b.y);
+    b.bv+= (w.x*0.9 - b.bend)*8*dt; b.bv*=0.9; b.bend+=b.bv*dt;
+    ctx.strokeStyle='#2c3340';
+    ctx.beginPath(); ctx.moveTo(b.x,b.y);
+    const tipx=b.x+b.bend*6, tipy=b.y-b.h;
+    ctx.quadraticCurveTo(b.x+b.bend*2, b.y-b.h*0.5, tipx, tipy);
+    ctx.stroke();
+  }
+
+  // ---- picnic cloth ripples between stones
+  {
+    const w=localWind(cloth.cx,cloth.cy);
+    cloth.wv+=(w.x*0.4 - cloth.wave)*10*dt; cloth.wv*=0.86; cloth.wave+=cloth.wv*dt;
+    const {cx,cy,w:cwd,h:chh}=cloth;
+    ctx.fillStyle='#3a2f2a';
+    ctx.beginPath();
+    const N=10;
+    for(let i=0;i<=N;i++){
+      const u=i/N, x=cx+(u-0.5)*cwd;
+      const yy=cy - chh*0.5 + Math.sin(u*Math.PI)* (chh*0.5) * (0.6+0.4*Math.sin(cloth.wave*2+u*6));
+      i===0?ctx.moveTo(x,yy):ctx.lineTo(x,yy);
+    }
+    for(let i=N;i>=0;i--){
+      const u=i/N, x=cx+(u-0.5)*cwd;
+      const yy=cy + chh*0.5 - Math.sin(u*Math.PI)*(chh*0.4)*(0.5+0.5*Math.sin(cloth.wave*2+u*6));
+      ctx.lineTo(x,yy);
+    }
+    ctx.closePath(); ctx.fill();
+    // stones
+    for(const s of cloth.stones){
+      ctx.fillStyle='#4a4f5a'; ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,6.28); ctx.fill();
+    }
+  }
+
+  // ---- cat ears flick, crouch shifts
+  {
+    const w=localWind(cat.x,cat.y);
+    cat.ear += (w.x*0.25 - cat.ear)*6*dt;
+    ctx.fillStyle='#20242e';
+    ctx.beginPath();
+    ctx.ellipse(cat.x, cat.y-14, 26, 20, 0, 0, 6.28); ctx.fill();
+    // ears
+    for(const s of [-1,1]){
+      ctx.beginPath();
+      const ex=cat.x+s*13, ey=cat.y-30;
+      ctx.moveTo(ex, ey);
+      ctx.lineTo(ex+s*7+cat.ear*4, ey-14);
+      ctx.lineTo(ex+s*14, ey+2);
+      ctx.closePath(); ctx.fill();
+    }
+    // eyes
+    ctx.fillStyle='#8fbf6a';
+    ctx.beginPath(); ctx.arc(cat.x-8,cat.y-16,2.4,0,6.28); ctx.arc(cat.x+8,cat.y-16,2.4,0,6.28); ctx.fill();
+  }
+
+  // ---- hat person: hat tilts, hands hold
+  {
+    const w=localWind(hat.x,hat.y);
+    hat.tilt += (w.x*0.05 - hat.tilt)*5*dt;
+    // body
+    ctx.fillStyle='#262b36';
+    ctx.fillRect(hat.x-10, hat.y+18, 20, 70);
+    ctx.beginPath(); ctx.arc(hat.x, hat.y+8, 12, 0, 6.28); ctx.fill();
+    // hat
+    ctx.save(); ctx.translate(hat.x, hat.y-4); ctx.rotate(hat.tilt);
+    ctx.fillStyle='#3a3f4c';
+    ctx.beginPath(); ctx.ellipse(0,0,26,7,0,0,6.28); ctx.fill();
+    ctx.fillRect(-14,-14,28,14);
+    ctx.restore();
+    // arms up to hat
+    ctx.strokeStyle='#262b36'; ctx.lineWidth=5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(hat.x-10,hat.y+30); ctx.lineTo(hat.x-16,hat.y-2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(hat.x+10,hat.y+30); ctx.lineTo(hat.x+16,hat.y-2); ctx.stroke();
+  }
+
+  // ---- leaves carried by wind
+  for(const l of leaves){
+    const w=localWind(l.x,l.y);
+    l.vx += (w.x*6 - l.vx)*2.2*dt;
+    l.vy += (w.y*6 - l.vy)*2.2*dt + 9*dt*0.4;
+    l.x+=l.vx*dt*6; l.y+=l.vy*dt*6;
+    l.rv += l.vx*0.02*dt; l.rot+=l.rv;
+    if(l.x<-20) l.x=W+20; if(l.x>W+20) l.x=-20;
+    if(l.y>gy){ l.y=gy; l.vy*=-0.2; l.vx*=0.6; }
+    ctx.save(); ctx.translate(l.x,l.y); ctx.rotate(l.rot);
+    ctx.fillStyle='#5a4a2a';
+    ctx.beginPath(); ctx.ellipse(0,0,l.size,l.size*0.5,0,0,6.28); ctx.fill();
+    ctx.restore();
+  }
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// ---- input: drag blows a gust
+let dragging=false;
+cv.addEventListener('pointerdown',e=>{dragging=true;gust.active=true;gust.x=e.clientX;gust.y=e.clientY;gust.strength=strength;});
+cv.addEventListener('pointermove',e=>{if(!dragging)return;gust.x=e.clientX;gust.y=e.clientY;gust.strength=strength;});
+addEventListener('pointerup',()=>{dragging=false;});
+addEventListener('keydown',e=>{
+  if(e.code==='Space'){e.preventDefault();buildScene();}
+  if(e.key==='1')strength=1.0; if(e.key==='2')strength=1.8; if(e.key==='3')strength=2.8;
+});
+</script>
+</body>
+</html>
