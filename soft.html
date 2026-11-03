@@ -15,7 +15,7 @@
 <body>
 <canvas id="c"></canvas>
 <div id="hud"><b>slime</b> — soft body playground<br>drag to draw a slime · grab &amp; fling it · R clear</div>
-<div id="hint">drag on empty space to draw · grab a blob to throw it</div>
+<div id="hint">drag empty space to draw · grab a slime to throw · tap inside to poke</div>
 <script>
 const cv=document.getElementById('c'),cx=cv.getContext('2d');
 let W,H,DPR;
@@ -124,6 +124,14 @@ let mode=null;
 let drawing=null;
 let grabbed=null;
 function pos(e){const t=e.touches?e.touches[0]:e;return{x:t.clientX,y:t.clientY};}
+function inPoly(pts,n,x,y){
+  let inside=false;
+  for(let i=0,j=n-1;i<n;j=i++){
+    const xi=pts[i].x,yi=pts[i].y,xj=pts[j].x,yj=pts[j].y;
+    if(((yi>y)!=(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside;
+  }
+  return inside;
+}
 function down(e){
   const p=pos(e);
   let best=null,bd=24*24;
@@ -132,6 +140,19 @@ function down(e){
     if(d<bd){bd=d;best={b,i};}
   }
   if(best){mode='grab';grabbed=best;return;}
+  // poke: click inside a blob pushes it away from the click (a squishy pop)
+  for(const b of blobs){
+    const n=b.pts.length-1;
+    if(inPoly(b.pts,n,p.x,p.y)){
+      for(let i=0;i<n;i++){
+        const q=b.pts[i];
+        let dx=q.x-p.x,dy=q.y-p.y;const d=Math.hypot(dx,dy)||1;
+        const k=Math.min(1,40/d)*10;
+        q.px-=dx/d*k; q.py-=dy/d*k;
+      }
+      return;
+    }
+  }
   mode='draw';drawing={outline:[{x:p.x,y:p.y}]};
 }
 function move(e){
