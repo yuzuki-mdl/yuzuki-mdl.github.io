@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ripples</title>
+<style>
+  html,body{margin:0;height:100%;background:#05060a;overflow:hidden;font-family:ui-monospace,monospace;color:#8fa3c0}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none;cursor:grab}
+  canvas:active{cursor:grabbing}
+  #hud{position:fixed;left:14px;bottom:12px;font-size:12px;line-height:1.5;opacity:.55;pointer-events:none;user-select:none}
+  #hud b{color:#cfe0ff;font-weight:600}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><b>ripples</b> — drag a source · click empty space to add · right-click / long-press to remove · space rerolls</div>
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W=0,H=0,DPR=1;
+
+function resize(){
+  DPR = Math.min(window.devicePixelRatio||1, 2);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = Math.floor(W*DPR); cv.height = Math.floor(H*DPR);
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize);
+
+// sources: {x,y,amp,phase,freq}
+let sources = [];
+function randSource(x,y){
+  return { x, y,
+    amp: 0.6 + Math.random()*0.6,
+    freq: 0.05 + Math.random()*0.06,
+    phase: Math.random()*Math.PI*2,
+    drift: (Math.random()-0.5)*0.4,
+    col: Math.random()<0.5 ? [120,180,255] : [255,150,190]
+  };
+}
+function seed(){
+  sources = [];
+  const n = 2 + Math.floor(Math.random()*2);
+  for(let i=0;i<n;i++) sources.push(randSource(W*(0.25+0.5*Math.random()), H*(0.25+0.5*Math.random())));
+}
+
+let t = 0;
+
+// low-res field for speed: render to offscreen small canvas, scale up
+let off, offctx, SCALE = 3;
+function makeOff(){
+  off = document.createElement('canvas');
+  off.width = Math.ceil(W/SCALE); off.height = Math.ceil(H/SCALE);
+  offctx = off.getContext('2d');
+}
+
+function draw(){
+  t += 0.045;
+  const w = off.width, h = off.height;
+  const img = offctx.createImageData(w, h);
+  const d = img.data;
+  const sx = SCALE;
+
+  // precompute source params scaled
+  const S = sources.map(s => ({ x:s.x/sx, y:s.y/sx, amp:s.amp, freq:s.freq, phase:s.phase }));
+
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      let v = 0;
+      for(let i=0;i<S.length;i++){
+        const s = S[i];
+        const dx = x - s.x, dy = y - s.y;
+        const r = Math.sqrt(dx*dx + dy*dy);
+        v += s.amp * Math.sin(r * s.freq * 2 - t + s.phase) / (1 + r*0.012);
+      }
+      // v roughly -n..n; map to colour
+      const k = (v + 1) * 0.5; // 0..1-ish
+      const idx = (y*w + x) * 4;
+      // deep blue-black to pale blue/white
+      const b = Math.max(0, Math.min(1, k));
+      d[idx]   = 10 + b*b*210;
+      d[idx+1] = 14 + b*b*225;
+      d[idx+2] = 26 + b*230;
+      d[idx+3] = 255;
+    }
+  }
+  offctx.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.clearRect(0,0,W,H);
+  ctx.drawImage(off, 0, 0, W, H);
+
+  // draw source dots
+  for(const s of sources){
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 7, 0, Math.PI*2);
+    ctx.fillStyle = 'rgba('+s.col[0]+','+s.col[1]+','+s.col[2]+',0.9)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, 12, 0, Math.PI*2);
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+}
+
+let raf;
+function loop(){ draw(); raf = requestAnimationFrame(loop); }
+
+// ---- interaction ----
+let drag = null;
+function pos(e){
+  const r = cv.getBoundingClientRect();
+  const p = e.touches ? e.touches[0] : e;
+  return { x: p.clientX - r.left, y: p.clientY - r.top };
+}
+function nearest(p, maxd){
+  let best=-1, bd=maxd*maxd;
+  for(let i=0;i<sources.length;i++){
+    const dx=sources[i].x-p.x, dy=sources[i].y-p.y, dd=dx*dx+dy*dy;
+    if(dd<bd){bd=dd;best=i;}
+  }
+  return best;
+}
+
+cv.addEventListener('pointerdown', e => {
+  const p = pos(e);
+  const i = nearest(p, 40);
+  if(e.button === 2 || e.pointerType==='touch' && e.shiftKey){
+    if(i>=0) sources.splice(i,1);
+    return;
+  }
+  if(i>=0){ drag = i; }
+  else { sources.push(randSource(p.x, p.y)); if(sources.length>7) sources.shift(); }
+});
+cv.addEventListener('pointermove', e => {
+  if(drag===null) return;
+  const p = pos(e);
+  sources[drag].x = p.x; sources[drag].y = p.y;
+});
+window.addEventListener('pointerup', ()=>{ drag=null; });
+cv.addEventListener('contextmenu', e => { e.preventDefault(); const p=pos(e); const i=nearest(p,40); if(i>=0) sources.splice(i,1); });
+
+window.addEventListener('keydown', e => {
+  if(e.code==='Space'){ e.preventDefault(); seed(); }
+});
+
+resize(); makeOff(); seed();
+window.addEventListener('resize', ()=>{ resize(); makeOff(); });
+loop();
+</script>
+</body>
+</html>
