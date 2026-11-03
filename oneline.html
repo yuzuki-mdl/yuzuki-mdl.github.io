@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>one line, three meanings</title>
+<style>
+  :root{ --paper:#efe7d6; --ink:#2c2622; }
+  html,body{margin:0;height:100%;background:#15110e;color:var(--ink);font-family:ui-monospace,monospace}
+  #wrap{display:flex;height:100%;width:100%;align-items:stretch}
+  .panel{flex:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:14px;border-right:1px solid #00000022;transition:background .3s}
+  .panel:last-child{border-right:0}
+  canvas{width:100%;max-width:340px;aspect-ratio:1;background:var(--paper);border-radius:6px;box-shadow:0 4px 20px #0006}
+  .lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;opacity:.6;color:var(--paper)}
+  #bar{position:fixed;left:0;right:0;bottom:0;padding:10px;display:flex;gap:8px;justify-content:center;background:#0c0a08dd;backdrop-filter:blur(6px)}
+  button{font:inherit;font-size:12px;background:#efe7d6;border:0;color:#15110e;padding:8px 14px;border-radius:999px;cursor:pointer}
+  button:active{transform:scale(.96)}
+  @media(max-width:700px){#wrap{flex-direction:column}.panel{border-right:0;border-bottom:1px solid #00000022}}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="panel" id="p0"><canvas></canvas><div class="lbl">a river</div></div>
+  <div class="panel" id="p1"><canvas></canvas><div class="lbl">a seam</div></div>
+  <div class="panel" id="p2"><canvas></canvas><div class="lbl">the way home</div></div>
+</div>
+<div id="bar"><button id="reroll">new line</button></div>
+<script>
+const panels=[...document.querySelectorAll('.panel')];
+const cvs=panels.map(p=>p.querySelector('canvas'));
+const ctxs=cvs.map(c=>c.getContext('2d'));
+let W=0,H=0,dpr=1,line=[];
+
+function resize(){
+  dpr=Math.min(devicePixelRatio||1,2);
+  cvs.forEach((c,i)=>{
+    const r=c.getBoundingClientRect();
+    W=r.width;H=r.height;
+    c.width=W*dpr;c.height=H*dpr;
+    ctxs[i].setTransform(dpr,0,0,dpr,0,0);
+  });
+  drawAll();
+}
+
+// one shared winding line in normalized 0..1 space
+function makeLine(){
+  const n=7+Math.floor(Math.random()*3);
+  const pts=[];
+  for(let i=0;i<=n;i++){
+    pts.push({x:0.08+0.84*(i/n)+(Math.random()-0.5)*0.06, y:0.2+0.6*Math.random()});
+  }
+  // smooth with a few relax passes so it's a clean wander
+  for(let k=0;k<60;k++){
+    for(let i=1;i<pts.length-1;i++){
+      pts[i].y=(pts[i-1].y+pts[i].y+pts[i+1].y)/3;
+    }
+  }
+  line=pts;
+}
+
+function pathFor(ctx,cx){
+  ctx.beginPath();
+  line.forEach((p,i)=>{
+    const x=p.x*W, y=p.y*H;
+    if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+  });
+}
+
+function drawAll(){ line.length&&ctxs.forEach((ctx,i)=>draw(i)); }
+
+function draw(i){
+  const ctx=ctxs[i];
+  ctx.clearRect(0,0,W,H);
+  ctx.lineWidth=2.2;ctx.lineJoin='round';ctx.lineCap='round';
+  ctx.strokeStyle='#2c2622';
+  pathFor(ctx);ctx.stroke();
+
+  if(i===0) reeds(ctx);
+  if(i===1) seam(ctx);
+  if(i===2) home(ctx);
+}
+
+// river: reeds along the line
+function reeds(ctx){
+  ctx.strokeStyle='#4a6b3a';ctx.lineWidth=1.4;
+  line.forEach((p,j)=>{
+    if(j===0||j===line.length-1)return;
+    for(let k=0;k<3;k++){
+      const x=p.x*W+(Math.random()-0.5)*18;
+      const y=p.y*H+8+Math.random()*6;
+      ctx.beginPath();ctx.moveTo(x,y);
+      ctx.quadraticCurveTo(x+(Math.random()-0.5)*8,y-10,x+(Math.random()-0.5)*12,y-20-Math.random()*10);
+      ctx.stroke();
+    }
+  });
+}
+
+// seam: dashed + buttons
+function seam(ctx){
+  ctx.save();
+  ctx.setLineDash([4,5]);
+  ctx.strokeStyle='#b5566f';ctx.lineWidth=1.2;
+  pathFor(ctx);ctx.stroke();
+  ctx.restore();
+  line.forEach((p,j)=>{
+    if(j%2)return;
+    const x=p.x*W,y=p.y*H;
+    ctx.fillStyle='#c9a24a';
+    ctx.beginPath();ctx.arc(x,y,4,0,7);ctx.fill();
+    ctx.fillStyle='#00000055';
+    ctx.beginPath();ctx.arc(x-1,y-1,1.2,0,7);ctx.fill();
+  });
+}
+
+// route home: line + a little house at the end
+function home(ctx){
+  const end=line[line.length-1];
+  const x=end.x*W,y=end.y*H;
+  ctx.fillStyle='#8a3b2e';
+  ctx.beginPath();ctx.moveTo(x-12,y);ctx.lineTo(x+12,y);ctx.lineTo(x,y-14);ctx.closePath();ctx.fill();
+  ctx.fillStyle='#2c2622';
+  ctx.fillRect(x-9,y,18,12);
+  ctx.fillStyle='#ffd98a';
+  ctx.fillRect(x-3,y+4,6,8);
+}
+
+function reroll(){ makeLine(); drawAll(); }
+
+addEventListener('resize',resize);
+addEventListener('keydown',e=>{if(e.key===' ')reroll();});
+document.getElementById('reroll').onclick=reroll;
+resize();
+</script>
+</body>
+</html>
