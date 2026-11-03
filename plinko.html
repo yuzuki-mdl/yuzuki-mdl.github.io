@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>plinko</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0b12;color:#cdd;font-family:ui-monospace,monospace;overflow:hidden}
+  #wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:8px}
+  canvas{background:#0b0b12;image-rendering:pixelated;border:1px solid #23233a;box-shadow:0 0 40px #000 inset}
+  #hud{display:flex;gap:18px;font-size:13px;letter-spacing:.5px;color:#8f9}
+  #hud .dim{color:#556}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span>balls <span id="nb">0</span></span>
+    <span class="dim">click to drop &middot; space for 100 &middot; c to clear</span>
+  </div>
+  <canvas id="c"></canvas>
+</div>
+<script>
+const W=560, H=680;
+const cv=document.getElementById('c');
+cv.width=W; cv.height=H;
+const cx=cv.getContext('2d');
+const NB=17;                    // bins
+const binW=W/NB;
+const bins=new Array(NB).fill(0);
+let total=0;
+
+// pegs: dense triangular lattice so every ball deflects each row (galton board)
+const pegs=[];
+const rows=16;
+const topY=70, rowGap=34, pegR=4, spacing=24;
+for(let r=0;r<rows;r++){
+  const y=topY+r*rowGap;
+  const count=Math.floor(W/spacing);
+  const off=(r%2)*spacing/2;
+  const x0=off+(W-count*spacing)/2+spacing/2;
+  for(let i=0;i<count;i++) pegs.push({x:x0+i*spacing, y:y});
+}
+const floorY=H-70;
+
+let balls=[];
+const ballR=5;
+
+function drop(x){
+  balls.push({x:x, y:20, vx:(Math.random()-0.5)*0.6, vy:0});
+}
+function dropMany(){
+  for(let i=0;i<100;i++) setTimeout(()=>drop(W/2+(Math.random()-0.5)*8), i*18);
+}
+
+function reset(){ bins.fill(0); total=0; balls=[]; }
+
+function step(){
+  const g=0.35;
+  for(let i=balls.length-1;i>=0;i--){
+    const b=balls[i];
+    b.vy+=g;
+    b.x+=b.vx; b.y+=b.vy;
+    // peg collisions
+    for(const p of pegs){
+      const dx=b.x-p.x, dy=b.y-p.y;
+      const d2=dx*dx+dy*dy, rr=ballR+pegR;
+      if(d2<rr*rr){
+        const d=Math.sqrt(d2)||0.001;
+        const nx=dx/d, ny=dy/d;
+        const overlap=rr-d;
+        b.x+=nx*overlap; b.y+=ny*overlap;
+        // reflect with a bit of randomness
+        const vdot=b.vx*nx+b.vy*ny;
+        b.vx-=1.7*vdot*nx; b.vy-=1.7*vdot*ny;
+        b.vx+=(Math.random()-0.5)*0.5;
+        b.vx*=0.85;
+        b.vy*=0.92;
+      }
+    }
+    // side walls
+    if(b.x<ballR){b.x=ballR; b.vx=Math.abs(b.vx)*0.6;}
+    if(b.x>W-ballR){b.x=W-ballR; b.vx=-Math.abs(b.vx)*0.6;}
+    // bottom → into a bin
+    if(b.y>floorY){
+      let bi=Math.floor(b.x/binW);
+      if(bi<0)bi=0; if(bi>=NB)bi=NB-1;
+      bins[bi]++; total++;
+      balls.splice(i,1);
+    }
+  }
+}
+
+function draw(){
+  cx.clearRect(0,0,W,H);
+  // pegs
+  for(const p of pegs){
+    cx.fillStyle='#2a2f4a'; cx.beginPath(); cx.arc(p.x,p.y,pegR,0,7); cx.fill();
+    cx.fillStyle='#3d4568'; cx.beginPath(); cx.arc(p.x-1,p.y-1,pegR*0.5,0,7); cx.fill();
+  }
+  // balls
+  for(const b of balls){
+    cx.fillStyle='#8f9'; cx.beginPath(); cx.arc(b.x,b.y,ballR,0,7); cx.fill();
+    cx.fillStyle='#cfe'; cx.beginPath(); cx.arc(b.x-2,b.y-2,2,0,7); cx.fill();
+  }
+  // bins
+  const maxC=Math.max(1,...bins);
+  const scale=(H-floorY-14)/maxC;
+  for(let i=0;i<NB;i++){
+    const h=bins[i]*scale;
+    const x=i*binW;
+    cx.fillStyle='#1a2e22'; cx.fillRect(x+2,floorY,binW-4,H-floorY);
+    cx.fillStyle='#3f9'; cx.fillRect(x+3,floorY+ (H-floorY-4) - h,binW-6,h);
+    cx.fillStyle='#556'; cx.font='10px monospace'; cx.textAlign='center';
+    cx.fillText(bins[i],x+binW/2,H-4);
+  }
+  cx.textAlign='left';
+  document.getElementById('nb').textContent=total;
+}
+
+function loop(){ step(); draw(); requestAnimationFrame(loop); }
+
+cv.addEventListener('click',e=>{
+  const r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left)*(W/r.width);
+  drop(x);
+});
+document.addEventListener('keydown',e=>{
+  const k=e.key.toLowerCase();
+  if(k===' '){ e.preventDefault(); dropMany(); }
+  else if(k==='c'){ reset(); }
+});
+loop();
+</script>
+</body>
+</html>
