@@ -33,7 +33,7 @@ const cv=document.getElementById('c');
 cv.width=W*T; cv.height=H*T;
 const cx=cv.getContext('2d');
 
-const WALL=0, FLOOR=1, DOOR=2, STAIRS=3, KEY=4, POTION=5;
+const WALL=0, FLOOR=1, DOOR=2, STAIRS=3, KEY=4, POTION=5, TRAP=6;
 let grid, player, enemies, keys, potions, kills, floorNum, msgT;
 const MAXFLOOR=5;
 const THEMES=[
@@ -102,6 +102,15 @@ function genFloor(f){
     if(grid[py]&&grid[py][px]===FLOOR && !(px===player.x&&py===player.y) && !potions.find(p=>p.x===px&&p.y===py))
       potions.push({x:px,y:py});
   }
+  // traps: spike tiles on deeper floors
+  if(f>=2){
+    const ntr=1+Math.floor(f/2);
+    for(let i=0;i<ntr;i++){
+      let tries=0, tx,ty;
+      do{ tx=rnd(1,W-1); ty=rnd(1,H-1); tries++; }while(grid[ty][tx]!==FLOOR && tries<100);
+      if(grid[ty][tx]===FLOOR && !(tx===player.x&&ty===player.y)) grid[ty][tx]=TRAP;
+    }
+  }
   // enemies scale with floor
   const nen=2+Math.floor(f*1.2);
   for(let i=0;i<nen;i++){
@@ -145,6 +154,7 @@ function render(){
     else if(v===FLOOR){ cx.fillStyle=th.floor; cx.fillRect(px,py,T,T); }
     else if(v===DOOR){ cx.fillStyle=th.floor; cx.fillRect(px,py,T,T); cx.fillStyle='#7a4a1e'; cx.fillRect(px+6,py+3,T-12,T-6); cx.fillStyle='#fd5'; cx.fillRect(px+T/2-2,py+T/2-2,4,4); }
     else if(v===STAIRS){ cx.fillStyle=th.floor; cx.fillRect(px,py,T,T); cx.fillStyle='#6cf'; for(let s=0;s<4;s++)cx.fillRect(px+6+s*4,py+T-8-s*5,T-12-s*8,3); }
+    else if(v===TRAP){ cx.fillStyle=th.floor; cx.fillRect(px,py,T,T); cx.fillStyle='#a33'; for(let s=0;s<3;s++){ cx.beginPath(); cx.moveTo(px+6+s*8,py+T-6); cx.lineTo(px+10+s*8,py+8); cx.lineTo(px+14+s*8,py+T-6); cx.fill(); } }
   }
   // keys
   for(const k of keys){ cx.fillStyle='#fd5'; cx.font='22px monospace'; cx.fillText('⚷',k.x*T+5,k.y*T+24); }
@@ -161,6 +171,7 @@ function walkable(x,y){
   if(x<0||y<0||x>=W||y>=H) return false;
   const v=grid[y][x];
   if(v===WALL) return false;
+  if(v===TRAP) return true;
   if(v===DOOR){ if(keys.length>0){ keys.pop(); grid[y][x]=FLOOR; msg('unlocked a door'); updateHud(); return true;} else { msg('need a key'); return false; } }
   return true;
 }
@@ -176,6 +187,7 @@ function playerMove(dx,dy){
   if(!walkable(nx,ny)) return;
   player.x=nx; player.y=ny;
   // potion pickup
+  if(grid[ny][nx]===TRAP){ player.hp-=2; grid[ny][nx]=FLOOR; msg('spikes! -2 hp'); updateHud(); if(player.hp<=0){ lose(); return; } }
   const pot=potions.find(p=>p.x===nx&&p.y===ny);
   if(pot){ potions=potions.filter(p=>p!==pot); player.hp=Math.min(player.maxhp,player.hp+5); msg('+5 hp'); updateHud(); }
   if(grid[ny][nx]===STAIRS){
