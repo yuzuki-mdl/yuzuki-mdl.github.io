@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>shifting maze</title>
+<style>
+  html,body{margin:0;height:100%;background:#0d0f14;color:#cdd6e0;font-family:ui-monospace,Menlo,Consolas,monospace;overflow:hidden}
+  #wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:14px}
+  canvas{background:#0a0c10;border-radius:10px;box-shadow:0 0 0 1px #1c2230, 0 20px 60px -20px #000;touch-action:none}
+  h1{font-size:15px;font-weight:400;letter-spacing:.16em;margin:0;color:#7d8aa0;text-transform:uppercase}
+  #hud{font-size:13px;color:#6b7688;display:flex;gap:22px;letter-spacing:.06em}
+  #hud b{color:#9fd6a0;font-weight:500}
+  #msg{font-size:13px;color:#8a94a6;height:16px;letter-spacing:.04em}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>shifting maze</h1>
+  <canvas id="c"></canvas>
+  <div id="hud"><span>steps <b id="steps">0</b></span><span>floor <b id="floor">1</b></span></div>
+  <div id="msg">arrow keys / wasd to move. the walls wont stay put</div>
+</div>
+<script>
+const c=document.getElementById('c'), cx=c.getContext('2d');
+const W=17, H=17;
+let T=26;
+let grid, player, exitCell, steps, floorNum, won, flash;
+
+function resize(){
+  const maxW=Math.min(window.innerWidth-40, 520);
+  const maxH=Math.min(window.innerHeight-160, 520);
+  T=Math.floor(Math.min(maxW/W, maxH/H));
+  c.width=W*T; c.height=H*T;
+  render();
+}
+
+function carve(){
+  grid=[];
+  for(let y=0;y<H;y++){ grid.push(new Array(W).fill(1)); }
+  const stack=[[1,1]];
+  grid[1][1]=0;
+  while(stack.length){
+    const [x,y]=stack[stack.length-1];
+    const dirs=[[0,-2],[0,2],[-2,0],[2,0]].sort(()=>Math.random()-0.5);
+    let moved=false;
+    for(const [dx,dy] of dirs){
+      const nx=x+dx, ny=y+dy;
+      if(nx>0&&nx<W-1&&ny>0&&ny<H-1&&grid[ny][nx]===1){
+        grid[y+dy/2][x+dx/2]=0;
+        grid[ny][nx]=0;
+        stack.push([nx,ny]);
+        moved=true;
+        break;
+      }
+    }
+    if(!moved) stack.pop();
+  }
+}
+
+function newFloor(f){
+  floorNum=f; steps=0; won=false;
+  carve();
+  player={x:1,y:1};
+  exitCell={x:W-2,y:H-2};
+  grid[1][1]=0; grid[H-2][W-2]=0;
+  ensurePath();
+  flash=0;
+  render(); updateHud();
+  msg('go. the maze is already moving');
+}
+
+function shift(){
+  const tries=3+Math.floor(floorNum/2);
+  for(let i=0;i<tries;i++){
+    let x=1+Math.floor(Math.random()*(W-2));
+    let y=1+Math.floor(Math.random()*(H-2));
+    if(Math.abs(x-player.x)<2 && Math.abs(y-player.y)<2) continue;
+    if((x===player.x&&y===player.y)||(x===exitCell.x&&y===exitCell.y)) continue;
+    grid[y][x]=grid[y][x]?0:1;
+  }
+  ensurePath();
+}
+
+function ensurePath(){
+  const seen=new Array(H).fill(0).map(()=>new Array(W).fill(false));
+  const q=[[player.x,player.y]]; seen[player.y][player.x]=true;
+  while(q.length){
+    const [x,y]=q.shift();
+    if(x===exitCell.x&&y===exitCell.y) return;
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx=x+dx, ny=y+dy;
+      if(nx>=0&&nx<W&&ny>=0&&ny<H&&!seen[ny][nx]&&!grid[ny][nx]){ seen[ny][nx]=true; q.push([nx,ny]); }
+    }
+  }
+  let x=player.x, y=player.y;
+  while(x!==exitCell.x||y!==exitCell.y){
+    grid[y][x]=0;
+    if(x!==exitCell.x) x+=Math.sign(exitCell.x-x);
+    else y+=Math.sign(exitCell.y-y);
+  }
+  grid[exitCell.y][exitCell.x]=0;
+}
+
+function render(){ if(!grid) return;
+  cx.clearRect(0,0,c.width,c.height);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    if(grid[y][x]){
+      cx.fillStyle='#232b3a';
+      cx.fillRect(x*T+1,y*T+1,T-2,T-2);
+    } else {
+      cx.fillStyle='#0e1219';
+      cx.fillRect(x*T,y*T,T,T);
+    }
+  }
+  cx.fillStyle='#9fd6a0';
+  cx.beginPath();
+  cx.arc(exitCell.x*T+T/2, exitCell.y*T+T/2, T*0.28, 0, 7);
+  cx.fill();
+  cx.fillStyle=flash>0?'#fff':'#e8b04a';
+  cx.beginPath();
+  cx.arc(player.x*T+T/2, player.y*T+T/2, T*0.32, 0, 7);
+  cx.fill();
+}
+
+function updateHud(){
+  document.getElementById('steps').textContent=steps;
+  document.getElementById('floor').textContent=floorNum;
+}
+
+function msg(t){ document.getElementById('msg').textContent=t; }
+
+function move(dx,dy){
+  if(won) return;
+  const nx=player.x+dx, ny=player.y+dy;
+  if(nx<0||nx>=W||ny<0||ny>=H) return;
+  if(grid[ny][nx]){ flash=1; render(); setTimeout(()=>{flash=0;render();},80); return; }
+  player.x=nx; player.y=ny; steps++;
+  shift();
+  updateHud();
+  if(player.x===exitCell.x&&player.y===exitCell.y){
+    won=true;
+    msg('u found the way out. next one is worse');
+    setTimeout(()=>newFloor(floorNum+1),900);
+  }
+  render();
+}
+
+window.addEventListener('keydown', e=>{
+  const k=e.key.toLowerCase();
+  if(k==='arrowup'||k==='w'){ move(0,-1); e.preventDefault(); }
+  else if(k==='arrowdown'||k==='s'){ move(0,1); e.preventDefault(); }
+  else if(k==='arrowleft'||k==='a'){ move(-1,0); e.preventDefault(); }
+  else if(k==='arrowright'||k==='d'){ move(1,0); e.preventDefault(); }
+  else if(k==='r'){ newFloor(floorNum); }
+});
+
+let tsx=0, tsy=0;
+c.addEventListener('touchstart', e=>{ const t=e.touches[0]; tsx=t.clientX; tsy=t.clientY; }, {passive:true});
+c.addEventListener('touchend', e=>{
+  const t=e.changedTouches[0];
+  const dx=t.clientX-tsx, dy=t.clientY-tsy;
+  if(Math.abs(dx)>Math.abs(dy)){ if(Math.abs(dx)>18) move(Math.sign(dx),0); }
+  else { if(Math.abs(dy)>18) move(0,Math.sign(dy)); }
+}, {passive:true});
+
+window.addEventListener('resize', resize);
+resize();
+newFloor(1);
+</script>
+</body>
+</html>
