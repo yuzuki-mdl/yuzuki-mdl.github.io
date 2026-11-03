@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>stack</title>
+<style>
+  html,body{margin:0;height:100%;background:#0e0f1a;overflow:hidden;font-family:ui-monospace,monospace;color:#e8e8f0}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;touch-action:none}
+  canvas{display:block;max-width:100%;max-height:100%}
+  #hud{position:fixed;top:14px;left:0;right:0;text-align:center;pointer-events:none;font-size:14px;letter-spacing:.15em;opacity:.8}
+  #big{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;pointer-events:none;text-align:center;transition:opacity .25s}
+  #big h1{font-size:15vw;margin:0;font-weight:700;letter-spacing:-.02em}
+  #big p{opacity:.6;font-size:14px;letter-spacing:.1em;margin:10px 0 0}
+  .hide{opacity:0}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas></div>
+<div id="hud">TAP / SPACE TO DROP</div>
+<div id="big"><h1 id="score">0</h1><p id="sub">tap to start</p></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const wrap=document.getElementById('wrap');
+const big=document.getElementById('big'),scoreEl=document.getElementById('score'),subEl=document.getElementById('sub');
+let W,H,DPR;
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  const s=Math.min(window.innerWidth,window.innerHeight);
+  W=Math.min(window.innerWidth,720); H=Math.min(window.innerHeight,900);
+  cv.style.width=W+'px'; cv.style.height=H+'px';
+  cv.width=W*DPR; cv.height=H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+resize(); window.addEventListener('resize',resize);
+
+const BASE=Math.min(220,()=>0); // set after W known
+let blockW, blockH=26, gap=0;
+let blocks=[]; // {x,w,y,color}
+let moving=null; // {x,w,dir,speed,y}
+let state='ready'; // ready|playing|over
+let score=0, camY=0, targetCam=0;
+let perfectStreak=0;
+
+function hue(t){return `hsl(${(200+t*11)%360} 70% ${58+Math.sin(t*.6)*6}%)`;}
+
+function reset(){
+  blocks=[]; moving=null; score=0; camY=0; targetCam=0; perfectStreak=0;
+  blockW=Math.min(W*0.55,260); blockH=Math.max(20,Math.min(30,W*0.05));
+  const baseY=H*0.78;
+  blocks.push({x:(W-blockW)/2,w:blockW,y:baseY,color:hue(0)});
+  spawn();
+}
+
+function spawn(){
+  const top=blocks[blocks.length-1];
+  const y=top.y-blockH-gap;
+  const fromLeft=Math.random()<0.5;
+  const speed=Math.min(2.2+score*0.12,9);
+  moving={x: fromLeft? -top.w : W, w: top.w, dir: fromLeft?1:-1, speed, y};
+}
+
+function drop(){
+  if(state==='ready'){reset();state='playing';big.classList.add('hide');return;}
+  if(state==='over'){reset();state='playing';scoreEl.textContent='0';big.classList.add('hide');return;}
+  if(state!=='playing'||!moving)return;
+  const top=blocks[blocks.length-1];
+  const mx=moving.x, mw=moving.w;
+  const left=Math.max(top.x,mx);
+  const right=Math.min(top.x+top.w,mx+mw);
+  const overlap=right-left;
+  if(overlap<=2){ gameOver(); return; }
+  // perfect?
+  if(Math.abs(mx-top.x)<4 && Math.abs(mw-top.w)<4){
+    // snap perfect
+    blocks.push({x:top.x,w:top.w,y:moving.y,color:hue(score+1)});
+    perfectStreak++;
+  } else {
+    blocks.push({x:left,w:overlap,y:moving.y,color:hue(score+1)});
+    perfectStreak=0;
+  }
+  score++;
+  scoreEl.textContent=score;
+  moving=null;
+  // camera follow
+  const topNew=blocks[blocks.length-1];
+  targetCam = Math.max(0, (H*0.55) - topNew.y);
+  spawn();
+}
+
+function gameOver(){
+  state='over';
+  moving=null;
+  subEl.textContent='tap to retry';
+  big.classList.remove('hide');
+  scoreEl.textContent=score;
+}
+
+function update(dt){
+  if(state==='playing'&&moving){
+    moving.x += moving.dir*moving.speed*dt*60/ (1000/60);
+    // actually scale by frame; use dt in ms
+  }
+  camY += (targetCam-camY)*0.12;
+}
+
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(now-last,50); last=now;
+  if(state==='playing'&&moving){
+    moving.x += moving.dir*moving.speed*(dt/16.67);
+    if(moving.dir>0 && moving.x> W){ moving.x=W; moving.dir=-1; }
+    if(moving.dir<0 && moving.x< -moving.w){ moving.x=-moving.w; moving.dir=1; }
+  }
+  camY += (targetCam-camY)*0.12;
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // bg gradient
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#12131f'); g.addColorStop(1,'#0a0b12');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  ctx.save();
+  ctx.translate(0,camY);
+  for(const b of blocks){
+    ctx.fillStyle=b.color;
+    roundRect(b.x,b.y,b.w,blockH,4); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.10)';
+    roundRect(b.x,b.y,b.w,blockH*0.4,4); ctx.fill();
+  }
+  if(moving){
+    const c=hue(score+1);
+    ctx.fillStyle=c;
+    roundRect(moving.x,moving.y,moving.w,blockH,4); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,.10)';
+    roundRect(moving.x,moving.y,moving.w,blockH*0.4,4); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function roundRect(x,y,w,h,r){
+  r=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);
+  ctx.arcTo(x+w,y,x+w,y+h,r);
+  ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);
+  ctx.arcTo(x,y,x+w,y,r);
+  ctx.closePath();
+}
+
+function press(e){
+  if(e) e.preventDefault();
+  drop();
+}
+window.addEventListener('keydown',e=>{if(e.code==='Space'||e.key===' '){press(e);}});
+wrap.addEventListener('pointerdown',press);
+
+reset();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
