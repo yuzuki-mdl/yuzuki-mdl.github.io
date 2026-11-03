@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>breeder</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0b10;color:#cfd3e0;font:14px/1.4 ui-monospace,Menlo,monospace;overflow:hidden}
+  #wrap{display:flex;flex-direction:column;height:100%}
+  #bar{padding:10px 14px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #1c1f2b}
+  #bar b{color:#9aa4c8;font-weight:600}
+  #bar button{background:#1a1e2c;color:#cfd3e0;border:1px solid #2a3048;border-radius:6px;padding:6px 12px;font:inherit;cursor:pointer}
+  #bar button:hover{background:#232a3f}
+  #grid{flex:1;display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(3,1fr);gap:10px;padding:12px;min-height:0}
+  .cell{position:relative;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid transparent;transition:border-color .12s}
+  .cell canvas{width:100%;height:100%;display:block;object-fit:cover}
+  .cell:hover{border-color:#3a4a7a}
+  .cell.sel{border-color:#7aa2ff;box-shadow:0 0 0 3px #7aa2ff44}
+  #hint{padding:0 14px 10px;color:#5a6180;font-size:12px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="bar">
+    <b>gen <span id="gen">0</span></b>
+    <span id="selcount">0 picked</span>
+    <button id="next">breed →</button>
+    <button id="rand">new random</button>
+    <button id="back">back</button>
+  </div>
+  <div id="grid"></div>
+  <div id="hint">click images u like, then breed. children inherit + mutate from ur picks.</div>
+</div>
+<script>
+const S=256, ROWS=3, COLS=4, N=ROWS*COLS;
+const grid=document.getElementById('grid');
+let gen=0, genomes=[], history=[];
+
+function rnd(a,b){return a+Math.random()*(b-a)}
+function newGenome(){
+  // genome = array of 'layers'. each layer: type, params
+  const layers=[];
+  const nL=Math.floor(rnd(3,6));
+  for(let i=0;i<nL;i++){
+    const t=Math.floor(rnd(0,4));
+    if(t===0) layers.push({t:'sin', fx:rnd(1,6), fy:rnd(1,6), ph:rnd(0,6.28), amp:rnd(.3,1.2)});
+    else if(t===1) layers.push({t:'cos', fx:rnd(1,6), fy:rnd(1,6), ph:rnd(0,6.28), amp:rnd(.3,1.2)});
+    else if(t===2) layers.push({t:'blob', cx:rnd(0,1), cy:rnd(0,1), r:rnd(.1,.6), amp:rnd(.5,1.5)});
+    else layers.push({t:'turb', f:rnd(2,10), amp:rnd(.3,1)});
+  }
+  // ensure some structure: one turb + one wave always
+  layers.push({t:'turb', f:rnd(3,9), amp:rnd(.4,1)});
+  layers.push({t:Math.random()<.5?'sin':'cos', fx:rnd(1,5), fy:rnd(1,5), ph:rnd(0,6.28), amp:rnd(.4,1.2)});
+  return {layers, hue:rnd(0,360), hue2:rnd(0,360)};
+}
+
+function hash2(x,y){let h=Math.sin(x*127.1+y*311.7)*43758.5453;return h-Math.floor(h)}
+function noise(x,y){
+  const xi=Math.floor(x), yi=Math.floor(y), xf=x-xi, yf=y-yi;
+  const u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf);
+  const a=hash2(xi,yi), b=hash2(xi+1,yi), c=hash2(xi,yi+1), d=hash2(xi+1,yi+1);
+  return a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v;
+}
+
+function evalAt(g,x,y){
+  let s=0;
+  for(const L of g.layers){
+    if(L.t==='sin') s+=L.amp*Math.sin(x*L.fx*6.28+L.ph)*Math.cos(y*L.fy*6.28+L.ph*1.3);
+    else if(L.t==='cos') s+=L.amp*Math.cos((x+y)*L.fx*3.14+L.ph);
+    else if(L.t==='blob'){const dx=x-L.cx,dy=y-L.cy; s+=L.amp*Math.exp(-(dx*dx+dy*dy)/(L.r*L.r));}
+    else {s+=L.amp*(noise(x*L.f+(L.ph||0)*3,y*L.f)-0.5)*2;}
+  }
+  return s;
+}
+
+function render(g,canvas){
+  const ctx=canvas.getContext('2d');
+  canvas.width=S; canvas.height=S;
+  const img=ctx.createImageData(S,S);
+  const d=img.data;
+  // sample then normalize
+  const vals=new Float32Array(S*S);
+  for(let py=0;py<S;py++)for(let px=0;px<S;px++){
+    vals[py*S+px]=evalAt(g,px/S,py/S);
+  }
+  // percentile clip so detail spreads instead of one term dominating
+  const sorted=Float32Array.from(vals).sort();
+  let mn=sorted[Math.floor(sorted.length*0.02)];
+  let mx=sorted[Math.floor(sorted.length*0.98)];
+  if(!isFinite(mn)||!isFinite(mx)||mx-mn<1e-6){mx=mn+1;}
+  const range=(mx-mn)||1;
+  const h1=g.hue, h2=g.hue2;
+  for(let i=0;i<S*S;i++){
+    let t=(vals[i]-mn)/range; if(!isFinite(t))t=0.5;
+    // map t through hue lerp
+    let h=(h1+(h2-h1)*t);
+    const c=hslToRgb(h%360, 0.65, 0.25+t*0.5);
+    d[i*4]=c[0]; d[i*4+1]=c[1]; d[i*4+2]=c[2]; d[i*4+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+}
+
+function hslToRgb(h,s,l){
+  h/=360; const a=s*Math.min(l,1-l);
+  const f=n=>{const k=(n+h*12)%12; return l-a*Math.max(-1,Math.min(k-3,9-k,1));};
+  return [Math.round(f(0)*255),Math.round(f(8)*255),Math.round(f(4)*255)];
+}
+
+function mutate(g){
+  const c=JSON.parse(JSON.stringify(g));
+  c.hue=(c.hue+rnd(-40,40)+360)%360;
+  c.hue2=(c.hue2+rnd(-40,40)+360)%360;
+  const nMut=Math.floor(rnd(1,3));
+  for(let m=0;m<nMut;m++){
+    const L=c.layers[Math.floor(Math.random()*c.layers.length)];
+    if(!L) continue;
+    if(Math.random()<0.15 && c.layers.length<6){ c.layers.push(newGenome().layers[0]); continue; }
+    if(L.t==='blob'){
+      if(Math.random()<.5) L.cx=clamp01(L.cx+rnd(-.15,.15));
+      if(Math.random()<.5) L.cy=clamp01(L.cy+rnd(-.15,.15));
+      L.r=Math.max(.05,L.r+rnd(-.1,.1));
+      L.amp=Math.max(.1,L.amp+rnd(-.3,.3));
+    } else if(L.t==='turb'){
+      L.f=Math.max(1,L.f+rnd(-2,2)); L.amp=Math.max(.1,L.amp+rnd(-.3,.3));
+    } else {
+      if(Math.random()<.5) L.fx=Math.max(.2,L.fx+rnd(-1,1));
+      if(Math.random()<.5) L.fy=Math.max(.2,L.fy+rnd(-1,1));
+      L.ph+=rnd(-.8,.8); L.amp=Math.max(.1,L.amp+rnd(-.3,.3));
+    }
+  }
+  return c;
+}
+function clamp01(x){return Math.max(0,Math.min(1,x))}
+
+function build(){
+  grid.innerHTML='';
+  for(let i=0;i<N;i++){
+    const cell=document.createElement('div');
+    cell.className='cell'; cell.dataset.i=i;
+    const cv=document.createElement('canvas');
+    cell.appendChild(cv);
+    cell.addEventListener('click',()=>{ cell.classList.toggle('sel'); updateSel(); });
+    grid.appendChild(cell);
+    render(genomes[i],cv);
+  }
+  document.getElementById('gen').textContent=gen;
+  updateSel();
+}
+
+function updateSel(){
+  const n=document.querySelectorAll('.cell.sel').length;
+  document.getElementById('selcount').textContent=n+' picked';
+}
+
+function breed(){
+  const picked=[...document.querySelectorAll('.cell.sel')].map(c=>+c.dataset.i);
+  if(!picked.length){ // auto: keep none, just re-randomize gently
+    return;
+  }
+  history.push(genomes);
+  const parents=picked.map(i=>genomes[i]);
+  const next=[];
+  for(let i=0;i<N;i++){
+    if(i<picked.length){ next.push(parents[i]); }
+    else { const p=parents[Math.floor(Math.random()*parents.length)]; next.push(mutate(p)); }
+  }
+  genomes=next; gen++; build();
+}
+
+function fresh(){
+  history.push(genomes);
+  genomes=[]; for(let i=0;i<N;i++) genomes.push(newGenome());
+  gen=0; build();
+}
+
+function back(){
+  if(!history.length) return;
+  genomes=history.pop(); gen=Math.max(0,gen-1); build();
+}
+
+document.getElementById('next').addEventListener('click',breed);
+window.addEventListener('keydown',e=>{if(e.key==='Enter')breed(); if(e.key==='r')fresh(); if(e.key==='Backspace'){e.preventDefault();back();}});
+
+fresh();
+</script>
+</body>
+</html>
