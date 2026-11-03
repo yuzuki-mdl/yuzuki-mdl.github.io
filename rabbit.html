@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hunt the rabbit</title>
+<style>
+  :root{ --bg:#0e0f13; --panel:#16181f; --line:#2a2d38; --ink:#e8e6df; --dim:#7a7f8c; --hot:#ff5c7a; --cool:#5cc8ff; --good:#7dffa8; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  #hud{display:flex;gap:14px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap;background:var(--panel)}
+  #hud b{color:var(--cool)}
+  #hud .sep{color:var(--line)}
+  button{background:#22252f;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--cool)}
+  button.go{background:var(--cool);color:#04121c;border-color:var(--cool);font-weight:700}
+  button:disabled{opacity:.4;cursor:default}
+  #board{flex:1;position:relative}
+  canvas{display:block;width:100%;height:100%}
+  #msg{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(10,11,15,.82);text-align:center;padding:20px}
+  #msg.show{display:flex}
+  #msg h1{margin:0;font-size:28px;letter-spacing:.5px}
+  #msg p{margin:0;color:var(--dim);max-width:420px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <span>hunters <b id="kleft">2</b>/<b id="ktot">2</b></span>
+    <span class="sep">|</span>
+    <span>round <b id="round">1</b></span>
+    <span class="sep">|</span>
+    <span>rabbit could be in <b id="poss">?</b> spots</span>
+    <span style="flex:1"></span>
+    <button id="beliefBtn">belief: on</button>
+    <button id="goBtn" class="go">search</button>
+    <button id="resetBtn">new hunt</button>
+  </div>
+  <div id="board"><canvas id="cv"></canvas>
+    <div id="msg">
+      <h1 id="msgT"></h1>
+      <p id="msgP"></p>
+      <button id="againBtn" class="go">hunt again</button>
+    </div>
+  </div>
+</div>
+<script>
+window.onerror=function(m,s,l,c,e){document.getElementById('msgT').textContent='ERR';document.getElementById('msgP').textContent=m+' @'+l+':'+c;document.getElementById('msg').classList.add('show');};
+(() => {
+  const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+  const $ = id => document.getElementById(id);
+  let DPR = Math.min(2, window.devicePixelRatio||1);
+  let W=0,H=0;
+  function resize(){ const r = cv.getBoundingClientRect(); W=r.width; H=r.height; cv.width=W*DPR; cv.height=H*DPR; ctx.setTransform(DPR,0,0,DPR,0,0); layout(); }
+
+  let COLS=7, ROWS=7, N=COLS*ROWS;
+  let adj=[];
+  let pos=[];
+  let grid=[];
+  function buildGraph(cols,rows){
+    COLS=cols; ROWS=rows; N=cols*rows;
+    grid=[]; adj=[];
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ grid.push({c,r}); adj.push([]); }
+    const id=(c,r)=>r*cols+c;
+    for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){
+      const a=id(c,r);
+      if(c+1<cols && Math.random()<0.82){ const b=id(c+1,r); adj[a].push(b); adj[b].push(a); }
+      if(r+1<rows && Math.random()<0.82){ const b=id(c,r+1); adj[a].push(b); adj[b].push(a); }
+    }
+    ensureConnected(id);
+  }
+  function ensureConnected(id){
+    const par=[...Array(N).keys()];
+    const find=x=>par[x]===x?x:(par[x]=find(par[x]));
+    const uni=(a,b)=>{a=find(a);b=find(b);if(a!==b)par[a]=b;};
+    for(let a=0;a<N;a++)for(const b of adj[a]) uni(a,b);
+    let guard=0;
+    while(guard++<N*4){
+      const roots=new Set(); for(let i=0;i<N;i++)roots.add(find(i));
+      if(roots.size<=1)break;
+      let done=false;
+      for(let r=0;r<ROWS&&!done;r++)for(let c=0;c<COLS&&!done;c++){
+        const a=id(c,r);
+        const cands=[];
+        if(c+1<COLS)cands.push(id(c+1,r));
+        if(r+1<ROWS)cands.push(id(c,r+1));
+        for(const b of cands){ if(find(a)!==find(b)){ adj[a].push(b); adj[b].push(a); uni(a,b); done=true; break; } }
+      }
+      if(!done)break;
+    }
+  }
+
+  let k=2, rabbit=-1, belief=new Set(), searchSet=new Set(), round=1, over=false, showBelief=true, caughtByDeduction=false;
+
+  function startGame(){
+    const sizes=[[6,6],[7,7],[8,7]];
+    const [c,r]=sizes[Math.floor(Math.random()*sizes.length)];
+    buildGraph(c,r);
+    k = Math.max(2, Math.round(N/22));
+    rabbit = Math.floor(Math.random()*N);
+    belief = new Set(); for(let i=0;i<N;i++) belief.add(i);
+    searchSet = new Set();
+    round=1; over=false; caughtByDeduction=false;
+    $('msg').classList.remove('show');
+    layout(); updateHud();
+  }
+
+  let cell=0, ox=0, oy=0;
+  function layout(){
+    if(!N || grid.length<N) return;
+    const pad=40;
+    const availW=W-pad*2, availH=H-pad*2;
+    cell = Math.min(availW/(COLS-1||1), availH/(ROWS-1||1));
+    cell = Math.min(cell, 90);
+    const gw=(COLS-1)*cell, gh=(ROWS-1)*cell;
+    ox=(W-gw)/2; oy=(H-gh)/2;
+    pos=[];
+    for(let i=0;i<N;i++){ const g=grid[i]; pos.push({x:ox+g.c*cell, y:oy+g.r*cell}); }
+  }
+
+  function hitVertex(mx,my){
+    let best=-1, bd=1e9;
+    for(let i=0;i<N;i++){ const p=pos[i]; const d=(p.x-mx)**2+(p.y-my)**2; if(d<bd){bd=d;best=i;} }
+    return bd < (cell*0.55)**2 ? best : -1;
+  }
+  cv.addEventListener('pointerdown', e=>{
+    if(over) return;
+    const r=cv.getBoundingClientRect();
+    const v=hitVertex(e.clientX-r.left, e.clientY-r.top);
+    if(v<0) return;
+    if(searchSet.has(v)) searchSet.delete(v);
+    else if(searchSet.size<k) searchSet.add(v);
+    updateHud(); draw();
+  });
+
+  function doSearch(){
+    if(over) return;
+    if(searchSet.size===0) return;
+    if(searchSet.has(rabbit)){ over=true; caughtByDeduction=false; win(); return; }
+    const survivors=[...belief].filter(v=>!searchSet.has(v));
+    const nb=new Set();
+    for(const v of survivors){ for(const u of adj[v]) nb.add(u); }
+    belief = nb;
+    const opts = adj[rabbit];
+    rabbit = opts.length ? opts[Math.floor(Math.random()*opts.length)] : rabbit;
+    searchSet.clear();
+    round++;
+    if(belief.size===0){ over=true; caughtByDeduction=true; win(); return; }
+    if(!belief.has(rabbit)){ belief.add(rabbit); }
+    updateHud(); draw();
+  }
+
+  function win(){
+    updateHud(); draw();
+    $('msgT').textContent = caughtByDeduction ? 'cornered' : 'got it';
+    $('msgP').textContent = caughtByDeduction
+      ? 'u narrowed it down to nowhere. no spot left it could be hiding. '+round+' rounds.'
+      : 'your hunters landed on it in round '+round+'.';
+    $('msg').classList.add('show');
+  }
+
+  function updateHud(){
+    $('kleft').textContent = k-searchSet.size;
+    $('ktot').textContent = k;
+    $('round').textContent = round;
+    $('poss').textContent = belief.size;
+    $('goBtn').disabled = searchSet.size===0 || over;
+    $('beliefBtn').textContent = 'belief: '+(showBelief?'on':'off');
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    ctx.strokeStyle='#2a2d38'; ctx.lineWidth=2;
+    for(let a=0;a<N;a++)for(const b of adj[a]){ if(b<a)continue; const p=pos[a],q=pos[b]; ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke(); }
+    if(showBelief && belief.size){
+      for(const v of belief){
+        const p=pos[v];
+        const rad=Math.max(10,cell*0.30);
+        const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,rad*1.6);
+        g.addColorStop(0,'rgba(92,200,255,0.45)');
+        g.addColorStop(1,'rgba(92,200,255,0)');
+        ctx.fillStyle=g; ctx.beginPath(); ctx.arc(p.x,p.y,rad*1.6,0,7); ctx.fill();
+      }
+    }
+    for(let i=0;i<N;i++){
+      const p=pos[i]; const rr=Math.max(4,cell*0.13);
+      ctx.beginPath(); ctx.arc(p.x,p.y,rr,0,7);
+      ctx.fillStyle='#3a3f4d'; ctx.fill();
+    }
+    for(const v of searchSet){
+      const p=pos[v];
+      ctx.beginPath(); ctx.arc(p.x,p.y,cell*0.30,0,7);
+      ctx.strokeStyle='#ff5c7a'; ctx.lineWidth=3; ctx.stroke();
+      ctx.fillStyle='rgba(255,92,122,0.18)'; ctx.fill();
+    }
+    if(over){
+      const p=pos[rabbit];
+      ctx.fillStyle='#7dffa8'; ctx.beginPath(); ctx.arc(p.x,p.y,Math.max(6,cell*0.18),0,7); ctx.fill();
+    }
+  }
+
+  $('goBtn').onclick = doSearch;
+  $('resetBtn').onclick = ()=>{ startGame(); draw(); };
+  $('againBtn').onclick = ()=>{ startGame(); draw(); };
+  $('beliefBtn').onclick = ()=>{ showBelief=!showBelief; updateHud(); draw(); };
+  document.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ e.preventDefault(); doSearch(); }
+    if(e.key==='r'||e.key==='R'){ startGame(); draw(); }
+  });
+
+  window.addEventListener('resize', ()=>{ resize(); draw(); });
+  resize();
+  startGame(); draw();
+})();
+</script>
+</body>
+</html>
