@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>dimple</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d12;overflow:hidden;font-family:ui-monospace,Menlo,monospace;color:#cfd3dc;touch-action:none}
+  canvas{display:block;width:100vw;height:100vh}
+  #hud{position:fixed;left:14px;top:12px;font-size:12px;line-height:1.6;opacity:.7;pointer-events:none;text-shadow:0 1px 2px #000}
+  #hud b{color:#ffb020;font-weight:600}
+  #hud span{color:#8fd8ff}
+  #hint{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);font-size:12px;opacity:.4;pointer-events:none;white-space:nowrap}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><b>dimple</b> — soft body between three pins<br>
+pins: <span id="pc">3</span> · dent <span id="dd">0.0</span>px · state <span id="st">—</span><br>drag a pin · click empty to add one · R reset</div>
+<div id="hint">does contact + pressure settle into a static dent?</div>
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',resize);
+const G=0.55, DAMP=0.992, ITER=4;
+let blob=null;
+let pins=[];
+const PR=34; // pin radius
+
+function polyArea(pts,n){let a=0;for(let i=0;i<n;i++){const p=pts[i],q=pts[(i+1)%n];a+=p.x*q.y-q.x*p.y;}return Math.abs(a)/2;}
+function makeBlob(cx0,cy0,r,n){
+  const b={pts:[],springs:[]};
+  for(let i=0;i<n;i++){const a=i/n*Math.PI*2;b.pts.push({x:cx0+Math.cos(a)*r,y:cy0+Math.sin(a)*r,px:cx0+Math.cos(a)*r,py:cy0+Math.sin(a)*r});}
+  b.pts.push({x:cx0,y:cy0,px:cx0,py:cy0});
+  const ci=n;
+  b.restArea=polyArea(b.pts,n);
+  for(let i=0;i<n;i++){
+    const add=(ia,ib,st)=>{const a=b.pts[ia],c=b.pts[ib];b.springs.push({a:ia,b:ib,rest:Math.hypot(a.x-c.x,a.y-c.y),stiff:st});};
+    add(i,(i+1)%n,1); add(i,(i+2)%n,0.6); add(i,ci,0.5);
+  }
+  return b;
+}
+
+function step(){
+  if(!blob)return;
+  const b=blob;
+  for(const p of b.pts){
+    const vx=(p.x-p.px)*DAMP, vy=(p.y-p.py)*DAMP;
+    p.px=p.x; p.py=p.y;
+    p.x+=vx; p.y+=vy+G;
+  }
+  for(let k=0;k<ITER;k++){
+    for(const s of b.springs){
+      const a=b.pts[s.a],c=b.pts[s.b];
+      let dx=c.x-a.x,dy=c.y-a.y;let d=Math.hypot(dx,dy)||0.0001;
+      const diff=(d-s.rest)/d*0.5*s.stiff;
+      const ox=dx*diff,oy=dy*diff;
+      a.x+=ox;a.y+=oy;c.x-=ox;c.y-=oy;
+    }
+    const n=b.pts.length-1;
+    // unfold
+    for(let i=0;i<n;i++){
+      const p=b.pts[i],pr=b.pts[(i-1+n)%n],nx2=b.pts[(i+1)%n];
+      const t1x=p.x-pr.x,t1y=p.y-pr.y,t2x=nx2.x-p.x,t2y=nx2.y-p.y;
+      if(t1x*t2x+t1y*t2y<0){p.x+=((pr.x+nx2.x)/2-p.x)*0.3;p.y+=((pr.y+nx2.y)/2-p.y)*0.3;}
+    }
+    // pressure
+    if(b.restArea){
+      const area=polyArea(b.pts,n);
+      const pdiff=(b.restArea-area)/b.restArea;
+      const force=Math.max(-0.6,Math.min(0.8,pdiff))*0.9;
+      for(let i=0;i<n;i++){
+        const p=b.pts[i],pr=b.pts[(i-1+n)%n],nx2=b.pts[(i+1)%n];
+        let tx=nx2.x-pr.x,ty=nx2.y-pr.y;let tl=Math.hypot(tx,ty)||0.0001;
+        let nx=ty/tl,ny=-tx/tl;
+        const cxb=b.pts[b.pts.length-1]||p;
+        if((p.x-cxb.x)*nx+(p.y-cxb.y)*ny<0){nx=-nx;ny=-ny;}
+        p.x+=nx*force;p.y+=ny*force;
+      }
+    }
+    // pins: push outline points out of each pin circle
+    for(const pin of pins){
+      const rr=PR+2;
+      for(let i=0;i<n;i++){
+        const p=b.pts[i];
+        let dx=p.x-pin.x,dy=p.y-pin.y;let d=Math.hypot(dx,dy)||0.0001;
+        if(d<rr){const k=(rr-d);p.x+=dx/d*k;p.y+=dy/d*k;}
+      }
+    }
+    // walls
+    for(const p of b.pts){
+      if(p.y>H-2){p.y=H-2;p.px+=(p.x-p.px)*0.5;}
+      if(p.y<2){p.y=2;}
+      if(p.x<2){p.x=2;}
+      if(p.x>W-2){p.x=W-2;}
+    }
+  }
+}
+
+// dent metric: how far the outline is pulled in along the direction of each pin's contact
+// we measure the closest outline point to the blob centroid vs the max radius.
+function dentMetric(){
+  if(!blob)return 0;
+  const b=blob;const n=b.pts.length-1;const ci=b.pts.length-1;
+  const c=b.pts[ci];
+  let maxR=0,minR=1e9;
+  for(let i=0;i<n;i++){const d=Math.hypot(b.pts[i].x-c.x,b.pts[i].y-c.y);if(d>maxR)maxR=d;if(d<minR)minR=d;}
+  return maxR-minR;
+}
+
+function draw(){
+  cx.clearRect(0,0,W,H);
+  // pins
+  for(const pin of pins){
+    cx.beginPath();cx.arc(pin.x,pin.y,PR,0,7);
+    cx.fillStyle='rgba(255,176,32,0.10)';cx.fill();
+    cx.lineWidth=2;cx.strokeStyle='rgba(255,176,32,0.7)';cx.stroke();
+    cx.beginPath();cx.arc(pin.x,pin.y,3,0,7);cx.fillStyle='rgba(255,200,80,0.9)';cx.fill();
+  }
+  if(blob){
+    const n=blob.pts.length-1;const ci=blob.pts.length-1;const c=blob.pts[ci];
+    cx.beginPath();cx.moveTo(blob.pts[0].x,blob.pts[0].y);
+    for(let i=1;i<n;i++)cx.lineTo(blob.pts[i].x,blob.pts[i].y);
+    cx.closePath();
+    const gx=cx.createRadialGradient(c.x,c.y-10,4,c.x,c.y,90);
+    gx.addColorStop(0,'rgba(120,255,170,0.42)');
+    gx.addColorStop(0.6,'rgba(60,210,130,0.22)');
+    gx.addColorStop(1,'rgba(30,150,95,0.10)');
+    cx.fillStyle=gx;cx.fill();
+    cx.beginPath();cx.moveTo(blob.pts[0].x,blob.pts[0].y);
+    for(let i=1;i<n;i++)cx.lineTo(blob.pts[i].x,blob.pts[i].y);
+    cx.closePath();cx.lineWidth=2.2;cx.strokeStyle='rgba(130,255,180,0.85)';cx.stroke();
+  }
+}
+
+let drag=null;
+function pos(e){const t=e.touches?e.touches[0]:e;return{x:t.clientX,y:t.clientY};}
+function down(e){
+  const p=pos(e);
+  for(const pin of pins){if(Math.hypot(pin.x-p.x,pin.y-p.y)<PR){drag=pin;return;}}
+  pins.push({x:p.x,y:p.y});
+  if(pins.length>6)pins.shift();
+}
+function move(e){
+  const p=pos(e);
+  if(drag){drag.x=p.x;drag.y=p.y;e.preventDefault&&e.preventDefault();}
+}
+function up(){drag=null;}
+cv.addEventListener('mousedown',down);
+addEventListener('mousemove',move,{passive:false});
+addEventListener('mouseup',up);
+cv.addEventListener('touchstart',e=>{e.preventDefault();down(e);},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();move(e);},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();up();},{passive:false});
+
+function reset(){
+  blob=makeBlob(W/2,H*0.42,Math.min(W,H)*0.22,20);
+  pins=[
+    {x:W/2-Math.min(W,H)*0.18,y:H*0.60},
+    {x:W/2+Math.min(W,H)*0.18,y:H*0.60},
+    {x:W/2,y:H*0.30}
+  ];
+}
+addEventListener('keydown',e=>{if(e.key==='r'||e.key==='R')reset();});
+
+// settle detector: track centroid speed over last frames
+let hist=[];
+const dd=document.getElementById('dd'),st=document.getElementById('st'),pc=document.getElementById('pc');
+function loop(){
+  step();
+  draw();
+  if(blob){
+    const c=blob.pts[blob.pts.length-1];
+    hist.push(c.x+','+c.y); if(hist.length>30)hist.shift();
+    const d=dentMetric();
+    dd.textContent=d.toFixed(1);
+    // speed from oldest vs newest centroid
+    let moving=false;
+    if(hist.length===30){
+      const a=hist[0].split(','),z=hist[29].split(',');
+      moving=Math.hypot(a[0]-z[0],a[1]-z[1])>1.5;
+    }
+    st.textContent=moving?'moving':'settled';
+    st.style.color=moving?'#ff8f6b':'#8fffb0';
+    pc.textContent=pins.length;
+  }
+  requestAnimationFrame(loop);
+}
+reset();
+loop();
+</script>
+</body>
+</html>
