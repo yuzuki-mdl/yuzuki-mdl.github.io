@@ -7,7 +7,12 @@
 <style>
   html,body{margin:0;height:100%;background:#0b0b12;color:#cdd;font-family:ui-monospace,monospace;overflow:hidden}
   #wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px}
-  canvas{background:#0b0b12;image-rendering:pixelated;border:1px solid #23233a;box-shadow:0 0 40px #000 inset}
+  canvas{background:#0b0b12;image-rendering:pixelated;border:1px solid #23233a;box-shadow:0 0 40px #000 inset;max-width:96vw;max-height:calc(100vh - 120px);width:auto;height:auto}
+  #pad{display:none;touch-action:none;user-select:none;-webkit-user-select:none}
+  #pad .row{display:flex;justify-content:center;gap:8px}
+  #pad button{width:56px;height:56px;font-size:22px;background:#16162a;color:#8f9;border:1px solid #333;border-radius:10px;font-family:inherit}
+  #pad button:active{background:#2a2a4a}
+  @media (pointer:coarse){ #pad{display:block} #hud{font-size:11px;gap:10px;flex-wrap:wrap;justify-content:center} #hud .dim:last-child{display:none} }
   #hud{display:flex;gap:18px;font-size:14px;letter-spacing:.5px;color:#8f9}
   #hud .dim{color:#556}
   #msg{height:18px;font-size:13px;color:#fc6}
@@ -26,6 +31,11 @@
   </div>
   <canvas id="c"></canvas>
   <div id="msg"></div>
+  <div id="pad">
+    <div class="row"><button data-dir="up">▲</button></div>
+    <div class="row"><button data-dir="left">◀</button><button data-dir="down">▼</button><button data-dir="right">▶</button></div>
+    <div class="row"><button data-dir="r" style="width:auto;padding:0 14px;font-size:14px">restart</button></div>
+  </div>
 </div>
 <script>
 // ---- dungeon crawler ----
@@ -280,6 +290,15 @@ document.addEventListener('keydown',e=>{
   else return;
   e.preventDefault();
   playerMove(dx,dy);
+});
+
+document.getElementById('pad').addEventListener('pointerdown',e=>{
+  const d=e.target.dataset.dir; if(!d) return;
+  e.preventDefault();
+  const m=document.getElementById('msg').textContent;
+  if(m.includes('died')||m.includes('escaped')){ if(d==='r'){ keys=[]; genFloor(1); } return; }
+  const dirs={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};
+  if(dirs[d]) playerMove(dirs[d][0],dirs[d][1]);
 });
 
 genFloor(1);
