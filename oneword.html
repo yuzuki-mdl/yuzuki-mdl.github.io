@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>one word at a time</title>
+<style>
+  :root { --bg:#0e0e12; --fg:#e8e6df; --dim:#6b6a72; --accent:#c9a227; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; }
+  body {
+    background:var(--bg); color:var(--fg);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    display:flex; flex-direction:column; align-items:center;
+    padding:24px 16px; gap:16px;
+  }
+  h1 { font-size:15px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); font-weight:400; margin:0; }
+  #stage {
+    width:100%; max-width:620px; flex:1;
+    display:flex; flex-direction:column; justify-content:center;
+  }
+  #story {
+    font-size:20px; line-height:1.9; white-space:pre-wrap; word-break:break-word;
+    min-height:120px;
+  }
+  #story .new { color:var(--accent); }
+  #story .fade { color:var(--dim); }
+  #bar { display:flex; gap:10px; width:100%; max-width:620px; }
+  #inp {
+    flex:1; background:#17171d; border:1px solid #26262e; color:var(--fg);
+    font:inherit; font-size:16px; padding:12px 14px; border-radius:8px; outline:none;
+  }
+  #inp:focus { border-color:#3a3a46; }
+  button {
+    background:#17171d; border:1px solid #26262e; color:var(--fg);
+    font:inherit; font-size:13px; padding:12px 16px; border-radius:8px; cursor:pointer;
+    letter-spacing:.05em;
+  }
+  button:hover { border-color:#3a3a46; }
+  #hint { font-size:11px; color:var(--dim); max-width:620px; text-align:center; line-height:1.6; }
+</style>
+</head>
+<body>
+  <h1>one word at a time</h1>
+  <div id="stage"><div id="story"></div></div>
+  <div id="bar">
+    <input id="inp" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="type a word, hit enter">
+    <button id="undo">undo</button>
+  </div>
+  <div id="hint">every word u add, the story forgets one from the start. it can only ever be 24 words long. u dont get to keep it.</div>
+<div id="ghosts"></div>
+<style>
+  #ghosts { position:fixed; inset:0; pointer-events:none; overflow:hidden; }
+  .ghost {
+    position:absolute; font-size:18px; color:#c9a227; opacity:.55;
+    animation: drift 3.4s ease-out forwards; white-space:nowrap;
+  }
+  @keyframes drift {
+    0% { transform: translateY(0) rotate(0deg); opacity:.6; }
+    100% { transform: translateY(-140px) rotate(var(--r)); opacity:0; }
+  }
+</style>
+<script>
+const MAX = 24;
+const storyEl = document.getElementById('story');
+const inp = document.getElementById('inp');
+const undoBtn = document.getElementById('undo');
+let words = [];
+let history = [];
+
+function render(newIdx) {
+  storyEl.innerHTML = '';
+  words.forEach((w, i) => {
+    const s = document.createElement('span');
+    s.textContent = w + ' ';
+    if (i === newIdx) s.className = 'new';
+    else if (i < words.length - MAX + 6) s.className = 'fade';
+    storyEl.appendChild(s);
+  });
+}
+
+const ghostsEl = document.getElementById('ghosts');
+function ghost(w) {
+  const g = document.createElement('div');
+  g.className = 'ghost';
+  g.textContent = w;
+  g.style.left = (10 + Math.random() * 80) + 'vw';
+  g.style.top = (40 + Math.random() * 40) + 'vh';
+  g.style.setProperty('--r', (Math.random() * 30 - 15) + 'deg');
+  ghostsEl.appendChild(g);
+  setTimeout(() => g.remove(), 3500);
+}
+
+function addWord(w) {
+  history.push(words.slice());
+  words.push(w);
+  if (words.length > MAX) { const gone = words.shift(); if (gone) ghost(gone); }
+  render(words.length - 1);
+}
+
+inp.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const v = inp.value.trim();
+    if (!v) return;
+    v.split(/\s+/).forEach(addWord);
+    inp.value = '';
+  }
+});
+
+undoBtn.addEventListener('click', () => {
+  if (history.length) { words = history.pop(); render(-1); }
+});
+
+render(-1);
+inp.focus();
+</script>
+</body>
+</html>
