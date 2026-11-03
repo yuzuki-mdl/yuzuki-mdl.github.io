@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>creatures</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html,body{margin:0;height:100%;background:#0a0c14;overflow:hidden;font-family:ui-monospace,Menlo,monospace;color:#cfd6e6}
+  canvas{display:block;width:100%;height:100%}
+  #hud{position:fixed;left:12px;top:10px;font-size:13px;line-height:1.5;pointer-events:none;text-shadow:0 1px 3px #000}
+  #hud b{color:#8fe3c0}
+  #bar{position:fixed;left:0;right:0;bottom:0;display:flex;gap:8px;padding:10px;background:linear-gradient(transparent,#0a0c14 60%);justify-content:center}
+  button{background:#1b2233;color:#cfd6e6;border:1px solid #2f3b55;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+  button:hover{background:#243049;border-color:#4a5f8a}
+  button:active{transform:translateY(1px)}
+  #msg{position:fixed;left:0;right:0;bottom:64px;text-align:center;font-size:13px;color:#7f8aa3;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<div id="msg">click a creature to watch it · space to breed the best ones</div>
+<div id="bar">
+  <button id="breed">breed</button>
+  <button id="reset">reset</button>
+  <button id="speed">speed x1</button>
+</div>
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',resize);
+
+// a creature = a chain of segments. genes:
+//  len[i]    segment length
+//  amp[i]    oscillation amplitude (radians)
+//  phase[i]  phase offset
+//  freq      global oscillation frequency
+function randGene(n){return Array.from({length:n},()=>({len:6+Math.random()*14,amp:Math.random()*0.9,phase:Math.random()*6.28}));}
+function makeCreature(genes,freq){return {genes,freq:freq||(1.2+Math.random()*1.6),t:0,x:0,y:0,dist:0,best:0,alive:true};}
+
+const SEGS=6;
+let pop=[];
+function newPop(){
+  pop=[];
+  for(let i=0;i<6;i++){
+    const g=randGene(SEGS);
+    pop.push(makeCreature(g));
+  }
+}
+
+// physics: each creature is a chain rooted at (x,y) on the ground.
+// angles accumulate from genes + oscillation. we walk the chain and sum x displacement.
+function chainPts(cr,baseX,baseY,scale){
+  let ang=0, px=baseX, py=baseY;
+  const pts=[{x:px,y:py}];
+  for(let i=0;i<cr.genes.length;i++){
+    const g=cr.genes[i];
+    ang+=Math.sin(cr.t+g.phase)*g.amp*0.6;
+    ang=ang*0.96;
+    px+=Math.sin(ang)*g.len*scale;
+    py-=Math.cos(ang)*g.len*scale; // up
+    pts.push({x:px,y:py});
+  }
+  return pts;
+}
+function stepCreature(cr,dt){
+  cr.t+=dt*cr.freq;
+  // forward reach = how far the chain tip leans in x
+  const pts=chainPts(cr,0,0,1);
+  const tip=pts[pts.length-1];
+  let reach=Math.max(0,tip.x);
+  const v=reach*dt*6;
+  cr.x+=v;
+  cr.dist+=v;
+  if(cr.dist>cr.best)cr.best=cr.dist;
+  if(cr.x>W*0.9)cr.alive=false;
+}
+
+let speed=1;
+let selected=null;
+let gen=0;
+
+function breed(){
+  // sort by best distance, take top 2, mutate
+  const sorted=[...pop].sort((a,b)=>b.best-a.best);
+  const p1=sorted[0],p2=sorted[1];
+  const next=[];
+  for(let i=0;i<pop.length;i++){
+    const genes=[];
+    for(let j=0;j<SEGS;j++){
+      const src=Math.random()<0.5?p1:p2;
+      let g={...src.genes[j]};
+      if(Math.random()<0.25)g.len*=0.7+Math.random()*0.7;
+      if(Math.random()<0.25)g.amp*=0.7+Math.random()*0.7;
+      if(Math.random()<0.25)g.phase+=Math.random()*1.2-0.6;
+      genes.push(g);
+    }
+    const freq=(p1.freq+p2.freq)/2*(Math.random()<0.3?0.85+Math.random()*0.3:1);
+    next.push(makeCreature(genes,freq));
+  }
+  pop=next;
+  gen++;
+  document.getElementById('msg').textContent='generation '+gen+' · best so far '+Math.round(p1.best)+'px';
+}
+
+function reset(){gen=0;newPop();document.getElementById('msg').textContent='reset';}
+
+let last=performance.now();
+function frame(now){
+  const dt=Math.min((now-last)/1000,0.05);last=now;
+  if(speed>0){
+    for(const cr of pop){ if(cr.alive) stepCreature(cr,dt*speed); }
+    // if all dead, auto-breed after a beat
+    if(pop.every(c=>!c.alive || c.x>W*0.9)){
+      // let them sit a moment
+    }
+  }
+  render();
+  requestAnimationFrame(frame);
+}
+
+function render(){
+  cx.fillStyle='#0a0c14';cx.fillRect(0,0,W,H);
+  // ground line
+  const gy=H*0.62;
+  cx.strokeStyle='#1a2233';cx.lineWidth=1;
+  cx.beginPath();cx.moveTo(0,gy);cx.lineTo(W,gy);cx.stroke();
+  const laneH=Math.min(70,(H*0.5)/pop.length);
+  pop.forEach((cr,idx)=>{
+    const baseX=40+cr.x*0.8, baseY=gy-idx*laneH;
+    const drawn=chainPts(cr,baseX,baseY,2.4);
+    const isSel=(cr===selected);
+    cx.strokeStyle=isSel?'#8fe3c0':(cr.alive?'#4a6fa5':'#333c50');
+    cx.lineWidth=isSel?3:2;
+    cx.beginPath();
+    cx.moveTo(drawn[0].x,drawn[0].y);
+    for(let i=1;i<drawn.length;i++)cx.lineTo(drawn[i].x,drawn[i].y);
+    cx.stroke();
+    // head
+    const last=drawn[drawn.length-1];
+    cx.fillStyle=isSel?'#8fe3c0':'#6b8fd4';
+    cx.beginPath();cx.arc(last.x,last.y,isSel?5:3.5,0,7);cx.fill();
+    // dist label
+    cx.fillStyle='#5a6a88';cx.font='11px monospace';
+    cx.fillText(Math.round(cr.best),drawn[0].x-4,drawn[0].y+18);
+  }
+  // hud
+  const best=pop.reduce((a,c)=>c.best>a.best?c:a,pop[0]);
+  document.getElementById('hud').innerHTML='gen <b>'+gen+'</b> · pop '+pop.length+'<br>best <b>'+Math.round(best.best)+'</b>px';
+}
+
+cv.addEventListener('click',e=>{
+  const gy=H*0.62;
+  const mx=e.clientX,my=e.clientY;
+  let closest=null,cd=1e9;
+  for(const cr of pop){
+    const bx=40+cr.x*0.8;
+    const d=Math.hypot(mx-bx,my-gy);
+    if(d<cd){cd=d;closest=cr;}
+  }
+  selected=closest;
+});
+
+document.getElementById('breed').onclick=breed;
+document.getElementById('reset').onclick=reset;
+document.getElementById('speed').onclick=e=>{
+  speed=speed>=4?1:speed*2;
+  e.target.textContent='speed x'+speed;
+};
+addEventListener('keydown',e=>{
+  if(e.key===' '){e.preventDefault();breed();}
+  if(e.key==='r')reset();
+});
+
+newPop();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
