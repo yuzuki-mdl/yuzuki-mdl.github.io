@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sandpile</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0b0f;overflow:hidden;font-family:ui-monospace,monospace}
+  canvas{display:block;width:100vw;height:100vh;image-rendering:pixelated;cursor:crosshair}
+  #hud{position:fixed;left:12px;bottom:10px;color:#7a7a8c;font-size:12px;line-height:1.5;pointer-events:none;user-select:none}
+  #hud b{color:#c9c9d6;font-weight:500}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><b>click / drag</b> to drop sand &middot; <b>space</b> reset &middot; grains: <span id="n">0</span></div>
+<script>
+(() => {
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d');
+  const nEl = document.getElementById('n');
+
+  // grid size (cells), independent of screen pixels
+  const W = 220, H = 150;
+  let grid = new Int32Array(W * H);
+  let img = ctx.createImageData(W, H);
+
+  // palette: 0..4 -> color. 0 = empty(black), 1..3 = sand shades, 4+ = toppling hot
+  const PAL = [
+    [11, 11, 15],      // 0 empty
+    [120, 96, 48],     // 1
+    [168, 134, 60],    // 2
+    [214, 176, 82],    // 3
+    [255, 236, 150],   // 4+ (unstable, about to topple)
+  ];
+
+  function resize() {
+    cv.width = W; cv.height = H;
+    // scale up via CSS, keep pixelated
+  }
+  resize();
+
+  // abelian sandpile: cells with >=4 topple, giving 1 to each neighbor
+  // process in waves so it looks like it spreads outward
+  function step() {
+    let unstable = [];
+    for (let i = 0; i < grid.length; i++) if (grid[i] >= 4) unstable.push(i);
+    if (unstable.length === 0) return false;
+    // topple all unstable at once (a synchronous abelian step)
+    for (const i of unstable) {
+      const x = i % W, y = (i / W) | 0;
+      grid[i] -= 4;
+      if (x > 0) grid[i - 1]++;
+      if (x < W - 1) grid[i + 1]++;
+      if (y > 0) grid[i - W]++;
+      if (y < H - 1) grid[i + W]++;
+    }
+    return true;
+  }
+
+  function draw() {
+    let grains = 0;
+    for (let i = 0; i < grid.length; i++) {
+      const v = grid[i];
+      grains += v;
+      const c = PAL[v > 4 ? 4 : v];
+      const p = i * 4;
+      img.data[p] = c[0]; img.data[p + 1] = c[1]; img.data[p + 2] = c[2]; img.data[p + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    nEl.textContent = grains.toLocaleString();
+  }
+
+  // continuous toppling loop — a few waves per frame so it animates but keeps up
+  let running = false;
+  function loop() {
+    let did = false;
+    for (let k = 0; k < 3; k++) { if (step()) did = true; else break; }
+    draw();
+    if (did) requestAnimationFrame(loop);
+    else running = false;
+  }
+  function kick() { if (!running) { running = true; requestAnimationFrame(loop); } }
+
+  // drop grains near a cell
+  function drop(cx, cy, amount = 1) {
+    // cx,cy are canvas pixel coords -> grid coords
+    const rect = cv.getBoundingClientRect();
+    const gx = Math.floor((cx - rect.left) / rect.width * W);
+    const gy = Math.floor((cy - rect.top) / rect.height * H);
+    if (gx < 0 || gx >= W || gy < 0 || gy >= H) return;
+    grid[gy * W + gx] += amount;
+    kick();
+  }
+
+  let down = false;
+  cv.addEventListener('pointerdown', e => { down = true; drop(e.clientX, e.clientY, 1); cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointerup', () => { down = false; });
+  cv.addEventListener('pointermove', e => { if (down) drop(e.clientX, e.clientY, 1); });
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space') { e.preventDefault(); grid.fill(0); draw(); }
+  });
+
+  // seed the middle so it's not empty
+  grid[(H >> 1) * W + (W >> 1)] = 900;
+  kick();
+  draw();
+})();
+</script>
+</body>
+</html>
