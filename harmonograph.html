@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>harmonograph</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0c10;overflow:hidden;font:13px ui-monospace,monospace}
+  canvas{display:block}
+  #hud{position:fixed;left:14px;top:12px;color:#5c5f6b;user-select:none;pointer-events:none;line-height:1.5}
+  #hud b{color:#8be9a0;font-weight:600}
+  #hint{position:fixed;left:14px;bottom:12px;color:#4a4d58;user-select:none;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<div id="hint">space / click — new drawing · the pendulums drift and die, thats the point</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const hud=document.getElementById('hud');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',()=>{resize();});
+
+// harmonograph = two pendulums per axis. each: amplitude, freq, phase, damping.
+// pen point = sum of two x pendulums, sum of two y pendulums.
+// damped: A * e^(-d t) * sin(2pi f t + phase)
+
+let P=null, pen=null, t=0, running=true, last=null;
+const LIFE=5200;
+
+function rnd(a,b){return a+Math.random()*(b-a);}
+function pick(a){return a[Math.floor(Math.random()*a.length)];}
+
+function newDrawing(){
+  const S=Math.min(W,H)*0.42;
+  const base=pick([0.6,0.8,1.0,1.2,1.5]);
+  const ratio=pick([[1,2],[2,3],[3,4],[1,3],[4,5],[5,7],[1,1.01],[2,2.01],[3,2.97]]);
+  const fx1=base, fx2=base*ratio[0]/ratio[1];
+  const fy1=base*pick([1,1.01,0.99,1.02]), fy2=base*pick([ratio[1]/ratio[0],ratio[0]/ratio[1],1.01,0.98]);
+  const d=pick([0.0004,0.0006,0.0009,0.0012,0.0016,0.0022]);
+  P=[
+    {A:S*rnd(0.7,1.0), f:fx1, ph:rnd(0,6.283), d:d*rnd(0.8,1.2)},
+    {A:S*rnd(0.5,0.9), f:fx2, ph:rnd(0,6.283), d:d*rnd(0.8,1.2)},
+    {A:S*rnd(0.7,1.0), f:fy1, ph:rnd(0,6.283), d:d*rnd(0.8,1.2)},
+    {A:S*rnd(0.5,0.9), f:fy2, ph:rnd(0,6.283), d:d*rnd(0.8,1.2)},
+  ];
+  const hue=rnd(0,360);
+  pen={cx:W/2, cy:H/2, hue, hue2:(hue+rnd(60,180))%360};
+  t=0; running=true; last=null;
+  ctx.clearRect(0,0,W,H);
+}
+
+function amp(p,tt){return p.A*Math.exp(-p.d*tt);}
+function pos(tt){
+  const x=amp(P[0],tt)*Math.sin(2*Math.PI*P[0].f*tt/1000+P[0].ph)
+         +amp(P[1],tt)*Math.sin(2*Math.PI*P[1].f*tt/1000+P[1].ph);
+  const y=amp(P[2],tt)*Math.sin(2*Math.PI*P[2].f*tt/1000+P[2].ph)
+         +amp(P[3],tt)*Math.sin(2*Math.PI*P[3].f*tt/1000+P[3].ph);
+  return {x:pen.cx+x, y:pen.cy+y};
+}
+
+function frame(){
+  if(running){
+    const steps=3, dtt=2.2;
+    for(let i=0;i<steps;i++){
+      t+=dtt;
+      const p=pos(t);
+      const live=Math.max(amp(P[0],t),amp(P[3],t));
+      if(live<0.6){running=false;break;}
+      if(last){
+        const k=Math.min(1,t/LIFE);
+        const hue=pen.hue+(pen.hue2-pen.hue)*k;
+        ctx.strokeStyle=`hsl(${hue} 70% 62%)`;
+        ctx.globalAlpha=0.9; ctx.lineWidth=1;
+        ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();
+      }
+      last=p;
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();newDrawing();}});
+addEventListener('pointerdown',()=>{newDrawing();});
+
+function updHud(){
+  if(P){
+    hud.innerHTML=`harmonograph · t <b>${(t/1000).toFixed(1)}s</b> · fx ${P[0].f.toFixed(2)}/${P[1].f.toFixed(2)} · fy ${P[2].f.toFixed(2)}/${P[3].f.toFixed(2)}`;
+  }
+  requestAnimationFrame(updHud);
+}
+
+newDrawing();
+frame();updHud();
+</script>
+</body>
+</html>
