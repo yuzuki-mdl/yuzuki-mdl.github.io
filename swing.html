@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>swing</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0e14;overflow:hidden;font-family:ui-monospace,monospace;color:#cfd6e4}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none;cursor:crosshair}
+  #hud{position:fixed;left:14px;top:12px;font-size:12px;line-height:1.5;opacity:.75;pointer-events:none;letter-spacing:.02em}
+  #hud b{color:#8fd3ff;font-weight:600}
+  #hint{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);font-size:12px;opacity:.5;pointer-events:none;text-align:center}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><b>swing</b> · hold to grab · release to fly<br>dist <span id="d">0</span> m · best <span id="b">0</span></div>
+<div id="hint">grab a point toward the cursor and swing. let go at the top.</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',resize);
+
+const G=1500;
+const ROPE_MAX=230;
+const SEGS=18;
+let anchors=[];
+let player, rope, grabbed, mouse={x:0,y:0}, down=false;
+let best=0, dist=0, camY=0, startY=0;
+
+function makeWorld(){
+  anchors=[];
+  let y=H-120;
+  for(let i=0;i<800;i++){
+    const x=W/2 + Math.sin(i*0.9)*(W*0.34) + Math.sin(i*2.3)*40;
+    anchors.push({x:Math.max(60,Math.min(W-60,x)),y});
+    y-=130;
+  }
+  startY=H-120;
+  player={x:W/2,y:startY,vx:0,vy:0};
+  rope=null;grabbed=null;camY=0;dist=0;
+  // start hanging from the lowest anchor
+  const low=anchors[0];
+  player.x=low.x;player.y=low.y+80;grabbed=null;
+  grabFrom(low);
+}
+makeWorld();
+
+function nearestAnchor(px,py){
+  let bestA=null,bd=ROPE_MAX*ROPE_MAX;
+  for(const a of anchors){
+    const dx=a.x-px,dy=a.y-py,d=dx*dx+dy*dy;
+    if(d<bd && d>900){bd=d;bestA=a;}
+  }
+  return bestA;
+}
+
+function grabFrom(a){
+  grabbed=a;
+  rope=[];
+  for(let i=0;i<=SEGS;i++){const t=i/SEGS;rope.push({x:a.x+(player.x-a.x)*t,y:a.y+(player.y-a.y)*t});}
+}
+function grab(){
+  if(grabbed||!player)return;
+  let bestA=null,bd=Infinity;
+  for(const a of anchors){
+    if(a===grabbed)continue;
+    if(a.y>player.y-20)continue;
+    const dx=a.x-mouse.x,dy=a.y-mouse.y,d=dx*dx+dy*dy;
+    if(d<bd){bd=d;bestA=a;}
+  }
+  if(!bestA)return;
+  const len=Math.hypot(bestA.x-player.x,bestA.y-player.y);
+  if(len>ROPE_MAX){
+    const nx=(player.x-bestA.x)/len,ny=(player.y-bestA.y)/len;
+    player.x=bestA.x+nx*ROPE_MAX;
+    player.y=bestA.y+ny*ROPE_MAX;
+    player.vx*=0.3;player.vy*=0.3;
+  }
+  grabFrom(bestA);
+}
+function release(){grabbed=null;rope=null;}
+
+function step(dt){
+  if(!player)return;
+  player.vy+=G*dt;
+  player.x+=player.vx*dt;
+  player.y+=player.vy*dt;
+
+  if(grabbed&&rope){
+    const len=Math.hypot(grabbed.x-player.x,grabbed.y-player.y);
+    if(len>ROPE_MAX){
+      const nx=(player.x-grabbed.x)/len,ny=(player.y-grabbed.y)/len;
+      const over=len-ROPE_MAX;
+      player.x-=nx*over;player.y-=ny*over;
+      const vn=player.vx*nx+player.vy*ny;
+      if(vn>0){player.vx-=nx*vn;player.vy-=ny*vn;}
+      rope.forEach((p,i)=>{
+        const t=i/SEGS;
+        p.x=grabbed.x+(player.x-grabbed.x)*t;
+        p.y=grabbed.y+(player.y-grabbed.y)*t;
+      });
+    }
+  }
+
+  const targetCam=player.y-H*0.65;
+  camY+=(targetCam-camY)*0.15;
+
+  dist=Math.max(dist,(startY-player.y)/18);
+  if(dist>best)best=dist;
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const g=ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#0b0e14');g.addColorStop(1,'#131a26');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+
+  const oy=-camY;
+  for(const a of anchors){
+    const sy=a.y+oy;
+    if(sy<-40||sy>H+40)continue;
+    const isG=(grabbed===a);
+    ctx.beginPath();
+    ctx.arc(a.x,sy,isG?5:3,0,7);
+    ctx.fillStyle=isG?'#ffd479':'#3a4a63';
+    ctx.fill();
+  }
+
+  if(rope){
+    ctx.beginPath();
+    for(let i=0;i<rope.length;i++){
+      const p=rope[i];
+      const x=p.x,y=p.y+oy;
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    }
+    ctx.strokeStyle='#8fd3ff';ctx.lineWidth=2;ctx.stroke();
+  }
+
+  if(player){
+    const px=player.x,py=player.y+oy;
+    ctx.beginPath();ctx.arc(px,py,8,0,7);
+    ctx.fillStyle='#fff';ctx.fill();
+    ctx.beginPath();ctx.arc(px,py,12,0,7);
+    ctx.strokeStyle='rgba(143,211,255,.35)';ctx.lineWidth=2;ctx.stroke();
+  }
+
+  if(down&&!grabbed&&player){
+    ctx.beginPath();
+    ctx.moveTo(player.x,player.y+oy);
+    ctx.lineTo(mouse.x,mouse.y);
+    ctx.strokeStyle='rgba(255,212,121,.25)';ctx.lineWidth=1;ctx.setLineDash([4,6]);ctx.stroke();ctx.setLineDash([]);
+  }
+
+  document.getElementById('d').textContent=Math.floor(dist);
+  document.getElementById('b').textContent=Math.floor(best);
+}
+
+let last=performance.now();
+function loop(t){
+  let dt=(t-last)/1000;last=t;
+  if(dt>0.05)dt=0.05;
+  for(let s=0;s<3;s++)step(dt/3);
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+function pos(e){const r=cv.getBoundingClientRect();const p=e.touches?e.touches[0]:e;return{x:p.clientX-r.left,y:p.clientY-r.top};}
+cv.addEventListener('pointerdown',e=>{mouse=pos(e);down=true;grab();});
+cv.addEventListener('pointermove',e=>{mouse=pos(e);});
+addEventListener('pointerup',e=>{down=false;release();});
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();if(grabbed)release();else grab();}});
+addEventListener('keyup',e=>{if(e.code==='Space')release();});
+addEventListener('dblclick',()=>{makeWorld();});
+</script>
+</body>
+</html>
