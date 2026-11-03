@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lightning</title>
+<style>
+  html,body{margin:0;height:100%;background:#05060a;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
+  #hint{position:fixed;left:14px;bottom:12px;font:13px ui-monospace,monospace;color:#5a6b8c;pointer-events:none;letter-spacing:.5px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">click anywhere to strike</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+let W, H, DPR;
+function resize(){
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = innerWidth; H = innerHeight;
+  c.width = W * DPR; c.height = H * DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+resize(); addEventListener('resize', resize);
+
+let bolts = []; // each bolt: array of segments {x1,y1,x2,y2,life}
+let flash = 0;
+
+// recursive midpoint displacement between (x1,y1)-(x2,y2)
+function displace(x1,y1,x2,y2,rough,segs){
+  let pts = [{x:x1,y:y1},{x:x2,y:y2}];
+  let off = Math.hypot(x2-x1,y2-y1) * rough;
+  for(let s=0;s<segs;s++){
+    const np = [];
+    for(let i=0;i<pts.length-1;i++){
+      const a=pts[i], b=pts[i+1];
+      np.push(a);
+      const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+      const dx=b.x-a.x, dy=b.y-a.y;
+      const len=Math.hypot(dx,dy)||1;
+      // perpendicular offset
+      const nx=-dy/len, ny=dx/len;
+      const d=(Math.random()*2-1)*off;
+      np.push({x:mx+nx*d, y:my+ny*d});
+    }
+    np.push(pts[pts.length-1]);
+    pts=np;
+    off*=0.55;
+  }
+  return pts;
+}
+
+function makeBolt(x1,y1,x2,y2,depth){
+  const pts = displace(x1,y1,x2,y2, 0.28, 6);
+  const segs = [];
+  for(let i=0;i<pts.length-1;i++){
+    segs.push({x1:pts[i].x,y1:pts[i].y,x2:pts[i+1].x,y2:pts[i+1].y,w:1});
+  }
+  // branches
+  if(depth>0){
+    for(let i=2;i<pts.length-2;i++){
+      if(Math.random()<0.12){
+        const p=pts[i];
+        const ang = Math.atan2(y2-y1,x2-x1) + (Math.random()*2-1)*0.9;
+        const bl = 40+Math.random()*90;
+        const bx = p.x+Math.cos(ang)*bl, by=p.y+Math.sin(ang)*bl;
+        const sub = makeBolt(p.x,p.y,bx,by,depth-1);
+        for(const s of sub) s.w*=0.6;
+        segs.push(...sub);
+      }
+    }
+  }
+  return segs;
+}
+
+function strike(tx,ty){
+  const sx = tx + (Math.random()*2-1)*60;
+  const bolt = makeBolt(sx,-20,tx,ty,2);
+  bolts.push({segs:bolt, life:1});
+  flash = Math.min(1, flash+0.7);
+}
+
+c.addEventListener('pointerdown', e=>strike(e.clientX, e.clientY));
+
+function frame(){
+  // fade trails
+  ctx.fillStyle='rgba(5,6,10,0.22)';
+  ctx.fillRect(0,0,W,H);
+
+  // sky flash
+  if(flash>0.01){
+    ctx.fillStyle='rgba(150,180,255,'+(flash*0.12)+')';
+    ctx.fillRect(0,0,W,H);
+    flash*=0.86;
+  }
+
+  ctx.lineCap='round';
+  for(let b=bolts.length-1;b>=0;b--){
+    const bolt=bolts[b];
+    for(const s of bolt.segs){
+      const a = Math.max(0, bolt.life);
+      // glow pass
+      ctx.strokeStyle='rgba(120,160,255,'+(a*0.35)+')';
+      ctx.lineWidth=s.w*6;
+      ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2); ctx.stroke();
+      // core
+      ctx.strokeStyle='rgba(235,242,255,'+a+')';
+      ctx.lineWidth=s.w*1.6;
+      ctx.beginPath(); ctx.moveTo(s.x1,s.y1); ctx.lineTo(s.x2,s.y2); ctx.stroke();
+    }
+    bolt.life -= 0.045;
+    if(bolt.life<=0) bolts.splice(b,1);
+  }
+  requestAnimationFrame(frame);
+}
+frame();
+</script>
+</body>
+</html>
