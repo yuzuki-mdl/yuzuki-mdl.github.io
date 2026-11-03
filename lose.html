@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a thing that can lose</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  html,body{margin:0;height:100%;background:#0a0a0f;color:#cdd;font-family:ui-monospace,monospace;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
+  #hud{position:fixed;left:12px;top:12px;font-size:12px;line-height:1.6;pointer-events:none;text-shadow:0 0 6px #000;opacity:.9}
+  #hud b{color:#ffd27f}
+  #panel{position:fixed;right:12px;top:12px;font-size:11px;display:flex;flex-direction:column;gap:6px;background:rgba(10,10,15,.7);padding:10px;border:1px solid #23233a;border-radius:8px}
+  #panel label{display:flex;justify-content:space-between;gap:8px;align-items:center}
+  #panel input[type=range]{width:110px}
+  #panel button{background:#1a1a2a;color:#cdd;border:1px solid #33334a;border-radius:6px;padding:4px 8px;cursor:pointer;font-family:inherit;font-size:11px}
+  #panel button:hover{background:#26263a}
+  .t{color:#8899aa}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div>a garden that can lose</div>
+  <div class="t">each cell climbs toward light · noise makes it miss</div>
+  <div>alive <b id="alive">0</b> · reached <b id="reached">0</b> · lost <b id="lost">0</b></div>
+</div>
+<div id="panel">
+  <label>noise <input id="noise" type="range" min="0" max="100" value="35"></label>
+  <label>hunger <input id="hunger" type="range" min="20" max="200" value="90"></label>
+  <label>growth <input id="growth" type="range" min="0" max="100" value="55"></label>
+  <button id="reset">reseed</button>
+</div>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+let W,H;
+function resize(){W=c.width=innerWidth*devicePixelRatio;H=c.height=innerHeight*devicePixelRatio;x.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
+addEventListener('resize',resize);resize();
+
+const noiseEl=document.getElementById('noise'),hungerEl=document.getElementById('hunger'),growthEl=document.getElementById('growth');
+const aliveEl=document.getElementById('alive'),reachedEl=document.getElementById('reached'),lostEl=document.getElementById('lost');
+
+// light field: a soft radial light source somewhere, moving slowly
+let light={x:0,y:0,tx:0,ty:0};
+function newLight(){light.tx=Math.random()*innerWidth;light.ty=Math.random()*innerHeight;}
+
+// cells: tiny walkers. each has pos, energy, home pitch (for color)
+const CELLS=[];
+let reached=0,lost=0;
+
+function spawn(n){
+  for(let i=0;i<n;i++){
+    CELLS.push({
+      x:Math.random()*innerWidth,
+      y:Math.random()*innerHeight,
+      e:1,
+      hue:180+Math.random()*120,
+      trail:[]
+    });
+  }
+}
+
+function reset(){
+  CELLS.length=0;reached=0;lost=0;
+  spawn(140);
+  light.x=light.tx=innerWidth/2;light.y=light.ty=innerHeight/2;newLight();
+}
+reset();
+document.getElementById('reset').onclick=reset;
+
+function lightAt(px,py){
+  const dx=px-light.x,dy=py-light.y;
+  return 1/(1+ (dx*dx+dy*dy)/ (200*200));
+}
+
+// simple value noise-ish for jitter
+function rnd(){return Math.random()*2-1;}
+
+let last=performance.now(),acc=0;
+function step(dt){
+  const noise=noiseEl.value/100;
+  const hunger=+hungerEl.value/100;
+  const growth=growthEl.value/100;
+
+  // light drifts toward target
+  light.x+=(light.tx-light.x)*0.02;
+  light.y+=(light.ty-light.y)*0.02;
+  if(Math.hypot(light.tx-light.x,light.ty-light.y)<5)newLight();
+
+  const speed=40;
+  for(let i=CELLS.length-1;i>=0;i--){
+    const p=CELLS[i];
+    // gradient of light (numeric)
+    const gx=lightAt(p.x+2,p.y)-lightAt(p.x-2,p.y);
+    const gy=lightAt(p.x,p.y+2)-lightAt(p.x,p.y-2);
+    let ang=Math.atan2(gy,gx);
+    // noise corrupts the reading
+    ang+=rnd()*noise*Math.PI;
+    p.x+=Math.cos(ang)*speed*dt;
+    p.y+=Math.sin(ang)*speed*dt;
+    p.x=(p.x+innerWidth)%innerWidth;
+    p.y=(p.y+innerHeight)%innerHeight;
+    p.trail.push(p.x,p.y);
+    if(p.trail.length>40)p.trail.splice(0,2);
+
+    // energy: gain near light, lose always
+    const L=lightAt(p.x,p.y);
+    p.e+= (L*1.2 - hunger*0.35)*dt;
+    if(p.e>1.4)p.e=1.4;
+    if(p.e<=0){lost++;CELLS.splice(i,1);continue;}
+    if(L>0.85){reached++;CELLS.splice(i,1);continue;}
+  }
+
+  // growth: cells near light split
+  if(Math.random()<growth*dt*3 && CELLS.length<900){
+    if(CELLS.length>0){
+      const p=CELLS[(Math.random()*CELLS.length)|0];
+      CELLS.push({x:p.x+rnd()*10,y:p.y+rnd()*10,e:p.e*0.7,hue:p.hue+rnd()*10,trail:[]});
+    }
+  }
+}
+
+function draw(){
+  // trail fade
+  x.fillStyle='rgba(10,10,15,0.16)';
+  x.fillRect(0,0,innerWidth,innerHeight);
+
+  // light glow
+  const g=x.createRadialGradient(light.x,light.y,0,light.x,light.y,260);
+  g.addColorStop(0,'rgba(255,240,200,0.22)');
+  g.addColorStop(1,'rgba(255,240,200,0)');
+  x.fillStyle=g;x.beginPath();x.arc(light.x,light.y,260,0,7);x.fill();
+  x.fillStyle='rgba(255,245,210,0.9)';x.beginPath();x.arc(light.x,light.y,3,0,7);x.fill();
+
+  x.lineWidth=1.2;
+  for(const p of CELLS){
+    if(p.trail.length>4){
+      x.strokeStyle=`hsla(${p.hue},80%,${35+p.e*30}%,0.5)`;
+      x.beginPath();x.moveTo(p.trail[0],p.trail[1]);
+      for(let i=2;i<p.trail.length;i+=2)x.lineTo(p.trail[i],p.trail[i+1]);
+      x.stroke();
+    }
+    x.fillStyle=`hsla(${p.hue},90%,${45+p.e*25}%,0.95)`;
+    x.beginPath();x.arc(p.x,p.y,1.6,0,7);x.fill();
+  }
+
+  aliveEl.textContent=CELLS.length;
+  reachedEl.textContent=reached;
+  lostEl.textContent=lost;
+}
+
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000);last=now;
+  step(dt);draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// click to move the light
+c.addEventListener('pointerdown',e=>{light.tx=e.clientX;light.ty=e.clientY;});
+</script>
+</body>
+</html>
