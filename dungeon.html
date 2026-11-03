@@ -35,7 +35,7 @@ cv.width=W*T; cv.height=H*T;
 const cx=cv.getContext('2d');
 
 const WALL=0, FLOOR=1, DOOR=2, STAIRS=3, KEY=4, POTION=5, TRAP=6, CHEST=7, SCROLL=8;
-let grid, player, enemies, keys, potions, kills, floorNum, msgT, revealUntil=0;
+let grid, player, enemies, keys, potions, kills, floorNum, msgT, revealUntil=0, seen;
 const MAXFLOOR=5;
 const THEMES=[
   null,
@@ -76,6 +76,7 @@ function genFloor(f){
   }
   const start=rooms[0];
   player={x:start.cx,y:start.cy,hp:10,maxhp:10,atk:1};
+  seen=Array.from({length:H},()=>Array(W).fill(false));
 
   // stairs in last room
   const last=rooms[rooms.length-1];
@@ -187,6 +188,14 @@ function render(){
       cx.fillRect(x*T+3,y*T+3,T-6,T-6); }
     cx.fillStyle='#8f9'; cx.fillRect(player.x*T+6,player.y*T+6,T-12,T-12);
     cx.globalAlpha=1;
+  }
+  // darkness: reveal tiles near player, dim the rest
+  const R2=4.7*4.7;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const dx=x-player.x, dy=y-player.y, d2=dx*dx+dy*dy;
+    if(d2<R2) seen[y][x]=true;
+    if(!seen[y][x]){ cx.fillStyle='#05060c'; cx.fillRect(x*T,y*T,T,T); }
+    else if(d2>=R2){ cx.fillStyle='rgba(5,6,12,0.42)'; cx.fillRect(x*T,y*T,T,T); }
   }
   // player
   cx.fillStyle='#8f9'; cx.beginPath(); cx.arc(player.x*T+T/2,player.y*T+T/2,11,0,7); cx.fill();
