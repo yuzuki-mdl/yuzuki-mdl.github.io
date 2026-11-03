@@ -61,6 +61,23 @@ function step(){
       }
     }
   }
+  // blob-vs-blob: push points of different blobs apart so jellies squish instead of overlapping
+  const MD=17, MD2=MD*MD;
+  for(let i=0;i<blobs.length;i++){
+    const A=blobs[i].pts;
+    for(let j=i+1;j<blobs.length;j++){
+      const B=blobs[j].pts;
+      for(const a of A)for(const c of B){
+        let dx=c.x-a.x, dy=c.y-a.y; let d2=dx*dx+dy*dy;
+        if(d2>0 && d2<MD2){
+          const d=Math.sqrt(d2);
+          const push=(MD-d)/d*0.5;
+          const ox=dx*push, oy=dy*push;
+          a.x-=ox; a.y-=oy; c.x+=ox; c.y+=oy;
+        }
+      }
+    }
+  }
 }
 function draw(){
   cx.clearRect(0,0,W,H);
