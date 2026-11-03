@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>magnetic field</title>
+<style>
+  html,body{margin:0;height:100%;background:#04060c;overflow:hidden;touch-action:none}
+  canvas{display:block;width:100vw;height:100vh}
+  #hud{position:fixed;left:14px;bottom:12px;font:12px/1.5 ui-monospace,monospace;color:#5f7a9a;
+       pointer-events:none;user-select:none;letter-spacing:.02em}
+  #hud b{color:#8fb4de;font-weight:500}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">drag poles &nbsp;·&nbsp; tap empty = drop pole &nbsp;·&nbsp; <b>space</b> clear</div>
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;
+cv.width=W*DPR;cv.height=H*DPR;cx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',resize);
+
+// poles: {x,y,charge}  charge +1 = N (out), -1 = S (in)
+let poles=[];
+function init(){
+  poles=[
+    {x:W*0.38,y:H*0.5,q:1},
+    {x:W*0.62,y:H*0.5,q:-1}
+  ];
+}
+init();
+
+// field of the poles at point
+function field(px,py){
+  let fx=0,fy=0;
+  for(const p of poles){
+    let dx=px-p.x, dy=py-p.y;
+    let d2=dx*dx+dy*dy+40;
+    let d=Math.sqrt(d2);
+    let s=p.q/(d2);
+    fx+=dx/d*s; fy+=dy/d*s;
+  }
+  return [fx,fy];
+}
+
+// trace a field line from a start point
+function traceLine(sx,sy,dir){
+  const pts=[[sx,sy]];
+  let x=sx,y=sy;
+  const step=5, maxLen=900;
+  for(let i=0;i<maxLen;i++){
+    let [fx,fy]=field(x,y);
+    let m=Math.hypot(fx,fy);
+    if(m<1e-6) break;
+    fx/=m; fy/=m;
+    x+=fx*step*dir; y+=fy*step*dir;
+    pts.push([x,y]);
+    if(x<-60||x>W+60||y<-60||y>H+60) break;
+    // stop if we hit a pole
+    for(const p of poles){
+      if((x-p.x)**2+(y-p.y)**2 < 100) { pts.push([p.x,p.y]); return pts; }
+    }
+  }
+  return pts;
+}
+
+let t=0;
+function draw(){
+  t+=0.016;
+  cx.fillStyle='#04060c';
+  cx.fillRect(0,0,W,H);
+
+  // field lines from each pole
+  cx.lineWidth=1;
+  for(const p of poles){
+    const n=14;
+    for(let k=0;k<n;k++){
+      const a=(k/n)*Math.PI*2 + t*0.15*(p.q);
+      const r=14;
+      const sx=p.x+Math.cos(a)*r, sy=p.y+Math.sin(a)*r;
+      const line=traceLine(sx,sy,1);
+      // color by field strength roughly
+      const hue = p.q>0 ? 200 : 320;
+      cx.strokeStyle=`hsla(${hue},80%,60%,0.18)`;
+      cx.beginPath();
+      cx.moveTo(line[0][0],line[0][1]);
+      for(let i=1;i<line.length;i++) cx.lineTo(line[i][0],line[i][1]);
+      cx.stroke();
+    }
+  }
+
+  // drifting particles
+  cx.globalCompositeOperation='lighter';
+  for(let i=0;i<220;i++){
+    // deterministic-ish particle positions using time + index
+    let px=((i*97.13)%W);
+    let py=((i*53.71)%H);
+    // advect a bit using field (cheap fake) -> just offset by field direction * sin
+    let [fx,fy]=field(px,py);
+    let m=Math.hypot(fx,fy)||1;
+    let off=Math.sin(t*2+i)*6;
+    px+=fx/m*off; py+=fy/m*off;
+    let a=Math.min(0.7, m*600);
+    cx.fillStyle=`rgba(150,200,255,${a})`;
+    cx.fillRect(px,py,1.6,1.6);
+  }
+  cx.globalCompositeOperation='source-over';
+
+  // poles
+  for(const p of poles){
+    const col = p.q>0 ? '#4fa3ff' : '#ff5fa8';
+    let g=cx.createRadialGradient(p.x,p.y,0,p.x,p.y,26);
+    g.addColorStop(0,col);g.addColorStop(1,'transparent');
+    cx.fillStyle=g;cx.beginPath();cx.arc(p.x,p.y,26,0,7);cx.fill();
+    cx.fillStyle=col;cx.beginPath();cx.arc(p.x,p.y,9,0,7);cx.fill();
+    cx.fillStyle='#04060c';cx.font='bold 11px ui-monospace,monospace';
+    cx.textAlign='center';cx.textBaseline='middle';
+    cx.fillText(p.q>0?'N':'S',p.x,p.y+0.5);
+  }
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+
+// input
+touchAction();
+function touchAction(){}
+let drag=null;
+function pos(e){const r=cv.getBoundingClientRect();const p=e.touches?e.touches[0]:e;return {x:p.clientX-r.left,y:p.clientY-r.top};}
+cv.addEventListener('pointerdown',e=>{
+  const p=pos(e);
+  let hit=null;
+  for(const pl of poles){ if((p.x-pl.x)**2+(p.y-pl.y)**2<30*30){hit=pl;break;} }
+  if(hit){ drag=hit; }
+  else { poles.push({x:p.x,y:p.y,q:poles.length%2?1:-1}); }
+});
+cv.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const p=pos(e); drag.x=p.x; drag.y=p.y;
+});
+cv.addEventListener('pointerup',()=>drag=null);
+cv.addEventListener('pointercancel',()=>drag=null);
+addEventListener('keydown',e=>{ if(e.code==='Space'){e.preventDefault();init();} });
+</script>
+</body>
+</html>
