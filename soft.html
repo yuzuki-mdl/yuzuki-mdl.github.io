@@ -55,6 +55,19 @@ function step(){
         const ox=dx*diff,oy=dy*diff;
         a.x+=ox;a.y+=oy;c.x-=ox;c.y-=oy;
       }
+      // unfold: if a point is pinched past its neighbours (tangent reverses),
+      // ease it back toward their midpoint so the normal can't stay flipped
+      {
+        const n=b.pts.length-1;
+        for(let i=0;i<n;i++){
+          const p=b.pts[i],pr=b.pts[(i-1+n)%n],nx2=b.pts[(i+1)%n];
+          const t1x=p.x-pr.x,t1y=p.y-pr.y,t2x=nx2.x-p.x,t2y=nx2.y-p.y;
+          if(t1x*t2x+t1y*t2y<0){
+            p.x+=((pr.x+nx2.x)/2-p.x)*0.3;
+            p.y+=((pr.y+nx2.y)/2-p.y)*0.3;
+          }
+        }
+      }
       if(b.restArea){
         const n=b.pts.length-1;
         const area=polyArea(b.pts,n);
