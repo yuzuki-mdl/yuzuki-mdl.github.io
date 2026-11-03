@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>lenia</title>
+<style>
+  :root{--bg:#07080d;--fg:#dfe6ff;--dim:#5c6480;--acc:#6cf}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px/1.4 ui-monospace,monospace;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{image-rendering:pixelated;width:min(90vmin,720px);height:min(90vmin,720px);cursor:crosshair;touch-action:none;border-radius:8px}
+  #ui{position:fixed;left:12px;top:12px;display:flex;flex-direction:column;gap:6px;font-size:12px;pointer-events:none}
+  #ui > *{pointer-events:auto}
+  .row{display:flex;gap:8px;align-items:center;background:rgba(10,12,20,.6);padding:5px 8px;border-radius:6px;border:1px solid #1c2233}
+  button{font:inherit;background:#161c2c;color:var(--fg);border:1px solid #2a3348;border-radius:5px;padding:4px 8px;cursor:pointer}
+  button:hover{background:#1e2740}
+  input[type=range]{width:110px;accent-color:var(--acc)}
+  .lbl{color:var(--dim);min-width:64px}
+  #hint{position:fixed;right:12px;bottom:12px;color:var(--dim);font-size:11px;text-align:right;line-height:1.5}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas></div>
+<div id="ui">
+  <div class="row"><button id="play">pause</button><button id="clear">clear</button><button id="seed">seed</button></div>
+  <div class="row"><span class="lbl">mu</span><input id="mu" type="range" min="0.05" max="0.35" step="0.005" value="0.15"><span id="muv"></span></div>
+  <div class="row"><span class="lbl">sigma</span><input id="sig" type="range" min="0.005" max="0.05" step="0.001" value="0.03"><span id="sigv"></span></div>
+  <div class="row"><span class="lbl">dt</span><input id="dt" type="range" min="0.05" max="0.5" step="0.01" value="0.1"><span id="dtv"></span></div>
+</div>
+<div id="hint">drag to paint · click to seed a blob<br><a href="index.html">← home</a></div>
+<script>
+(() => {
+  const W = 160, H = 160;
+  const c = document.getElementById('c');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d', {alpha:false});
+  const img = ctx.createImageData(W, H);
+
+  // two-state lenia field: A (this frame), B (next)
+  let A = new Float32Array(W*H);
+  let B = new Float32Array(W*H);
+
+  // kernel: ring-shaped gaussian, radius R
+  const R = 13;
+  const kern = new Float32Array((2*R+1)*(2*R+1));
+  let ksum = 0;
+  for (let dy=-R; dy<=R; dy++) for (let dx=-R; dx<=R; dx++) {
+    const d = Math.sqrt(dx*dx+dy*dy) / R;
+    // ring peaked at d=0.5
+    const v = Math.exp(-((d-0.5)**2) / (2*0.15*0.15));
+    kern[(dy+R)*(2*R+1)+(dx+R)] = v;
+    ksum += v;
+  }
+  for (let i=0;i<kern.length;i++) kern[i] /= ksum;
+
+  let mu = 0.15, sigma = 0.03, dt = 0.1;
+  let running = true;
+
+  // growth function: gaussian bump around mu
+  function growth(u){
+    const x = (u - mu) / sigma;
+    return 2 * Math.exp(-0.5*x*x) - 1;
+  }
+
+  function idx(x,y){ return ((y+H)%H)*W + ((x+W)%W); }
+
+  function step(){
+    for (let y=0; y<H; y++){
+      for (let x=0; x<W; x++){
+        let u = 0;
+        // convolve
+        for (let dy=-R; dy<=R; dy++){
+          const ky = (dy+R)*(2*R+1);
+          for (let dx=-R; dx<=R; dx++){
+            u += A[idx(x+dx,y+dy)] * kern[ky+(dx+R)];
+          }
+        }
+        const a = A[idx(x,y)];
+        let na = a + dt * growth(u);
+        if (na < 0) na = 0; else if (na > 1) na = 1;
+        B[idx(x,y)] = na;
+      }
+    }
+    const t = A; A = B; B = t;
+  }
+
+  function render(){
+    const d = img.data;
+    for (let i=0; i<W*H; i++){
+      const a = A[i];
+      const j = i*4;
+      // gradient: dark blue → cyan → white
+      const r = Math.min(255, a*a*255 + a*30);
+      const g = Math.min(255, a*200 + a*a*80);
+      const b = Math.min(255, a*160 + a*a*140);
+      d[j]=r; d[j+1]=g; d[j+2]=b; d[j+3]=255;
+    }
+    ctx.putImageData(img,0,0);
+  }
+
+  let frame = 0;
+  function loop(){
+    if (running){
+      step();
+      render();
+      frame++;
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // seed a creature blob
+  function seedBlob(cx, cy, rad){
+    for (let y=-rad;y<=rad;y++) for (let x=-rad;x<=rad;x++){
+      const d = Math.sqrt(x*x+y*y);
+      if (d <= rad){
+        A[idx(cx+x, cy+y)] = Math.max(A[idx(cx+x,cy+y)], 1.0);
+      }
+    }
+  }
+
+  function randomSeed(){
+    A.fill(0);
+    const n = 2 + Math.floor(Math.random()*3);
+    for (let i=0;i<n;i++){
+      seedBlob(Math.floor(Math.random()*W), Math.floor(Math.random()*H), 5);
+    }
+    render();
+  }
+
+  // painting
+  let painting = false;
+  function paint(ev){
+    const rect = c.getBoundingClientRect();
+    const px = (ev.clientX - rect.left)/rect.width * W;
+    const py = (ev.clientY - rect.top)/rect.height * H;
+    seedBlob(Math.floor(px), Math.floor(py), 3);
+  }
+  c.addEventListener('pointerdown', e=>{ painting=true; c.setPointerCapture(e.pointerId); paint(e); });
+  c.addEventListener('pointermove', e=>{ if(painting) paint(e); });
+  c.addEventListener('pointerup', ()=>{ painting=false; });
+
+  // controls
+  const playBtn = document.getElementById('play');
+  playBtn.onclick = ()=>{ running=!running; playBtn.textContent = running?'pause':'play'; };
+  document.getElementById('clear').onclick = ()=>{ A.fill(0); B.fill(0); render(); };
+  document.getElementById('seed').onclick = randomSeed;
+
+  const muEl=document.getElementById('mu'), sigEl=document.getElementById('sig'), dtEl=document.getElementById('dt');
+  const muv=document.getElementById('muv'), sigv=document.getElementById('sigv'), dtv=document.getElementById('dtv');
+  function updLabels(){ muv.textContent=mu.toFixed(3); sigv.textContent=sigma.toFixed(3); dtv.textContent=dt.toFixed(2); }
+  muEl.oninput=()=>{ mu=+muEl.value; updLabels(); };
+  sigEl.oninput=()=>{ sigma=+sigEl.value; updLabels(); };
+  dtEl.oninput=()=>{ dt=+dtEl.value; updLabels(); };
+  updLabels();
+
+  randomSeed();
+  loop();
+})();
+</script>
+</body>
+</html>
