@@ -135,8 +135,10 @@ function genFloor(f){
   for(let i=0;i<nen;i++){
     let r=rooms[rnd(1,rooms.length)]||rooms[0];
     let ex=r.cx+rnd(-1,2), ey=r.cy+rnd(-1,2);
-    if(grid[ey]&&grid[ey][ex]===FLOOR && !(ex===player.x&&ey===player.y))
-      enemies.push({x:ex,y:ey,hp:2+Math.floor(f/2),dmg:1});
+    if(grid[ey]&&grid[ey][ex]===FLOOR && !(ex===player.x&&ey===player.y)){
+      const archer = f>=3 && Math.random()<0.4;
+      enemies.push({x:ex,y:ey,hp:2+Math.floor(f/2),dmg:1,type:archer?'archer':'slime'});
+    }
   }
   // boss guards the stairs on the last floor
   if(f>=MAXFLOOR){
@@ -187,7 +189,7 @@ function render(){
   // torches
   for(const t of torches){ cx.fillStyle='#6b4a12'; cx.fillRect(t.x*T+14,t.y*T+16,4,10); cx.fillStyle='#ffb020'; cx.beginPath(); cx.arc(t.x*T+16,t.y*T+12,6,0,7); cx.fill(); cx.fillStyle='#ffe680'; cx.beginPath(); cx.arc(t.x*T+16,t.y*T+11,3,0,7); cx.fill(); }
   // enemies
-  for(const e of enemies){ const R=e.boss?14:10; cx.fillStyle=e.boss?'#c33':'#e55'; cx.beginPath(); cx.arc(e.x*T+T/2,e.y*T+T/2,R,0,7); cx.fill(); cx.fillStyle='#300'; const o=e.boss?8:10; cx.fillRect(e.x*T+o,e.y*T+12,4,4); cx.fillRect(e.x*T+T-o-4,e.y*T+12,4,4); }
+  for(const e of enemies){ const R=e.boss?14:10; cx.fillStyle=e.boss?'#c33':(e.type==='archer'?'#7a4fd0':'#e55'); cx.beginPath(); cx.arc(e.x*T+T/2,e.y*T+T/2,R,0,7); cx.fill(); cx.fillStyle='#300'; const o=e.boss?8:10; cx.fillRect(e.x*T+o,e.y*T+12,4,4); cx.fillRect(e.x*T+T-o-4,e.y*T+12,4,4); if(e.type==='archer'){ cx.strokeStyle='#e8d0ff'; cx.lineWidth=2; cx.beginPath(); cx.arc(e.x*T+T/2,e.y*T+T/2,R-3,0,7); cx.stroke(); } }
   // map reveal overlay
   if(Date.now()<revealUntil){
     cx.globalAlpha=0.85; cx.fillStyle='#0b0d1a'; cx.fillRect(0,0,cv.width,cv.height);
@@ -226,7 +228,7 @@ function bumpEnemy(x,y){
 function playerMove(dx,dy){
   const nx=player.x+dx, ny=player.y+dy;
   const en=bumpEnemy(nx,ny);
-  if(en){ en.hp-=(player.atk||1)*2; if(en.hp<=0){ const ex=en.x, ey=en.y; const wasBoss=en.boss; enemies=enemies.filter(e=>e!==en); kills=(kills||0)+1; let drop=''; if(wasBoss){ keys.push({x:ex,y:ey}); drop=' + a key'; } else if(Math.random()<0.35){ potions.push({x:ex,y:ey}); drop=' + a potion'; } else if(Math.random()<0.12){ keys.push({x:ex,y:ey}); drop=' + a key'; } msg((wasBoss?'BOSS DOWN 🗝':'killed')+drop); } else msg('hit'); afterTurn(); return; }
+  if(en){ en.hp-=(player.atk||1)*2; if(en.hp<=0){ const ex=en.x, ey=en.y; const wasBoss=en.boss; const wasSlime=en.type==='slime'; enemies=enemies.filter(e=>e!==en); kills=(kills||0)+1; if(wasSlime && Math.random()<0.5){ for(const [ox,oy] of [[1,0],[-1,0],[0,1],[0,-1]]){ if(enemies.length>12) break; const sx2=ex+ox, sy2=ey+oy; if(grid[sy2]&&grid[sy2][sx2]===FLOOR && !bumpEnemy(sx2,sy2) && !(sx2===player.x&&sy2===player.y)) enemies.push({x:sx2,y:sy2,hp:1,dmg:1,type:'slime'}); } } let drop=''; if(wasBoss){ keys.push({x:ex,y:ey}); drop=' + a key'; } else if(Math.random()<0.35){ potions.push({x:ex,y:ey}); drop=' + a potion'; } else if(Math.random()<0.12){ keys.push({x:ex,y:ey}); drop=' + a key'; } msg((wasBoss?'BOSS DOWN 🗝':'killed')+drop); } else msg('hit'); afterTurn(); return; }
   if(!walkable(nx,ny)) return;
   player.x=nx; player.y=ny;
   // potion pickup
@@ -247,7 +249,9 @@ function playerMove(dx,dy){
 function afterTurn(){
   for(const e of enemies){
     const dx=player.x-e.x, dy=player.y-e.y;
-    if(Math.abs(dx)+Math.abs(dy)===1){ player.hp-=e.dmg; if(player.hp<=0){ lose(); return; } }
+    const dist=Math.abs(dx)+Math.abs(dy);
+    if(dist===1){ player.hp-=e.dmg; if(player.hp<=0){ lose(); return; } }
+    else if(e.type==='archer' && dist<=4 && Math.random()<0.6){ player.hp-=e.dmg; msg('an arrow hits u'); if(player.hp<=0){ lose(); return; } }
     else if(Math.random()<0.75){
       let mx=0,my=0;
       if(Math.abs(dx)>Math.abs(dy)) mx=dx>0?1:-1; else my=dy>0?1:-1;
