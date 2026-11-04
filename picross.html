@@ -154,28 +154,35 @@
     return out;
   }
   function doHint(){
-    let changed=false;
-    for(let y=0;y<N&&!changed;y++){
-      const cur=state[y].map(v=>v===1?1:(v===2?2:0));
-      const f=lineForced(rows[y],cur);
-      if(f&&!f.contradiction){
-        for(let x=0;x<N;x++){
-          if(f[x]===1&&state[y][x]!==1){state[y][x]=1;changed=true;}
-          else if(f[x]===0&&state[y][x]===0){state[y][x]=2;changed=true;}
+    let any=false;
+    // iterate to a fixpoint: each pass fills every cell forced by ANY line, then repeats,
+    // because new fills unlock more deductions. one click = all the easy logic.
+    for(let pass=0; pass<1; pass++){
+      let changed=false;
+      for(let y=0;y<N;y++){
+        const cur=state[y].map(v=>v===1?1:(v===2?2:0));
+        const f=lineForced(rows[y],cur);
+        if(f&&!f.contradiction){
+          for(let x=0;x<N;x++){
+            if(f[x]===1&&state[y][x]!==1){state[y][x]=1;changed=true;}
+            else if(f[x]===0&&state[y][x]===0){state[y][x]=2;changed=true;}
+          }
         }
       }
-    }
-    for(let x=0;x<N&&!changed;x++){
-      const cur=[];for(let y=0;y<N;y++)cur.push(state[y][x]===1?1:(state[y][x]===2?2:0));
-      const f=lineForced(cols[x],cur);
-      if(f&&!f.contradiction){
-        for(let y=0;y<N;y++){
-          if(f[y]===1&&state[y][x]!==1){state[y][x]=1;changed=true;}
-          else if(f[y]===0&&state[y][x]===0){state[y][x]=2;changed=true;}
+      for(let x=0;x<N;x++){
+        const cur=[];for(let y=0;y<N;y++)cur.push(state[y][x]===1?1:(state[y][x]===2?2:0));
+        const f=lineForced(cols[x],cur);
+        if(f&&!f.contradiction){
+          for(let y=0;y<N;y++){
+            if(f[y]===1&&state[y][x]!==1){state[y][x]=1;changed=true;}
+            else if(f[y]===0&&state[y][x]===0){state[y][x]=2;changed=true;}
+          }
         }
       }
+      if(!changed)break;
+      any=true;
     }
-    if(changed)render();
+    if(any)render();
     else statusEl.textContent='no forced cells — guess or clear something';
   }
   function paint(x,y,val){
