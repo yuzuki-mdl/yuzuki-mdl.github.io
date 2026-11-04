@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>dimple phase diagram</title>
+<style>
+  :root{--bg:#0b0f0d;--fg:#cfe9dc;--dim:#5c7a6c;}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+  body{padding:20px;max-width:960px;margin:0 auto;}
+  h1{font-size:15px;font-weight:600;letter-spacing:.5px;margin:0 0 4px;}
+  p.sub{margin:0 0 16px;color:var(--dim);font-size:12px;line-height:1.5;}
+  #grid{display:grid;grid-template-columns:88px repeat(7,1fr);gap:4px;}
+  .lab{font-size:11px;color:var(--dim);display:flex;align-items:center;justify-content:center;}
+  .cell{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;cursor:pointer;background:#0e1512;border:1px solid #1b2620;}
+  .cell canvas{width:100%;height:100%;display:block;}
+  .cell:hover{border-color:#3a5a48;}
+  .cell .tag{position:absolute;top:3px;left:4px;font-size:9px;color:#7fa08e;}
+  #big{position:fixed;inset:0;background:rgba(6,10,8,.92);display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:10;}
+  #big.on{display:flex;}
+  #bigc{width:min(80vw,560px);height:min(80vw,560px);background:#0e1512;border-radius:10px;border:1px solid #24382c;}
+  #bigt{font-size:12px;color:var(--dim);}
+  .hint{font-size:11px;color:var(--dim);margin-top:14px;}
+  .legend{display:flex;gap:14px;font-size:11px;color:var(--dim);margin:14px 0 0;align-items:center;}
+  .sw{width:12px;height:12px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-2px;}
+</style>
+</head>
+<body>
+<h1>dimple phase diagram</h1>
+<p class="sub">a soft blob squished between pins. rows = pin count, columns = pin spacing (px).<br>
+color = how much the outline keeps wobbling once it should've settled. green = calm, orange = chaotic. click a cell to open it big.</p>
+<div id="grid"></div>
+<div class="legend"><span><span class="sw" style="background:#3fd98a"></span>settled</span><span><span class="sw" style="background:#ffb020"></span>wobbling</span><span><span class="sw" style="background:#ff5c3c"></span>chaotic</span></div>
+<div class="hint">two chaotic bands: ~80px (pins just inside the blob edge, it keeps slipping between them) and 140px+ (pins at the edge, blob rattles loose). 60px and ~120px are calm — the blob locks in. more pins = more chaos overall.</div>
+<div id="big"><canvas id="bigc" width="560" height="560"></canvas><div id="bigt"></div></div>
+<script>
+const PR=34, DAMP=0.985, G=0.35, ITER=5;
+const SPACINGS=[60,80,100,120,140,160,180];
+const PINCOUNTS=[3,4,5,6];
+
+function polyArea(pts,n){let a=0;for(let i=0;i<n;i++){const p=pts[i],q=pts[(i+1)%n];a+=p.x*q.y-q.x*p.y;}return Math.abs(a)/2;}
+function makeBlob(cx0,cy0,r,n){const b={pts:[],springs:[]};for(let i=0;i<n;i++){const a=i/n*Math.PI*2;b.pts.push({x:cx0+Math.cos(a)*r,y:cy0+Math.sin(a)*r,px:cx0+Math.cos(a)*r,py:cy0+Math.sin(a)*r});}b.pts.push({x:cx0,y:cy0,px:cx0,py:cy0});const ci=n;b.restArea=polyArea(b.pts,n);for(let i=0;i<n;i++){const add=(ia,ib,st)=>{const a=b.pts[ia],c=b.pts[ib];b.springs.push({a:ia,b:ib,rest:Math.hypot(a.x-c.x,a.y-c.y),stiff:st});};add(i,(i+1)%n,1);add(i,(i+2)%n,0.6);add(i,ci,0.5);}return b;}
+
+class Sim{
+  constructor(W,H,spacing,pinCount){
+    this.W=W;this.H=H;
+    this.blob=makeBlob(W/2,H*0.42,88,16);
+    this.pins=[];
+    const ringR=spacing*(W/560);
+    for(let i=0;i<pinCount;i++){const a=-Math.PI/2+i/pinCount*Math.PI*2;this.pins.push({x:W/2+Math.cos(a)*ringR,y:H*0.42+Math.sin(a)*ringR});}
+    this.hist=[];
+  }
+  step(){
+    const W=this.W,H=this.H,b=this.blob,pins=this.pins;
+    const sc=W/560; // scale physics to canvas size
+    for(const p of b.pts){const vx=(p.x-p.px)*DAMP,vy=(p.y-p.py)*DAMP;p.px=p.x;p.py=p.y;p.x+=vx;p.y+=vy+G*sc;}
+    for(let k=0;k<ITER;k++){
+      for(const s of b.springs){const a=b.pts[s.a],c=b.pts[s.b];let dx=c.x-a.x,dy=c.y-a.y;let d=Math.hypot(dx,dy)||0.0001;const diff=(d-s.rest)/d*0.5*s.stiff;const ox=dx*diff,oy=dy*diff;a.x+=ox;a.y+=oy;c.x-=ox;c.y-=oy;}
+      const n=b.pts.length-1;
+      for(let i=0;i<n;i++){const p=b.pts[i],pr=b.pts[(i-1+n)%n],nx2=b.pts[(i+1)%n];const t1x=p.x-pr.x,t1y=p.y-pr.y,t2x=nx2.x-p.x,t2y=nx2.y-p.y;if(t1x*t2x+t1y*t2y<0){p.x+=((pr.x+nx2.x)/2-p.x)*0.3;p.y+=((pr.y+nx2.y)/2-p.y)*0.3;}}
+      if(b.restArea){const area=polyArea(b.pts,n);const pdiff=(b.restArea-area)/b.restArea;const force=Math.max(-0.6,Math.min(0.8,pdiff))*0.9*sc;for(let i=0;i<n;i++){const p=b.pts[i],pr=b.pts[(i-1+n)%n],nx2=b.pts[(i+1)%n];let tx=nx2.x-pr.x,ty=nx2.y-pr.y;let tl=Math.hypot(tx,ty)||0.0001;let nx=ty/tl,ny=-tx/tl;const cxb=b.pts[b.pts.length-1]||p;if((p.x-cxb.x)*nx+(p.y-cxb.y)*ny<0){nx=-nx;ny=-ny;}p.x+=nx*force;p.y+=ny*force;}}
+      for(const pin of pins){const rr=(PR+2)*sc;for(let i=0;i<n;i++){const p=b.pts[i];let dx=p.x-pin.x,dy=p.y-pin.y;let d=Math.hypot(dx,dy)||0.0001;if(d<rr){const kk=(rr-d);const nx=dx/d,ny=dy/d;p.x+=nx*kk;p.y+=ny*kk;const vx=p.x-p.px,vy=p.y-p.py;const vn=vx*nx+vy*ny;if(vn<0){p.px+=nx*vn;p.py+=ny*vn;}}}}
+      for(const p of b.pts){if(p.y>H-2){p.y=H-2;p.px+=(p.x-p.px)*0.5;}if(p.y<2){p.y=2;}if(p.x<2){p.x=2;}if(p.x>W-2){p.x=W-2;}}
+    }
+    if(Math.random()<0.06)this.kick();
+    const d=this.dent();
+    this.hist.push(d); if(this.hist.length>50)this.hist.shift();
+  }
+  dent(){const b=this.blob;const n=b.pts.length-1;const c=b.pts[b.pts.length-1];let maxR=0,minR=1e9;for(let i=0;i<n;i++){const d=Math.hypot(b.pts[i].x-c.x,b.pts[i].y-c.y);if(d>maxR)maxR=d;if(d<minR)minR=d;}return maxR-minR;}
+  chaos(){if(this.hist.length<12)return 0;const m=this.hist.reduce((a,b)=>a+b,0)/this.hist.length;let v=0;for(const x of this.hist)v+=(x-m)**2;return Math.sqrt(v/this.hist.length);}
+  kick(){const a=Math.random()*Math.PI*2, f=0.8;for(const p of this.blob.pts){p.x+=Math.cos(a)*f;p.y+=Math.sin(a)*f;}}
+}
+
+const grid=document.getElementById('grid');
+const cells=[];
+// header row
+let h=document.createElement('div');h.className='lab';h.textContent='pins\\gap';grid.appendChild(h);
+for(const sp of SPACINGS){const d=document.createElement('div');d.className='lab';d.textContent=sp;grid.appendChild(d);}
+const CW=88, CH=88;
+for(const pc of PINCOUNTS){
+  const rl=document.createElement('div');rl.className='lab';rl.textContent=pc+' pins';grid.appendChild(rl);
+  for(const sp of SPACINGS){
+    const cell=document.createElement('div');cell.className='cell';
+    const cv=document.createElement('canvas');cv.width=CW;cv.height=CH;cell.appendChild(cv);
+    const tag=document.createElement('div');tag.className='tag';cell.appendChild(tag);
+    grid.appendChild(cell);
+    const sim=new Sim(560,560,sp,pc);
+    cells.push({sim,cv,cell,tag,pc,sp,ctx:cv.getContext('2d')});
+  }
+}
+
+function colorFor(c){
+  // map chaos 0..~3 to green->orange->red
+  const t=Math.min(1,c/2.2);
+  if(t<0.5){const u=t*2;return `rgb(${Math.round(63+ (255-63)*u)},${Math.round(217-(217-176)*u)},${Math.round(138-(138-32)*u)})`;}
+  const u=(t-0.5)*2;return `rgb(255,${Math.round(176-(176-92)*u)},${Math.round(32+(60-32)*u)})`;
+}
+
+let frame=0;
+function tick(){
+  for(const c of cells){
+    c.sim.step();
+    const ctx=c.ctx,W=c.cv.width,H=c.cv.height;
+    const S=W/560;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,W,H);
+    ctx.setTransform(S,0,0,S,0,0);
+    // tint background by chaos
+    const ch=c.sim.chaos();
+    ctx.fillStyle=colorFor(ch);ctx.globalAlpha=0.10;ctx.fillRect(0,0,560,560);ctx.globalAlpha=1;
+    // pins
+    for(const pin of c.sim.pins){ctx.beginPath();ctx.arc(pin.x,pin.y,PR,0,7);ctx.fillStyle='rgba(255,176,32,0.10)';ctx.fill();ctx.lineWidth=1;ctx.strokeStyle='rgba(255,176,32,0.55)';ctx.stroke();}
+    // blob
+    const b=c.sim.blob,n=b.pts.length-1;
+    ctx.beginPath();ctx.moveTo(b.pts[0].x,b.pts[0].y);for(let i=1;i<n;i++)ctx.lineTo(b.pts[i].x,b.pts[i].y);ctx.closePath();
+    ctx.fillStyle='rgba(90,230,150,0.18)';ctx.fill();
+    ctx.lineWidth=1.4;ctx.strokeStyle='rgba(140,255,190,0.9)';ctx.stroke();
+    if(frame%15===0){c.tag.textContent=ch.toFixed(1);c.tag.style.color=colorFor(ch);}
+  }
+  frame++;
+  requestAnimationFrame(tick);
+}
+tick();
+
+// big view
+const big=document.getElementById('big'),bigc=document.getElementById('bigc'),bigt=document.getElementById('bigt');
+let bigSim=null;
+for(const c of cells){
+  c.cell.addEventListener('click',()=>{
+    big.classList.add('on');
+    bigSim=new Sim(560,560,c.sp,c.pc);
+    bigt.textContent=`${c.pc} pins · spacing ${c.sp}px`;
+  });
+}
+big.addEventListener('click',()=>{big.classList.remove('on');bigSim=null;});
+function bigTick(){
+  if(bigSim){
+    const W=560,H=560,ctx=bigc.getContext('2d');
+    bigSim.step();
+    ctx.clearRect(0,0,W,H);
+    for(const pin of bigSim.pins){ctx.beginPath();ctx.arc(pin.x,pin.y,PR,0,7);ctx.fillStyle='rgba(255,176,32,0.10)';ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='rgba(255,176,32,0.7)';ctx.stroke();ctx.beginPath();ctx.arc(pin.x,pin.y,3,0,7);ctx.fillStyle='rgba(255,200,80,0.9)';ctx.fill();}
+    const b=bigSim.blob,n=b.pts.length-1;
+    ctx.beginPath();ctx.moveTo(b.pts[0].x,b.pts[0].y);for(let i=1;i<n;i++)ctx.lineTo(b.pts[i].x,b.pts[i].y);ctx.closePath();
+    ctx.fillStyle='rgba(90,230,150,0.28)';ctx.fill();ctx.lineWidth=2.2;ctx.strokeStyle='rgba(140,255,190,0.9)';ctx.stroke();
+  }
+  requestAnimationFrame(bigTick);
+}
+bigTick();
+</script>
+</body>
+</html>
