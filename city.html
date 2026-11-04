@@ -48,6 +48,8 @@ function sky(tod){
 }
 
 let buildings=[];
+let parallax=0; // -1..1, eased toward mouse x
+let parTarget=0;
 function build(){
   seed=Math.floor(Math.random()*1e9);
   buildings=[];
@@ -101,9 +103,11 @@ function draw(){
   }
 
   // buildings back-to-front
+  const par=parallax; // -1..1 mouse offset
   const sorted=buildings.slice().sort((a,b)=>a.layer.shade-b.layer.shade);
   for(const b of sorted){
-    const bx=b.x*W, bw=b.w*W, bh=b.h*H;
+    const depthShift = (b.layer.shade-0.5)*W*0.04*par; // nearer layers shift more
+    const bx=b.x*W+depthShift, bw=b.w*W, bh=b.h*H;
     const top=H-bh;
     const base=sk.bot;
     const col= mix([10,14,28],base,0.15).map(c=>Math.round(c*b.layer.shade+8));
@@ -148,6 +152,8 @@ resize();
 addEventListener('resize',resize);
 document.getElementById('regen').addEventListener('click',()=>{build();draw();});
 document.getElementById('tod').addEventListener('input',draw);
+addEventListener('mousemove',e=>{parTarget=(e.clientX/W-0.5)*2;});
+(function loop(){parallax+=(parTarget-parallax)*0.06;if(Math.abs(parTarget-parallax)>0.001)draw();requestAnimationFrame(loop);})();
 </script>
 </body>
 </html>
