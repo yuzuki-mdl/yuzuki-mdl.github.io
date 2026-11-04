@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>brainfuck tape</title>
+<style>
+  :root{--bg:#0d0f14;--fg:#e8e6e3;--dim:#7a7f8a;--acc:#7fe0c0;--warn:#e07f9f}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+       display:flex;flex-direction:column;align-items:center;gap:14px;padding:18px}
+  h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.02em}
+  h1 span{color:var(--acc)}
+  p.sub{margin:0;color:var(--dim);font-size:12px;max-width:620px;text-align:center}
+  .wrap{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;max-width:820px;width:100%}
+  .col{display:flex;flex-direction:column;gap:10px;flex:1;min-width:300px}
+  textarea{background:#07090d;color:var(--fg);border:1px solid #2a303c;border-radius:10px;padding:12px;
+           font:13px/1.5 ui-monospace,monospace;resize:vertical;min-height:180px;width:100%}
+  textarea:focus{outline:none;border-color:var(--acc)}
+  .ctrl{display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:12px}
+  button{background:#1a1f28;color:var(--fg);border:1px solid #2a303c;border-radius:7px;padding:6px 12px;
+         font:inherit;font-size:12px;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  select{background:#1a1f28;color:var(--fg);border:1px solid #2a303c;border-radius:7px;padding:6px 8px;font:inherit;font-size:12px}
+  .tape{display:flex;gap:3px;overflow-x:auto;padding:8px;background:#07090d;border-radius:10px;border:1px solid #1a1f28;min-height:56px}
+  .cell{display:flex;flex-direction:column;align-items:center;gap:2px;flex:0 0 auto}
+  .cell .v{width:34px;height:34px;display:flex;align-items:center;justify-content:center;
+           border:1px solid #2a303c;border-radius:6px;font-size:11px;color:var(--dim);transition:.1s}
+  .cell.ptr .v{border-color:var(--acc);color:var(--acc);background:#0e1a17;box-shadow:0 0 0 1px var(--acc)}
+  .cell .i{font-size:9px;color:#3a404c}
+  .out{background:#07090d;border:1px solid #1a1f28;border-radius:10px;padding:12px;min-height:60px;
+       white-space:pre-wrap;word-break:break-word;font-size:13px;color:var(--acc)}
+  .stat{color:var(--dim);font-size:12px}
+  .stat b{color:var(--acc)}
+</style>
+</head>
+<body>
+<h1>brainfuck <span>tape</span></h1>
+<p class="sub">eight symbols, one infinite tape. + - &gt; &lt; move and change cells, . prints, , reads, [ ] loop. watch the pointer crawl.</p>
+<div class="wrap">
+  <div class="col">
+    <textarea id="prog" spellcheck="false"></textarea>
+    <div class="ctrl">
+      <select id="presets">
+        <option value="hello">hello world</option>
+        <option value="add">add two digits</option>
+        <option value="echo">echo input</option>
+        <option value="squares">squares</option>
+        <option value="clear">empty</option>
+      </select>
+      <button id="step">step</button>
+      <button id="run">run</button>
+      <button id="reset">reset</button>
+    </div>
+    <div class="stat" id="stat">pointer 0 · 0 steps</div>
+  </div>
+  <div class="col">
+    <div class="tape" id="tape"></div>
+    <div class="out" id="out"></div>
+  </div>
+</div>
+<script>
+const PRESETS={
+ hello:'++++++++[>++++[>++>+++>+++>+<<<<-]>+>+>->>+[<]<-]>>.>---.+++++++..+++.>>.<-.<.+++.------.--------.>>+.>++.',
+ add:',>,[<+>-]<------------------------------------------------.',
+ echo:',[.,]',
+ squares:'++++[>+++++<-]>[<+++++>-]+>++++++++[<+++++++++>-]++++++++[<++++++++>-]<++++++++.>++++++++[<++++++++>-]<+++++++.>++++++++[<++++++++>-]<++++++++.>++++++++[<++++++++>-]<+++++++++.',
+ clear:''
+};
+const prog=document.getElementById('prog'), tapeEl=document.getElementById('tape'),
+      outEl=document.getElementById('out'), statEl=document.getElementById('stat'),
+      presets=document.getElementById('presets');
+const TAPE=300, VIEW=24;
+let tape, p, ip, code, jump, out, steps, running=null;
+
+function compile(){
+  code=prog.value.replace(/[^+\-<>.,\[\]]/g,'');
+  jump={}; const st=[];
+  for(let i=0;i<code.length;i++){ if(code[i]=='[')st.push(i); else if(code[i]==']'){const j=st.pop(); jump[i]=j; jump[j]=i;} }
+}
+function reset(){
+  if(running){clearInterval(running);running=null;}
+  tape=new Uint8Array(TAPE); p=0; ip=0; out=''; steps=0; compile(); render();
+  prog.value=prog.value; // keep
+}
+function step(){
+  if(ip>=code.length){ stopRun(); return false; }
+  const c=code[ip]; steps++;
+  if(c=='+')tape[p]=(tape[p]+1)&255;
+  else if(c=='-')tape[p]=(tape[p]+255)&255;
+  else if(c=='>')p=Math.min(p+1,TAPE-1);
+  else if(c=='<')p=Math.max(p-1,0);
+  else if(c=='.')out+=String.fromCharCode(tape[p]);
+  else if(c==','){ const ch=prompt('input char (blank=0)'); tape[p]=ch?ch.charCodeAt(0)&255:0; }
+  else if(c=='[' && tape[p]==0)ip=jump[ip];
+  else if(c==']' && tape[p]!=0)ip=jump[ip];
+  ip++;
+  render();
+  return ip<code.length;
+}
+function render(){
+  let start=Math.max(0,p-6);
+  let html='';
+  for(let i=start;i<Math.min(TAPE,start+VIEW);i++){
+    html+=`<div class="cell${i==p?' ptr':''}"><div class="v">${tape[i]}</div><div class="i">${i}</div></div>`;
+  }
+  tapeEl.innerHTML=html;
+  outEl.textContent=out;
+  statEl.innerHTML=`pointer <b>${p}</b> · ${steps} steps · ip ${ip}/${code.length}`;
+  // keep pointer visible
+  const ptr=tapeEl.querySelector('.ptr'); if(ptr) ptr.scrollIntoView({inline:'center',block:'nearest'});
+}
+function stopRun(){ if(running){clearInterval(running);running=null;} document.getElementById('run').textContent='run'; }
+function run(){
+  if(running){ stopRun(); return; }
+  compile();
+  document.getElementById('run').textContent='pause';
+  running=setInterval(()=>{ if(!step()) stopRun(); }, 12);
+}
+document.getElementById('step').onclick=()=>{ stopRun(); step(); };
+document.getElementById('run').onclick=run;
+document.getElementById('reset').onclick=()=>{ reset(); document.getElementById('run').textContent='run'; };
+presets.onchange=()=>{ prog.value=PRESETS[presets.value]; reset(); document.getElementById('run').textContent='run'; };
+prog.value=PRESETS.hello;
+reset();
+</script>
+</body>
+</html>
