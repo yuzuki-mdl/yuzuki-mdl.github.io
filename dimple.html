@@ -85,7 +85,10 @@ function step(){
       for(let i=0;i<n;i++){
         const p=b.pts[i];
         let dx=p.x-pin.x,dy=p.y-pin.y;let d=Math.hypot(dx,dy)||0.0001;
-        if(d<rr){const k=(rr-d);p.x+=dx/d*k;p.y+=dy/d*k;}
+        if(d<rr){const k=(rr-d);const nx=dx/d,ny=dy/d;p.x+=nx*k;p.y+=ny*k;
+          // kill velocity heading into the pin so it cant tunnel through
+          const vx=p.x-p.px,vy=p.y-p.py;const vn=vx*nx+vy*ny;
+          if(vn<0){p.px+=nx*vn;p.py+=ny*vn;}}
       }
     }
     // walls
