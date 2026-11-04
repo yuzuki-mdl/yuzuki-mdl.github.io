@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>mines — yūzuki</title>
+<link rel="stylesheet" href="style.css">
+<style>
+:root{--cell:28px}
+body{display:flex;flex-direction:column;align-items:center;gap:14px;padding:20px;font-family:ui-monospace,monospace}
+h1{font-size:18px;margin:0;font-weight:600}
+.bar{display:flex;gap:14px;align-items:center;font-size:14px}
+.bar b{font-variant-numeric:tabular-nums}
+#grid{display:grid;gap:2px;user-select:none;touch-action:manipulation}
+.c{width:var(--cell);height:var(--cell);background:#2a2d34;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:700;cursor:pointer;transition:background .08s}
+.c:hover{background:#353a44}
+.c.open{background:#1a1c21;cursor:default}
+.c.open:hover{background:#1a1c21}
+.c.flag{background:#3a2f22;color:#e8b44a}
+.c.mine{background:#5a1f1f}
+.c.boom{background:#c0392b}
+n1{color:#5aa9e8}n2{color:#5fd37a}n3{color:#e86a6a}n4{color:#b07ae8}n5{color:#e8b44a}n6{color:#4fd3c4}n7{color:#ccc}n8{color:#888}
+.c[data-n="1"]{color:#5aa9e8}.c[data-n="2"]{color:#5fd37a}.c[data-n="3"]{color:#e86a6a}.c[data-n="4"]{color:#b07ae8}.c[data-n="5"]{color:#e8b44a}.c[data-n="6"]{color:#4fd3c4}.c[data-n="7"]{color:#ccc}.c[data-n="8"]{color:#888}
+button{background:#2a2d34;color:#ddd;border:0;padding:7px 14px;border-radius:6px;font:inherit;font-size:13px;cursor:pointer}
+button:hover{background:#353a44}
+#msg{font-size:14px;min-height:20px;color:#9aa}
+.face{font-size:22px;cursor:pointer;background:none;padding:0 6px}
+</style>
+</head>
+<body>
+<h1>mines</h1>
+<div class="bar">
+  <button class="face" id="face" title="new game">🙂</button>
+  <span>💣 <b id="left">0</b></span>
+  <span>⏱ <b id="time">0</b></span>
+  <span><button id="diff">medium</button></span>
+</div>
+<div id="grid"></div>
+<div id="msg">left click reveal · right click flag</div>
+<script>
+const DIFFS={small:[9,9,10],medium:[16,16,40],big:[24,18,80]};
+let W,H,M,cells,started,dead,won,revealed,flags,timer,t0;
+let diff='medium';
+const gridEl=document.getElementById('grid'),leftEl=document.getElementById('left'),timeEl=document.getElementById('time'),msgEl=document.getElementById('msg'),faceEl=document.getElementById('face');
+
+function idx(x,y){return y*W+x}
+function nb(x,y){const r=[];for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;const nx=x+dx,ny=y+dy;if(nx>=0&&nx<W&&ny>=0&&ny<H)r.push(idx(nx,ny));}return r}
+
+function newGame(){
+  [W,H,M]=DIFFS[diff];
+  cells=Array.from({length:W*H},()=>({mine:false,n:0,open:false,flag:false}));
+  started=dead=won=false;revealed=0;flags=0;
+  clearInterval(timer);timeEl.textContent='0';leftEl.textContent=M;
+  msgEl.textContent='left click reveal · right click flag';
+  faceEl.textContent='🙂';
+  gridEl.style.gridTemplateColumns=`repeat(${W},var(--cell))`;
+  gridEl.innerHTML='';
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const d=document.createElement('div');d.className='c';d.dataset.i=idx(x,y);
+    d.addEventListener('contextmenu',e=>{e.preventDefault();flag(idx(x,y))});
+    d.addEventListener('click',()=>reveal(idx(x,y)));
+    gridEl.appendChild(d);
+  }
+}
+
+function plant(safe){
+  const banned=new Set([safe,...nb(safe%W,Math.floor(safe/W))]);
+  const pool=[];for(let i=0;i<W*H;i++)if(!banned.has(i))pool.push(i);
+  for(let i=pool.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[pool[i],pool[j]]=[pool[j],pool[i]]}
+  for(let k=0;k<M;k++)cells[pool[k]].mine=true;
+  for(let i=0;i<W*H;i++){const x=i%W,y=Math.floor(i/W);cells[i].n=nb(x,y).filter(j=>cells[j].mine).length}
+  started=true;t0=Date.now();timer=setInterval(()=>timeEl.textContent=Math.floor((Date.now()-t0)/1000),250);
+}
+
+function reveal(i){
+  if(dead||won||cells[i].open||cells[i].flag)return;
+  if(!started)plant(i);
+  const c=cells[i];
+  if(c.mine){boom(i);return}
+  flood(i);
+  checkWin();
+}
+
+function flood(i){
+  const stack=[i];
+  while(stack.length){
+    const k=stack.pop(),c=cells[k];
+    if(c.open||c.flag||c.mine)continue;
+    c.open=true;revealed++;
+    const el=gridEl.children[k];el.classList.add('open');
+    if(c.n){el.textContent=c.n;el.dataset.n=c.n}
+    else for(const j of nb(k%W,Math.floor(k/W)))if(!cells[j].open)stack.push(j);
+  }
+}
+
+function flag(i){
+  if(dead||won||cells[i].open)return;
+  const c=cells[i];c.flag=!c.flag;
+  gridEl.children[i].classList.toggle('flag',c.flag);
+  gridEl.children[i].textContent=c.flag?'🚩':'';
+  flags+=c.flag?1:-1;leftEl.textContent=Math.max(0,M-flags);
+}
+
+function boom(i){
+  dead=true;clearInterval(timer);faceEl.textContent='💀';
+  cells[i].open=true;gridEl.children[i].classList.add('open','boom');gridEl.children[i].textContent='💣';
+  for(let k=0;k<W*H;k++)if(cells[k].mine&&k!==i){const el=gridEl.children[k];el.classList.add('open','mine');el.textContent='💣'}
+  msgEl.textContent='boom. click the face to retry';
+}
+
+function checkWin(){
+  if(revealed===W*H-M){
+    won=true;clearInterval(timer);faceEl.textContent='😎';
+    for(let k=0;k<W*H;k++)if(cells[k].mine&&!cells[k].flag){cells[k].flag=true;gridEl.children[k].classList.add('flag');gridEl.children[k].textContent='🚩'}
+    leftEl.textContent='0';
+    msgEl.textContent=`cleared in ${timeEl.textContent}s 🎉`;
+  }
+}
+
+faceEl.addEventListener('click',newGame);
+document.getElementById('diff').addEventListener('click',e=>{
+  const order=['small','medium','big'];
+  diff=order[(order.indexOf(diff)+1)%3];
+  e.target.textContent=diff;
+  newGame();
+});
+newGame();
+</script>
+</body>
+</html>
