@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang=en>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width,initial-scale=1'>
+<title>voronoi</title>
+<style>
+  :root{--bg:#0b0d12;--fg:#e8e6e0;--dim:#6b7280;--acc:#7dd3fc}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+    font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+  body{display:flex;flex-direction:column;align-items:center;padding:16px;gap:12px}
+  h1{font-size:15px;font-weight:500;margin:0;letter-spacing:.04em;color:var(--dim)}
+  h1 b{color:var(--fg)}
+  canvas{background:#05070a;border-radius:8px;box-shadow:0 0 0 1px #1f2430,0 20px 60px -20px #000;touch-action:none;cursor:crosshair}
+  .bar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:center;font-size:12px;color:var(--dim)}
+  button{background:#151a24;color:var(--fg);border:1px solid #242c3a;border-radius:6px;
+    padding:6px 12px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{border-color:#3a4458;background:#1a2130}
+  label{display:flex;gap:6px;align-items:center}
+  input[type=range]{width:90px;accent-color:var(--acc)}
+  input[type=checkbox]{accent-color:var(--acc)}
+  .hint{font-size:11px;color:#4b5563}
+</style>
+</head>
+<body>
+<h1>voronoi <b>cells</b></h1>
+<canvas id=c width=640 height=640></canvas>
+<div class=bar>
+  <button id=add>add 20</button>
+  <button id=clear>clear</button>
+  <button id=scatter>scatter</button>
+  <label>points <input id=npts type=range min=5 max=300 value=60 step=1><span id=nptsv>60</span></label>
+  <label><input id=showbis type=checkbox> bisectors</label>
+  <label><input id=showpts type=checkbox checked> points</label>
+</div>
+<div class=hint>drag points &nbsp;·&nbsp; click empty space to add</div>
+<script>
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+let pts = [];
+let drag = -1;
+
+function scatter(n){
+  pts = [];
+  for (let i=0;i<n;i++) pts.push({x:Math.random()*W, y:Math.random()*H});
+}
+
+// clip polygon (array of {x,y}) by half-plane kept where: (p - a) . n <= 0 (inside = closer to a)
+// for voronoi: point p is in cell of a if for all b: dist(p,a) <= dist(p,b)
+// that's the half-plane: (b-a).p <= (|b|^2-|a|^2)/2  -> keep where dot(p, b-a) <= c
+function clipPoly(poly, a, b){
+  const dx = b.x-a.x, dy = b.y-a.y;
+  const c = (b.x*b.x+b.y*b.y - a.x*a.x - a.y*a.y)/2;
+  // keep side: dx*px + dy*py <= c
+  const out = [];
+  for (let i=0;i<poly.length;i++){
+    const p = poly[i], q = poly[(i+1)%poly.length];
+    const dp = dx*p.x + dy*p.y - c;
+    const dq = dx*q.x + dy*q.y - c;
+    const pin = dp <= 1e-9, qin = dq <= 1e-9;
+    if (pin) out.push(p);
+    if (pin !== qin){
+      const t = dp/(dp-dq);
+      out.push({x:p.x + (q.x-p.x)*t, y:p.y + (q.y-p.y)*t});
+    }
+  }
+  return out;
+}
+
+function voronoiCell(a){
+  let poly = [{x:-1e4,y:-1e4},{x:W+1e4,y:-1e4},{x:W+1e4,y:H+1e4},{x:-1e4,y:H+1e4}];
+  for (const b of pts){
+    if (b === a) continue;
+    poly = clipPoly(poly, a, b);
+    if (poly.length < 3) return null;
+  }
+  return poly;
+}
+
+function hue(i){ return (i*47.3) % 360; }
+
+function draw(){
+  ctx.fillStyle = '#05070a';
+  ctx.fillRect(0,0,W,H);
+  const showbis = document.getElementById('showbis').checked;
+  const showpts = document.getElementById('showpts').checked;
+
+  // draw cells
+  for (let i=0;i<pts.length;i++){
+    const poly = voronoiCell(pts[i]);
+    if (!poly) continue;
+    ctx.beginPath();
+    ctx.moveTo(poly[0].x, poly[0].y);
+    for (let k=1;k<poly.length;k++) ctx.lineTo(poly[k].x, poly[k].y);
+    ctx.closePath();
+    const h = hue(i);
+    ctx.fillStyle = `hsla(${h},55%,${i===drag?30:20}%,0.85)`;
+    ctx.fill();
+    ctx.strokeStyle = `hsla(${h},70%,55%,0.55)`;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  // bisectors from hovered/dragged point to nearest few
+  if (showbis && pts.length){
+    const src = drag>=0 ? pts[drag] : null;
+    if (src){
+      const near = pts.map((p,i)=>({i,d:(p.x-src.x)**2+(p.y-src.y)**2})).filter(o=>o.i!==pts.indexOf(src)).sort((a,b)=>a.d-b.d).slice(0,6);
+      ctx.setLineDash([4,4]);
+      for (const o of near){
+        const b = pts[o.i];
+        const dx=b.x-src.x, dy=b.y-src.y, c=(b.x*b.x+b.y*b.y-src.x*src.x-src.y*src.y)/2;
+        // line: dx*x+dy*y=c ; draw across canvas
+        const mx=(src.x+b.x)/2, my=(src.y+b.y)/2;
+        // perpendicular dir
+        const px=-dy, py=dx; const L=Math.hypot(px,py)||1;
+        ctx.beginPath();
+        ctx.moveTo(mx - px/L*2000, my - py/L*2000);
+        ctx.lineTo(mx + px/L*2000, my + py/L*2000);
+        ctx.strokeStyle='rgba(125,211,252,0.35)';
+        ctx.lineWidth=1; ctx.stroke();
+      }
+      ctx.setLineDash([]);
+    }
+  }
+
+  // points
+  if (showpts){
+    for (let i=0;i<pts.length;i++){
+      const p = pts[i];
+      ctx.beginPath();
+      ctx.arc(p.x,p.y, i===drag?6:3.5, 0, 7);
+      ctx.fillStyle = i===drag ? '#7dd3fc' : '#e8e6e0';
+      ctx.fill();
+    }
+  }
+}
+
+function hit(x,y){
+  let best=-1, bd=144;
+  for (let i=0;i<pts.length;i++){
+    const d=(pts[i].x-x)**2+(pts[i].y-y)**2;
+    if (d<bd){bd=d;best=i;}
+  }
+  return best;
+}
+
+function pos(e){
+  const r = cv.getBoundingClientRect();
+  const sx = cv.width/r.width, sy = cv.height/r.height;
+  return {x:(e.clientX-r.left)*sx, y:(e.clientY-r.top)*sy};
+}
+
+cv.addEventListener('pointerdown', e=>{
+  const {x,y} = pos(e);
+  const h = hit(x,y);
+  if (h>=0){ drag=h; cv.setPointerCapture(e.pointerId); }
+  else { pts.push({x,y}); }
+  draw();
+});
+cv.addEventListener('pointermove', e=>{
+  if (drag<0) return;
+  const {x,y} = pos(e);
+  pts[drag].x = Math.max(0,Math.min(W,x));
+  pts[drag].y = Math.max(0,Math.min(H,y));
+  draw();
+});
+cv.addEventListener('pointerup', e=>{ drag=-1; draw(); });
+
+// controls
+function setN(n){ document.getElementById('npts').value=n; document.getElementById('nptsv').textContent=n; }
+function syncFromSlider(){
+  const n = +document.getElementById('npts').value;
+  if (n < pts.length) pts = pts.slice(0,n);
+  else while (pts.length < n) pts.push({x:Math.random()*W,y:Math.random()*H});
+  draw();
+}
+document.getElementById('npts').oninput = e=>{ document.getElementById('nptsv').textContent=e.target.value; syncFromSlider(); };
+document.getElementById('add').onclick = ()=>{ for(let i=0;i<20;i++)pts.push({x:Math.random()*W,y:Math.random()*H}); setN(Math.min(300,pts.length)); draw(); };
+document.getElementById('clear').onclick = ()=>{ pts=[]; setN(5); draw(); };
+document.getElementById('scatter').onclick = ()=>{ scatter(+document.getElementById('npts').value); draw(); };
+document.getElementById('showbis').onchange = draw;
+document.getElementById('showpts').onchange = draw;
+
+scatter(60);
+draw();
+</script>
+</body>
+</html>
