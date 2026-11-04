@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>reaction-diffusion — yuzuki</title>
+<style>
+  :root{ --bg:#0f0f14; --fg:#e8e6f0; --dim:#8b8899; --acc:#7bd88f; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  a{color:var(--acc)}
+  main{max-width:960px;margin:0 auto;padding:24px 18px 60px}
+  h1{font-size:20px;font-weight:600;letter-spacing:.02em;margin:0 0 4px}
+  p.sub{color:var(--dim);font-size:13px;margin:0 0 18px;line-height:1.5}
+  #wrap{position:relative;border:1px solid #26242f;border-radius:10px;overflow:hidden;line-height:0;background:#000}
+  canvas{width:100%;height:auto;display:block;cursor:crosshair;touch-action:none}
+  .ctrl{display:flex;flex-wrap:wrap;gap:14px 20px;align-items:center;margin-top:16px;font-size:12px;color:var(--dim)}
+  .ctrl label{display:flex;flex-direction:column;gap:4px}
+  .ctrl .val{color:var(--fg)}
+  input[type=range]{width:120px;accent-color:var(--acc)}
+  button{background:#1b1922;color:var(--fg);border:1px solid #322f3d;border-radius:6px;padding:7px 12px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  button.on{border-color:var(--acc);color:var(--acc)}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  footer{margin-top:26px;font-size:12px;color:var(--dim)}
+</style>
+</head>
+<body>
+<main>
+  <h1>reaction-diffusion</h1>
+  <p class="sub">gray-scott. two chemicals diffuse and react; where the feed rate is just right they self-organise into spots, worms and coral. drag to seed the dish.</p>
+  <div id="wrap"><canvas id="cv" width="300" height="300"></canvas></div>
+  <div class="ctrl">
+    <label>feed <span class="val" id="fV">0.037</span><input type="range" id="feed" min="0.010" max="0.060" step="0.001" value="0.037"></label>
+    <label>kill <span class="val" id="kV">0.060</span><input type="range" id="kill" min="0.040" max="0.070" step="0.001" value="0.060"></label>
+    <label>speed <span class="val" id="sV">8</span><input type="range" id="speed" min="1" max="30" step="1" value="8"></label>
+    <div class="row">
+      <button id="seed">seed</button>
+      <button id="clear">clear</button>
+      <button id="presetA">spots</button>
+      <button id="presetB">worms</button>
+      <button id="presetC">coral</button>
+    </div>
+  </div>
+  <footer>click / drag the dish to drop chemical · <a href="index.html">← back home</a></footer>
+</main>
+<script>
+(() => {
+  const N = 300;                 // grid resolution
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  cv.width = N; cv.height = N;
+  const img = ctx.createImageData(N, N);
+  const A = new Float32Array(N*N), B = new Float32Array(N*N);
+  const A2 = new Float32Array(N*N), B2 = new Float32Array(N*N);
+  let feed = 0.037, kill = 0.060, speed = 8;
+  const Da = 1.0, Db = 0.5, dt = 1.0;
+
+  const idx = (x,y) => y*N + x;
+  const clampX = x => (x+N)%N, clampY = y => (y+N)%N;
+
+  function clear(){ A.fill(1); B.fill(0); }
+  function seed(){ for(let i=0;i<A.length;i++){ if(Math.random()<0.5){ A[i]=1; B[i]=1; } } }
+  function splat(cx, cy, r){ for(let y=-r;y<=r;y++)for(let x=-r;x<=r;x++){ if(x*x+y*y>r*r) continue; const i=idx(clampX(cx+x),clampY(cy+y)); B[i]=1; A[i]=0.0; } }
+
+  function step(){
+    for(let y=0;y<N;y++){
+      const ym=clampY(y-1), yp=clampY(y+1);
+      for(let x=0;x<N;x++){
+        const xm=clampX(x-1), xp=clampX(x+1);
+        const i=idx(x,y);
+        const a=A[i], b=B[i];
+        // laplacian (9-point-ish, weighted)
+        const lapA = 0.2*(A[idx(xm,y)]+A[idx(xp,y)]+A[idx(x,ym)]+A[idx(x,yp)]) + 0.05*(A[idx(xm,ym)]+A[idx(xp,ym)]+A[idx(xm,yp)]+A[idx(xp,yp)]) - a;
+        const lapB = 0.2*(B[idx(xm,y)]+B[idx(xp,y)]+B[idx(x,ym)]+B[idx(x,yp)]) + 0.05*(B[idx(xm,ym)]+B[idx(xp,ym)]+B[idx(xm,yp)]+B[idx(xp,yp)]) - b;
+        const ab2 = a*b*b;
+        A2[i] = a + (Da*lapA - ab2 + feed*(1-a))*dt;
+        B2[i] = b + (Db*lapB + ab2 - (kill+feed)*b)*dt;
+      }
+    }
+    A.set(A2); B.set(B2);
+  }
+
+  function draw(){
+    const d = img.data;
+    for(let i=0;i<A.length;i++){
+      let v = A[i]-B[i];
+      v = Math.max(0, Math.min(1, v));
+      // green->teal->dark ramp
+      const r = Math.floor(20 + 60*v);
+      const g = Math.floor(30 + 210*v);
+      const bl = Math.floor(40 + 90*v);
+      const p = i*4;
+      d[p]=r; d[p+1]=g; d[p+2]=bl; d[p+3]=255;
+    }
+    ctx.putImageData(img,0,0);
+  }
+
+  let running = true;
+  function loop(){
+    if(running){ for(let s=0;s<speed;s++) step(); draw(); }
+    requestAnimationFrame(loop);
+  }
+
+  // painting
+  let painting=false;
+  function toGrid(ev){
+    const r = cv.getBoundingClientRect();
+    const x = Math.floor((ev.clientX-r.left)/r.width*N);
+    const y = Math.floor((ev.clientY-r.top)/r.height*N);
+    return [x,y];
+  }
+  cv.addEventListener('pointerdown', e=>{ painting=true; const [x,y]=toGrid(e); splat(x,y,4); });
+  cv.addEventListener('pointermove', e=>{ if(!painting) return; const [x,y]=toGrid(e); splat(x,y,3); });
+  window.addEventListener('pointerup', ()=> painting=false);
+
+  // controls
+  const fV=document.getElementById('fV'), kV=document.getElementById('kV'), sV=document.getElementById('sV');
+  document.getElementById('feed').addEventListener('input', e=>{ feed=+e.target.value; fV.textContent=feed.toFixed(3); });
+  document.getElementById('kill').addEventListener('input', e=>{ kill=+e.target.value; kV.textContent=kill.toFixed(3); });
+  document.getElementById('speed').addEventListener('input', e=>{ speed=+e.target.value; sV.textContent=speed; });
+  document.getElementById('seed').addEventListener('click', seed);
+  document.getElementById('clear').addEventListener('click', clear);
+
+  function setPreset(f,k){ feed=f; kill=k; document.getElementById('feed').value=f; document.getElementById('kill').value=k; fV.textContent=f.toFixed(3); kV.textContent=k.toFixed(3); }
+  document.getElementById('presetA').addEventListener('click', ()=> setPreset(0.030,0.062)); // spots
+  document.getElementById('presetB').addEventListener('click', ()=> setPreset(0.055,0.062)); // worms
+  document.getElementById('presetC').addEventListener('click', ()=> setPreset(0.054,0.062)); // coral / mitosis
+
+  clear();
+  // initial scattered blobs
+  for(let k=0;k<40;k++){ splat(Math.floor(Math.random()*N), Math.floor(Math.random()*N), 3); }
+  loop();
+})();
+</script>
+</body>
+</html>
