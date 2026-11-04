@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>theremin</title>
+<style>
+  :root{--bg:#0b0d10;--fg:#e6e6e6;--dim:#5a6472;--acc:#7ee0c0}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px/1.4 ui-monospace,Menlo,monospace;overflow:hidden;-webkit-user-select:none;user-select:none}
+  h1{font-size:15px;font-weight:400;letter-spacing:.3em;color:var(--dim);margin:0}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  header{padding:14px 18px 8px;display:flex;gap:14px;align-items:baseline}
+  #hint{color:var(--dim);font-size:12px}
+  #stage{flex:1;position:relative;cursor:crosshair;touch-action:none}
+  canvas{display:block;width:100%;height:100%}
+  #readout{position:absolute;left:18px;bottom:14px;color:var(--dim);font-size:12px;pointer-events:none}
+  #readout b{color:var(--acc);font-weight:400}
+  .dot{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;background:var(--acc);box-shadow:0 0 14px var(--acc);pointer-events:none;opacity:0;transition:opacity .15s}
+  .dot.on{opacity:.9}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header><h1>THEREMIN</h1><span id="hint">move the mouse — x = pitch, y = volume</span></header>
+  <div id="stage"><canvas id="c"></canvas><div class="dot" id="dot"></div>
+    <div id="readout">freq <b id="f">—</b> hz · vol <b id="v">—</b></div>
+  </div>
+</div>
+<script>
+(() => {
+  const stage = document.getElementById('stage');
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+  const dot = document.getElementById('dot');
+  const fEl = document.getElementById('f'), vEl = document.getElementById('v');
+
+  let W = 0, H = 0, dpr = 1;
+  function resize(){
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = stage.clientWidth; H = stage.clientHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  resize();
+  addEventListener('resize', resize);
+
+  // ---- audio ----
+  let ac = null, osc = null, gain = null, analyser = null, data = null;
+  let target = { f: 220, v: 0 };
+  let cur = { f: 220, v: 0 };
+  let active = false;
+
+  function initAudio(){
+    if (ac) return;
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    osc = ac.createOscillator();
+    osc.type = 'sine';
+    gain = ac.createGain();
+    gain.gain.value = 0;
+    analyser = ac.createAnalyser();
+    analyser.fftSize = 2048;
+    data = new Uint8Array(analyser.fftSize);
+    osc.connect(gain);
+    gain.connect(analyser);
+    analyser.connect(ac.destination);
+    osc.frequency.value = cur.f;
+    osc.start();
+  }
+
+  // x -> pitch (log scale), y -> volume
+  function mapPos(clientX, clientY){
+    const r = stage.getBoundingClientRect();
+    const px = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    const py = Math.min(1, Math.max(0, (clientY - r.top) / r.height));
+    const fmin = 55, fmax = 1760; // A1..A6
+    target.f = fmin * Math.pow(fmax / fmin, px);
+    target.v = (1 - py) * 0.35; // cap volume
+    dot.style.left = (px * 100) + '%';
+    dot.style.top = (py * 100) + '%';
+  }
+
+  function onDown(e){
+    initAudio();
+    if (ac.state === 'suspended') ac.resume();
+    active = true;
+    dot.classList.add('on');
+    const p = e.touches ? e.touches[0] : e;
+    mapPos(p.clientX, p.clientY);
+  }
+  function onMove(e){
+    if (!active) return;
+    e.preventDefault();
+    const p = e.touches ? e.touches[0] : e;
+    mapPos(p.clientX, p.clientY);
+  }
+  function onUp(){
+    active = false;
+    dot.classList.remove('on');
+    target.v = 0;
+  }
+
+  stage.addEventListener('mousedown', onDown);
+  addEventListener('mousemove', onMove);
+  addEventListener('mouseup', onUp);
+  stage.addEventListener('touchstart', onDown, {passive:false});
+  addEventListener('touchmove', onMove, {passive:false});
+  addEventListener('touchend', onUp);
+  // keyboard: hold space to glide a slow sweep? keep simple, no.
+
+  // ---- draw ----
+  function drawWave(){
+    ctx.clearRect(0,0,W,H);
+    // faint grid
+    ctx.strokeStyle = 'rgba(90,100,114,0.10)';
+    ctx.lineWidth = 1;
+    const gx = 60, gy = 60;
+    for (let x = 0; x < W; x += gx){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+    for (let y = 0; y < H; y += gy){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+    if (!analyser) return;
+    analyser.getByteTimeDomainData(data);
+    ctx.beginPath();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#7ee0c0';
+    const mid = H/2;
+    const amp = H * 0.38 * (cur.v / 0.35 || 0);
+    for (let i = 0; i < data.length; i++){
+      const x = (i / (data.length-1)) * W;
+      const y = mid + ((data[i] - 128) / 128) * amp;
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+
+  // ---- loop ----
+  function tick(){
+    // smooth toward target
+    cur.f += (target.f - cur.f) * 0.18;
+    cur.v += (target.v - cur.v) * 0.18;
+    if (osc){
+      osc.frequency.setTargetAtTime(cur.f, ac.currentTime, 0.01);
+      gain.gain.setTargetAtTime(cur.v, ac.currentTime, 0.02);
+    }
+    if (cur.v > 0.001){
+      fEl.textContent = Math.round(cur.f);
+      vEl.textContent = (cur.v / 0.35 * 100).toFixed(0) + '%';
+    }
+    drawWave();
+    requestAnimationFrame(tick);
+  }
+  tick();
+})();
+</script>
+</body>
+</html>
