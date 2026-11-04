@@ -208,11 +208,17 @@
     checkWin();
   }
   function checkWin(){
+    // a board is solved when every line's filled runs match its clues — the stored
+    // picture is only one of possibly several valid solutions, so don't compare to it
     let ok=true;
-    for(let y=0;y<N;y++)for(let x=0;x<N;x++){
-      const want=sol[y][x];
-      const have=state[y][x]===1?1:0;
-      if(want!==have){ok=false;break;}
+    for(let y=0;y<N&&ok;y++){
+      const c=cluesLine(state[y].map(v=>v===1?1:0));
+      if(JSON.stringify(c)!==JSON.stringify(rows[y]))ok=false;
+    }
+    for(let x=0;x<N&&ok;x++){
+      const col=[];for(let y=0;y<N;y++)col.push(state[y][x]===1?1:0);
+      const c=cluesLine(col);
+      if(JSON.stringify(c)!==JSON.stringify(cols[x]))ok=false;
     }
     if(ok){statusEl.textContent='solved ✓';statusEl.className='win';}
   }
