@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>wang tile self-assembly</title>
+<style>
+  :root{--bg:#0d0f14;--fg:#e8e6e3;--dim:#7a7f8a;--acc:#7fe0c0}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+       display:flex;flex-direction:column;align-items:center;gap:14px;padding:18px}
+  h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.02em}
+  h1 span{color:var(--acc)}
+  p.sub{margin:0;color:var(--dim);font-size:12px;max-width:560px;text-align:center}
+  canvas{background:#07090d;border-radius:10px;touch-action:none;max-width:100%;height:auto;image-rendering:pixelated}
+  .ctrl{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;align-items:center;font-size:12px;color:var(--dim)}
+  label{display:flex;gap:8px;align-items:center}
+  input[type=range]{width:120px;accent-color:var(--acc)}
+  button{background:#1a1f28;color:var(--fg);border:1px solid #2a303c;border-radius:7px;padding:6px 12px;
+         font:inherit;font-size:12px;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  .stat{color:var(--acc);min-width:80px}
+</style>
+</head>
+<body>
+<h1>wang tile <span>self-assembly</span></h1>
+<p class="sub">tiles only stick where their edge glues match. a seed sits in the middle, tiles rain down and bind if their matching-edge count beats the temperature.</p>
+<canvas id="cv" width="720" height="720"></canvas>
+<div class="ctrl">
+  <label>temp <input id="temp" type="range" min="1" max="4" step="1" value="1"><span id="tempv">1</span></label>
+  <label>speed <input id="spd" type="range" min="1" max="40" step="1" value="10"></label>
+  <span class="stat" id="stat">0 tiles</span>
+  <button id="reset">reset</button>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const N=48, CELL=cv.width/N;
+
+// two glue colours, all 16 edge combinations => the set always tiles the plane.
+const TILES=[];
+for(let n=1;n<=2;n++)for(let e=1;e<=2;e++)for(let s=1;s<=2;s++)for(let w=1;w<=2;w++)
+  TILES.push({n,e,s,w});
+
+const GCOL=['','#7fe0c0','#e07fc0'];
+function gcol(g){return GCOL[g]||'#444';}
+
+let grid, temp=1, speed=10;
+function idx(x,y){return y*N+x;}
+function at(x,y){ if(x<0||y<0||x>=N||y>=N) return null; return grid[idx(x,y)]; }
+
+function reset(){
+  grid=new Array(N*N).fill(null);
+  const cx=N>>1, cy=N>>1;
+  grid[idx(cx,cy)]={t:TILES[(Math.random()*TILES.length)|0], g:true};
+  draw();
+}
+
+function step(){
+  const cand=[];
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    if(grid[idx(x,y)]) continue;
+    const n=at(x,y-1),e=at(x+1,y),s=at(x,y+1),w=at(x-1,y);
+    if(!(n||e||s||w)) continue;
+    cand.push([x,y]);
+  }
+  if(!cand.length) return false;
+  const [x,y]=cand[(Math.random()*cand.length)|0];
+  const n=at(x,y-1),e=at(x+1,y),s=at(x,y+1),w=at(x-1,y);
+  const ok=[];
+  for(const t of TILES){
+    let strength=0, conflict=false;
+    if(n){ if(n.t.s===t.n) strength++; else conflict=true; }
+    if(e){ if(e.t.w===t.e) strength++; else conflict=true; }
+    if(s){ if(s.t.n===t.s) strength++; else conflict=true; }
+    if(w){ if(w.t.e===t.w) strength++; else conflict=true; }
+    if(!conflict && strength>=temp) ok.push(t);
+  }
+  if(!ok.length) return false;
+  grid[idx(x,y)]={t:ok[(Math.random()*ok.length)|0], g:false};
+  return true;
+}
+
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  let count=0;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const cell=grid[idx(x,y)];
+    const px=x*CELL, py=y*CELL;
+    if(!cell){ ctx.fillStyle='#07090d'; ctx.fillRect(px,py,CELL,CELL); continue; }
+    count++;
+    const t=cell.t;
+    // body tint from the 4 glues
+    const hue=(t.n*1 + t.e*2 + t.s*3 + t.w*4)*13;
+    ctx.fillStyle='hsl('+(170+hue%90)+',25%,14%)';
+    ctx.fillRect(px+1,py+1,CELL-2,CELL-2);
+    const b=Math.max(2,CELL*0.16);
+    if(t.n){ctx.fillStyle=gcol(t.n);ctx.fillRect(px+CELL*0.32,py+1,CELL*0.36,b);}
+    if(t.s){ctx.fillStyle=gcol(t.s);ctx.fillRect(px+CELL*0.32,py+CELL-1-b,CELL*0.36,b);}
+    if(t.w){ctx.fillStyle=gcol(t.w);ctx.fillRect(px+1,py+CELL*0.32,b,CELL*0.36);}
+    if(t.e){ctx.fillStyle=gcol(t.e);ctx.fillRect(px+CELL-1-b,py+CELL*0.32,b,CELL*0.36);}
+    if(cell.g){ctx.strokeStyle='#7fe0c0';ctx.lineWidth=2;ctx.strokeRect(px+2,py+2,CELL-4,CELL-4);}
+  }
+  document.getElementById('stat').textContent=count+' tiles';
+}
+
+function loop(){
+  for(let i=0;i<speed;i++){ if(!step())break; }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('temp').oninput=e=>{temp=+e.target.value;document.getElementById('tempv').textContent=temp;};
+document.getElementById('spd').oninput=e=>{speed=+e.target.value;};
+document.getElementById('reset').onclick=reset;
+
+reset();
+loop();
+</script>
+</body>
+</html>
