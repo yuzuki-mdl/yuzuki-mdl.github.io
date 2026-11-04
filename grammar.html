@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>grammar</title>
+<style>
+  :root{--bg:#0b0d10;--fg:#e6e6e6;--dim:#5a6472;--acc:#7ee0c0;--rule:#c9a0ff}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px/1.55 ui-monospace,Menlo,monospace;overflow:hidden}
+  h1{font-size:15px;font-weight:400;letter-spacing:.3em;color:var(--dim);margin:0}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  header{padding:14px 18px 10px;display:flex;gap:14px;align-items:baseline;flex-wrap:wrap}
+  #hint{color:var(--dim);font-size:12px}
+  #hint b{color:var(--acc);font-weight:400}
+  #main{flex:1;display:flex;min-height:0}
+  #left{width:44%;min-width:280px;max-width:520px;display:flex;flex-direction:column;border-right:1px solid #1b2028}
+  #rules{flex:1;width:100%;background:transparent;color:var(--fg);border:0;padding:14px 18px;font:12.5px/1.6 ui-monospace,Menlo,monospace;resize:none;outline:none;white-space:pre;overflow:auto;tab-size:2}
+  #rules::selection{background:#2a3a44}
+  #bar{padding:8px 18px;border-top:1px solid #1b2028;display:flex;gap:10px;align-items:center;color:var(--dim);font-size:12px}
+  button{background:#161b22;color:var(--fg);border:1px solid #263040;border-radius:5px;padding:4px 11px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  #right{flex:1;overflow:auto;padding:14px 20px 40px}
+  .line{margin:0 0 16px;cursor:pointer;border-radius:6px;padding:6px 10px;transition:background .12s}
+  .line:hover{background:#12161c}
+  .line .txt{font-size:14.5px;line-height:1.5;color:var(--fg)}
+  .line .tree{margin-top:7px;font-size:11.5px;line-height:1.45;color:var(--dim);display:none;white-space:pre-wrap;border-left:2px solid #1b2028;padding-left:10px}
+  .line.open .tree{display:block}
+  .tree .s{color:var(--rule)}
+  .tree .t{color:var(--acc)}
+  #err{color:#ff8a8a;font-size:12px;padding:0 18px 8px;min-height:16px}
+  .tok{cursor:default}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header><h1>GRAMMAR</h1><span id="hint">edit the rules on the left — <b>SYM: alt | alt</b> — sentences reroll live. click a sentence to see its tree.</span></header>
+  <div id="main">
+    <div id="left">
+      <textarea id="rules" spellcheck="false"></textarea>
+      <div id="err"></div>
+      <div id="bar"><button id="more">+10 lines</button><button id="reroll">reroll all</button><span id="count"></span></div>
+    </div>
+    <div id="right"></div>
+  </div>
+</div>
+<script>
+(() => {
+  const DEFAULT = `S: NP VP . | NP VP . | S and S | NP VP , NP VP .
+NP: the N | a N | my N | the ADJ N | NP PP
+VP: V | V NP | V PP | V ADJ
+PP: P NP
+N: moon | river | ghost | machine | garden | signal | window | noise | field | engine | orchard | tongue
+ADJ: quiet | burning | hollow | electric | soft | distant | patient | feral | glass
+V: dreams | flickers | waits | sings | dissolves | remembers | forgets | hums | turns
+P: under | inside | beyond | near | through | against | without`;
+
+  const rulesEl = document.getElementById('rules');
+  const outEl = document.getElementById('right');
+  const errEl = document.getElementById('err');
+  const countEl = document.getElementById('count');
+
+  rulesEl.value = DEFAULT;
+
+  // parse 'SYM: alt | alt' lines -> {SYM:[alts]}
+  function parse(text){
+    const rules = {};
+    for(const raw of text.split('\n')){
+      const line = raw.trim();
+      if(!line || line.startsWith('#')) continue;
+      const i = line.indexOf(':');
+      if(i < 0) continue;
+      const sym = line.slice(0,i).trim();
+      const alts = line.slice(i+1).split('|').map(s=>s.trim()).filter(Boolean);
+      if(!sym) continue;
+      rules[sym] = (rules[sym]||[]).concat(alts);
+    }
+    return rules;
+  }
+
+  // expand returning {text, tree}; tree = nested {sym, alt, kids}
+  function expand(rules, sym, depth){
+    if(depth > 60) return { text:'…', tree:{sym, alt:'…', kids:[]} };
+    if(!(sym in rules)) return { text:sym, tree:{sym, alt:sym, kids:[], terminal:true} };
+    const alts = rules[sym];
+    const alt = alts[Math.floor(Math.random()*alts.length)];
+    const parts = alt.split(/\s+/).filter(Boolean);
+    const kids = parts.map(p => expand(rules, p, depth+1));
+    return { text: kids.map(k=>k.text).join(' '), tree:{sym, alt, kids} };
+  }
+
+  function renderTree(node, indent){
+    indent = indent || '';
+    let s = indent + '<span class="s">'+esc(node.sym)+'</span>';
+    if(node.kids && node.kids.length){
+      s += ' <span class="t">→</span> ' + node.kids.map(k => renderTree(k, '')).join(' ');
+    }
+    return s;
+  }
+  function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  let rules = parse(DEFAULT);
+  let lines = [];
+
+  function showError(msg){ errEl.textContent = msg || ''; }
+
+  function validate(r){
+    if(!('S' in r)) return 'no S rule';
+    return '';
+  }
+
+  function makeLine(){
+    const res = expand(rules, 'S', 0);
+    const div = document.createElement('div');
+    div.className = 'line';
+    const txt = document.createElement('div'); txt.className = 'txt';
+    txt.textContent = res.text;
+    const tree = document.createElement('div'); tree.className = 'tree';
+    tree.innerHTML = renderTree(res.tree, '');
+    div.appendChild(txt); div.appendChild(tree);
+    div.addEventListener('click', () => div.classList.toggle('open'));
+    return { div, res };
+  }
+
+  function build(n){
+    outEl.innerHTML = '';
+    lines = [];
+    for(let i=0;i<n;i++){
+      const l = makeLine();
+      outEl.appendChild(l.div);
+      lines.push(l);
+    }
+    countEl.textContent = n + ' sentences';
+  }
+
+  function rerollAll(){
+    for(const l of lines){
+      const res = expand(rules, 'S', 0);
+      l.div.querySelector('.txt').textContent = res.text;
+      l.div.querySelector('.tree').innerHTML = renderTree(res.tree, '');
+    }
+  }
+
+  function update(){
+    rules = parse(rulesEl.value);
+    const e = validate(rules);
+    showError(e);
+    rerollAll();
+  }
+
+  let t = null;
+  rulesEl.addEventListener('input', () => { clearTimeout(t); t = setTimeout(update, 180); });
+
+  document.getElementById('more').addEventListener('click', () => {
+    for(let i=0;i<10;i++){
+      const l = makeLine(); outEl.appendChild(l.div); lines.push(l);
+    }
+    countEl.textContent = lines.length + ' sentences';
+  });
+  document.getElementById('reroll').addEventListener('click', rerollAll);
+
+  build(12);
+})();
+</script>
+</body>
+</html>
