@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>prime spiral</title>
+<style>
+  :root{--bg:#0a0a0f;--fg:#d8d8e8;--dim:#5a5a70;--acc:#8ce0ff;--prime:#ffd166}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  #wrap{display:flex;height:100%;flex-direction:column}
+  header{padding:10px 14px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #1a1a26;font-size:12px;color:var(--dim)}
+  header b{color:var(--acc);font-weight:600}
+  .ctl{display:flex;gap:8px;align-items:center}
+  input[type=range]{width:120px;accent-color:var(--acc)}
+  select,button{background:#14141e;color:var(--fg);border:1px solid #26263a;border-radius:6px;padding:4px 8px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{border-color:var(--acc)}
+  #stage{flex:1;display:flex;align-items:center;justify-content:center}
+  canvas{display:block}
+  .val{color:var(--fg);min-width:52px;text-align:right}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <span><b>prime spiral</b> — ulam spiral</span>
+    <div class="ctl">n <input id="n" type="range" min="100" max="200000" step="100" value="40000"><span class="val" id="nv">40000</span></div>
+    <div class="ctl">color
+      <select id="mode">
+        <option value="prime">prime / composite</option>
+        <option value="div">divisor count</option>
+        <option value="gap">prime gap</option>
+        <option value="quad">n²+n+41</option>
+      </select>
+    </div>
+    <button id="reset">recenter</button>
+    <span style="margin-left:auto">drag to pan · scroll to zoom</span>
+  </header>
+  <div id="stage"><canvas id="c"></canvas></div>
+</div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const nEl=document.getElementById('n'),nv=document.getElementById('nv'),mode=document.getElementById('mode');
+let N=+nEl.value, view={x:0,y:0,scale:1}, baseScale=1;
+
+// sieve
+let isPrime, divCount, maxDiv;
+function buildSieve(n){
+  isPrime=new Uint8Array(n+1); isPrime.fill(1); if(n>=0)isPrime[0]=0; if(n>=1)isPrime[1]=0;
+  for(let i=2;i*i<=n;i++) if(isPrime[i]) for(let j=i*i;j<=n;j+=i) isPrime[j]=0;
+  divCount=new Uint16Array(n+1);
+  for(let i=1;i<=n;i++) for(let j=i;j<=n;j+=i) divCount[j]++;
+  maxDiv=0; for(let i=1;i<=n;i++) if(divCount[i]>maxDiv)maxDiv=divCount[i];
+}
+
+// spiral coords: 1 at center, going right, up, left, left, down, down, right...
+// standard ulam: 1 center, 2 right, 3 up, 4 left, 5 left, 6 down, 7 down, 8 right...
+function buildCoords(n){
+  const xs=new Int32Array(n+1), ys=new Int32Array(n+1);
+  let x=0,y=0,dx=1,dy=0,len=1,stepLen=0,turns=0;
+  xs[1]=0; ys[1]=0;
+  for(let i=2;i<=n;i++){
+    x+=dx; y+=dy;
+    xs[i]=x; ys[i]=y;
+    stepLen++;
+    if(stepLen===len){
+      stepLen=0; turns++;
+      const t=dx; dx=-dy; dy=t; // rotate ccw
+      if(turns%2===0) len++;
+    }
+  }
+  return {xs,ys};
+}
+
+let coords;
+function rebuild(){
+  N=+nEl.value; nv.textContent=N;
+  buildSieve(N); coords=buildCoords(N);
+  // fit
+  let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+  for(let i=1;i<=N;i++){const x=coords.xs[i],y=coords.ys[i]; if(x<minx)minx=x;if(x>maxx)maxx=x;if(y<miny)miny=y;if(y>maxy)maxy=y;}
+  const span=Math.max(maxx-minx,maxy-miny)+2;
+  const size=Math.min(c.width,c.height)-20;
+  baseScale=size/span;
+  view={x:0,y:0,scale:1};
+  draw();
+}
+
+function resize(){
+  const st=document.getElementById('stage');
+  const dpr=Math.min(devicePixelRatio||1,2);
+  c.width=st.clientWidth*dpr; c.height=st.clientHeight*dpr;
+  c.style.width=st.clientWidth+'px'; c.style.height=st.clientHeight+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  c.width=st.clientWidth; c.height=st.clientHeight;
+  rebuild();
+}
+
+function colorFor(i){
+  const m=mode.value;
+  if(m==='prime') return isPrime[i]?[255,209,102]:[26,26,38];
+  if(m==='div'){
+    if(isPrime[i])return[255,209,102];
+    const t=Math.min(1,(divCount[i]-2)/Math.max(1,(maxDiv-2)));
+    return [40+t*60, 80+t*120, 140+t*100];
+  }
+  if(m==='gap'){
+    if(!isPrime[i])return[20,20,30];
+    // gap to next prime
+    let j=i+1; while(j<=N&&!isPrime[j])j++;
+    const g=j-i;
+    const t=Math.min(1,g/30);
+    return [80+t*175, 220-t*140, 255-t*200];
+  }
+  if(m==='quad'){
+    // highlight n^2+n+41 primes
+    const k=Math.round(Math.sqrt(i));
+    const q=k*k+k+41;
+    if(q===i)return[140,224,255];
+    return isPrime[i]?[255,209,102]:[20,20,30];
+  }
+}
+
+function draw(){
+  ctx.fillStyle='#0a0a0f'; ctx.fillRect(0,0,c.width,c.height);
+  const s=baseScale*view.scale;
+  const cx=c.width/2+view.x, cy=c.height/2+view.y;
+  const px=Math.max(1,Math.min(s*0.95, 14));
+  const off=px/2;
+  // only draw visible range for perf
+  const halfW=c.width/2/s, halfH=c.height/2/s;
+  const vx0=-view.x/s, vy0=-view.y/s;
+  for(let i=1;i<=N;i++){
+    const wx=coords.xs[i], wy=coords.ys[i];
+    if(wx<vx0-halfW-1||wx>vx0+halfW+1||wy<vy0-halfH-1||wy>vy0+halfH+1) continue;
+    const col=colorFor(i);
+    ctx.fillStyle='rgb('+col[0]+','+col[1]+','+col[2]+')';
+    const X=cx+wx*s, Y=cy-wy*s;
+    ctx.fillRect(X-off,Y-off,px,px);
+  }
+  // center marker
+  ctx.fillStyle='#ff5a5a'; ctx.fillRect(cx-off,cy-off,px,px);
+}
+
+// pan/zoom
+let drag=null;
+c.addEventListener('mousedown',e=>{drag={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y}});
+addEventListener('mousemove',e=>{if(!drag)return; view.x=drag.vx+(e.clientX-drag.x); view.y=drag.vy+(e.clientY-drag.y); draw();});
+addEventListener('mouseup',()=>drag=null);
+c.addEventListener('wheel',e=>{e.preventDefault(); const f=e.deltaY<0?1.1:0.9; view.scale=Math.max(0.2,Math.min(40,view.scale*f)); draw();},{passive:false});
+
+nEl.addEventListener('input',()=>{nv.textContent=nEl.value; rebuild();});
+mode.addEventListener('change',draw);
+document.getElementById('reset').onclick=()=>{view={x:0,y:0,scale:1};draw();};
+addEventListener('resize',resize);
+resize();
+</script>
+</body>
+</html>
