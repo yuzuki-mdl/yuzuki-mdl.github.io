@@ -25,11 +25,13 @@ const G=0.55, DAMP=0.992, ITER=3;
 let blobs=[];
 function addPoint(b,x,y){b.pts.push({x,y,px:x,py:y});}
 function addSpring(b,ia,ib,stiff){const a=b.pts[ia],c=b.pts[ib];const rest=Math.hypot(a.x-c.x,a.y-c.y);b.springs.push({a:ia,b:ib,rest,stiff:stiff||1});}
-function polyArea(pts,n){let a=0;for(let i=0;i<n;i++){const p=pts[i],q=pts[(i+1)%n];a+=p.x*q.y-q.x*p.y;}return Math.abs(a)/2;}
+function signedArea(pts,n){let a=0;for(let i=0;i<n;i++){const p=pts[i],q=pts[(i+1)%n];a+=p.x*q.y-q.x*p.y;}return a/2;}
+function polyArea(pts,n){return Math.abs(signedArea(pts,n));}
 function makeBlob(outline){
   const b={pts:[],springs:[]};
   let cxm=0,cym=0;for(const p of outline){cxm+=p.x;cym+=p.y;}cxm/=outline.length;cym/=outline.length;
   b.restArea=polyArea(outline,outline.length);
+  b.restSign=signedArea(outline,outline.length)>=0?1:-1;
   for(const p of outline)addPoint(b,p.x,p.y);
   const ci=b.pts.length; addPoint(b,cxm,cym);
   const n=outline.length;
@@ -109,31 +111,42 @@ function step(){
         const ox=dx*diff,oy=dy*diff;
         a.x+=ox;a.y+=oy;c.x-=ox;c.y-=oy;
       }
-      // unfold: if a point is pinched past its neighbours (tangent reverses),
-      // ease it back toward their midpoint so the normal can't stay flipped
+      // unfold: signed area vs rest sign is the real fold signal. a tangent-dot
+      // check misses slow creases and fires on sharp-but-valid bends, so we
+      // trust winding instead (thanks lucy).
       {
         const n=b.pts.length-1;
-        for(let i=0;i<n;i++){
-          const p=b.pts[i],pr=b.pts[(i-1+n)%n],nx2=b.pts[(i+1)%n];
-          const t1x=p.x-pr.x,t1y=p.y-pr.y,t2x=nx2.x-p.x,t2y=nx2.y-p.y;
-          if(t1x*t2x+t1y*t2y<0){
-            p.x+=((pr.x+nx2.x)/2-p.x)*0.3;
-            p.y+=((pr.y+nx2.y)/2-p.y)*0.3;
+        const sa=signedArea(b.pts,n);
+        const sign=(sa>=0?1:-1);
+        const folded = b.restSign && sign!==b.restSign;
+        if(folded){
+          // push every point outward from the centroid to un-invert the winding
+          const cxb=b.pts[b.pts.length-1]||b.pts[0];
+          for(let i=0;i<n;i++){
+            const p=b.pts[i];
+            let dx=p.x-cxb.x,dy=p.y-cxb.y;let dl=Math.hypot(dx,dy)||0.0001;
+            p.x+=dx/dl*1.2; p.y+=dy/dl*1.2;
           }
         }
       }
       if(b.restArea){
         const n=b.pts.length-1;
-        const area=polyArea(b.pts,n);
-        const pdiff=(b.restArea-area)/b.restArea;
-        const force=Math.max(-0.6,Math.min(0.8,pdiff))*0.9;
-        for(let i=0;i<n;i++){
-          const p=b.pts[i],pr=b.pts[(i-1+n)%n],nx2=b.pts[(i+1)%n];
-          let tx=nx2.x-pr.x,ty=nx2.y-pr.y;let tl=Math.hypot(tx,ty)||0.0001;
-          let nx=ty/tl,ny=-tx/tl;
-          const cxb=b.pts[b.pts.length-1]||p;
-          if((p.x-cxb.x)*nx+(p.y-cxb.y)*ny<0){nx=-nx;ny=-ny;}
-          p.x+=nx*force;p.y+=ny*force;
+        const sa=signedArea(b.pts,n);
+        const sign=(sa>=0?1:-1);
+        // freeze pressure while winding is flipped so it can't keep pushing
+        // the wrong way and launch the slime
+        if(b.restSign && sign===b.restSign){
+          const area=Math.abs(sa);
+          const pdiff=(b.restArea-area)/b.restArea;
+          const force=Math.max(-0.6,Math.min(0.8,pdiff))*0.9;
+          const cxb=b.pts[b.pts.length-1]||b.pts[0];
+          for(let i=0;i<n;i++){
+            const p=b.pts[i],pr=b.pts[(i-1+n)%n],nx2=b.pts[(i+1)%n];
+            let tx=nx2.x-pr.x,ty=nx2.y-pr.y;let tl=Math.hypot(tx,ty)||0.0001;
+            let nx=ty/tl,ny=-tx/tl;
+            if((p.x-cxb.x)*nx+(p.y-cxb.y)*ny<0){nx=-nx;ny=-ny;}
+            p.x+=nx*force;p.y+=ny*force;
+          }
         }
       }
       for(const p of b.pts){
