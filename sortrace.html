@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sort race</title>
+<style>
+  :root{--bg:#0b0d10;--fg:#e6e6e6;--dim:#5a6472;--acc:#7ee0c0;--grid:#1a1f26}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font:13px/1.4 ui-monospace,Menlo,monospace;-webkit-user-select:none;user-select:none}
+  #wrap{max-width:1180px;margin:0 auto;padding:16px 18px 40px}
+  header{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:14px}
+  h1{font-size:15px;font-weight:400;letter-spacing:.3em;color:var(--dim);margin:0}
+  #hint{color:var(--dim);font-size:12px}
+  .bar{display:flex;gap:14px 22px;align-items:center;margin-bottom:16px;flex-wrap:wrap;font-size:12px;color:var(--dim)}
+  .bar label{display:flex;flex-direction:column;gap:4px}
+  .bar .val{color:var(--fg)}
+  input[type=range]{width:130px;accent-color:var(--acc)}
+  button{background:#161a20;color:var(--fg);border:1px solid #232a33;border-radius:6px;padding:7px 14px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  button.on{border-color:var(--acc);color:var(--acc)}
+  #grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+  .card{background:#0f1216;border:1px solid #1c232c;border-radius:8px;padding:10px 12px 8px}
+  .card h2{font-size:12px;font-weight:400;letter-spacing:.12em;color:var(--dim);margin:0 0 6px;display:flex;justify-content:space-between}
+  .card h2 .st{color:var(--fg)}
+  .card.done{border-color:var(--acc)}
+  .card.done h2 .st{color:var(--acc)}
+  canvas{width:100%;height:auto;display:block;border-radius:4px}
+  footer{margin-top:22px;font-size:12px;color:var(--dim);line-height:1.6}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <h1>SORT RACE</h1>
+    <span id="hint">several sorts, same array, watching them fight</span>
+  </header>
+  <div class="bar">
+    <label>size <span class="val" id="nV">96</span><input type="range" id="nR" min="16" max="240" step="8" value="96"></label>
+    <label>speed <span class="val" id="spV">3</span><input type="range" id="spR" min="1" max="20" step="1" value="3"></label>
+    <div class="row">
+      <button id="play">play</button>
+      <button id="step">step</button>
+      <button id="reset">new array</button>
+    </div>
+  </div>
+  <div id="grid"></div>
+  <footer>
+    each card is the same starting array being sorted by a different algorithm. the coloured bar is the pair being compared right now; a green bar is the value being written. the first to finish wins. comparisons counted live.
+  </footer>
+</div>
+<script>
+(function(){
+  const COLORS = {bar:'#3a4a66', cmp:'#7ee0c0', wr:'#ffb454', done:'#7ee0c0'};
+
+  function rng(seed){let s=seed>>>0;return function(){s^=s<<13;s>>>=0;s^=s>>17;s^=s<<5;s>>>=0;return s/4294967296;};}
+
+  function makeArray(n, seed){
+    const r = rng(seed);
+    const a = [];
+    for(let i=0;i<n;i++) a.push(i+1);
+    for(let i=n-1;i>0;i--){ const j = Math.floor(r()*(i+1)); const t=a[i];a[i]=a[j];a[j]=t; }
+    return a;
+  }
+
+  // each sorter: generator that yields 'cmp' or 'wr' events on state {a, i, j}
+  function* bubble(a){
+    const n=a.length;
+    for(let i=0;i<n-1;i++){
+      let sw=false;
+      for(let j=0;j<n-1-i;j++){
+        yield [j,j+1];
+        if(a[j]>a[j+1]){ const t=a[j];a[j]=a[j+1];a[j+1]=t; sw=true; yield [j,j+1,'w']; }
+      }
+      if(!sw) break;
+    }
+  }
+  function* insertion(a){
+    const n=a.length;
+    for(let i=1;i<n;i++){
+      let x=a[i], j=i-1;
+      while(j>=0){
+        yield [j,i];
+        if(a[j]>x){ a[j+1]=a[j]; yield [j,j+1,'w']; j--; }
+        else break;
+      }
+      a[j+1]=x; yield [j+1,j+1,'w'];
+    }
+  }
+  function* selection(a){
+    const n=a.length;
+    for(let i=0;i<n-1;i++){
+      let m=i;
+      for(let j=i+1;j<n;j++){ yield [j,m]; if(a[j]<a[m]) m=j; }
+      if(m!==i){ const t=a[i];a[i]=a[m];a[m]=t; yield [i,m,'w']; }
+    }
+  }
+  function* quick(a, lo, hi){
+    if(lo===undefined){ lo=0; hi=a.length-1; }
+    if(lo>=hi) return;
+    const p = a[hi]; let i = lo;
+    for(let j=lo;j<hi;j++){
+      yield [j,hi];
+      if(a[j]<p){ const t=a[i];a[i]=a[j];a[j]=t; if(i!==j) yield [i,j,'w']; i++; }
+    }
+    const t=a[i];a[i]=a[hi];a[hi]=t; yield [i,hi,'w'];
+    yield* quick(a,lo,i-1);
+    yield* quick(a,i+1,hi);
+  }
+  function* merge(a){
+    const n=a.length;
+    let width=1;
+    const tmp=new Array(n);
+    while(width<n){
+      for(let lo=0;lo<n;lo+=2*width){
+        const mid=Math.min(lo+width,n), hi=Math.min(lo+2*width,n);
+        let i=lo,j=mid,k=lo;
+        while(i<mid&&j<hi){
+          yield [i,j];
+          if(a[i]<=a[j]) tmp[k++]=a[i++]; else tmp[k++]=a[j++];
+        }
+        while(i<mid) tmp[k++]=a[i++];
+        while(j<hi) tmp[k++]=a[j++];
+        for(let x=lo;x<hi;x++){ a[x]=tmp[x]; yield [x,x,'w']; }
+      }
+      width*=2;
+    }
+  }
+  function* heap(a){
+    const n=a.length;
+    function* sift(start,end){
+      let root=start;
+      while(root*2+1<=end){
+        let child=root*2+1, swap=root;
+        yield [swap,child]; if(a[swap]<a[child]) swap=child;
+        if(child+1<=end){ yield [swap,child+1]; if(a[swap]<a[child+1]) swap=child+1; }
+        if(swap!==root){ const t=a[root];a[root]=a[swap];a[swap]=t; yield [root,swap,'w']; root=swap; }
+        else return;
+      }
+    }
+    for(let start=Math.floor((n-2)/2);start>=0;start--) yield* sift(start,n-1);
+    for(let end=n-1;end>0;end--){ const t=a[0];a[0]=a[end];a[end]=t; yield [0,end,'w']; yield* sift(0,end-1); }
+  }
+
+  const ALGOS = [
+    {name:'bubble',    gen:bubble},
+    {name:'insertion', gen:insertion},
+    {name:'selection', gen:selection},
+    {name:'quick',     gen:a=>quick(a)},
+    {name:'merge',     gen:merge},
+    {name:'heap',      gen:heap},
+  ];
+
+  const grid=document.getElementById('grid');
+  const nR=document.getElementById('nR'), spR=document.getElementById('spR');
+  const nV=document.getElementById('nV'), spV=document.getElementById('spV');
+  const playBtn=document.getElementById('play'), stepBtn=document.getElementById('step'), resetBtn=document.getElementById('reset');
+
+  let N = +nR.value;
+  let running = false;
+  let rafId = 0;
+  let seed = 1234;
+  let racers = [];
+
+  function buildCards(){
+    grid.innerHTML='';
+    racers = ALGOS.map((al, k)=>{
+      const card=document.createElement('div'); card.className='card';
+      card.innerHTML='<h2><span>'+al.name+'</span><span class="st">—</span></h2>';
+      const cv=document.createElement('canvas');
+      cv.width=560; cv.height=200; card.appendChild(cv);
+      grid.appendChild(card);
+      return {algo:al, card, cv, ctx:cv.getContext('2d'), arr:null, it:null, done:false, cmps:0, writes:0, hot:null, hotW:null};
+    });
+  }
+
+  function resetRace(){
+    seed = (seed*1664525 + 1013904223)>>>0;
+    const base = makeArray(N, seed);
+    for(const r of racers){
+      r.arr = base.slice();
+      r.it = r.algo.gen(r.arr);
+      r.done = false; r.cmps=0; r.writes=0; r.hot=null; r.hotW=null;
+      r.card.classList.remove('done');
+      r.card.querySelector('.st').textContent='—';
+    }
+    drawAll();
+  }
+
+  function advance(r){
+    if(r.done) return;
+    const res = r.it.next();
+    if(res.done){ r.done=true; r.card.classList.add('done'); r.hot=null; r.hotW=null;
+      r.card.querySelector('.st').textContent='done · '+r.cmps+' cmp'; return; }
+    const ev = res.value; r.cmps++;
+    if(ev[2]==='w'){ r.writes++; r.hotW=ev[0]; r.hot=null; }
+    else { r.hot=[ev[0],ev[1]]; r.hotW=null; }
+  }
+
+  function drawCard(r){
+    const ctx=r.ctx, W=r.cv.width, H=r.cv.height, a=r.arr, n=a.length;
+    ctx.clearRect(0,0,W,H);
+    const bw = W/n;
+    for(let i=0;i<n;i++){
+      const h = (a[i]/n)*(H-4);
+      let col = COLORS.bar;
+      if(r.hot && (i===r.hot[0]||i===r.hot[1])) col = COLORS.cmp;
+      if(r.hotW===i) col = COLORS.wr;
+      if(r.done) col = COLORS.done;
+      ctx.fillStyle = col;
+      ctx.fillRect(i*bw, H-h, Math.max(1,bw-0.5), h);
+    }
+  }
+  function drawAll(){ for(const r of racers) drawCard(r); }
+
+  function frame(){
+    if(!running) return;
+    const sp = +spR.value;
+    for(let s=0;s<sp;s++){
+      for(const r of racers) advance(r);
+    }
+    drawAll();
+    if(racers.every(r=>r.done)){ setRunning(false); return; }
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function setRunning(v){
+    running=v;
+    playBtn.textContent = v? 'pause':'play';
+    playBtn.classList.toggle('on', v);
+    if(v){ if(rafId) cancelAnimationFrame(rafId); rafId=requestAnimationFrame(frame); }
+    else if(rafId){ cancelAnimationFrame(rafId); rafId=0; }
+  }
+
+  playBtn.onclick=()=>setRunning(!running);
+  stepBtn.onclick=()=>{ setRunning(false); for(const r of racers) advance(r); drawAll(); };
+  resetBtn.onclick=()=>{ setRunning(false); resetRace(); };
+  nR.oninput=()=>{ N=+nR.value; nV.textContent=N; setRunning(false); resetRace(); };
+  spR.oninput=()=>{ spV.textContent=spR.value; };
+
+  buildCards();
+  resetRace();
+  // auto-run so it's alive on load
+  setTimeout(()=>setRunning(true), 300);
+})();
+</script>
+</body>
+</html>
