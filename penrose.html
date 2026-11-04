@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>penrose tiling</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a12;overflow:hidden;font-family:ui-monospace,monospace}
+  canvas{display:block;width:100vw;height:100vh;cursor:grab}
+  canvas:active{cursor:grabbing}
+  #ui{position:fixed;left:14px;bottom:14px;color:#cfd3ff;font-size:12px;line-height:1.9;
+      background:rgba(10,10,20,.55);padding:10px 14px;border-radius:10px;backdrop-filter:blur(6px);user-select:none}
+  #ui label{display:flex;align-items:center;gap:8px}
+  input[type=range]{width:120px;accent-color:#8f9bff}
+  #info{position:fixed;right:14px;top:14px;color:#8f9bff;font-size:12px;text-align:right;opacity:.8}
+  button{background:#1a1a2e;color:#cfd3ff;border:1px solid #33335a;border-radius:6px;padding:3px 9px;font:inherit;cursor:pointer;margin-left:6px}
+  button:hover{background:#242444}
+</style>
+</head>
+<body>
+<canvas id=c></canvas>
+<div id=info></div>
+<div id=ui>
+  <label>generations <input id=gen type=range min=0 max=8 value=6><span id=genv>6</span></label>
+  <label>hue <input id=hue type=range min=0 max=360 value=220></label>
+  <div style="margin-top:4px"><button id=spin>spin: off</button><button id=reset>reset view</button></div>
+</div>
+<script>
+const PSI=(Math.sqrt(5)-1)/2, PSI2=PSI*PSI;
+const add=(a,b)=>({re:a.re+b.re,im:a.im+b.im});
+const mul=(a,s)=>({re:a.re*s,im:a.im*s});
+const sub=(a,b)=>({re:a.re-b.re,im:a.im-b.im});
+
+function inflate(t){
+  if(t.kind===1){
+    const D=add(mul(t.A,PSI2),mul(t.C,PSI));
+    const E=add(mul(t.A,PSI2),mul(t.B,PSI));
+    return [{kind:1,A:D,B:E,C:t.A},{kind:0,A:E,B:D,C:t.B},{kind:1,A:t.C,B:D,C:t.B}];
+  } else {
+    const D=add(mul(t.A,PSI),mul(t.B,PSI2));
+    return [{kind:0,A:D,B:t.C,C:t.A},{kind:1,A:t.C,B:D,C:t.B}];
+  }
+}
+
+let tris=[];
+function build(n){
+  const s=1, th=2*Math.PI/5, rot={re:Math.cos(th),im:Math.sin(th)};
+  const A={re:-s/2,im:0}, B=mul(rot,s/2), C={re:s/2/PSI,im:0};
+  tris=[{kind:1,A,B,C}];
+  for(let g=0;g<n;g++){
+    const ne=[];
+    for(const t of tris) ne.push(...inflate(t));
+    tris=ne;
+  }
+  let ext=0;
+  for(const t of tris) for(const p of [t.A,t.B,t.C]) ext=Math.max(ext,Math.hypot(p.re,p.im));
+  view.extent=ext||1;
+  draw();
+}
+
+const c=document.getElementById('c'), ctx=c.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;c.width=W*DPR;c.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);draw();}
+
+let view={x:0,y:0,zoom:1,ang:0,extent:1}, spinning=false;
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const baseHue=+document.getElementById('hue').value;
+  const fit=Math.min(W,H)/(2.2*view.extent);
+  const scale=fit*0.9*view.zoom;
+  const ca=Math.cos(view.ang), sa=Math.sin(view.ang);
+  ctx.save();
+  ctx.translate(W/2+view.x, H/2+view.y);
+  for(const t of tris){
+    // rhombus: A,B,C and mirror B' = A+C-B
+    const Bp=sub(add(t.A,t.C),t.B);
+    const pts=[t.A,t.B,t.C,Bp];
+    ctx.beginPath();
+    for(let i=0;i<4;i++){
+      const p=pts[i];
+      let px=p.re*scale, py=p.im*scale;
+      const rx=px*ca-py*sa, ry=px*sa+py*ca;
+      if(i===0)ctx.moveTo(rx,ry); else ctx.lineTo(rx,ry);
+    }
+    ctx.closePath();
+    const hue=t.kind===1?baseHue:(baseHue+180)%360;
+    const light=t.kind===1?52:40;
+    ctx.fillStyle=`hsl(${hue} 70% ${light}%)`;
+    ctx.fill();
+    ctx.strokeStyle='rgba(5,5,15,.55)';
+    ctx.lineWidth=0.6;
+    ctx.stroke();
+  }
+  ctx.restore();
+  document.getElementById('info').textContent=tris.length+' rhombi';
+}
+
+// interaction
+document.getElementById('gen').addEventListener('input',e=>{document.getElementById('genv').textContent=e.target.value;build(+e.target.value);});
+document.getElementById('hue').addEventListener('input',draw);
+document.getElementById('reset').addEventListener('click',()=>{view.zoom=1;view.ang=0;view.x=0;view.y=0;draw();});
+document.getElementById('spin').addEventListener('click',e=>{spinning=!spinning;e.target.textContent='spin: '+(spinning?'on':'off');});
+
+let drag=null;
+c.addEventListener('pointerdown',e=>{drag={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};c.setPointerCapture(e.pointerId);});
+c.addEventListener('pointermove',e=>{if(drag){view.x=drag.vx+(e.clientX-drag.x);view.y=drag.vy+(e.clientY-drag.y);draw();}});
+c.addEventListener('pointerup',()=>drag=null);
+c.addEventListener('wheel',e=>{e.preventDefault();view.zoom*=Math.exp(-e.deltaY*0.001);view.zoom=Math.max(0.2,Math.min(40,view.zoom));draw();},{passive:false});
+
+function loop(){if(spinning){view.ang+=0.003;draw();}requestAnimationFrame(loop);}
+
+addEventListener('resize',resize);
+resize();
+build(6);
+loop();
+</script>
+</body>
+</html>
