@@ -28,15 +28,15 @@
 <body>
 <main>
   <h1>slime mould maze solver</h1>
-  <p class="sub">a real physarum model. nodes sit on open cells, tubes run between them. each tube thickens where food flows and thins where it doesn't. click any open cell to move the food and watch the network find it. this is the honest one: real slime mould doesn't pick one shortest path, it grows a redundant transport network and keeps loops for robustness — so this keeps a network too. raise the prune threshold and the backbone of strongest tubes stands out. the source pushes a fixed pressure (Tero's model): the shortest route carries the most current, so its tubes thicken and the rest thin out. it doesn't collapse to a single path though — real slime mould keeps a redundant network with loops for robustness, and so does this. raise the prune threshold to strip it to the backbone.</p>
+  <p class="sub">a real physarum model. nodes sit on open cells, tubes run between them. each tube thickens where food flows and thins where it doesn't. click any open cell to move the food and watch the network find it. this is the honest one: real slime mould doesn't pick one shortest path, it grows a redundant transport network and keeps loops for robustness — so this keeps a network too. raise the prune threshold and the backbone of strongest tubes stands out. the rule: each tube thickens toward sig(gain * its share of the current). the gain slider sharpens that — low gain keeps only the strongest route, high gain keeps a dense web. absolute current cancels out (the flux is normalised by the strongest tube each step), so the gain is the real knob. it doesn't collapse to a single path though — real slime mould keeps a redundant network with loops for robustness, and so does this. raise the prune threshold to strip it to the backbone.</p>
   <p class="sub">memory: the tube thicknesses persist between food moves and slowly decay. move the food and the old route stays behind as a faint ghost. with strong memory (low decay) the mould keeps yesterday's tubes around and reuses them when the food comes back; with weak memory it rebuilds from scratch every time. the ghost line is where it used to go.</p>
 
   <canvas id="c" width="512" height="512"></canvas>
 
   <div class="controls">
     <div class="ctl">
-      <label>source current <span id="iv">25</span></label>
-      <input id="cur" type="range" min="1" max="40" step="1" value="25">
+      <label>flux gain <span id="iv">3</span></label>
+      <input id="cur" type="range" min="0.5" max="8" step="0.5" value="3">
     </div>
     <div class="ctl">
       <label>prune threshold <span id="pv">0.15</span></label>
@@ -153,15 +153,15 @@ function solveCurrents(I) {
 const DT = 0.06;
 function sig(x) { return x*x/(1+x*x); }  // x is flux relative to the strongest tube this step, so no magic scale constant to retune
 function step() {
-  const I = parseFloat(document.getElementById('cur').value);
+  const K = parseFloat(document.getElementById("cur").value);
   const decay = parseFloat(document.getElementById('mem').value);
-  const p = solveCurrents(I);
+  const p = solveCurrents(1);
   const fl = edges.map(e => Math.abs(e.D * (p[e.a]-p[e.b])));
   let fmax = 0; for (const f of fl) if (f > fmax) fmax = f;
   if (fmax < 1e-12) fmax = 1e-12;   // all dead: no flux, everything keeps decaying
   for (let k=0;k<edges.length;k++) {
     const e = edges[k];
-    e.D += DT * (sig(fl[k]/fmax) - e.D);
+    e.D += DT * (sig(K*fl[k]/fmax) - e.D);
     e.D *= (1 - decay);            // memory decays unless flux keeps it alive
     if (e.D < 0) e.D = 0; if (e.D > 1) e.D = 1;
   }
