@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>slime mould maze solver</title>
+<style>
+  :root { --bg:#0b0d0f; --ink:#e8e6e1; --dim:#7d848c; --accent:#b6f36a; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 ui-monospace,monospace; }
+  main { max-width:760px; margin:0 auto; padding:28px 18px 80px; }
+  h1 { font-size:20px; font-weight:600; margin:0 0 4px; letter-spacing:-.01em; }
+  p.sub { color:var(--dim); margin:0 0 22px; font-size:13px; }
+  canvas { width:100%; height:auto; display:block; background:#07090a; border:1px solid #1c2126; border-radius:10px; image-rendering:pixelated; touch-action:manipulation; }
+  .controls { display:flex; flex-wrap:wrap; gap:16px; align-items:center; margin:16px 0; font-size:13px; }
+  .ctl { display:flex; flex-direction:column; gap:4px; }
+  .ctl label { color:var(--dim); }
+  input[type=range] { accent-color:var(--accent); width:160px; }
+  button { background:#161b20; color:var(--ink); border:1px solid #2a323a; border-radius:8px; padding:7px 13px; font:inherit; font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { border-color:var(--accent); color:var(--accent); }
+  .stat { color:var(--dim); font-size:12px; margin-top:6px; }
+  .legend { color:var(--dim); font-size:12px; margin-top:14px; line-height:1.7; }
+  .legend b { color:var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>slime mould maze solver</h1>
+  <p class="sub">a real physarum model. nodes sit on open cells, tubes run between them. each tube thickens where food flows and thins where it doesn't. click any open cell to move the food and watch the network find it, then prune itself down toward the shortest route. this is the honest one: it keeps backup tubes when there's a real choice, and dies when there isn't.</p>
+
+  <canvas id="c" width="512" height="512"></canvas>
+
+  <div class="controls">
+    <div class="ctl">
+      <label>prune threshold <span id="pv">0.15</span></label>
+      <input id="prune" type="range" min="0" max="0.6" step="0.01" value="0.15">
+    </div>
+    <button id="run" class="primary">run</button>
+    <button id="step">step</button>
+    <button id="reset">new maze</button>
+  </div>
+  <div class="stat" id="stat">ready</div>
+  <div class="legend">
+    <b>green dot</b> = food &nbsp; <span style="color:#5aa0ff">blue dot</span> = start &nbsp; <b>thick bright</b> = strong tube<br>
+    click an open cell to move the food. raise prune to strip it down to the essentials.
+  </div>
+</main>
+<script>
+const W = 16, H = 16;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const cell = cv.width / W;
+
+let maze, nodes, edges, adj, id, src, sink, running = false, ticks = 0;
+
+function genMaze() {
+  const g = Array.from({length:H}, () => Array(W).fill(1));
+  const stack = [[1,1]];
+  g[1][1] = 0;
+  const dirs = [[2,0],[-2,0],[0,2],[0,-2]];
+  while (stack.length) {
+    const [x,y] = stack[stack.length-1];
+    const opts = [];
+    for (const [dx,dy] of dirs) {
+      const nx = x+dx, ny = y+dy;
+      if (nx>0 && ny>0 && nx<W-1 && ny<H-1 && g[ny][nx] === 1) opts.push([nx,ny,dx,dy]);
+    }
+    if (!opts.length) { stack.pop(); continue; }
+    const [nx,ny,dx,dy] = opts[Math.floor(Math.random()*opts.length)];
+    g[y+dy/2][x+dx/2] = 0;
+    g[ny][nx] = 0;
+    stack.push([nx,ny]);
+  }
+  // braid: knock out some walls between cells so there are loops (real choices to keep)
+  for (let y=1;y<H-1;y+=2) for (let x=1;x<W-1;x+=2) {
+    if (Math.random() < 0.35) {
+      if (Math.random()<0.5 && x+1 < W-1) g[y][x+1] = 0;
+      else if (y+1 < H-1) g[y+1][x] = 0;
+    }
+  }
+  return g;
+}
+
+function build() {
+  maze = genMaze();
+  id = new Map(); nodes = [];
+  for (let y=0;y<H;y++) for (let x=0;x<W;x++)
+    if (maze[y][x] === 0) { id.set(x+','+y, nodes.length); nodes.push({x,y}); }
+  edges = [];
+  const nb = [[1,0],[-1,0],[0,1],[0,-1]];
+  for (let i=0;i<nodes.length;i++) {
+    const n = nodes[i];
+    for (const [dx,dy] of nb) {
+      const j = id.get((n.x+dx)+','+(n.y+dy));
+      if (j !== undefined && j > i) edges.push({a:i,b:j,D:0.01});
+    }
+  }
+  adj = nodes.map(() => []);
+  edges.forEach((e,k) => { adj[e.a].push({k,other:e.b}); adj[e.b].push({k,other:e.a}); });
+  src = id.get('1,1');
+  sink = id.get((W-2)+','+(H-2));
+  ticks = 0;
+  document.getElementById('stat').textContent = `${nodes.length} nodes, ${edges.length} tubes`;
+  draw();
+}
+
+function solvePressures() {
+  const N = nodes.length;
+  const Dsum = new Array(N).fill(0);
+  for (const e of edges) { Dsum[e.a] += e.D; Dsum[e.b] += e.D; }
+  const p = new Array(N).fill(0.5);
+  p[src] = 1; p[sink] = 0;
+  for (let it=0; it<120; it++) {
+    for (let i=0;i<N;i++) {
+      if (i===src||i===sink||Dsum[i]===0) continue;
+      let s=0;
+      for (const {k,other} of adj[i]) s += edges[k].D * p[other];
+      p[i] = s / Dsum[i];
+    }
+    p[src]=1; p[sink]=0;
+  }
+  return p;
+}
+
+const GAIN = 100, DT = 0.06;
+function step() {
+  const p = solvePressures();
+  for (const e of edges) {
+    const flux = Math.abs(e.D * (p[e.a]-p[e.b])) * GAIN;
+    e.D += DT * (flux - e.D);
+    if (e.D < 0) e.D = 0; if (e.D > 1) e.D = 1;
+  }
+  ticks++;
+  draw();
+  if (ticks % 20 === 0) {
+    const maxD = Math.max(...edges.map(e=>e.D));
+    const kept = edges.filter(e=>e.D > maxD*0.001).length;
+    document.getElementById('stat').textContent = `${nodes.length} nodes, ${edges.length} tubes · ${kept} live · step ${ticks}`;
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#07090a'; ctx.fillRect(0,0,cv.width,cv.height);
+  for (let y=0;y<H;y++) for (let x=0;x<W;x++) {
+    if (maze[y][x] === 1) { ctx.fillStyle = '#12171b'; ctx.fillRect(x*cell,y*cell,cell,cell); }
+  }
+  const maxD = Math.max(0.001, ...edges.map(e=>e.D));
+  const prune = parseFloat(document.getElementById('prune').value);
+  for (const e of edges) {
+    if (e.D <= maxD*prune) continue;
+    const a = nodes[e.a], b = nodes[e.b];
+    const t = e.D / maxD;
+    ctx.strokeStyle = `rgba(182,243,106,${0.22+0.78*t})`;
+    ctx.lineWidth = cell * (0.12 + 0.5*t);
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(a.x*cell+cell/2, a.y*cell+cell/2);
+    ctx.lineTo(b.x*cell+cell/2, b.y*cell+cell/2);
+    ctx.stroke();
+  }
+  if (sink !== undefined) {
+    const s = nodes[sink], st = nodes[src];
+    ctx.fillStyle = '#b6f36a';
+    ctx.beginPath(); ctx.arc(s.x*cell+cell/2, s.y*cell+cell/2, cell*0.34, 0, 7); ctx.fill();
+    ctx.fillStyle = '#5aa0ff';
+    ctx.beginPath(); ctx.arc(st.x*cell+cell/2, st.y*cell+cell/2, cell*0.22, 0, 7); ctx.fill();
+  }
+}
+
+function loop() {
+  if (!running) return;
+  step();
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('run').onclick = () => { running = !running; document.getElementById('run').textContent = running ? 'pause' : 'run'; if (running) loop(); };
+document.getElementById('step').onclick = () => { running = false; document.getElementById('run').textContent = 'run'; step(); };
+document.getElementById('reset').onclick = () => { running = false; document.getElementById('run').textContent = 'run'; build(); };
+document.getElementById('prune').oninput = (e) => { document.getElementById('pv').textContent = e.target.value; draw(); };
+
+cv.addEventListener('click', (ev) => {
+  const r = cv.getBoundingClientRect();
+  const x = Math.floor((ev.clientX-r.left)/r.width*W);
+  const y = Math.floor((ev.clientY-r.top)/r.height*H);
+  if (maze[y] && maze[y][x] === 0) {
+    const i = id.get(x+','+y);
+    if (i !== undefined && i !== src) { sink = i; draw(); }
+  }
+});
+
+build();
+</script>
+</body>
+</html>
