@@ -78,7 +78,7 @@ const nets = [
     f: quad
   },
   {
-    id:'xor', label:'XOR', targetText:'the classic 2-unit XOR net. on continuous inputs it lights two corner triangles where x and y are far apart (abs(x-y) > 0.5) - a band along the anti-diagonal, cut by the [0,1] box',
+    id:'xor', label:'XOR', targetText:'the classic 2-unit XOR net. on continuous inputs it lights two corner triangles where x and y are far apart (abs(x-y) > 0.5) - one in each opposite corner, not a single band',
     target:(x,y)=> Math.abs(x - y) > 0.5,
     weights:[
       {k:'a1',n:'h1·x',v:0},{k:'a2',n:'h1·y',v:0},{k:'a3',n:'h1 b',v:0},
