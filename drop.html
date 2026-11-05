@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>drop</title>
+<style>
+  html,body{margin:0;height:100%;background:#0d0d12;color:#e8e8f0;font-family:ui-monospace,Menlo,monospace;overflow:hidden}
+  canvas{display:block;width:100%;height:100%;touch-action:none}
+  #ui{position:fixed;left:14px;bottom:14px;display:flex;gap:8px;align-items:center;font-size:13px;opacity:.85}
+  #ui input{background:#1a1a24;border:1px solid #33334a;color:#e8e8f0;padding:7px 10px;border-radius:8px;font:inherit;width:min(46vw,320px);outline:none}
+  #ui input:focus{border-color:#6a6aff}
+  #ui button{background:#24243a;border:1px solid #3a3a5a;color:#cfcfe8;padding:7px 12px;border-radius:8px;font:inherit;cursor:pointer}
+  #ui button:hover{background:#30304e}
+  #hint{position:fixed;left:14px;top:12px;font-size:12px;opacity:.4}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hint">type. press enter. watch it fall.</div>
+<div id="ui">
+  <input id="t" maxlength="18" placeholder="say something" autocomplete="off" spellcheck="false">
+  <button id="go">drop</button>
+  <button id="clr">clear</button>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=Math.min(2,devicePixelRatio||1);
+function fit(){W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+fit();addEventListener('resize',fit);
+
+// --- physics: simple verlet particles with distance constraints (letters = little rigid clusters) ---
+const G=1400;          // gravity px/s^2
+const DAMP=0.996;
+let parts=[], sticks=[], glyphs=[];
+let prev=performance.now();
+
+function addGlyph(text,x,y){
+  const size=48;
+  const cols=Math.max(1,text.length);
+  const g={text,x,y,size,parts:[],age:0};
+  // approximate each char as a 2x2 cross of points, plus a center
+  for(let i=0;i<text.length;i++){
+    const cx=x+i*size*0.62, cy=y;
+    const offs=[[-size*0.22,0],[size*0.22,0],[0,-size*0.22],[0,size*0.22],[0,0]];
+    const ring=[];
+    for(const [ox,oy] of offs){
+      const p={x:cx+ox,y:cy+oy,px:cx+ox,py:cy+oy,r:size*0.22,m:1};
+      parts.push(p);g.parts.push(p);ring.push(p);
+    }
+    // connect the 5 points of this char to each other (rigid-ish)
+    const c=ring[4];
+    for(let k=0;k<4;k++){sticks.push([c,ring[k],size*0.22]);}
+    sticks.push([ring[0],ring[1],size*0.44]);
+    sticks.push([ring[2],ring[3],size*0.44]);
+  }
+  glyphs.push(g);
+}
+
+function step(dt){
+  // integrate
+  for(const p of parts){
+    const vx=(p.x-p.px)*DAMP, vy=(p.y-p.py)*DAMP;
+    p.px=p.x;p.py=p.y;
+    p.x+=vx; p.y+=vy+G*dt*dt;
+    // floor + walls
+    if(p.y>H-p.r){p.y=H-p.r; p.py=p.y+ (p.py-p.y)*0.4;}
+    if(p.x<p.r){p.x=p.r;p.px=p.x+(p.px-p.x)*0.5;}
+    if(p.x>W-p.r){p.x=W-p.r;p.px=p.x+(p.px-p.x)*0.5;}
+  }
+  // solve sticks a few times
+  for(let it=0;it<4;it++){
+    for(const [a,b,len] of sticks){
+      let dx=b.x-a.x, dy=b.y-a.y;
+      let d=Math.hypot(dx,dy)||0.0001;
+      const diff=(d-len)/d*0.5;
+      const ox=dx*diff, oy=dy*diff;
+      a.x+=ox;a.y+=oy;b.x-=ox;b.y-=oy;
+    }
+  }
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // draw glyphs as text at their centroid, rotated by best-fit line? just draw upright, tinted
+  for(const g of glyphs){
+    if(!g.parts.length)continue;
+    let cx=0,cy=0;
+    for(const p of g.parts){cx+=p.x;cy+=p.y;}
+    cx/=g.parts.length;cy/=g.parts.length;
+    const a=Math.min(1,0.35+g.age*1.5);
+    ctx.save();
+    ctx.globalAlpha=a;
+    ctx.font=`700 ${g.size}px ui-monospace,Menlo,monospace`;
+    ctx.fillStyle='#e8e8f0';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(g.text,cx,cy);
+    ctx.restore();
+  }
+  // little sparks at joints
+  ctx.fillStyle='#6a6aff';
+  for(const p of parts){ctx.globalAlpha=0.25;ctx.fillRect(p.x-1,p.y-1,2,2);}
+  ctx.globalAlpha=1;
+}
+
+function loop(now){
+  let dt=(now-prev)/1000; prev=now;
+  dt=Math.min(dt,1/30);
+  if(parts.length){step(dt);}
+  for(const g of glyphs)g.age+=dt;
+  draw();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+function spawn(text){
+  text=(text||'').slice(0,18);
+  if(!text.trim())return;
+  const size=48;
+  const w=text.length*size*0.62;
+  const x=Math.max(40,(W-w)/2);
+  addGlyph(text,x,-30);
+}
+
+const inp=document.getElementById('t');
+document.getElementById('go').onclick=()=>{spawn(inp.value);inp.value='';inp.focus();};
+document.getElementById('clr').onclick=()=>{parts=[];sticks=[];glyphs=[];};
+inp.addEventListener('keydown',e=>{if(e.key==='Enter'){spawn(inp.value);inp.value='';}});
+// click to drop a single random letter
+cv.addEventListener('pointerdown',e=>{ if(e.target===cv){ spawn(String.fromCharCode(65+Math.floor(Math.random()*26))); } });
+spawn('hello');
+</script>
+</body>
+</html>
