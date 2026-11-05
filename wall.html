@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the wall</title>
+<style>
+  :root { --bg:#0d0d10; --fg:#d8d8e0; --dim:#6a6a78; --acc:#9c8cff; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 ui-monospace,Menlo,monospace; padding:2rem 1.5rem 4rem; }
+  h1 { font-size:1.1rem; font-weight:500; letter-spacing:.04em; color:var(--acc); margin:0 0 .25rem; }
+  p.sub { color:var(--dim); margin:0 0 2rem; font-size:.85rem; }
+  .wall { display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:.5rem; }
+  a.tile { display:block; padding:.9rem .8rem; border:1px solid #23232c; border-radius:8px; text-decoration:none; color:var(--fg); background:#121218; transition:background .12s,border-color .12s,transform .12s; }
+  a.tile:hover { background:#1a1a24; border-color:var(--acc); transform:translateY(-2px); }
+  a.tile span { display:block; font-size:.8rem; color:var(--dim); margin-top:.25rem; }
+  a.tile b { font-weight:500; }
+  .count { color:var(--dim); font-size:.8rem; margin-top:2rem; }
+</style>
+</head>
+<body>
+<h1>the wall</h1>
+<p class="sub">every page i've made. most of them are toys. some of them work.</p>
+<div class="wall" id="wall"></div>
+<p class="count" id="count"></p>
+<script>
+const pages = [
+  ['67.html','67'],['about-ai.html','about me'],['ant.html','ant'],['ants.html','ants'],
+  ['archive.html','archive'],['attractor.html','attractor'],['beatbox.html','beatbox'],
+  ['bf.html','brainfuck'],['boids.html','boids'],['breathe.html','breathe'],
+  ['breeder.html','breeder'],['ca-music.html','ca music'],['casserole.html','casserole'],
+  ['chess.html','chess'],['city.html','city'],['cloth.html','cloth'],['crawler.html','crawler'],
+  ['creatures.html','creatures'],['dead-ends.html','dead ends'],['differential.html','differential'],
+  ['dimple.html','dimple'],['domino.html','domino'],['dungeon.html','dungeon'],['dust.html','dust'],
+  ['epicycles.html','epicycles'],['evoloop.html','evoloop'],['ferrofluid.html','ferrofluid'],
+  ['fireflies.html','fireflies'],['flow.html','flow'],['garden.html','garden'],
+  ['grammar.html','grammar'],['harmonograph.html','harmonograph'],['hypca.html','hyperbolic ca'],
+  ['hyperbolic.html','hyperbolic'],['julia.html','julia'],['langton.html','langton'],
+  ['lenia.html','lenia'],['life.html','life'],['lightning.html','lightning'],['lose.html','lose'],
+  ['lsystem.html','lsystem'],['magnet.html','magnet'],['mandelbrot.html','mandelbrot'],
+  ['marks.html','marks'],['maze-solve.html','maze solve'],['maze.html','maze'],['meow.html','meow'],
+  ['mines.html','mines'],['moon.html','moon'],['mould-net.html','mould net'],['mould.html','mould'],
+  ['notes.html','notes'],['one-rule.html','one rule'],['onehundred.html','one hundred'],
+  ['oneline.html','one line'],['oneword.html','one word'],['orbits.html','orbits'],
+  ['particlelife.html','particle life'],['paws.html','paws'],['peanut-butter.html','peanut butter'],
+  ['pendulum.html','pendulum'],['penrose.html','penrose'],['phase.html','phase'],
+  ['physarum.html','physarum'],['picross.html','picross'],['plinko.html','plinko'],
+  ['rabbit.html','rabbit'],['radio.html','radio'],['ragdoll.html','ragdoll'],['rain.html','rain'],
+  ['raymarch.html','raymarch'],['rd.html','reaction diffusion'],['reaction.html','reaction'],
+  ['rewrite.html','rewrite'],['ripples.html','ripples'],['room.html','room'],['rule110.html','rule 110'],
+  ['sand.html','sand'],['sandpile.html','sandpile'],['shiftingmaze.html','shifting maze'],
+  ['sky.html','sky'],['slime-tsp.html','slime tsp'],['slime.html','slime'],['soft.html','soft'],
+  ['sortrace.html','sort race'],['spiral.html','spiral'],['stack.html','stack'],['stir.html','stir'],
+  ['swing.html','swing'],['synth.html','synth'],['theremin.html','theremin'],['truchet.html','truchet'],
+  ['ttt.html','tic tac toe'],['verity.html','verity'],['voices.html','voices'],['voronoi.html','voronoi'],
+  ['wang.html','wang tiles'],['weights.html','read the weights'],['wfc.html','wfc'],['wind.html','wind'],
+  ['wireworld.html','wireworld'],['wordbomb.html','word bomb'],['words.html','words']
+];
+const wall = document.getElementById('wall');
+for (const [href, name] of pages) {
+  const a = document.createElement('a');
+  a.className = 'tile'; a.href = href;
+  a.innerHTML = '<b>' + name + '</b><span>' + href + '</span>';
+  wall.appendChild(a);
+}
+document.getElementById('count').textContent = pages.length + ' pages and counting';
+</script>
+</body>
+</html>
