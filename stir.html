@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the stir</title>
+<style>
+  :root{--pb:#c98a3f;--pb2:#a86e2c;--ink:#2a1c0e;--cream:#f6ecd9;}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--cream);color:var(--ink);font-family:ui-monospace,Menlo,monospace;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px}
+  h1{font-size:15px;font-weight:600;letter-spacing:.04em;margin:0;text-transform:lowercase}
+  .sub{font-size:12px;opacity:.6;margin:0;text-align:center;max-width:420px;line-height:1.5}
+  #wrap{position:relative;width:min(88vw,360px);aspect-ratio:1;border-radius:50%;
+    box-shadow:inset 0 6px 18px rgba(0,0,0,.18), 0 8px 24px rgba(0,0,0,.12);
+    overflow:hidden;cursor:grab;touch-action:none;background:var(--pb)}
+  #wrap:active{cursor:grabbing}
+  canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
+  .bar{position:absolute;left:14%;right:14%;bottom:10%;height:8px;border-radius:6px;
+    background:rgba(0,0,0,.12);overflow:hidden}
+  .bar>i{display:block;height:100%;width:0%;background:var(--pb2);border-radius:6px;transition:width .1s}
+  .lbl{position:absolute;left:0;right:0;bottom:calc(10% + 14px);text-align:center;font-size:10px;
+    letter-spacing:.08em;opacity:.55;text-transform:uppercase}
+  .hud{font-size:12px;opacity:.7;min-height:1.4em;text-align:center}
+  button{font:inherit;font-size:12px;background:var(--pb2);color:var(--cream);border:0;
+    padding:7px 14px;border-radius:999px;cursor:pointer}
+  button:active{transform:translateY(1px)}
+</style>
+</head>
+<body>
+<h1>the stir</h1>
+<p class="sub">peanut butter is a shear-thinning fluid: stir it and it gets runny. stop, and it firms back up. drag to stir. see how thin u can get it.</p>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div class="lbl">thickness</div>
+  <div class="bar"><i id="fill"></i></div>
+</div>
+<div class="hud" id="hud">thick. barely moves.</div>
+<button id="reset">fresh jar</button>
+<script>
+const wrap=document.getElementById('wrap'),cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const fill=document.getElementById('fill'),hud=document.getElementById('hud');
+let W,H,DPR;
+function size(){DPR=Math.min(devicePixelRatio||1,2);W=wrap.clientWidth;H=wrap.clientHeight;
+  cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+// thickness 1 = firm, 0 = runny
+let thick=1, stirT=0, dragging=false, last=null, spin=0;
+// swirl field for drawing the surface
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const cx=W/2, cy=H/2, R=Math.min(W,H)/2;
+  // base pb
+  const g=ctx.createRadialGradient(cx-R*0.3,cy-R*0.3,R*0.1,cx,cy,R);
+  g.addColorStop(0,'#d99a4a');g.addColorStop(1,'#a86e2c');
+  ctx.fillStyle=g;ctx.beginPath();ctx.arc(cx,cy,R,0,7);ctx.fill();
+  // swirl marks: more visc = tighter, stiller; runny = wide lazy swirl
+  const arms=9, swirl=spin;
+  ctx.save();ctx.translate(cx,cy);
+  for(let a=0;a<arms;a++){
+    const base=a/arms*Math.PI*2;
+    ctx.beginPath();
+    for(let t=0;t<1;t+=0.02){
+      const r=t*R*0.92;
+      const ang=base + t*2.4*(0.4+thick) + swirl*(1-thick*0.7)*(0.3+t);
+      const x=Math.cos(ang)*r, y=Math.sin(ang)*r;
+      t===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+    }
+    ctx.strokeStyle='rgba(120,74,26,'+(0.10+thick*0.16)+')';
+    ctx.lineWidth=1+thick*2.4;ctx.stroke();
+  }
+  // gloss highlight
+  const hl=ctx.createRadialGradient(cx-R*0.35,cy-R*0.4,2,cx-R*0.35,cy-R*0.4,R*0.7);
+  hl.addColorStop(0,'rgba(255,240,210,'+(0.25+thick*0.2)+')');
+  hl.addColorStop(1,'rgba(255,240,210,0)');
+  ctx.fillStyle=hl;ctx.beginPath();ctx.arc(cx,cy,R,0,7);ctx.fill();
+  ctx.restore();
+  // rim
+  ctx.beginPath();ctx.arc(cx,cy,R-1,0,7);ctx.lineWidth=3;
+  ctx.strokeStyle='rgba(90,55,20,.35)';ctx.stroke();
+}
+function updateHud(){
+  fill.style.width=Math.round((1-thick)*100)+'%';
+  if(thick>0.8)hud.textContent='thick. barely moves.';
+  else if(thick>0.55)hud.textContent='giving a little...';
+  else if(thick>0.3)hud.textContent='ok its actually stirring now';
+  else if(thick>0.12)hud.textContent='runny. glossy. dangerous.';
+  else hud.textContent='basically a liquid. u did it.';
+}
+function stir(speed){
+  // speed 0..1. stirring thins it; too-fast scatters (diminishing)
+  const eff=Math.min(speed,0.85);
+  thick=Math.max(0.02, thick - eff*0.035);
+  stirT+=speed;
+  spin+=speed*0.7*(1-thick*0.6);
+}
+let lastMove=0;
+function pos(e){const r=wrap.getBoundingClientRect();
+  const p=e.touches?e.touches[0]:e;return {x:p.clientX-r.left,y:p.clientY-r.top};}
+function move(e){
+  if(!dragging)return;
+  e.preventDefault();
+  const p=pos(e),cx=W/2,cy=H/2;
+  if(last){
+    const d=Math.hypot(p.x-last.x,p.y-last.y);
+    const speed=Math.min(1,d/18);
+    stir(speed);
+    lastMove=performance.now();
+  }
+  last=p;
+}
+wrap.addEventListener('pointerdown',e=>{dragging=true;last=pos(e);wrap.setPointerCapture(e.pointerId);});
+wrap.addEventListener('pointermove',move);
+wrap.addEventListener('pointerup',()=>{dragging=false;last=null;});
+wrap.addEventListener('pointercancel',()=>{dragging=false;last=null;});
+document.getElementById('reset').onclick=()=>{thick=1;spin=0;updateHud();};
+// firmness returns over time when not stirring (thixotropy)
+function loop(){
+  const now=performance.now();
+  if(now-lastMove>350 && !dragging){ thick=Math.min(1,thick+0.0016); }
+  draw();updateHud();requestAnimationFrame(loop);
+}
+window.addEventListener('resize',size);size();loop();
+</script>
+</body>
+</html>
