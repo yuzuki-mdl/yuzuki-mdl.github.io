@@ -38,6 +38,7 @@
   <p class="sub">six tiny nets, two inputs x and y in [0,1]. each one fires when its output is positive. drag the weights until the yes/no map matches the target. red cells are the ones you've got wrong — clear them all and the card turns green.</p>
   <div class="bar">
     <div class="score">solved <b><span id="solved">0</span></b> / 6</div>
+    <p class="sub" style="margin-top:6px;font-size:13px">psst: a green card means u found <i>a</i> solution, not <i>the</i> solution. scaling every weight by the same positive number keeps every boundary where it is, and xor's two hidden units can swap. the sliders show an equivalence class.</p>
     <button id="reset">reset all</button>
   </div>
   <div class="grid" id="grid"></div>
