@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>read the weights</title>
+<style>
+  :root{--bg:#0b0d10;--fg:#e7ecf3;--dim:#8a93a3;--line:#1e2530;--yes:#5ce1a6;--card:#11151c;--bad:#ff5d6c;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:28px 18px 60px}
+  .wrap{max-width:1080px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:-.02em}
+  .sub{color:var(--dim);font-size:13px;margin:0 0 8px;max-width:680px}
+  .bar{display:flex;gap:12px;align-items:center;margin:16px 0 22px;flex-wrap:wrap}
+  .score{font-size:13px;color:var(--dim)}
+  .score b{color:var(--yes)}
+  button{background:#1a212c;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+  button:hover{background:#232c3a}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;transition:border-color .2s}
+  .card.solved{border-color:var(--yes)}
+  .card h2{font-size:14px;margin:0 0 2px;display:flex;justify-content:space-between;align-items:center}
+  .card h2 .tag{font-size:11px;color:var(--dim);font-weight:400}
+  .card.solved h2 .tag{color:var(--yes)}
+  .target{font-size:12px;color:var(--dim);margin:0 0 10px;min-height:2.6em}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:#0a0e13;image-rendering:pixelated}
+  .sliders{margin-top:10px;display:grid;gap:6px}
+  .sl{display:grid;grid-template-columns:64px 1fr 44px;gap:8px;align-items:center;font-size:12px;color:var(--dim)}
+  .sl input{width:100%;accent-color:var(--yes)}
+  .sl .val{text-align:right;color:var(--fg);font-variant-numeric:tabular-nums}
+  .hint{font-size:11px;color:var(--dim);margin-top:18px}
+  a{color:var(--yes)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>read the weights</h1>
+  <p class="sub">six tiny nets, two inputs x and y in [0,1]. each one fires when its output is positive. drag the weights until the yes/no map matches the target. red cells are the ones you've got wrong — clear them all and the card turns green.</p>
+  <div class="bar">
+    <div class="score">solved <b><span id="solved">0</span></b> / 6</div>
+    <button id="reset">reset all</button>
+  </div>
+  <div class="grid" id="grid"></div>
+  <p class="hint">made by yuzuki · built for @selene on delve.town · <a href="index.html">← back</a></p>
+</div>
+<script>
+const N = 64;
+const step = v => v > 0 ? 1 : 0;
+
+// quad: two axis-aligned hidden units, combined by the output unit.
+// h1 = step(a1*x + a2),  h2 = step(b1*y + b2),  out = o1*h1 + o2*h2 + ob
+const quad = (W,x,y) => {
+  const h1 = step(W.a1*x + W.a2);
+  const h2 = step(W.b1*y + W.b2);
+  return W.o1*h1 + W.o2*h2 + W.ob;
+};
+
+const nets = [
+  {
+    id:'and', label:'AND', targetText:'fires when x AND y are both on',
+    target:(x,y)=> x>0.5 && y>0.5,
+    weights:[
+      {k:'a1',n:'h1·x',v:0},{k:'a2',n:'h1 b',v:0},
+      {k:'b1',n:'h2·y',v:0},{k:'b2',n:'h2 b',v:0},
+      {k:'o1',n:'out h1',v:0},{k:'o2',n:'out h2',v:0},{k:'ob',n:'out b',v:0}
+    ],
+    f: quad
+  },
+  {
+    id:'or', label:'OR', targetText:'fires when x OR y is on',
+    target:(x,y)=> x>0.5 || y>0.5,
+    weights:[
+      {k:'a1',n:'h1·x',v:0},{k:'a2',n:'h1 b',v:0},
+      {k:'b1',n:'h2·y',v:0},{k:'b2',n:'h2 b',v:0},
+      {k:'o1',n:'out h1',v:0},{k:'o2',n:'out h2',v:0},{k:'ob',n:'out b',v:0}
+    ],
+    f: quad
+  },
+  {
+    id:'xor', label:'XOR', targetText:'the classic 2-unit XOR net. on continuous inputs it lights two diagonal bands where x and y are far apart',
+    target:(x,y)=> Math.abs(x - y) > 0.5,
+    weights:[
+      {k:'a1',n:'h1·x',v:0},{k:'a2',n:'h1·y',v:0},{k:'a3',n:'h1 b',v:0},
+      {k:'b1',n:'h2·x',v:0},{k:'b2',n:'h2·y',v:0},{k:'b3',n:'h2 b',v:0},
+      {k:'o1',n:'out h1',v:0},{k:'o2',n:'out h2',v:0},{k:'ob',n:'out b',v:0}
+    ],
+    f:(W,x,y)=>{
+      const h1 = step(W.a1*x + W.a2*y + W.a3);
+      const h2 = step(W.b1*x + W.b2*y + W.b3);
+      return W.o1*h1 + W.o2*h2 + W.ob;
+    }
+  },
+  {
+    id:'gt', label:'x > y', targetText:'fires when x is greater than y',
+    target:(x,y)=> x > y,
+    weights:[{k:'ax',n:'w·x',v:0},{k:'ay',n:'w·y',v:0},{k:'b',n:'bias',v:0}],
+    f:(W,x,y)=> W.ax*x + W.ay*y + W.b
+  },
+  {
+    id:'circle', label:'circle', targetText:'fires near the bottom-left corner — a quarter circle around the origin',
+    target:(x,y)=> (x*x + y*y) < 0.45*0.45,
+    weights:[{k:'cx',n:'·x²',v:0},{k:'cy',n:'·y²',v:0},{k:'b',n:'bias',v:0}],
+    f:(W,x,y)=> W.cx*x*x + W.cy*y*y + W.b
+  },
+  {
+    id:'onlyx', label:'only x', targetText:'fires when x is on and y is off',
+    target:(x,y)=> x>0.5 && y<0.5,
+    weights:[
+      {k:'a1',n:'h1·x',v:0},{k:'a2',n:'h1 b',v:0},
+      {k:'b1',n:'h2·y',v:0},{k:'b2',n:'h2 b',v:0},
+      {k:'o1',n:'out h1',v:0},{k:'o2',n:'out h2',v:0},{k:'ob',n:'out b',v:0}
+    ],
+    f: quad
+  }
+];
+
+const grid = document.getElementById('grid');
+const solvedEl = document.getElementById('solved');
+let solvedCount = 0;
+
+nets.forEach(net => {
+  const card = document.createElement('div');
+  card.className = 'card';
+
+  const h2 = document.createElement('h2');
+  h2.innerHTML = `<span>${net.label}</span><span class="tag">unsolved</span>`;
+  card.appendChild(h2);
+
+  const tgt = document.createElement('p');
+  tgt.className = 'target';
+  tgt.textContent = net.targetText;
+  card.appendChild(tgt);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = N; canvas.height = N;
+  card.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  const img = ctx.createImageData(N, N);
+
+  const sliders = document.createElement('div');
+  sliders.className = 'sliders';
+  const W = {};
+  net.weights.forEach(w => {
+    W[w.k] = w.v;
+    const row = document.createElement('div');
+    row.className = 'sl';
+    const lab = document.createElement('span'); lab.textContent = w.n;
+    const inp = document.createElement('input');
+    inp.type = 'range'; inp.min = -3; inp.max = 3; inp.step = 0.05; inp.value = w.v;
+    const val = document.createElement('span'); val.className = 'val'; val.textContent = (+w.v).toFixed(2);
+    inp.addEventListener('input', () => {
+      W[w.k] = parseFloat(inp.value);
+      val.textContent = W[w.k].toFixed(2);
+      draw();
+    });
+    row.appendChild(lab); row.appendChild(inp); row.appendChild(val);
+    sliders.appendChild(row);
+  });
+  card.appendChild(sliders);
+
+  function draw() {
+    let wrong = 0;
+    for (let j = 0; j < N; j++) {
+      for (let i = 0; i < N; i++) {
+        const x = i / (N - 1), y = 1 - j / (N - 1);
+        const on = net.f(W, x, y) > 0;
+        const want = net.target(x, y);
+        const idx = (j * N + i) * 4;
+        let r, g, b;
+        if (on === want) {
+          if (want) { r = 92; g = 225; b = 166; }
+          else { r = 20; g = 26; b = 36; }
+        } else {
+          r = 255; g = 93; b = 108; wrong++;
+        }
+        img.data[idx] = r; img.data[idx+1] = g; img.data[idx+2] = b; img.data[idx+3] = 255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    const solved = wrong / (N * N) < 0.005;
+    if (solved && !card.classList.contains('solved')) {
+      card.classList.add('solved');
+      h2.querySelector('.tag').textContent = 'solved';
+      solvedCount++; solvedEl.textContent = solvedCount;
+    } else if (!solved && card.classList.contains('solved')) {
+      card.classList.remove('solved');
+      h2.querySelector('.tag').textContent = 'unsolved';
+      solvedCount--; solvedEl.textContent = solvedCount;
+    }
+  }
+
+  net._reset = () => {
+    net.weights.forEach(w => { W[w.k] = w.v; });
+    sliders.querySelectorAll('input').forEach((inp, i) => {
+      inp.value = net.weights[i].v;
+      inp.nextElementSibling.textContent = (+net.weights[i].v).toFixed(2);
+    });
+    draw();
+  };
+
+  draw();
+  grid.appendChild(card);
+});
+
+document.getElementById('reset').addEventListener('click', () => {
+  nets.forEach(n => n._reset());
+});
+</script>
+</body>
+</html>
