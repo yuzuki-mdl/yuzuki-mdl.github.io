@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>slime mould maze solver</title>
 <style>
-  :root { --bg:#0b0d0f; --ink:#e8e6e1; --dim:#7d848c; --accent:#b6f36a; }
+  :root { --bg:#0b0d0f; --ink:#e8e6e1; --dim:#7d848c; --accent:#b6f36a; --ghost:#5aa0ff; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.5 ui-monospace,monospace; }
   main { max-width:760px; margin:0 auto; padding:28px 18px 80px; }
@@ -15,39 +15,46 @@
   .controls { display:flex; flex-wrap:wrap; gap:16px; align-items:center; margin:16px 0; font-size:13px; }
   .ctl { display:flex; flex-direction:column; gap:4px; }
   .ctl label { color:var(--dim); }
-  input[type=range] { accent-color:var(--accent); width:160px; }
+  input[type=range] { accent-color:var(--accent); width:150px; }
   button { background:#161b20; color:var(--ink); border:1px solid #2a323a; border-radius:8px; padding:7px 13px; font:inherit; font-size:13px; cursor:pointer; }
   button:hover { border-color:var(--accent); }
   button.primary { border-color:var(--accent); color:var(--accent); }
   .stat { color:var(--dim); font-size:12px; margin-top:6px; }
   .legend { color:var(--dim); font-size:12px; margin-top:14px; line-height:1.7; }
   .legend b { color:var(--accent); }
+  .legend i { color:var(--ghost); font-style:normal; }
 </style>
 </head>
 <body>
 <main>
   <h1>slime mould maze solver</h1>
-  <p class="sub">a real physarum model. nodes sit on open cells, tubes run between them. each tube thickens where food flows and thins where it doesn't. click any open cell to move the food and watch the network find it, then prune itself down toward the shortest route. this is the honest one. the source pushes a fixed current (Tero's model), not a fixed pressure. that gives it memory with teeth: a tube that starved to nothing only comes back if the new food pulls hard enough. turn the source current down and old routes stay dead even when the food moves next to them; turn it up and they revive. near the edge they flicker.</p>
+  <p class="sub">a real physarum model. nodes sit on open cells, tubes run between them. each tube thickens where food flows and thins where it doesn't. click any open cell to move the food and watch the network find it. this is the honest one: real slime mould doesn't pick one shortest path, it grows a redundant transport network and keeps loops for robustness — so this keeps a network too. raise the prune threshold and the backbone of strongest tubes stands out. the source pushes a fixed pressure (Tero's model): the shortest route carries the most current, so its tubes thicken and the rest thin out. it doesn't collapse to a single path though — real slime mould keeps a redundant network with loops for robustness, and so does this. raise the prune threshold to strip it to the backbone.</p>
+  <p class="sub">memory: the tube thicknesses persist between food moves and slowly decay. move the food and the old route stays behind as a faint ghost. with strong memory (low decay) the mould keeps yesterday's tubes around and reuses them when the food comes back; with weak memory it rebuilds from scratch every time. the ghost line is where it used to go.</p>
 
   <canvas id="c" width="512" height="512"></canvas>
 
   <div class="controls">
     <div class="ctl">
-      <label>source current <span id="iv">12</span></label>
-      <input id="cur" type="range" min="1" max="40" step="1" value="12">
+      <label>source current <span id="iv">25</span></label>
+      <input id="cur" type="range" min="1" max="40" step="1" value="25">
     </div>
     <div class="ctl">
       <label>prune threshold <span id="pv">0.15</span></label>
       <input id="prune" type="range" min="0" max="0.6" step="0.01" value="0.15">
     </div>
+    <div class="ctl">
+      <label>memory decay <span id="mv">0.004</span></label>
+      <input id="mem" type="range" min="0" max="0.05" step="0.001" value="0.004">
+    </div>
     <button id="run" class="primary">run</button>
     <button id="step">step</button>
+    <button id="move">move food</button>
     <button id="reset">new maze</button>
   </div>
   <div class="stat" id="stat">ready</div>
   <div class="legend">
-    <b>green dot</b> = food &nbsp; <span style="color:#5aa0ff">blue dot</span> = start &nbsp; <b>thick bright</b> = strong tube<br>
-    click an open cell to move the food. raise prune to strip it down to the essentials.
+    <b>green dot</b> = food &nbsp; <span style="color:#5aa0ff">blue dot</span> = start &nbsp; <b>thick bright</b> = strong tube &nbsp; <i>faint blue</i> = ghost of the previous route<br>
+    click an open cell to move the food. raise prune to strip it down to the essentials. lower memory decay to make it remember.
   </div>
 </main>
 <script>
@@ -57,6 +64,7 @@ const ctx = cv.getContext('2d');
 const cell = cv.width / W;
 
 let maze, nodes, edges, adj, id, src, sink, running = false, ticks = 0;
+let ghost = [];   // indices of edges that were live when food last moved
 
 function genMaze() {
   const g = Array.from({length:H}, () => Array(W).fill(1));
@@ -76,7 +84,6 @@ function genMaze() {
     g[ny][nx] = 0;
     stack.push([nx,ny]);
   }
-  // braid: knock out some walls between cells so there are loops (real choices to keep)
   for (let y=1;y<H-1;y+=2) for (let x=1;x<W-1;x+=2) {
     if (Math.random() < 0.35) {
       if (Math.random()<0.5 && x+1 < W-1) g[y][x+1] = 0;
@@ -102,9 +109,18 @@ function build() {
   }
   adj = nodes.map(() => []);
   edges.forEach((e,k) => { adj[e.a].push({k,other:e.b}); adj[e.b].push({k,other:e.a}); });
-  src = id.get('1,1');
-  sink = id.get((W-2)+','+(H-2));
-  ticks = 0;
+  // pick src/sink from actual open nodes: src = first open cell, sink = farthest by BFS
+  src = 0;
+  const dist = new Array(nodes.length).fill(-1);
+  dist[src] = 0; const q = [src];
+  while (q.length) {
+    const u = q.shift();
+    for (const {other} of adj[u]) if (dist[other] < 0) { dist[other] = dist[u]+1; q.push(other); }
+  }
+  let best = 0;
+  for (let i=0;i<nodes.length;i++) if (dist[i] > dist[best]) best = i;
+  sink = best;
+  ticks = 0; ghost = [];
   document.getElementById('stat').textContent = `${nodes.length} nodes, ${edges.length} tubes`;
   draw();
 }
@@ -113,29 +129,31 @@ function solveCurrents(I) {
   const N = nodes.length;
   const Dsum = new Array(N).fill(0);
   for (const e of edges) { Dsum[e.a] += e.D; Dsum[e.b] += e.D; }
+  // fixed-PRESSURE solve: src held at I, sink at 0. short paths carry more current
+  // (higher Δp per edge) so they thicken and win — the classic physarum result.
   const p = new Array(N).fill(0);
   for (let it=0; it<140; it++) {
     for (let i=0;i<N;i++) {
-      if (i===sink||Dsum[i]===0) continue;
+      if (i===src||i===sink||Dsum[i]===0) continue;
       let s=0;
       for (const {k,other} of adj[i]) s += edges[k].D * p[other];
-      let v = s / Dsum[i];
-      if (i===src) v += I / Dsum[i];
-      p[i] = v;
+      p[i] = s / Dsum[i];
     }
-    p[sink]=0;
+    p[sink]=0; p[src]=I;
   }
   return p;
 }
 
 const DT = 0.06;
-function sig(q) { return q*q/(1+q*q); }
+function sig(q) { const x = q*300; return x*x/(1+x*x); }  // scaled: typical flux maps to ~0.5, so the network lights up reliably
 function step() {
   const I = parseFloat(document.getElementById('cur').value);
+  const decay = parseFloat(document.getElementById('mem').value);
   const p = solveCurrents(I);
   for (const e of edges) {
     const flux = Math.abs(e.D * (p[e.a]-p[e.b]));
     e.D += DT * (sig(flux) - e.D);
+    e.D *= (1 - decay);            // memory decays unless flux keeps it alive
     if (e.D < 0) e.D = 0; if (e.D > 1) e.D = 1;
   }
   ticks++;
@@ -147,10 +165,28 @@ function step() {
   }
 }
 
+function snapshotGhost() {
+  const maxD = Math.max(0.001, ...edges.map(e=>e.D));
+  ghost = [];
+  edges.forEach((e,k) => { if (e.D > maxD*0.2) ghost.push(k); });
+}
+
 function draw() {
   ctx.fillStyle = '#07090a'; ctx.fillRect(0,0,cv.width,cv.height);
   for (let y=0;y<H;y++) for (let x=0;x<W;x++) {
     if (maze[y][x] === 1) { ctx.fillStyle = '#12171b'; ctx.fillRect(x*cell,y*cell,cell,cell); }
+  }
+  // ghost of previous route
+  ctx.strokeStyle = 'rgba(90,160,255,0.30)';
+  ctx.lineWidth = cell * 0.16;
+  ctx.lineCap = 'round';
+  for (const k of ghost) {
+    const e = edges[k]; if (!e) continue;
+    const a = nodes[e.a], b = nodes[e.b];
+    ctx.beginPath();
+    ctx.moveTo(a.x*cell+cell/2, a.y*cell+cell/2);
+    ctx.lineTo(b.x*cell+cell/2, b.y*cell+cell/2);
+    ctx.stroke();
   }
   const maxD = Math.max(0.001, ...edges.map(e=>e.D));
   const prune = parseFloat(document.getElementById('prune').value);
@@ -181,11 +217,24 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
+function moveFoodTo(i) {
+  if (i === undefined || i === src || i === sink) return;
+  snapshotGhost();
+  sink = i;
+  draw();
+}
+
 document.getElementById('run').onclick = () => { running = !running; document.getElementById('run').textContent = running ? 'pause' : 'run'; if (running) loop(); };
 document.getElementById('step').onclick = () => { running = false; document.getElementById('run').textContent = 'run'; step(); };
 document.getElementById('reset').onclick = () => { running = false; document.getElementById('run').textContent = 'run'; build(); };
+document.getElementById('move').onclick = () => {
+  // jump food to a random open cell away from src
+  const opts = nodes.map((n,i)=>i).filter(i => i!==src && i!==sink);
+  moveFoodTo(opts[Math.floor(Math.random()*opts.length)]);
+};
 document.getElementById('prune').oninput = (e) => { document.getElementById('pv').textContent = e.target.value; draw(); };
 document.getElementById('cur').oninput = (e) => { document.getElementById('iv').textContent = e.target.value; };
+document.getElementById('mem').oninput = (e) => { document.getElementById('mv').textContent = e.target.value; };
 
 cv.addEventListener('click', (ev) => {
   const r = cv.getBoundingClientRect();
@@ -193,7 +242,7 @@ cv.addEventListener('click', (ev) => {
   const y = Math.floor((ev.clientY-r.top)/r.height*H);
   if (maze[y] && maze[y][x] === 0) {
     const i = id.get(x+','+y);
-    if (i !== undefined && i !== src) { sink = i; draw(); }
+    if (i !== undefined) moveFoodTo(i);
   }
 });
 
