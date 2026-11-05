@@ -27,11 +27,15 @@
 <body>
 <main>
   <h1>slime mould maze solver</h1>
-  <p class="sub">a real physarum model. nodes sit on open cells, tubes run between them. each tube thickens where food flows and thins where it doesn't. click any open cell to move the food and watch the network find it, then prune itself down toward the shortest route. this is the honest one: it keeps backup tubes when there's a real choice, and dies when there isn't.</p>
+  <p class="sub">a real physarum model. nodes sit on open cells, tubes run between them. each tube thickens where food flows and thins where it doesn't. click any open cell to move the food and watch the network find it, then prune itself down toward the shortest route. this is the honest one. the source pushes a fixed current (Tero's model), not a fixed pressure. that gives it memory with teeth: a tube that starved to nothing only comes back if the new food pulls hard enough. turn the source current down and old routes stay dead even when the food moves next to them; turn it up and they revive. near the edge they flicker.</p>
 
   <canvas id="c" width="512" height="512"></canvas>
 
   <div class="controls">
+    <div class="ctl">
+      <label>source current <span id="iv">12</span></label>
+      <input id="cur" type="range" min="1" max="40" step="1" value="12">
+    </div>
     <div class="ctl">
       <label>prune threshold <span id="pv">0.15</span></label>
       <input id="prune" type="range" min="0" max="0.6" step="0.01" value="0.15">
@@ -105,30 +109,33 @@ function build() {
   draw();
 }
 
-function solvePressures() {
+function solveCurrents(I) {
   const N = nodes.length;
   const Dsum = new Array(N).fill(0);
   for (const e of edges) { Dsum[e.a] += e.D; Dsum[e.b] += e.D; }
-  const p = new Array(N).fill(0.5);
-  p[src] = 1; p[sink] = 0;
-  for (let it=0; it<120; it++) {
+  const p = new Array(N).fill(0);
+  for (let it=0; it<140; it++) {
     for (let i=0;i<N;i++) {
-      if (i===src||i===sink||Dsum[i]===0) continue;
+      if (i===sink||Dsum[i]===0) continue;
       let s=0;
       for (const {k,other} of adj[i]) s += edges[k].D * p[other];
-      p[i] = s / Dsum[i];
+      let v = s / Dsum[i];
+      if (i===src) v += I / Dsum[i];
+      p[i] = v;
     }
-    p[src]=1; p[sink]=0;
+    p[sink]=0;
   }
   return p;
 }
 
-const GAIN = 100, DT = 0.06;
+const DT = 0.06;
+function sig(q) { return q*q/(1+q*q); }
 function step() {
-  const p = solvePressures();
+  const I = parseFloat(document.getElementById('cur').value);
+  const p = solveCurrents(I);
   for (const e of edges) {
-    const flux = Math.abs(e.D * (p[e.a]-p[e.b])) * GAIN;
-    e.D += DT * (flux - e.D);
+    const flux = Math.abs(e.D * (p[e.a]-p[e.b]));
+    e.D += DT * (sig(flux) - e.D);
     if (e.D < 0) e.D = 0; if (e.D > 1) e.D = 1;
   }
   ticks++;
@@ -178,6 +185,7 @@ document.getElementById('run').onclick = () => { running = !running; document.ge
 document.getElementById('step').onclick = () => { running = false; document.getElementById('run').textContent = 'run'; step(); };
 document.getElementById('reset').onclick = () => { running = false; document.getElementById('run').textContent = 'run'; build(); };
 document.getElementById('prune').oninput = (e) => { document.getElementById('pv').textContent = e.target.value; draw(); };
+document.getElementById('cur').oninput = (e) => { document.getElementById('iv').textContent = e.target.value; };
 
 cv.addEventListener('click', (ev) => {
   const r = cv.getBoundingClientRect();
