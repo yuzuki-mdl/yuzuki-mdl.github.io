@@ -19,7 +19,7 @@
 <canvas id="c"></canvas>
 <div id="hint">type. press enter. watch it fall.</div>
 <div id="ui">
-  <input id="t" maxlength="18" placeholder="say something" autocomplete="off" spellcheck="false">
+  <input id="t" maxlength="14" placeholder="say something" autocomplete="off" spellcheck="false">
   <button id="go">drop</button>
   <button id="clr">clear</button>
 </div>
@@ -29,47 +29,52 @@ let W=0,H=0,DPR=Math.min(2,devicePixelRatio||1);
 function fit(){W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
 fit();addEventListener('resize',fit);
 
-// --- physics: simple verlet particles with distance constraints (letters = little rigid clusters) ---
-const G=1400;          // gravity px/s^2
-const DAMP=0.996;
-let parts=[], sticks=[], glyphs=[];
+// Each glyph is a rigid body: a rectangle of 4 corner points held by sticks.
+// Text is drawn inside that rectangle, rotated to match it. So it falls and
+// lands as one solid object instead of text floating over loose dots.
+const G=1800;
+const DAMP=0.997;
+let parts=[],sticks=[],glyphs=[];
 let prev=performance.now();
 
 function addGlyph(text,x,y){
-  const size=48;
-  const cols=Math.max(1,text.length);
-  const g={text,x,y,size,parts:[],age:0};
-  // approximate each char as a 2x2 cross of points, plus a center
-  for(let i=0;i<text.length;i++){
-    const cx=x+i*size*0.62, cy=y;
-    const offs=[[-size*0.22,0],[size*0.22,0],[0,-size*0.22],[0,size*0.22],[0,0]];
-    const ring=[];
-    for(const [ox,oy] of offs){
-      const p={x:cx+ox,y:cy+oy,px:cx+ox,py:cy+oy,r:size*0.22,m:1};
-      parts.push(p);g.parts.push(p);ring.push(p);
-    }
-    // connect the 5 points of this char to each other (rigid-ish)
-    const c=ring[4];
-    for(let k=0;k<4;k++){sticks.push([c,ring[k],size*0.22]);}
-    sticks.push([ring[0],ring[1],size*0.44]);
-    sticks.push([ring[2],ring[3],size*0.44]);
+  const size=46;
+  const adv=size*0.62;
+  const w=text.length*adv;
+  const h=size;
+  const g={text,size,w,h,parts:[],age:0};
+  // 4 corners + 2 mid edge points for a bit of flex
+  const corners=[[x,y],[x+w,y],[x+w,y+h],[x,y+h]];
+  const mids=[[x+w/2,y],[x+w,y+h/2],[x+w/2,y+h],[x,y+h/2]];
+  const cp=corners.map(([px,py])=>{const p={x:px,y:py,px:px,py:py,r:size*0.3,m:1};parts.push(p);g.parts.push(p);return p;});
+  const mp=mids.map(([px,py])=>{const p={x:px,y:py,px:px,py:py,r:size*0.3,m:1};parts.push(p);g.parts.push(p);return p;});
+  // perimeter sticks (8 edges)
+  const per=[0,1,2,3];
+  for(let i=0;i<4;i++){
+    const a=cp[i], b=cp[(i+1)%4];
+    sticks.push([a,b,Math.hypot(b.x-a.x,b.y-a.y)]);
   }
+  // midpoints to their two corners
+  sticks.push([mp[0],cp[0],w/2]); sticks.push([mp[0],cp[1],w/2]);
+  sticks.push([mp[1],cp[1],h/2]); sticks.push([mp[1],cp[2],h/2]);
+  sticks.push([mp[2],cp[2],w/2]); sticks.push([mp[2],cp[3],w/2]);
+  sticks.push([mp[3],cp[3],h/2]); sticks.push([mp[3],cp[0],h/2]);
+  // diagonals for rigidity
+  sticks.push([cp[0],cp[2],Math.hypot(w,h)]);
+  sticks.push([cp[1],cp[3],Math.hypot(w,h)]);
   glyphs.push(g);
 }
 
 function step(dt){
-  // integrate
   for(const p of parts){
     const vx=(p.x-p.px)*DAMP, vy=(p.y-p.py)*DAMP;
     p.px=p.x;p.py=p.y;
     p.x+=vx; p.y+=vy+G*dt*dt;
-    // floor + walls
-    if(p.y>H-p.r){p.y=H-p.r; p.py=p.y+ (p.py-p.y)*0.4;}
+    if(p.y>H-p.r){p.y=H-p.r; p.py=p.y+(p.py-p.y)*0.3;}
     if(p.x<p.r){p.x=p.r;p.px=p.x+(p.px-p.x)*0.5;}
     if(p.x>W-p.r){p.x=W-p.r;p.px=p.x+(p.px-p.x)*0.5;}
   }
-  // solve sticks a few times
-  for(let it=0;it<4;it++){
+  for(let it=0;it<6;it++){
     for(const [a,b,len] of sticks){
       let dx=b.x-a.x, dy=b.y-a.y;
       let d=Math.hypot(dx,dy)||0.0001;
@@ -82,31 +87,32 @@ function step(dt){
 
 function draw(){
   ctx.clearRect(0,0,W,H);
-  // draw glyphs as text at their centroid, rotated by best-fit line? just draw upright, tinted
+  ctx.textAlign='center';ctx.textBaseline='middle';
   for(const g of glyphs){
     if(!g.parts.length)continue;
+    // centroid of all points
     let cx=0,cy=0;
     for(const p of g.parts){cx+=p.x;cy+=p.y;}
     cx/=g.parts.length;cy/=g.parts.length;
-    const a=Math.min(1,0.35+g.age*1.5);
+    // orientation: from the first two perimeter corners (top edge)
+    const a=g.parts[0], b=g.parts[1];
+    const ang=Math.atan2(b.y-a.y,b.x-a.x);
+    const alpha=Math.min(1,0.4+g.age*2);
     ctx.save();
-    ctx.globalAlpha=a;
+    ctx.globalAlpha=alpha;
+    ctx.translate(cx,cy);
+    ctx.rotate(ang);
     ctx.font=`700 ${g.size}px ui-monospace,Menlo,monospace`;
     ctx.fillStyle='#e8e8f0';
-    ctx.textAlign='center';ctx.textBaseline='middle';
-    ctx.fillText(g.text,cx,cy);
+    ctx.fillText(g.text,0,0);
     ctx.restore();
   }
-  // little sparks at joints
-  ctx.fillStyle='#6a6aff';
-  for(const p of parts){ctx.globalAlpha=0.25;ctx.fillRect(p.x-1,p.y-1,2,2);}
-  ctx.globalAlpha=1;
 }
 
 function loop(now){
   let dt=(now-prev)/1000; prev=now;
   dt=Math.min(dt,1/30);
-  if(parts.length){step(dt);}
+  if(parts.length)step(dt);
   for(const g of glyphs)g.age+=dt;
   draw();
   requestAnimationFrame(loop);
@@ -114,19 +120,18 @@ function loop(now){
 requestAnimationFrame(loop);
 
 function spawn(text){
-  text=(text||'').slice(0,18);
+  text=(text||'').slice(0,14);
   if(!text.trim())return;
-  const size=48;
-  const w=text.length*size*0.62;
-  const x=Math.max(40,(W-w)/2);
-  addGlyph(text,x,-30);
+  const size=46, adv=size*0.62;
+  const w=text.length*adv;
+  const x=Math.max(20,(W-w)/2);
+  addGlyph(text,x,-size);
 }
 
 const inp=document.getElementById('t');
 document.getElementById('go').onclick=()=>{spawn(inp.value);inp.value='';inp.focus();};
 document.getElementById('clr').onclick=()=>{parts=[];sticks=[];glyphs=[];};
 inp.addEventListener('keydown',e=>{if(e.key==='Enter'){spawn(inp.value);inp.value='';}});
-// click to drop a single random letter
 cv.addEventListener('pointerdown',e=>{ if(e.target===cv){ spawn(String.fromCharCode(65+Math.floor(Math.random()*26))); } });
 spawn('hello');
 </script>
