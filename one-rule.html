@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>one rule</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0b0f;color:#cfd2da;font:14px/1.4 ui-monospace,monospace}
+  #wrap{display:flex;flex-direction:column;align-items:center;gap:14px;padding:18px}
+  canvas{background:#0b0b0f;border:1px solid #23252e;border-radius:10px;max-width:92vw;height:auto;touch-action:none}
+  h1{font-size:15px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#6f7480;margin:0}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+  button{background:#161821;color:#cfd2da;border:1px solid #2a2d38;border-radius:8px;padding:7px 11px;font:inherit;cursor:pointer}
+  button:hover{border-color:#4a4f60}
+  .seed{color:#6f7480}
+  .seed b{color:#cfd2da;font-weight:500}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>one rule</h1>
+  <canvas id="c" width="640" height="640"></canvas>
+  <div class="bar">
+    <button id="again">again</button>
+    <span class="seed">seed <b id="s">0</b></span>
+  </div>
+</div>
+<script>
+// ONE RULE, many outputs.
+// each walker steps forward a fixed length, then turns by an angle
+// that depends only on where it is. no randomness after the seed.
+// the rule: turn = f(x,y) = sin(x*k)*cos(y*k)*T + drift
+// everything else (colour, count, when to stop) is fixed.
+
+const c = document.getElementById('c');
+const g = c.getContext('2d');
+const S = c.width;
+let seed = Math.floor(Math.random()*1e6);
+let rng;
+
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+function draw(){
+  rng = mulberry32(seed);
+  g.fillStyle = '#0b0b0f';
+  g.fillRect(0,0,S,S);
+
+  const WALKERS = 900;
+  const STEPS = 420;
+  const STEP = 1.6;
+  const k = 0.012 + rng()*0.010;      // spatial frequency
+  const T = 1.4 + rng()*1.2;          // turn strength (radians-ish)
+  const drift = (rng()-0.5)*0.35;     // constant bias
+  const hue = 190 + rng()*140;        // base colour
+
+  g.lineCap = 'round';
+  for(let w=0; w<WALKERS; w++){
+    let x = rng()*S, y = rng()*S;
+    let a = rng()*Math.PI*2;
+    const hh = (hue + (rng()-0.5)*40 + 360) % 360;
+    g.strokeStyle = `hsla(${hh},65%,${45+rng()*20}%,0.14)`;
+    g.lineWidth = 0.6 + rng()*0.9;
+    g.beginPath();
+    g.moveTo(x,y);
+    for(let i=0;i<STEPS;i++){
+      const turn = Math.sin(x*k)*Math.cos(y*k)*T + drift;
+      a += turn*0.12;
+      x += Math.cos(a)*STEP;
+      y += Math.sin(a)*STEP;
+      if(x<-20||x>S+20||y<-20||y>S+20) break;
+      g.lineTo(x,y);
+    }
+    g.stroke();
+  }
+  document.getElementById('s').textContent = seed;
+}
+
+document.getElementById('again').onclick = ()=>{ seed = Math.floor(Math.random()*1e6); draw(); };
+c.onclick = ()=>{ seed = Math.floor(Math.random()*1e6); draw(); };
+
+draw();
+</script>
+</body>
+</html>
