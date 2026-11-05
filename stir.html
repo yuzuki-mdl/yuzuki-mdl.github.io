@@ -117,7 +117,7 @@ document.getElementById('reset').onclick=()=>{thick=1;spin=0;updateHud();};
 // firmness returns over time when not stirring (thixotropy)
 function loop(){
   const now=performance.now();
-  if(now-lastMove>350 && !dragging){ thick=Math.min(1,thick+0.0016); }
+  if(now-lastMove>350){ thick=Math.min(1,thick+0.0016); }
   draw();updateHud();requestAnimationFrame(loop);
 }
 window.addEventListener('resize',size);size();loop();
