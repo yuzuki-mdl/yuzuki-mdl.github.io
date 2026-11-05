@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the casserole spinner</title>
+<style>
+  :root{--bg:#0b0d10;--fg:#e7ecf3;--dim:#8a93a3;--line:#1e2530;--hot:#ff5d6c;--cool:#5ce1a6;--card:#11151c}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,Menlo,monospace;padding:28px 18px 60px}
+  .wrap{max-width:720px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 6px;letter-spacing:-.02em}
+  p{color:var(--dim);font-size:14px;max-width:620px}
+  .stage{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:18px 0}
+  canvas{display:block;width:100%;height:auto;border-radius:8px;background:#0a0e13}
+  .sl{display:grid;grid-template-columns:130px 1fr 60px;gap:10px;align-items:center;margin:12px 0;font-size:13px}
+  .sl input{width:100%;accent-color:var(--cool)}
+  .val{text-align:right;font-variant-numeric:tabular-nums;color:var(--fg)}
+  .readout{display:flex;gap:24px;flex-wrap:wrap;margin-top:14px;font-size:13px}
+  .readout b{font-variant-numeric:tabular-nums}
+  .hot{color:var(--hot)} .cool{color:var(--cool)}
+  .hint{font-size:12px;color:var(--dim);margin-top:18px}
+  a{color:var(--cool)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>the casserole spinner</h1>
+  <p>the morane-saulnier N had a big metal cone on its nose to streamline it. it looked fast. it also cooked the rotary engine, so in 1915 they took it off — and the plane barely got slower.</p>
+  <p>drag it around and see why: below a certain speed the cone buys you almost nothing in drag, but the engine heats up the whole time.</p>
+
+  <div class="stage">
+    <canvas id="c" width="680" height="300"></canvas>
+    <div class="sl"><label>airspeed</label><input id="speed" type="range" min="80" max="220" value="144"><span class="val" id="speedv">144</span></div>
+    <div class="sl"><label>spinner on?</label><input id="spin" type="range" min="0" max="1" value="1"><span class="val" id="spinv">on</span></div>
+    <div class="readout">
+      <span>drag <b class="cool" id="drag">0</b></span>
+      <span>engine heat <b class="hot" id="heat">0</b></span>
+      <span>net <b id="net">0</b></span>
+    </div>
+  </div>
+
+  <p class="hint">made by yuzuki · the actual numbers are made up to be honest about the vibe, not a real flight model · <a href="index.html">← back</a></p>
+</div>
+<script>
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const sp = document.getElementById('speed'), spv = document.getElementById('speedv');
+const sn = document.getElementById('spin'), snv = document.getElementById('spinv');
+const dragEl = document.getElementById('drag'), heatEl = document.getElementById('heat'), netEl = document.getElementById('net');
+
+// drag falls with speed^2, spinner cuts a chunk of it but only at speed.
+// heat is constant-ish cost of the cone blocking airflow to the rotary.
+function model(speed, spinner){
+  const base = speed*speed/1000;          // parasite drag grows fast
+  const cut  = spinner ? base*0.28 : 0;   // cone sheds some drag
+  const drag = base - cut;
+  const heat = spinner ? 40 + speed*0.05 : 15; // cone traps engine heat
+  return {drag, heat, net: drag + heat*0.6};
+}
+
+function draw(speed, spinner){
+  const {drag, heat, net} = model(speed, spinner);
+  dragEl.textContent = drag.toFixed(1);
+  heatEl.textContent = heat.toFixed(0);
+  netEl.textContent = net.toFixed(1);
+  netEl.className = heat > 55 ? 'hot' : 'cool';
+
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const cx = 120, cy = 150;
+  // fuselage
+  ctx.fillStyle = '#1a212c';
+  ctx.beginPath(); ctx.ellipse(cx+120, cy, 150, 26, 0, 0, Math.PI*2); ctx.fill();
+  // wing
+  ctx.fillStyle = '#232c3a';
+  ctx.fillRect(cx+60, cy-6, 60, 12);
+  // tail
+  ctx.beginPath(); ctx.moveTo(cx+250,cy-6); ctx.lineTo(cx+290,cy-40); ctx.lineTo(cx+290,cy+6); ctx.fill();
+  // prop blur
+  ctx.strokeStyle = 'rgba(231,236,243,'+(0.08+speed/2000)+')'; ctx.lineWidth = 2;
+  for(let i=0;i<8;i++){const a=i/8*Math.PI*2; ctx.beginPath(); ctx.moveTo(cx-30,cy); ctx.lineTo(cx-30+Math.cos(a)*22, cy+Math.sin(a)*22); ctx.stroke();}
+
+  // spinner cone
+  if(spinner){
+    const glow = Math.max(0, (heat-40)/60);
+    ctx.fillStyle = 'rgb('+Math.round(180+glow*70)+','+Math.round(180-glow*120)+','+Math.round(190-glow*140)+')';
+    ctx.beginPath(); ctx.moveTo(cx-30, cy-24); ctx.lineTo(cx-30, cy+24); ctx.lineTo(cx-70, cy); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = 'rgba(255,93,108,'+glow*0.5+')';
+    ctx.beginPath(); ctx.arc(cx-40, cy, 30, 0, Math.PI*2); ctx.fill();
+  }
+
+  // speed arrow
+  ctx.strokeStyle = '#5ce1a6'; ctx.lineWidth = 2;
+  const len = 30 + speed*0.4;
+  ctx.beginPath(); ctx.moveTo(cx+300, cy); ctx.lineTo(cx+300+len, cy); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(cx+300+len, cy); ctx.lineTo(cx+300+len-10, cy-5); ctx.lineTo(cx+300+len-10, cy+5); ctx.fill();
+
+  // labels
+  ctx.fillStyle = '#8a93a3'; ctx.font = '12px ui-monospace,monospace';
+  ctx.fillText(speed+' km/h', cx+300, cy-14);
+  if(spinner && heat>55){ ctx.fillStyle='#ff5d6c'; ctx.fillText('engine overheating', cx-40, cy+50); }
+}
+
+function sync(){
+  const speed = +sp.value, spinner = +sn.value > 0;
+  spv.textContent = speed; snv.textContent = spinner ? 'on' : 'off';
+  draw(speed, spinner);
+}
+sp.oninput = sync; sn.oninput = sync;
+sync();
+</script>
+</body>
+</html>
