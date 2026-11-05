@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rheology of peanut butter</title>
+<style>
+  :root { --pb:#c68a49; --pb-dark:#a86f34; --cream:#f3e6cf; --ink:#3a2410; }
+  * { box-sizing: border-box; }
+  body {
+    margin:0; background:#1c1409; color:var(--cream);
+    font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+    display:flex; flex-direction:column; align-items:center; min-height:100vh;
+    padding:20px 14px 60px;
+  }
+  h1 { font-size:17px; font-weight:600; letter-spacing:.5px; margin:8px 0 2px; color:var(--cream); }
+  .sub { font-size:12px; opacity:.6; margin-bottom:16px; text-align:center; max-width:440px; line-height:1.5; }
+  canvas { border-radius:14px; box-shadow:0 10px 40px rgba(0,0,0,.6); cursor:grab; touch-action:none; background:var(--pb); }
+  canvas:active { cursor:grabbing; }
+  .panel { margin-top:16px; display:flex; gap:22px; flex-wrap:wrap; justify-content:center; font-size:12px; }
+  .stat { text-align:center; min-width:88px; }
+  .stat .v { font-size:19px; font-weight:700; color:#f0c987; display:block; }
+  .stat .k { opacity:.55; font-size:10px; text-transform:uppercase; letter-spacing:1px; }
+  button {
+    margin-top:18px; background:var(--pb-dark); color:var(--cream); border:none;
+    padding:9px 18px; border-radius:9px; font-family:inherit; font-size:13px; cursor:pointer;
+    transition:background .15s;
+  }
+  button:hover { background:#8a5a28; }
+  .note { margin-top:20px; font-size:11px; opacity:.45; max-width:440px; text-align:center; line-height:1.6; }
+</style>
+</head>
+<body>
+<h1>rheology of peanut butter</h1>
+<div class="sub">drag the spoon through the peanut butter. stir slowly = thick. stir fast = it thins &mdash; but once u break the structure, it stays broken (thixotropy).</div>
+<canvas id="c"></canvas>
+<div class="panel">
+  <div class="stat"><span class="v" id="visc">&mdash;</span><span class="k">viscosity</span></div>
+  <div class="stat"><span class="v" id="shear">0</span><span class="k">shear rate</span></div>
+  <div class="stat"><span class="v" id="struct">100%</span><span class="k">structure</span></div>
+</div>
+<button id="reset">fresh jar</button>
+<div class="note">a power-law (shear-thinning) fluid with a yield stress &amp; thixotropy. real peanut butter: apparent yield stress ~27&ndash;374 Pa depending on stabilizers. this is a cartoon of it.</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+let W, H, DPR;
+
+function size() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  const w = Math.min(window.innerWidth - 28, 460);
+  W = w; H = w;
+  c.style.width = W + 'px'; c.style.height = H + 'px';
+  c.width = W * DPR; c.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+size();
+window.addEventListener('resize', () => { size(); });
+
+// --- state ---
+let structure = 1.0;          // 1 = intact, 0 = fully broken (thixotropy)
+let shear = 0;                // current shear rate (smoothed)
+let spoon = { x: W/2, y: H/2, px: W/2, py: H/2, down: false };
+let swirls = [];              // visual streaks the spoon leaves
+
+const YIELD = 0.9;            // yield stress threshold (px/frame)
+const N = 0.55;               // power-law index (<1 = shear thinning)
+const K = 1.0;                // consistency
+
+function viscosity() {
+  // power-law: apparent viscosity = K * shear^(N-1), floored
+  const s = Math.max(shear, 0.001);
+  let v = K * Math.pow(s, N - 1);
+  // structure multiplies resistance; broken structure = thinner
+  v *= (0.25 + 0.75 * structure);
+  return v;
+}
+
+// --- input ---
+function pos(e) {
+  const r = c.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return { x: t.clientX - r.left, y: t.clientY - r.top };
+}
+c.addEventListener('pointerdown', e => {
+  const p = pos(e); spoon.px = spoon.x = p.x; spoon.py = spoon.y = p.y; spoon.down = true;
+  c.setPointerCapture(e.pointerId);
+});
+c.addEventListener('pointermove', e => {
+  if (!spoon.down) return;
+  const p = pos(e);
+  spoon.px = spoon.x; spoon.py = spoon.y;
+  spoon.x = p.x; spoon.y = p.y;
+});
+c.addEventListener('pointerup', () => { spoon.down = false; });
+
+// --- sim loop ---
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min((now - last) / 16.67, 3);
+  last = now;
+
+  // shear from spoon speed
+  let speed = 0;
+  if (spoon.down) speed = Math.hypot(spoon.x - spoon.px, spoon.y - spoon.py) / dt;
+  // yield stress: below threshold, nothing flows
+  const flowing = speed > YIELD;
+  const targetShear = flowing ? speed : 0;
+  shear += (targetShear - shear) * 0.18 * dt;
+  if (shear < 0.001) shear = 0;
+
+  // thixotropy: high shear breaks structure; rest rebuilds it slowly
+  if (shear > 1) {
+    structure -= (shear * 0.0009) * dt;
+  } else {
+    structure += 0.0016 * dt;   // slow recovery
+  }
+  structure = Math.max(0, Math.min(1, structure));
+
+  // leave a swirl streak when flowing
+  if (flowing && shear > 1.2) {
+    swirls.push({ x: spoon.x, y: spoon.y, r: 0, a: Math.min(shear / 12, 1) });
+    if (swirls.length > 260) swirls.shift();
+  }
+  for (const s of swirls) s.r += 0.35 * dt;
+
+  draw();
+  updateHUD();
+  requestAnimationFrame(frame);
+}
+
+function draw() {
+  // base peanut butter
+  ctx.clearRect(0, 0, W, H);
+  const g = ctx.createRadialGradient(W*0.4, H*0.35, 20, W*0.5, H*0.5, W*0.8);
+  const tone = 150 + structure * 40;
+  g.addColorStop(0, `rgb(${tone+40},${tone-20},${tone-90})`);
+  g.addColorStop(1, `rgb(${tone-40},${tone-80},${tone-140})`);
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, W, H);
+
+  // peanut grain speckle (fixed seed so it doesn't shimmer)
+  ctx.fillStyle = 'rgba(120,80,35,0.16)';
+  for (let i = 0; i < 900; i++) {
+    const sx = (i * 137.5) % W;
+    const sy = (i * 89.7 + (i % 7) * 13) % H;
+    ctx.fillRect(sx, sy, 1.2, 1.2);
+  }
+
+  // swirl streaks (broken structure = more visible flow lines)
+  for (const s of swirls) {
+    const alpha = s.a * 0.35 * (1 - structure * 0.5);
+    if (s.r > 90) continue;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+    ctx.strokeStyle = `rgba(90,55,20,${alpha})`;
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+  }
+
+  // spoon
+  if (spoon.down) {
+    ctx.save();
+    ctx.translate(spoon.x, spoon.y);
+    ctx.fillStyle = '#d9dde2';
+    ctx.strokeStyle = '#8a9099';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 16, 24, 0, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.5)';
+    ctx.beginPath();
+    ctx.ellipse(-4, -6, 6, 10, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function updateHUD() {
+  const v = viscosity();
+  document.getElementById('visc').textContent = v.toFixed(2);
+  document.getElementById('shear').textContent = shear.toFixed(1);
+  document.getElementById('struct').textContent = Math.round(structure * 100) + '%';
+}
+
+document.getElementById('reset').onclick = () => {
+  structure = 1.0; shear = 0; swirls = [];
+};
+
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
