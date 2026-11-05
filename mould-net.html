@@ -55,12 +55,13 @@
     <button id="run" class="primary">run</button>
     <button id="step">step</button>
     <button id="move">move food</button>
+    <button id="cut">cut a tube</button>
     <button id="reset">new maze</button>
   </div>
   <div class="stat" id="stat">ready</div>
   <div class="legend">
-    <b>green dot</b> = food &nbsp; <span style="color:#5aa0ff">blue dot</span> = start &nbsp; <b>thick bright</b> = strong tube &nbsp; <i>faint blue</i> = ghost of the previous route<br>
-    click an open cell to move the food. raise prune to strip it down to the essentials. lower memory decay to make it remember.
+    <b>green dot</b> = food &nbsp; <span style="color:#5aa0ff">blue dot</span> = start &nbsp; <b>thick bright</b> = strong tube &nbsp; <i>faint blue</i> = ghost of the previous route &nbsp; <span style="color:#ff5a50">red dashes</span> = a tube you cut<br>
+    click an open cell to move the food. hit 'cut a tube' then click a tube to sever it and watch the network reroute around the gap. raise prune to strip it down to the essentials. lower memory decay to make it remember.
   </div>
 </main>
 <script>
@@ -171,6 +172,7 @@ function step() {
   if (fmax < 1e-12) fmax = 1e-12;   // all dead: no flux, everything keeps decaying
   for (let k=0;k<edges.length;k++) {
     const e = edges[k];
+    if (e.cut) { e.D = 0; continue; }   // severed tube: dead forever, never regrows
     e.D += DT * (sig(K*fl[k]/fmax) - e.D);
     e.D *= (1 - decay);            // memory decays unless flux keeps it alive
     if (e.D < 0) e.D = 0; if (e.D > 1) e.D = 1;
@@ -222,6 +224,19 @@ function draw() {
     ctx.lineTo(b.x*cell+cell/2, b.y*cell+cell/2);
     ctx.stroke();
   }
+  // severed tubes: dark red dashes
+  ctx.setLineDash([cell*0.18, cell*0.22]);
+  ctx.strokeStyle = 'rgba(255,90,80,0.55)';
+  ctx.lineWidth = cell*0.10;
+  for (const e of edges) {
+    if (!e.cut) continue;
+    const a = nodes[e.a], b = nodes[e.b];
+    ctx.beginPath();
+    ctx.moveTo(a.x*cell+cell/2, a.y*cell+cell/2);
+    ctx.lineTo(b.x*cell+cell/2, b.y*cell+cell/2);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
   if (sink !== undefined) {
     const s = nodes[sink], st = nodes[src];
     ctx.fillStyle = '#b6f36a';
@@ -256,10 +271,26 @@ document.getElementById('prune').oninput = (e) => { document.getElementById('pv'
 document.getElementById('cur').oninput = (e) => { document.getElementById('iv').textContent = e.target.value; };
 document.getElementById('mem').oninput = (e) => { document.getElementById('mv').textContent = e.target.value; };
 
+let cutMode = false;
+const cutBtn = document.getElementById('cut');
+cutBtn.onclick = () => { cutMode = !cutMode; cutBtn.textContent = cutMode ? 'cut: on' : 'cut a tube'; cutBtn.classList.toggle('primary', cutMode); };
+
 cv.addEventListener('click', (ev) => {
   const r = cv.getBoundingClientRect();
-  const x = Math.floor((ev.clientX-r.left)/r.width*W);
-  const y = Math.floor((ev.clientY-r.top)/r.height*H);
+  const px = (ev.clientX-r.left)/r.width*W, py = (ev.clientY-r.top)/r.height*H;
+  if (cutMode) {
+    // sever the tube whose midpoint is nearest the click
+    let best = -1, bd = 1e9;
+    edges.forEach((e,k) => {
+      const a = nodes[e.a], b = nodes[e.b];
+      const mx = (a.x+b.x)/2 + 0.5, my = (a.y+b.y)/2 + 0.5;
+      const d = Math.hypot(px-mx, py-my);
+      if (d < bd) { bd = d; best = k; }
+    });
+    if (best >= 0 && bd < 0.9) { edges[best].cut = true; edges[best].D = 0; draw(); }
+    return;
+  }
+  const x = Math.floor(px), y = Math.floor(py);
   if (maze[y] && maze[y][x] === 0) {
     const i = id.get(x+','+y);
     if (i !== undefined) moveFoodTo(i);
