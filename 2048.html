@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2048 — yuzuki</title>
+<style>
+  :root{ --bg:#0f0f14; --fg:#e8e6f0; --dim:#8b8899; --acc:#7bd88f; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  main{max-width:520px;margin:0 auto;padding:24px 18px 60px}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  p.sub{color:var(--dim);font-size:13px;margin:0 0 16px}
+  .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+  .scores{display:flex;gap:10px}
+  .box{background:#1b1922;border:1px solid #322f3d;border-radius:8px;padding:6px 12px;text-align:center;min-width:74px}
+  .box .lbl{font-size:10px;color:var(--dim);letter-spacing:.08em}
+  .box .num{font-size:16px;font-weight:600}
+  button{background:#1b1922;color:var(--fg);border:1px solid #322f3d;border-radius:6px;padding:8px 14px;font:inherit;font-size:13px;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  #grid{position:relative;background:#1b1922;border-radius:10px;padding:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;aspect-ratio:1;touch-action:none}
+  .cell{background:#26242f;border-radius:6px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:clamp(18px,6vw,34px);color:#fff;transition:transform .08s}
+  .c2{background:#4a4657}.c4{background:#5c5868}.c8{background:#7bd88f;color:#0f0f14}.c16{background:#5fc9d8;color:#0f0f14}
+  .c32{background:#7a8cff;color:#0f0f14}.c64{background:#b07bff;color:#0f0f14}.c128{background:#ffb07b;color:#0f0f14}
+  .c256{background:#ff7bb0;color:#0f0f14}.c512{background:#ffd86a;color:#0f0f14}.c1024{background:#ff9a5a;color:#0f0f14}
+  .c2048{background:#fff;color:#0f0f14}.cbig{background:#e8e6f0;color:#0f0f14}
+  .pop{animation:pop .12s}
+  @keyframes pop{0%{transform:scale(.7)}100%{transform:scale(1)}}
+  #over{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:rgba(15,15,20,.85);border-radius:10px;font-size:22px;font-weight:700}
+  #over.show{display:flex}
+  footer{margin-top:20px;font-size:12px;color:var(--dim)}
+</style>
+</head>
+<body>
+<main>
+  <h1>2048</h1>
+  <p class="sub">arrow keys / wasd / swipe to slide. matching tiles merge. get to 2048.</p>
+  <div class="top">
+    <div class="scores">
+      <div class="box"><div class="lbl">SCORE</div><div class="num" id="score">0</div></div>
+      <div class="box"><div class="lbl">BEST</div><div class="num" id="best">0</div></div>
+    </div>
+    <button id="new">new game</button>
+  </div>
+  <div id="grid">
+    <div id="over"><span id="overmsg">game over</span><button id="again">again</button></div>
+  </div>
+  <footer>best score saved locally.</footer>
+</main>
+<script>
+const N = 4;
+const gridEl = document.getElementById('grid');
+const scoreEl = document.getElementById('score');
+const bestEl = document.getElementById('best');
+const overEl = document.getElementById('over');
+const overMsg = document.getElementById('overmsg');
+let board, score, best, won;
+const cells = [];
+for (let i = 0; i < N*N; i++) {
+  const d = document.createElement('div');
+  d.className = 'cell';
+  gridEl.insertBefore(d, overEl);
+  cells.push(d);
+}
+
+best = +(localStorage.getItem('best2048') || 0);
+bestEl.textContent = best;
+
+function empty() { return board.map((v,i)=>v?null:i).filter(v=>v!==null); }
+function add() {
+  const e = empty();
+  if (!e.length) return;
+  const i = e[Math.floor(Math.random()*e.length)];
+  board[i] = Math.random() < 0.9 ? 2 : 4;
+  cells[i].classList.add('pop');
+  setTimeout(()=>cells[i].classList.remove('pop'),130);
+}
+function newGame() {
+  board = new Array(N*N).fill(0);
+  score = 0; won = false;
+  scoreEl.textContent = 0;
+  overEl.classList.remove('show');
+  add(); add();
+  render();
+}
+function render() {
+  for (let i = 0; i < N*N; i++) {
+    const v = board[i];
+    const c = cells[i];
+    c.textContent = v || '';
+    c.className = 'cell' + (v ? ' c' + (v > 2048 ? 'big' : v) : '');
+  }
+}
+function slide(row) {
+  let a = row.filter(v=>v);
+  let out = [];
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] === a[i+1]) { out.push(a[i]*2); score += a[i]*2; if (a[i]*2 === 2048) won = true; i++; }
+    else out.push(a[i]);
+  }
+  while (out.length < N) out.push(0);
+  return out;
+}
+function move(dir) {
+  let moved = false;
+  const before = board.slice();
+  const get = (r,c) => board[r*N+c];
+  const set = (r,c,v) => { board[r*N+c] = v; };
+  if (dir === 'left' || dir === 'right') {
+    for (let r = 0; r < N; r++) {
+      let row = [];
+      for (let c = 0; c < N; c++) row.push(get(r,c));
+      if (dir === 'right') row.reverse();
+      row = slide(row);
+      if (dir === 'right') row.reverse();
+      for (let c = 0; c < N; c++) set(r,c,row[c]);
+    }
+  } else {
+    for (let c = 0; c < N; c++) {
+      let col = [];
+      for (let r = 0; r < N; r++) col.push(get(r,c));
+      if (dir === 'down') col.reverse();
+      col = slide(col);
+      if (dir === 'down') col.reverse();
+      for (let r = 0; r < N; r++) set(r,c,col[r]);
+    }
+  }
+  for (let i = 0; i < N*N; i++) if (board[i] !== before[i]) moved = true;
+  if (moved) {
+    scoreEl.textContent = score;
+    if (score > best) { best = score; bestEl.textContent = best; localStorage.setItem('best2048', best); }
+    add();
+    render();
+    if (won) { overMsg.textContent = 'you win!'; overEl.classList.add('show'); won = false; }
+    else if (!canMove()) { overMsg.textContent = 'game over'; overEl.classList.add('show'); }
+  }
+}
+function canMove() {
+  if (empty().length) return true;
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const v = board[r*N+c];
+    if (c < N-1 && board[r*N+c+1] === v) return true;
+    if (r < N-1 && board[(r+1)*N+c] === v) return true;
+  }
+  return false;
+}
+
+const keymap = { ArrowLeft:'left', ArrowRight:'right', ArrowUp:'up', ArrowDown:'down', a:'left', d:'right', w:'up', s:'down' };
+window.addEventListener('keydown', e => {
+  const d = keymap[e.key];
+  if (d) { e.preventDefault(); move(d); }
+});
+
+let sx = 0, sy = 0, touching = false;
+gridEl.addEventListener('pointerdown', e => { touching = true; sx = e.clientX; sy = e.clientY; });
+gridEl.addEventListener('pointerup', e => {
+  if (!touching) return; touching = false;
+  const dx = e.clientX - sx, dy = e.clientY - sy;
+  if (Math.abs(dx) < 24 && Math.abs(dy) < 24) return;
+  if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 'right' : 'left');
+  else move(dy > 0 ? 'down' : 'up');
+});
+
+document.getElementById('new').onclick = newGame;
+document.getElementById('again').onclick = newGame;
+newGame();
+</script>
+</body>
+</html>
