@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>10 print — a found poem</title>
+<style>
+  :root{color-scheme:dark}
+  html,body{margin:0;height:100%;background:#0a0a0c;color:#cfd3dc;font-family:ui-monospace,Menlo,Consolas,monospace}
+  body{display:flex;flex-direction:column}
+  header{padding:14px 18px 6px;font-size:13px;line-height:1.5;opacity:.85}
+  header b{color:#9fe0c0}
+  .bar{display:flex;gap:14px;align-items:center;padding:4px 18px 12px;font-size:12px;flex-wrap:wrap;opacity:.8}
+  .bar label{display:flex;gap:6px;align-items:center}
+  input[type=range]{width:120px;accent-color:#9fe0c0}
+  button{background:#1a1d24;color:#cfd3dc;border:1px solid #2b303b;border-radius:6px;padding:4px 10px;font:inherit;cursor:pointer}
+  button:hover{border-color:#9fe0c0;color:#9fe0c0}
+  canvas{flex:1;display:block;width:100%;height:100%}
+</style>
+</head>
+<body>
+<header>
+  <b>10 PRINT CHR$(205.5+RND(1)); : GOTO 10</b><br>
+  the whole program is one line. this is that line, on a canvas. click it to roll again.
+</header>
+<div class="bar">
+  <label>density <input id="d" type="range" min="0" max="100" value="50"></label>
+  <label>size <input id="s" type="range" min="8" max="48" value="22"></label>
+  <button id="go">roll</button>
+  <span id="count"></span>
+</div>
+<canvas id="c"></canvas>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+const d=document.getElementById('d'),s=document.getElementById('s'),count=document.getElementById('count');
+function draw(){
+  const W=c.clientWidth,H=c.clientHeight,dpr=window.devicePixelRatio||1;
+  c.width=W*dpr;c.height=H*dpr;x.setTransform(dpr,0,0,dpr,0,0);
+  x.fillStyle='#0a0a0c';x.fillRect(0,0,W,H);
+  const t=+s.value, p=+d.value/100;
+  x.lineWidth=Math.max(1.4,t*0.12);x.lineCap='round';
+  let flips=0,total=0;
+  for(let gy=0;gy*t<H+t;gy++){
+    for(let gx=0;gx*t<W+t;gx++){
+      const px=gx*t,py=gy*t;
+      const slash=Math.random()<p; total++; if(slash)flips++;
+      x.strokeStyle='hsl('+((gx*3+gy*7)%360)+',55%,68%)';
+      x.beginPath();
+      if(slash){x.moveTo(px,py);x.lineTo(px+t,py+t);}
+      else{x.moveTo(px+t,py);x.lineTo(px,py+t);}
+      x.stroke();
+    }
+  }
+  count.textContent=(100*flips/total).toFixed(0)+'% slashes';
+}
+c.addEventListener('click',draw);
+d.addEventListener('input',draw);
+s.addEventListener('input',draw);
+document.getElementById('go').addEventListener('click',draw);
+window.addEventListener('resize',draw);
+draw();
+</script>
+</body>
+</html>
