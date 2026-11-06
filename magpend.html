@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>magnetic pendulum</title>
+<style>
+  :root{--bg:#0c0a14;--fg:#e8e4f0;--dim:#8b84a3;--accent:#c8a2ff}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  #wrap{display:flex;flex-direction:column;height:100%}
+  header{padding:14px 18px 4px}
+  h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.02em}
+  p{margin:4px 0 0;font-size:12px;color:var(--dim);max-width:60ch;line-height:1.5}
+  canvas{flex:1;width:100%;display:block;touch-action:none}
+  .bar{display:flex;gap:14px;align-items:center;padding:8px 18px 14px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+  button{background:#1a1626;color:var(--fg);border:1px solid #2e2740;border-radius:7px;padding:6px 11px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  label{display:flex;gap:6px;align-items:center}
+  input[type=range]{width:90px;accent-color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <h1>magnetic pendulum</h1>
+    <p>a ball swings over three magnets with damping. release it twice from almost the same spot and the paths split — tiny differences decide which magnet wins. drag to fling it.</p>
+  </header>
+  <canvas id="c"></canvas>
+  <div class="bar">
+    <button id="reset">reset</button>
+    <button id="ghost">drop a ghost copy</button>
+    <label>damping <input id="damp" type="range" min="0" max="0.3" step="0.01" value="0.05"></label>
+    <span id="info"></span>
+  </div>
+</div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+let W=0,H=0,DPR=Math.min(2,devicePixelRatio||1);
+function resize(){const r=c.getBoundingClientRect();W=r.width;H=r.height;c.width=W*DPR;c.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);
+
+// world: magnets in unit-ish coords, mapped to screen
+const magnets=[{x:-1,y:-0.55,c:'#ff6b8a'},{x:1,y:-0.55,c:'#5ad1ff'},{x:0,y:1,c:'#b6ff6b'}];
+const G=1.0; // magnet strength
+let damp=0.05;
+
+function toScreen(x,y){const s=Math.min(W,H)*0.32;return {x:W/2+x*s, y:H/2+y*s, s};}
+
+class Ball{
+  constructor(x,y,vx,vy){this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.trail=[];this.dead=false;this.ghost=false;}
+  step(dt){
+    if(this.dead)return;
+    let ax=0,ay=0;
+    for(const m of magnets){
+      let dx=m.x-this.x, dy=m.y-this.y;
+      let d2=dx*dx+dy*dy+0.02; // soften singularity
+      let d=Math.sqrt(d2);
+      let f=G/(d2); // ~1/r^2 pull
+      ax+=f*dx/d; ay+=f*dy/d;
+    }
+    // gravity pulls down a bit (toward bottom) to keep motion
+    ay+=0.15;
+    this.vx+=ax*dt; this.vy+=ay*dt;
+    // damping
+    this.vx*=(1-damp*dt*8); this.vy*=(1-damp*dt*8);
+    this.x+=this.vx*dt; this.y+=this.vy*dt;
+    this.trail.push({x:this.x,y:this.y});
+    if(this.trail.length>900)this.trail.shift();
+    // settle: if slow and near a magnet, freeze
+    const sp=Math.hypot(this.vx,this.vy);
+    if(sp<0.02){
+      for(const m of magnets){if(Math.hypot(m.x-this.x,m.y-this.y)<0.12){this.dead=true;this.rest=m;break;}}
+    }
+  }
+  draw(){
+    const tr=this.trail;
+    if(tr.length>1){
+      ctx.beginPath();
+      for(let i=0;i<tr.length;i++){const p=toScreen(tr[i].x,tr[i].y);i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y);}
+      ctx.strokeStyle=this.ghost?'rgba(200,162,255,0.35)':'rgba(200,162,255,0.7)';
+      ctx.lineWidth=1.2;ctx.stroke();
+    }
+    const p=toScreen(this.x,this.y);
+    ctx.beginPath();ctx.arc(p.x,p.y,4,0,7);
+    ctx.fillStyle=this.ghost?'rgba(200,162,255,0.5)':'#fff';ctx.fill();
+  }
+}
+
+let ball=null, ghosts=[], dragging=false, dragStart=null, dragNow=null;
+
+function spawn(x,y,vx=0,vy=0){ball=new Ball(x,y,vx,vy);}
+
+function reset(){
+  ghosts=[];
+  spawn(-0.05,-0.9,0.9,0.3); // swinging start
+  info();
+}
+function info(){
+  const el=document.getElementById('info');
+  if(ball&&ball.dead&&ball.rest){el.textContent='settled on '+ball.rest.c+' magnet';}
+  else el.textContent=ghosts.length?ghosts.length+' ghost'+(ghosts.length>1?'s':''):'';
+}
+
+function frame(t){
+  const dt=0.016;
+  if(ball)ball.step(dt);
+  for(const g of ghosts)g.step(dt);
+
+  ctx.clearRect(0,0,W,H);
+
+  // magnets
+  for(const m of magnets){
+    const p=toScreen(m.x,m.y);
+    const grd=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,60);
+    grd.addColorStop(0,m.c+'cc');grd.addColorStop(1,m.c+'00');
+    ctx.fillStyle=grd;ctx.beginPath();ctx.arc(p.x,p.y,60,0,7);ctx.fill();
+    ctx.beginPath();ctx.arc(p.x,p.y,6,0,7);ctx.fillStyle=m.c;ctx.fill();
+  }
+
+  for(const g of ghosts)g.draw();
+  if(ball)ball.draw();
+
+  // drag line
+  if(dragging&&dragStart&&dragNow){
+    const a=toScreen(dragStart.x,dragStart.y), b=toScreen(dragNow.x,dragNow.y);
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);
+    ctx.strokeStyle='rgba(200,162,255,0.6)';ctx.setLineDash([4,4]);ctx.stroke();ctx.setLineDash([]);
+    ctx.beginPath();ctx.arc(a.x,a.y,4,0,7);ctx.fillStyle='#c8a2ff';ctx.fill();
+  }
+
+  requestAnimationFrame(frame);
+}
+
+function evtPos(e){
+  const r=c.getBoundingClientRect();
+  const px=(e.touches?e.touches[0].clientX:e.clientX)-r.left;
+  const py=(e.touches?e.touches[0].clientY:e.clientY)-r.top;
+  const s=Math.min(W,H)*0.32;
+  return {x:(px-W/2)/s, y:(py-H/2)/s};
+}
+
+c.addEventListener('pointerdown',e=>{
+  dragging=true;dragStart=evtPos(e);dragNow=dragStart;c.setPointerCapture(e.pointerId);
+});
+c.addEventListener('pointermove',e=>{
+  if(dragging)dragNow=evtPos(e);
+});
+c.addEventListener('pointerup',e=>{
+  if(dragging&&dragStart&&dragNow){
+    // fling: velocity from drag vector
+    const vx=(dragStart.x-dragNow.x)*2.2, vy=(dragStart.y-dragNow.y)*2.2;
+    spawn(dragStart.x,dragStart.y,vx,vy);
+    info();
+  }
+  dragging=false;dragStart=null;dragNow=null;
+});
+
+document.getElementById('reset').onclick=reset;
+document.getElementById('ghost').onclick=()=>{
+  if(!ball)return;
+  // ghost copies current state with a tiny nudge
+  const g=new Ball(ball.x+0.004,ball.y+0.004,ball.vx,ball.vy);
+  g.ghost=true;
+  ghosts.push(g);
+  if(ghosts.length>6)ghosts.shift();
+  info();
+};
+document.getElementById('damp').oninput=e=>{damp=parseFloat(e.target.value);};
+
+resize();reset();requestAnimationFrame(frame);
+</script>
+</body>
+</html>
