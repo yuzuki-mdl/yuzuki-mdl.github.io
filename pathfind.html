@@ -120,7 +120,7 @@ function run(algo){
         if(grid[idx(nx,ny)]===0)grid[idx(nx,ny)]=2;
       }
     }
-    if(!(cx===start[0]&&cy===start[1])) grid[idx(cx,cy)]=3;
+    if(!(cx===start[0]&&cy===start[1]) && grid[idx(cx,cy)]!==SAND) grid[idx(cx,cy)]=3;
     draw();
   };
   const finish=(ok)=>{
@@ -129,7 +129,7 @@ function run(algo){
       let cur=[goal[0],goal[1]];const path=[];
       while(cur){path.push(cur);cur=prev.get(key(cur[0],cur[1]));}
       let total=0;
-      for(const [x,y] of path) if(!(x===start[0]&&y===start[1])&&!(x===goal[0]&&y===goal[1])){grid[idx(x,y)]=4;total+=cost(x,y);}
+      for(const [x,y] of path) if(!(x===start[0]&&y===start[1])&&!(x===goal[0]&&y===goal[1])){if(grid[idx(x,y)]!==SAND)grid[idx(x,y)]=4;total+=cost(x,y);}
       draw();
       document.getElementById('stat').innerHTML=`<b>${algo}</b> · found · steps ${path.length-1} · cost <b>${total}</b> · explored <b>${explored}</b>`;
     } else {
