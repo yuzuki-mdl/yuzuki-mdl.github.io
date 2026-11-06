@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>turn bias — why crowds curl</title>
+<style>
+  :root{--bg:#0e1013;--fg:#e8e6e1;--dim:#8a8f98;--acc:#7fd1c0;--hot:#e8a06a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 ui-monospace,Menlo,Consolas,monospace}
+  main{max-width:760px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:22px;font-weight:600;margin:0 0 4px}
+  .sub{color:var(--dim);margin:0 0 22px;font-size:13px}
+  canvas{width:100%;height:auto;display:block;border-radius:10px;background:#14171b;touch-action:none}
+  .panel{display:flex;flex-wrap:wrap;gap:16px;align-items:center;margin:14px 0}
+  .ctl{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--dim)}
+  .ctl b{color:var(--fg);font-weight:600}
+  input[type=range]{width:150px;accent-color:var(--acc)}
+  button{background:#1e232a;color:var(--fg);border:1px solid #2c333c;border-radius:7px;padding:7px 13px;font:inherit;font-size:13px;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  .stat{display:flex;gap:22px;margin:10px 0 0;font-size:13px;color:var(--dim)}
+  .stat span b{color:var(--fg)}
+  p{color:#c3c7cd;margin:20px 0 0;font-size:14px}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+  <h1>turn bias</h1>
+  <p class="sub">people turn counterclockwise when they change direction. it shows up in individuals, not just crowds. what happens when a lot of them do it at once?</p>
+  <canvas id="c" width="720" height="480"></canvas>
+  <div class="panel">
+    <div class="ctl"><b>ccw bias</b><input id="bias" type="range" min="0" max="1" step="0.01" value="0.65"></div>
+    <div class="ctl"><b>agents</b><input id="count" type="range" min="20" max="260" step="10" value="140"></div>
+    <button id="reset">reshuffle</button>
+  </div>
+  <div class="stat">
+    <span>circulation <b id="circ">0</b></span>
+    <span>ccw turns <b id="ccw">0%</b></span>
+  </div>
+  <p>each dot steers its heading a little counterclockwise, more as the bias goes up, and turns ccw when it bumps a wall or another dot. no rule forces a vortex. the trails show the honest result: <em>individuals</em> curl — every dot spirals ccw — but the <em>crowd's</em> net circulation stays weak (watch the number). local spins at different spots cancel out about the middle. a bias in how each person turns doesn't automatically become a spinning room. the counterclockwise crowd bias was reported by Echeverría-Huarte et al., <a href="https://www.nature.com/articles/s41467-026-48690-1" target="_blank" rel="noopener">Nat Commun 17, 4869 (2026)</a>.</p>
+</main>
+<script>
+(()=>{
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+const biasEl=document.getElementById('bias'),cntEl=document.getElementById('count');
+const circEl=document.getElementById('circ'),ccwEl=document.getElementById('ccw');
+let agents=[],N=+cntEl.value,bias=+biasEl.value,ccwTurns=0,totalTurns=0;
+const R=5,SPEED=1.3;
+
+function spawn(){
+  agents=[];ccwTurns=totalTurns=0;
+  N=+cntEl.value;
+  for(let i=0;i<N;i++){
+    agents.push({
+      x:60+Math.random()*(W-120),
+      y:60+Math.random()*(H-120),
+      a:Math.random()*Math.PI*2,
+      vx:0,vy:0,
+      trail:[]
+    });
+  }
+  for(const a of agents){a.vx=Math.cos(a.a)*SPEED;a.vy=Math.sin(a.a)*SPEED;}
+}
+
+function step(){
+  bias=+biasEl.value;
+  // continuous ccw drift: everyone slowly rotates their heading ccw
+  // (rate scaled by bias). this is the individual bias acting all the time,
+  // not just at collisions.
+  const drift=(0.5-bias)*0.06; // on screen (y down) ccw = decreasing angle
+  for(const a of agents){
+    const ang=Math.atan2(a.vy,a.vx)+drift;
+    a.vx=Math.cos(ang)*SPEED;a.vy=Math.sin(ang)*SPEED;
+  }
+  // move + record trail
+  for(const a of agents){
+    a.x+=a.vx;a.y+=a.vy;
+    a.trail.push(a.x,a.y);
+    if(a.trail.length>24)a.trail.splice(0,2);
+  }
+  // walls: reflect the current heading, then apply the ccw bias to the turn
+  for(const a of agents){
+    let hit=false;
+    if(a.x<R){a.x=R;a.vx=Math.abs(a.vx);hit=true;}
+    if(a.x>W-R){a.x=W-R;a.vx=-Math.abs(a.vx);hit=true;}
+    if(a.y<R){a.y=R;a.vy=Math.abs(a.vy);hit=true;}
+    if(a.y>H-R){a.y=H-R;a.vy=-Math.abs(a.vy);hit=true;}
+    if(hit){
+      // turn from the reflected heading, biased ccw (negative angle = ccw on screen)
+      let ang=Math.atan2(a.vy,a.vx);
+      const turn=(Math.random()<bias?-1:1)*(0.6+Math.random()*1.4); // -angle on screen = ccw
+      ang+=turn;
+      a.vx=Math.cos(ang)*SPEED;a.vy=Math.sin(ang)*SPEED;
+      totalTurns++; if(turn<0)ccwTurns++;
+    }
+  }
+  // agent-agent: if overlap, each picks a new heading, biased ccw
+  for(let i=0;i<agents.length;i++){
+    for(let j=i+1;j<agents.length;j++){
+      const a=agents[i],b=agents[j];
+      const dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy;
+      if(d2<(R*2)*(R*2)&&d2>0.0001){
+        const d=Math.sqrt(d2),nx=dx/d,ny=dy/d;
+        // separate
+        const push=(R*2-d)/2;
+        a.x-=nx*push;a.y-=ny*push;b.x+=nx*push;b.y+=ny*push;
+        // turn from each one's current heading, biased ccw
+        for(const o of [a,b]){
+          let ang=Math.atan2(o.vy,o.vx);
+          const turn=(Math.random()<bias?-1:1)*(0.5+Math.random()*1.6);
+          ang+=turn;
+          o.vx=Math.cos(ang)*SPEED;o.vy=Math.sin(ang)*SPEED;
+          totalTurns++; if(turn<0)ccwTurns++;
+        }
+      }
+    }
+  }
+}
+
+function circulation(){
+  // mean angular momentum about the centre, normalised
+  let L=0,sp=0;
+  for(const a of agents){
+    const rx=a.x-W/2,ry=a.y-H/2;
+    L+=ry*a.vx-rx*a.vy; // flipped sign: visual ccw (y down) reads positive
+    sp+=Math.hypot(a.vx,a.vy);
+  }
+  if(sp===0)return 0;
+  return L/(sp*Math.max(W,H)/2);
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // faint centre
+  ctx.strokeStyle='#1f252c';ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(W/2,H/2,H/2-40,0,Math.PI*2);ctx.stroke();
+  for(const a of agents){
+    const hot=Math.random()<0.06;
+    // trail
+    const tr=a.trail;
+    if(tr.length>=4){
+      ctx.strokeStyle=hot?'rgba(232,160,106,0.35)':'rgba(127,209,192,0.22)';
+      ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(tr[0],tr[1]);
+      for(let k=2;k<tr.length;k+=2)ctx.lineTo(tr[k],tr[k+1]);
+      ctx.stroke();
+    }
+    ctx.fillStyle=hot?'#e8a06a':'#7fd1c0';
+    ctx.beginPath();ctx.arc(a.x,a.y,R,0,Math.PI*2);ctx.fill();
+  }
+}
+
+let acc=0,last=performance.now();
+function loop(t){
+  const dt=Math.min(50,t-last);last=t;acc+=dt;
+  let n=0;
+  while(acc>16&&n<3){step();acc-=16;n++;}
+  draw();
+  const c=circulation();
+  circEl.textContent=(c>=0?'+':'')+c.toFixed(2);
+  circEl.style.color=Math.abs(c)>0.15?(c>0?'#7fd1c0':'#e8a06a'):'#e8e6e1';
+  ccwEl.textContent=totalTurns?Math.round(100*ccwTurns/totalTurns)+'%':'0%';
+  requestAnimationFrame(loop);
+}
+
+biasEl.oninput=()=>{bias=+biasEl.value;ccwTurns=totalTurns=0;};
+cntEl.oninput=()=>{spawn();};
+document.getElementById('reset').onclick=spawn;
+spawn();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
