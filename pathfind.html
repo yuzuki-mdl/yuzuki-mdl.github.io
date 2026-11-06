@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pathfinder</title>
+<style>
+  :root{--bg:#0d0f13;--fg:#e8e8e8;--dim:#5a6070;--wall:#2a2f3a;--sand:#3a3220;--open:#1a2a3a;--closed:#243a52;--path:#f5c542;--start:#4ade80;--goal:#f87171;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,Menlo,monospace;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:18px}
+  h1{font-size:15px;font-weight:500;letter-spacing:.15em;color:var(--dim);text-transform:uppercase;margin:0 0 4px}
+  p.sub{margin:0 0 14px;color:var(--dim);font-size:12px;text-align:center}
+  canvas{background:#11141a;border:1px solid #1e2430;border-radius:6px;cursor:crosshair;touch-action:none}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px;justify-content:center}
+  button{background:#1a1f29;color:var(--fg);border:1px solid #2a3140;border-radius:5px;padding:7px 13px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{background:#232a36}
+  button.on{background:#2a3a52;border-color:#3a5578}
+  .stat{color:var(--dim);font-size:12px;margin-top:10px;min-height:1.4em;text-align:center}
+  .stat b{color:var(--fg)}
+</style>
+</head>
+<body>
+<h1>pathfinder</h1>
+<p class="sub">drag = wall · shift-drag = sand (cost 4) · S/G = start/goal (shift-click / alt-click)</p>
+<canvas id="c"></canvas>
+<div class="bar">
+  <button id="runB" class="on">bfs</button>
+  <button id="runD">dijkstra (weighted)</button>
+  <button id="clear">clear</button>
+  <button id="maze">random maze</button>
+</div>
+<div class="stat" id="stat"></div>
+<script>
+const COLS=40, ROWS=26, CELL=18;
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+cv.width=COLS*CELL; cv.height=ROWS*CELL;
+const WALL=1, SAND=5; // 0 empty, 1 wall, 5 sand-cost marker
+let grid=[], start=[1,1], goal=[COLS-2,ROWS-2], anim=null;
+
+const idx=(x,y)=>y*COLS+x;
+const cost=(x,y)=>grid[idx(x,y)]===SAND?4:1;
+
+function reset(){
+  grid=new Uint8Array(COLS*ROWS);
+  start=[1,1]; goal=[COLS-2,ROWS-2];
+  draw();
+}
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    const v=grid[idx(x,y)];
+    if(v===WALL){ctx.fillStyle='#2a2f3a';ctx.fillRect(x*CELL,y*CELL,CELL,CELL);}
+    else if(v===SAND){ctx.fillStyle='#3a3220';ctx.fillRect(x*CELL,y*CELL,CELL,CELL);}
+    else if(v===2){ctx.fillStyle='#1a2a3a';ctx.fillRect(x*CELL,y*CELL,CELL,CELL);}
+    else if(v===3){ctx.fillStyle='#243a52';ctx.fillRect(x*CELL,y*CELL,CELL,CELL);}
+    else if(v===4){ctx.fillStyle='#f5c542';ctx.fillRect(x*CELL+1,y*CELL+1,CELL-2,CELL-2);}
+    else {ctx.strokeStyle='#161a22';ctx.strokeRect(x*CELL+.5,y*CELL+.5,CELL,CELL);}
+  }
+  ctx.fillStyle='#4ade80';ctx.fillRect(start[0]*CELL+2,start[1]*CELL+2,CELL-4,CELL-4);
+  ctx.fillStyle='#f87171';ctx.fillRect(goal[0]*CELL+2,goal[1]*CELL+2,CELL-4,CELL-4);
+}
+
+const DIRS=[[1,0],[-1,0],[0,1],[0,-1]];
+function neighbors(x,y){
+  const out=[];
+  for(const [dx,dy] of DIRS){const nx=x+dx,ny=y+dy;if(nx>=0&&nx<COLS&&ny>=0&&ny<ROWS&&grid[idx(nx,ny)]!==WALL)out.push([nx,ny]);}
+  return out;
+}
+
+// tiny binary min-heap keyed on f
+function Heap(){this.a=[];}
+Heap.prototype.push=function(node){const a=this.a;a.push(node);let i=a.length-1;while(i>0){const p=(i-1)>>1;if(a[p].f<=a[i].f)break;[a[p],a[i]]=[a[i],a[p]];i=p;}};
+Heap.prototype.pop=function(){const a=this.a;const top=a[0];const last=a.pop();if(a.length){a[0]=last;let i=0;for(;;){let l=2*i+1,r=l+1,m=i;if(l<a.length&&a[l].f<a[m].f)m=l;if(r<a.length&&a[r].f<a[m].f)m=r;if(m===i)break;[a[m],a[i]]=[a[i],a[m]];i=m;}}return top;};
+
+function run(algo){
+  if(anim){clearInterval(anim);anim=null;}
+  for(let i=0;i<grid.length;i++) if(grid[i]===2||grid[i]===3||grid[i]===4) grid[i]=0;
+  draw();
+  const key=(x,y)=>x+','+y;
+  const g=new Map(), prev=new Map();
+  const sk=key(start[0],start[1]);
+  g.set(sk,0); prev.set(sk,null);
+  const seen=new Set([sk]);
+  let explored=0, found=false;
+
+  const manhattan=(x,y)=>Math.abs(x-goal[0])+Math.abs(y-goal[1]);
+
+  // frontier: for bfs a plain queue; for dijkstra/a* a heap
+  let queue=null, heap=null;
+  if(algo==='bfs'){ queue=[[start[0],start[1]]]; }
+  else { heap=new Heap(); heap.push({x:start[0],y:start[1],f:algo==='a*'?manhattan(start[0],start[1]):0}); }
+
+  const step=()=>{
+    let cur;
+    if(algo==='bfs'){
+      if(!queue.length){finish(false);return;}
+      cur=queue.shift();
+    } else {
+      if(!heap.a.length){finish(false);return;}
+      const n=heap.pop(); cur=[n.x,n.y];
+    }
+    const [cx,cy]=cur;
+    explored++;
+    if(cx===goal[0]&&cy===goal[1]){found=true;finish(true);return;}
+    const cg=g.get(key(cx,cy))??0;
+    for(const [nx,ny] of neighbors(cx,cy)){
+      const k=key(nx,ny);
+      const ng=cg+cost(nx,ny);
+      if(algo==='bfs'){
+        if(seen.has(k))continue;
+        seen.add(k); prev.set(k,[cx,cy]);
+        queue.push([nx,ny]);
+        if(grid[idx(nx,ny)]===0)grid[idx(nx,ny)]=2;
+      } else {
+        const cur_g=g.get(k);
+        if(cur_g!==undefined&&cur_g<=ng)continue;
+        g.set(k,ng); prev.set(k,[cx,cy]);
+        const f=algo==='a*'?ng+manhattan(nx,ny):ng;
+        heap.push({x:nx,y:ny,f});
+        if(grid[idx(nx,ny)]===0)grid[idx(nx,ny)]=2;
+      }
+    }
+    if(!(cx===start[0]&&cy===start[1])) grid[idx(cx,cy)]=3;
+    draw();
+  };
+  const finish=(ok)=>{
+    if(anim)clearInterval(anim);anim=null;
+    if(ok){
+      let cur=[goal[0],goal[1]];const path=[];
+      while(cur){path.push(cur);cur=prev.get(key(cur[0],cur[1]));}
+      let total=0;
+      for(const [x,y] of path) if(!(x===start[0]&&y===start[1])&&!(x===goal[0]&&y===goal[1])){grid[idx(x,y)]=4;total+=cost(x,y);}
+      draw();
+      document.getElementById('stat').innerHTML=`<b>${algo}</b> · found · steps ${path.length-1} · cost <b>${total}</b> · explored <b>${explored}</b>`;
+    } else {
+      document.getElementById('stat').innerHTML=`<b>${algo}</b> · no path · explored <b>${explored}</b>`;
+    }
+  };
+  anim=setInterval(step,16);
+}
+
+let drawing=false, mode=WALL;
+cv.addEventListener('pointerdown',e=>{
+  drawing=true;
+  const r=cv.getBoundingClientRect();
+  const x=Math.floor((e.clientX-r.left)/CELL), y=Math.floor((e.clientY-r.top)/CELL);
+  if(x<0||x>=COLS||y<0||y>=ROWS){drawing=false;return;}
+  if(e.altKey||e.button===2){goal=[x,y];if(grid[idx(x,y)]===WALL||grid[idx(x,y)]===SAND)grid[idx(x,y)]=0;draw();return;}
+  if(e.shiftKey&&!e.altKey){start=[x,y];if(grid[idx(x,y)]===WALL||grid[idx(x,y)]===SAND)grid[idx(x,y)]=0;draw();return;}
+  if(x===start[0]&&y===start[1])return;
+  if(x===goal[0]&&y===goal[1])return;
+  const cur=grid[idx(x,y)];
+  if(mode===SAND){ grid[idx(x,y)]=cur===SAND?0:SAND; mode=grid[idx(x,y)]; }
+  else { grid[idx(x,y)]=cur===WALL?0:WALL; mode=grid[idx(x,y)]; }
+  draw();
+});
+cv.addEventListener('pointermove',e=>{
+  if(!drawing)return;
+  const r=cv.getBoundingClientRect();
+  const x=Math.floor((e.clientX-r.left)/CELL), y=Math.floor((e.clientY-r.top)/CELL);
+  if(x<0||x>=COLS||y<0||y>=ROWS)return;
+  if(x===start[0]&&y===start[1])return;
+  if(x===goal[0]&&y===goal[1])return;
+  grid[idx(x,y)]=mode;
+  draw();
+});
+window.addEventListener('pointerup',()=>drawing=false);
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+// sand brush: hold 'd' while dragging
+window.addEventListener('keydown',e=>{if(e.key==='d'||e.key==='D')mode=SAND;});
+window.addEventListener('keyup',e=>{if(e.key==='d'||e.key==='D')mode=WALL;});
+
+const $=id=>document.getElementById(id);
+$('runB').onclick=()=>run('bfs');
+$('runD').onclick=()=>run('dijkstra');
+$('clear').onclick=()=>{reset();$('stat').textContent='';};
+$('maze').onclick=()=>{
+  reset();
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    if(x===start[0]&&y===start[1])continue;
+    if(x===goal[0]&&y===goal[1])continue;
+    const r=Math.random();
+    if(r<0.28)grid[idx(x,y)]=WALL;
+    else if(r<0.42)grid[idx(x,y)]=SAND;
+  }
+  draw();
+};
+reset();
+</script>
+</body>
+</html>
