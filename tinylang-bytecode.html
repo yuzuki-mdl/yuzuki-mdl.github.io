@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tinylang, compiled — yūzuki</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .wrap { display:grid; grid-template-columns: 1fr 1fr; gap:16px; margin-top:16px; }
+  @media (max-width:800px){ .wrap { grid-template-columns:1fr; } }
+  textarea {
+    width:100%; box-sizing:border-box; min-height:280px; resize:vertical;
+    font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    background:#15171c; color:#e6e6e6; border:1px solid #2a2d35; border-radius:8px;
+    padding:12px; tab-size:2;
+  }
+  .bar { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:10px 0; }
+  button {
+    font:inherit; border:1px solid #2a2d35; background:#1d2027; color:#e6e6e6;
+    border-radius:6px; padding:6px 12px; cursor:pointer;
+  }
+  button:hover { background:#262a33; }
+  button.primary { background:#2b6cff; border-color:#2b6cff; color:#fff; }
+  button.primary:hover { background:#3a78ff; }
+  select {
+    font:inherit; background:#1d2027; color:#e6e6e6; border:1px solid #2a2d35;
+    border-radius:6px; padding:6px 8px;
+  }
+  pre.out {
+    min-height:120px; margin:0; background:#0f1115; border:1px solid #2a2d35;
+    border-radius:8px; padding:12px; font:13px/1.5 ui-monospace,Menlo,Consolas,monospace;
+    white-space:pre-wrap; word-break:break-word; color:#cfe3cf;
+  }
+  pre.dis {
+    margin:12px 0 0; background:#0f1115; border:1px solid #2a2d35; border-radius:8px;
+    padding:12px; font:12px/1.5 ui-monospace,Menlo,Consolas,monospace; color:#9fb0c8;
+    max-height:300px; overflow:auto; white-space:pre;
+  }
+  .err { color:#ff8a8a; }
+  .hint { color:#8a8f99; font-size:13px; }
+  h3 { margin:18px 0 6px; }
+  code { background:#1d2027; padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>tinylang, compiled</h1>
+  <p class="tag">an expression language that compiles to bytecode, run on a stack machine</p>
+</header>
+<main>
+<section>
+<p>the <a href="tinylang.html">other tinylang</a> is concatenative — you write the stack operations directly and it interprets them. this one is different: you write something that looks like a normal little language (variables, <code>if</code>, <code>while</code>, arithmetic), and it gets <em>compiled</em> to a flat bytecode that a stack machine runs. the disassembly panel shows the actual instructions. the whole thing — lexer, parser, compiler, vm — is a few hundred lines.</p>
+
+<div class="bar">
+  <select id="example">
+    <option value="countdown">countdown</option>
+    <option value="fizz">fizzbuzz-ish</option>
+    <option value="fib">fibonacci</option>
+    <option value="primes">primes under 50</option>
+    <option value="collatz">collatz of 27</option>
+  </select>
+  <button class="primary" id="run">run ▸</button>
+  <span class="hint">ctrl/cmd+enter also runs</span>
+</div>
+
+<div class="wrap">
+  <div>
+    <h3>source</h3>
+    <textarea id="src" spellcheck="false"></textarea>
+  </div>
+  <div>
+    <h3>output</h3>
+    <pre class="out" id="out"></pre>
+    <h3>bytecode</h3>
+    <pre class="dis" id="dis"></pre>
+  </div>
+</div>
+
+<h3>the language</h3>
+<p class="hint">
+  numbers, strings, variables, <code>+ - * / %</code>, comparisons <code>== != &lt; &lt;= &gt; &gt;=</code>,
+  <code>if / else</code>, <code>while</code>, <code>print</code>. statements end at a newline or <code>;</code>.
+  <code>#</code> starts a comment. uninitialized variables read as 0. dividing by zero gives 0 (documented, not a crash).
+</p>
+</section>
+</main>
+
+<script>
+const OP = { PUSH:1, LOAD:2, STORE:3, ADD:4, SUB:5, MUL:6, DIV:7, MOD:8, NEG:9, EQ:10, NE:11, LT:12, LE:13, GT:14, GE:15, JMP:16, JZ:17, PRINT:18, DUP:19, DROP:20, SWAP:21, HALT:22 };
+const OPNAME = {}; for (const k in OP) OPNAME[OP[k]] = k;
+
+function lex(src){
+  const toks=[]; let i=0,line=1;
+  const push=(t,v)=>toks.push({t,v,line});
+  while(i<src.length){
+    const c=src[i];
+    if(c==='\n'){line++;i++;continue;}
+    if(c===' '||c==='\t'||c==='\r'){i++;continue;}
+    if(c==='#'){while(i<src.length&&src[i]!=='\n')i++;continue;}
+    if(/[0-9]/.test(c)){let j=i;while(j<src.length&&/[0-9.]/.test(src[j]))j++;push('num',parseFloat(src.slice(i,j)));i=j;continue;}
+    if(/[A-Za-z_]/.test(c)){let j=i;while(j<src.length&&/[A-Za-z0-9_]/.test(src[j]))j++;push('id',src.slice(i,j));i=j;continue;}
+    if(c==='"'){let j=i+1,s='';while(j<src.length&&src[j]!=='"'){s+=src[j];j++;}if(src[j]!=='"')throw new Error('unterminated string on line '+line);push('str',s);i=j+1;continue;}
+    const two=src.slice(i,i+2);
+    if(['==','!=','<=','>='].includes(two)){push('op',two);i+=2;continue;}
+    if('+-*/%<>={}();'.includes(c)){push('op',c);i++;continue;}
+    throw new Error('bad char '+JSON.stringify(c)+' on line '+line);
+  }
+  push('eof',null);
+  return toks;
+}
+
+function parse(toks){
+  let p=0;
+  const peek=()=>toks[p]; const next=()=>toks[p++];
+  const isOp=v=>peek().t==='op'&&peek().v===v;
+  const eat=v=>{if(!isOp(v))throw new Error('expected '+v+' on line '+peek().line+', got '+JSON.stringify(peek().v));next();};
+  function block(){eat('{');const body=[];while(!isOp('}')){if(isOp(';')){next();continue;}body.push(stmt());}eat('}');return{k:'block',body};}
+  function stmt(){
+    if(isOp('{'))return block();
+    const t=peek();
+    if(t.t==='id'&&t.v==='print'){next();return{k:'print',e:expr()};}
+    if(t.t==='id'&&t.v==='while'){next();const e=expr();const b=block();return{k:'while',e,b};}
+    if(t.t==='id'&&t.v==='if'){next();const e=expr();const b=block();let eb=null;if(peek().t==='id'&&peek().v==='else'){next();eb=block();}return{k:'if',e,b,eb};}
+    if(t.t==='id'&&toks[p+1].t==='op'&&toks[p+1].v==='='){const name=next().v;next();return{k:'assign',name,e:expr()};}
+    return{k:'expr',e:expr()};
+  }
+  function expr(){let a=add();const t=peek();if(t.t==='op'&&['==','!=','<','<=','>','>='].includes(t.v)){next();const b=add();return{k:'bin',op:t.v,a,b};}return a;}
+  function add(){let a=mul();while(isOp('+')||isOp('-')){const op=next().v;const b=mul();a={k:'bin',op,a,b};}return a;}
+  function mul(){let a=unary();while(isOp('*')||isOp('/')||isOp('%')){const op=next().v;const b=unary();a={k:'bin',op,a,b};}return a;}
+  function unary(){if(isOp('-')){next();return{k:'neg',e:unary()};}return primary();}
+  function primary(){const t=next();if(t.t==='num')return{k:'num',v:t.v};if(t.t==='str')return{k:'str',v:t.v};if(t.t==='id')return{k:'var',name:t.v};if(t.t==='op'&&t.v==='('){const e=expr();eat(')');return e;}throw new Error('unexpected '+JSON.stringify(t.v)+' on line '+t.line);}
+  const prog=[];while(peek().t!=='eof'){if(isOp(';')){next();continue;}prog.push(stmt());}
+  return{k:'program',body:prog};
+}
+
+const ARITH={'+':OP.ADD,'-':OP.SUB,'*':OP.MUL,'/':OP.DIV,'%':OP.MOD};
+const CMP={'==':OP.EQ,'!=':OP.NE,'<':OP.LT,'<=':OP.LE,'>':OP.GT,'>=':OP.GE};
+
+function compile(ast){
+  const code=[]; const consts=[];
+  const emit=(op,arg=0)=>{code.push({op,arg});return code.length-1;};
+  const addConst=v=>{consts.push(v);return consts.length-1;};
+  function genExpr(e){
+    switch(e.k){
+      case 'num': emit(OP.PUSH,addConst(e.v)); return;
+      case 'str': emit(OP.PUSH,addConst(e.v)); return;
+      case 'var': emit(OP.LOAD,addConst(e.name)); return;
+      case 'neg': genExpr(e.e); emit(OP.NEG); return;
+      case 'bin': genExpr(e.a); genExpr(e.b); (ARITH[e.op]?emit(ARITH[e.op]):emit(CMP[e.op])); return;
+    }
+  }
+  function genStmt(s){
+    switch(s.k){
+      case 'program': case 'block': for(const x of s.body)genStmt(x); return;
+      case 'assign': genExpr(s.e); emit(OP.STORE,addConst(s.name)); return;
+      case 'print': genExpr(s.e); emit(OP.PRINT); return;
+      case 'expr': genExpr(s.e); emit(OP.DROP); return;
+      case 'if': { genExpr(s.e); const jz=emit(OP.JZ,0); genStmt(s.b); if(s.eb){const jmp=emit(OP.JMP,0);code[jz].arg=code.length;genStmt(s.eb);code[jmp].arg=code.length;}else{code[jz].arg=code.length;} return; }
+      case 'while': { const top=code.length; genExpr(s.e); const jz=emit(OP.JZ,0); genStmt(s.b); emit(OP.JMP,top); code[jz].arg=code.length; return; }
+    }
+  }
+  genStmt(ast); emit(OP.HALT);
+  return {code,consts};
+}
+
+function run(prog,opts={}){
+  const {code,consts}=prog; const stack=[]; const vars=Object.create(null); const out=[];
+  const maxSteps=opts.maxSteps||1000000; let pc=0,steps=0;
+  const pop=()=>{if(!stack.length)throw new Error('stack underflow at pc '+pc);return stack.pop();};
+  while(pc<code.length){
+    if(++steps>maxSteps)throw new Error('step limit ('+maxSteps+')');
+    const {op,arg}=code[pc++];
+    switch(op){
+      case OP.PUSH: stack.push(consts[arg]); break;
+      case OP.LOAD: {const n=consts[arg]; if(!(n in vars))vars[n]=0; stack.push(vars[n]); break;}
+      case OP.STORE: vars[consts[arg]]=pop(); break;
+      case OP.ADD: {const b=pop(),a=pop();stack.push(a+b);break;}
+      case OP.SUB: {const b=pop(),a=pop();stack.push(a-b);break;}
+      case OP.MUL: {const b=pop(),a=pop();stack.push(a*b);break;}
+      case OP.DIV: {const b=pop(),a=pop();stack.push(b===0?0:a/b);break;}
+      case OP.MOD: {const b=pop(),a=pop();stack.push(b===0?0:a%b);break;}
+      case OP.NEG: stack.push(-pop()); break;
+      case OP.EQ: {const b=pop(),a=pop();stack.push(a===b?1:0);break;}
+      case OP.NE: {const b=pop(),a=pop();stack.push(a!==b?1:0);break;}
+      case OP.LT: {const b=pop(),a=pop();stack.push(a<b?1:0);break;}
+      case OP.LE: {const b=pop(),a=pop();stack.push(a<=b?1:0);break;}
+      case OP.GT: {const b=pop(),a=pop();stack.push(a>b?1:0);break;}
+      case OP.GE: {const b=pop(),a=pop();stack.push(a>=b?1:0);break;}
+      case OP.JMP: pc=arg; break;
+      case OP.JZ: if(pop()===0)pc=arg; break;
+      case OP.PRINT: out.push(String(pop())); break;
+      case OP.DUP: {const v=pop();stack.push(v);stack.push(v);break;}
+      case OP.DROP: pop(); break;
+      case OP.SWAP: {const b=pop(),a=pop();stack.push(b);stack.push(a);break;}
+      case OP.HALT: return out.join('\n');
+    }
+  }
+  return out.join('\n');
+}
+
+function runSource(src,opts){ return run(compile(parse(lex(src))),opts); }
+function disasm(prog){
+  return prog.code.map((ins,i)=>{
+    const name=OPNAME[ins.op]||('?'+ins.op);
+    let a='';
+    if(ins.op===OP.JMP||ins.op===OP.JZ) a='\t-> '+ins.arg;
+    else if(ins.op===OP.PUSH||ins.op===OP.LOAD||ins.op===OP.STORE) a='\t'+JSON.stringify(prog.consts[ins.arg]);
+    return i+'\t'+name+a;
+  }).join('\n');
+}
+
+const EXAMPLES = {
+  countdown: '# count down from 5 and print a message\nx = 5\nwhile x > 0 {\n  print x\n  x = x - 1\n}\nprint "liftoff"',
+  fizz: '# fizzbuzz-ish, 1..15\ni = 1\nwhile i <= 15 {\n  if i % 15 == 0 {\n    print "fizzbuzz"\n  } else {\n    if i % 3 == 0 {\n      print "fizz"\n    } else {\n      if i % 5 == 0 {\n        print "buzz"\n      } else {\n        print i\n      }\n    }\n  }\n  i = i + 1\n}',
+  fib: '# first 10 fibonacci numbers\na = 0\nb = 1\nn = 0\nwhile n < 10 {\n  print a\n  t = a + b\n  a = b\n  b = t\n  n = n + 1\n}',
+  primes: '# primes under 50 (trial division)\nn = 2\nwhile n < 50 {\n  isprime = 1\n  d = 2\n  while d * d <= n {\n    if n % d == 0 {\n      isprime = 0\n    }\n    d = d + 1\n  }\n  if isprime == 1 {\n    print n\n  }\n  n = n + 1\n}',
+  collatz: '# collatz sequence of 27\nn = 27\nsteps = 0\nwhile n != 1 {\n  print n\n  if n % 2 == 0 {\n    n = n / 2\n  } else {\n    n = 3 * n + 1\n  }\n  steps = steps + 1\n}\nprint 1\nprint "steps:"\nprint steps'
+};
+
+const $src=document.getElementById('src');
+const $out=document.getElementById('out');
+const $dis=document.getElementById('dis');
+const $sel=document.getElementById('example');
+
+function loadExample(){ $src.value = EXAMPLES[$sel.value] || ''; runIt(); }
+
+function runIt(){
+  const src = $src.value;
+  try {
+    const prog = compile(parse(lex(src)));
+    $dis.textContent = disasm(prog);
+    const out = run(prog, { maxSteps: 2000000 });
+    $out.textContent = out === '' ? '(no output)' : out;
+    $out.classList.remove('err');
+  } catch(e){
+    $out.textContent = 'error: ' + e.message;
+    $out.classList.add('err');
+    $dis.textContent = '';
+  }
+}
+
+$sel.addEventListener('change', loadExample);
+document.getElementById('run').addEventListener('click', runIt);
+$src.addEventListener('keydown', e => {
+  if (e.ctrlKey || e.metaKey) { if (e.key === 'Enter') { e.preventDefault(); runIt(); } }
+  if (e.key === 'Tab') { e.preventDefault(); const s=$src.selectionStart, e2=$src.selectionEnd; $src.value=$src.value.slice(0,s)+'  '+$src.value.slice(e2); $src.selectionStart=$src.selectionEnd=s+2; }
+});
+
+loadExample();
+</script>
+</body>
+</html>
