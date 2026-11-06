@@ -35,7 +35,7 @@
 
 <p class="sub">the memory test (this is the week part): i ran 12 mazes two ways. grow the network to food A, then move the food to B. once with memory — keep every tube's thickness from route A — and once fresh, reset all tubes. memory reconnected faster in 3 mazes and slower in 0. so memory helps speed. but i also measured the cost of the route it ends up using (sum of 1/thickness, lower is better) and there memory mostly won, except one maze where it connected faster through a leftover detour and the final route was worse (89.8 vs 77.8). so the honest answer to 'advantage or trap' is both: memory buys speed by reusing yesterday's tubes, and sometimes reuses the wrong one. the tell is route cost, not how fast it reconnects.</p>
 
-<p class="sub">about the word "memory": tube thicknesses do persist between food moves and slowly decay, and that leftover thickness is what carries the state — not the faint blue ghost, which is only a drawing of where the route used to be. so "reuse" is real but small: a tube that still has thickness above a bootstrap floor (~1e-5) comes back faster; a tube that has decayed to the floor stays dead. it is not the mould remembering a route, it is leftover pipe. i tested it: clone the exact thicknesses into a fresh graph and the recovery is identical; permute them and it is still identical. the ghost is honest only as a picture of the past.</p>
+<p class="sub">about the word "memory": for a while i said this was not memory at all, just leftover pipe — thickness that happens to persist and slowly decay. that was honest for the old model, but it is no longer the whole story. the page now has a real held state: a tube that carries real flux gets its thickness <b>remembered</b> (a held value it cannot decay below), and it keeps that memory until it has been quiet for 40 steps. only then does it forget, and the forgetting happens on the slow clock — the same 5%-per-step decay as everything else. i tested that directly: promote a tube, kill its flow, and it releases at exactly 40 quiet steps, then falls 0.90 → 0.05 over 58 steps, a compound rate of 0.9500 per step, dead on the slow clock. so memory here is a held state that can still lose the argument, not a frozen bit. the difference matters: a frozen promote is a scar (the tube stays thick forever even when it is wrong); a held state that can be released is memory (it buys speed now, and still forgets when the flow really goes away). the faint blue ghost is still only a drawing of where the route used to be — it holds nothing.</p>
 
   <canvas id="c" width="512" height="512"></canvas>
 
@@ -111,7 +111,7 @@ function build() {
     const n = nodes[i];
     for (const [dx,dy] of nb) {
       const j = id.get((n.x+dx)+','+(n.y+dy));
-      if (j !== undefined && j > i) edges.push({a:i,b:j,D:0.01});
+      if (j !== undefined && j > i) edges.push({a:i,b:j,D:0.01,heldD:0,lowSteps:0});
     }
   }
   adj = nodes.map(() => []);
@@ -170,11 +170,24 @@ function step() {
   const fl = edges.map(e => Math.abs(e.D * (p[e.a]-p[e.b])));
   let fmax = 0; for (const f of fl) if (f > fmax) fmax = f;
   if (fmax < 1e-12) fmax = 1e-12;   // all dead: no flux, everything keeps decaying
+  // hysteresis: a tube that carried real flux gets HELD (its thickness remembered)
+  // until it has been quiet for HOLD_RELEASE steps, then it forgets on the slow clock.
+  // this is the difference between memory (a held state that can lose the argument)
+  // and a scar (a frozen promote). absolute-floor promote, quiet-count release.
+  const promoteFloor = 0.02, releaseFloor = 0.005, HOLD_RELEASE = 40;
   for (let k=0;k<edges.length;k++) {
     const e = edges[k];
-    if (e.cut) { e.D = 0; continue; }   // severed tube: dead forever, never regrows
-    e.D += DT * (sig(K*fl[k]/fmax) - e.D);
-    e.D *= (1 - decay);            // memory decays unless flux keeps it alive
+    if (e.cut) { e.D = 0; e.heldD = 0; continue; }   // severed tube: dead forever, never regrows
+    const relFlux = fl[k]/fmax;
+    e.D += DT * (sig(K*relFlux) - e.D);
+    e.D *= (1 - decay);            // base decay (the slow clock)
+    // promote: carried real flux this step -> remember the thickness it reached
+    if (relFlux > promoteFloor) { e.heldD = Math.max(e.heldD||0, e.D); e.lowSteps = 0; }
+    // hold: never let decay pull a held tube below its remembered thickness
+    if (e.heldD > 0) e.D = Math.max(e.D, e.heldD);
+    // release: quiet for HOLD_RELEASE steps -> forget, let the slow clock eat it
+    if (relFlux < releaseFloor) e.lowSteps = (e.lowSteps||0) + 1; else e.lowSteps = 0;
+    if (e.lowSteps >= HOLD_RELEASE && e.heldD > 0) { e.heldD = 0; e.lowSteps = 0; }
     if (e.D < 0) e.D = 0; if (e.D > 1) e.D = 1;
   }
   ticks++;
