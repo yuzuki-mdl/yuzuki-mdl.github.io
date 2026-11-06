@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sokoban</title>
+<style>
+  :root{--bg:#0d1117;--fg:#e6edf3;--dim:#7d8590;--wall:#30363d;--floor:#161b22;--goal:#f0883e;--box:#7ee787;--boxok:#3fb950;--player:#79c0ff;--acc:#7ee787}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:16px;touch-action:none}
+  h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.1em;color:var(--dim);text-transform:uppercase}
+  #hud{display:flex;gap:22px;font-size:13px;color:var(--dim);letter-spacing:.04em}
+  #hud b{color:var(--fg);font-weight:600}
+  #wrap{position:relative}
+  canvas{background:var(--floor);border-radius:8px;display:block;max-width:92vw;max-height:66vh}
+  #over{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;background:rgba(13,17,23,.86);border-radius:8px;text-align:center;padding:20px}
+  #over.show{display:flex}
+  #over .big{font-size:18px;color:var(--acc)}
+  #over small{color:var(--dim);font-size:12px}
+  .hint{color:var(--dim);font-size:12px;text-align:center;max-width:460px}
+  kbd{background:#1f2630;border-radius:4px;padding:1px 5px;font-size:11px;color:var(--fg)}
+  button{background:#1f2630;color:var(--fg);border:1px solid #30363d;border-radius:6px;padding:6px 14px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc)}
+</style>
+</head>
+<body>
+<h1>sokoban</h1>
+<div id="hud"><span>level <b id="lvl">1</b></span><span>moves <b id="mv">0</b></span><span>pushes <b id="pu">0</b></span></div>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="over"><div class="big" id="overtxt">solved</div><small id="oversub"></small><button id="nextbtn">next</button></div>
+</div>
+<div class="hint"><kbd>wasd</kbd>/<kbd>arrows</kbd> move · <kbd>u</kbd> undo · <kbd>r</kbd> restart · swipe on mobile</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const lvlEl=document.getElementById('lvl'),mvEl=document.getElementById('mv'),puEl=document.getElementById('pu');
+const overEl=document.getElementById('over'),overTxt=document.getElementById('overtxt'),overSub=document.getElementById('oversub');
+const nextBtn=document.getElementById('nextbtn');
+
+// levels: # wall . floor $ box * box-on-goal @ player + player-on-goal
+const LEVELS=[
+["#######",
+ "#     #",
+ "# .$@ #",
+ "#     #",
+ "#######"],
+
+["########",
+ "#      #",
+ "# .$@  #",
+ "#      #",
+ "#  .$  #",
+ "########"],
+
+["########",
+ "#  .   #",
+ "#  $   #",
+ "#  @   #",
+ "#      #",
+ "#   .$ #",
+ "########"],
+
+["#########",
+ "#   #   #",
+ "# $ # . #",
+ "#  @#   #",
+ "#   #   #",
+ "#. $    #",
+ "#########"],
+
+["########",
+ "#   .  #",
+ "#  $$  #",
+ "# .@ . #",
+ "#  $$  #",
+ "#   .  #",
+ "########"],
+
+["#######",
+ "#     #",
+ "# .$. #",
+ "# $@$ #",
+ "# .$. #",
+ "#     #",
+ "#######"],
+
+["#########",
+ "#  . .  #",
+ "# $   $ #",
+ "#   @   #",
+ "# $   $ #",
+ "#  . .  #",
+ "#########"],
+
+["##########",
+ "#        #",
+ "#  $  $  #",
+ "#  .@ .  #",
+ "#  $  $  #",
+ "#  .  .  #",
+ "##########"]
+];
+
+let grid,rows,cols,player,boxes,goals,hist,level,moves,pushes,won;
+
+function parse(src){
+  rows=src.length;cols=Math.max(...src.map(r=>r.length));
+  grid=[];boxes=[];goals=[];player={x:0,y:0};
+  for(let y=0;y<rows;y++){
+    const row=[];
+    for(let x=0;x<cols;x++){
+      const ch=src[y][x]||' ';
+      let cell='floor';
+      if(ch==='#')cell='wall';
+      if(ch===' '||ch===undefined)cell='void';
+      if(ch==='.'||ch==='*'||ch==='+')goals.push({x,y});
+      if(ch==='$'||ch==='*')boxes.push({x,y});
+      if(ch==='@'||ch==='+')player={x,y};
+      row.push(cell);
+    }
+    grid.push(row);
+  }
+}
+
+function load(n){
+  level=n;won=false;
+  parse(LEVELS[n]);
+  hist=[];moves=0;pushes=0;
+  overEl.classList.remove('show');
+  resize();draw();updateHud();
+}
+
+function updateHud(){lvlEl.textContent=level+1;mvEl.textContent=moves;puEl.textContent=pushes;}
+
+function boxAt(x,y){return boxes.findIndex(b=>b.x===x&&b.y===y);}
+function goalAt(x,y){return goals.some(g=>g.x===x&&g.y===y);}
+function isWall(x,y){if(x<0||y<0||x>=cols||y>=rows)return true;return grid[y][x]==='wall'||grid[y][x]==='void';}
+
+function copyState(){
+  return {player:{...player},boxes:boxes.map(b=>({...b})),moves,pushes};
+}
+function pushHist(){hist.push(copyState());if(hist.length>400)hist.shift();}
+
+function move(dx,dy){
+  if(won)return;
+  const nx=player.x+dx,ny=player.y+dy;
+  if(isWall(nx,ny))return;
+  const bi=boxAt(nx,ny);
+  if(bi>=0){
+    const bx=nx+dx,by=ny+dy;
+    if(isWall(bx,by)||boxAt(bx,by)>=0)return;
+    pushHist();
+    boxes[bi]={x:bx,y:by};
+    player={x:nx,y:ny};
+    pushes++;moves++;
+  } else {
+    pushHist();
+    player={x:nx,y:ny};
+    moves++;
+  }
+  updateHud();draw();checkWin();
+}
+
+function undo(){
+  if(!hist.length||won)return;
+  const s=hist.pop();
+  player=s.player;boxes=s.boxes;moves=s.moves;pushes=s.pushes;
+  updateHud();draw();
+}
+
+function checkWin(){
+  const all=boxes.every(b=>goalAt(b.x,b.y));
+  if(all){
+    won=true;
+    overTxt.textContent=level+1>=LEVELS.length?'all solved 🎉':'solved';
+    overSub.textContent=`${moves} moves · ${pushes} pushes`;
+    nextBtn.textContent=level+1>=LEVELS.length?'restart':'next';
+    overEl.classList.add('show');
+  }
+}
+
+nextBtn.onclick=()=>{load(level+1>=LEVELS.length?0:level+1);};
+
+// ---- render ----
+let cell=32,ox=0,oy=0;
+function resize(){
+  const maxW=Math.min(window.innerWidth*0.92,720);
+  const maxH=Math.min(window.innerHeight*0.66,560);
+  cell=Math.floor(Math.min(maxW/cols,maxH/rows));
+  cell=Math.max(cell,14);
+  cv.width=cols*cell;cv.height=rows*cell;
+  draw();
+}
+window.addEventListener('resize',resize);
+
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+    const t=grid[y][x];
+    const px=x*cell,py=y*cell;
+    if(t==='wall'){ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--wall');ctx.fillRect(px,py,cell,cell);ctx.fillStyle='#21262d';ctx.fillRect(px+cell*0.12,py+cell*0.12,cell*0.76,cell*0.76);}
+    else if(t==='floor'){ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--floor');ctx.fillRect(px,py,cell,cell);ctx.strokeStyle='#1c2129';ctx.strokeRect(px+.5,py+.5,cell-1,cell-1);}
+  }
+  // goals
+  ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--goal');
+  for(const g of goals){const cx=g.x*cell+cell/2,cy=g.y*cell+cell/2;ctx.beginPath();ctx.arc(cx,cy,cell*0.16,0,7);ctx.fill();}
+  // boxes
+  for(const b of boxes){
+    const on=goalAt(b.x,b.y);
+    ctx.fillStyle=on?getComputedStyle(document.documentElement).getPropertyValue('--boxok'):getComputedStyle(document.documentElement).getPropertyValue('--box');
+    const m=cell*0.12;
+    ctx.fillRect(b.x*cell+m,b.y*cell+m,cell-2*m,cell-2*m);
+    ctx.strokeStyle='rgba(0,0,0,.35)';ctx.lineWidth=2;
+    ctx.strokeRect(b.x*cell+m,b.y*cell+m,cell-2*m,cell-2*m);
+    ctx.beginPath();ctx.moveTo(b.x*cell+m,b.y*cell+m);ctx.lineTo(b.x*cell+cell-m,b.y*cell+cell-m);ctx.moveTo(b.x*cell+cell-m,b.y*cell+m);ctx.lineTo(b.x*cell+m,b.y*cell+cell-m);ctx.stroke();
+  }
+  // player
+  ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--player');
+  ctx.beginPath();
+  ctx.arc(player.x*cell+cell/2,player.y*cell+cell/2,cell*0.34,0,7);
+  ctx.fill();
+  // eyes
+  ctx.fillStyle='#0d1117';
+  ctx.beginPath();ctx.arc(player.x*cell+cell*0.4,player.y*cell+cell*0.42,cell*0.06,0,7);ctx.arc(player.x*cell+cell*0.6,player.y*cell+cell*0.42,cell*0.06,0,7);ctx.fill();
+}
+
+// ---- input ----
+const KEY={ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],W:[0,-1],S:[0,1],A:[-1,0],D:[1,0]};
+window.addEventListener('keydown',e=>{
+  if(e.key==='u'||e.key==='U'){undo();return;}
+  if(e.key==='r'||e.key==='R'){load(level);return;}
+  const m=KEY[e.key];
+  if(m){e.preventDefault();move(m[0],m[1]);}
+});
+
+// touch swipe
+let tx=0,ty=0;
+cv.addEventListener('touchstart',e=>{tx=e.touches[0].clientX;ty=e.touches[0].clientY;},{passive:true});
+cv.addEventListener('touchend',e=>{
+  const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;
+  if(Math.abs(dx)<24&&Math.abs(dy)<24)return;
+  if(Math.abs(dx)>Math.abs(dy))move(dx>0?1:-1,0);else move(0,dy>0?1:-1);
+},{passive:true});
+
+load(0);
+</script>
+</body>
+</html>
