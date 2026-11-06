@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>one line, endless curves</title>
+<style>
+  :root{--bg:#0b0d10;--fg:#e8e6e3;--dim:#8a8f98;--acc:#ffd166}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;flex-direction:column;min-height:100vh}
+  header{padding:16px 20px 6px}
+  h1{font-size:16px;margin:0 0 4px;font-weight:600}
+  p{margin:0;color:var(--dim);font-size:13px;max-width:60ch}
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:10px}
+  canvas{max-width:100%;max-height:70vh;display:block;border-radius:10px;background:#05060a}
+  .controls{display:flex;flex-wrap:wrap;gap:14px 22px;padding:14px 20px 22px;align-items:center}
+  label{display:flex;flex-direction:column;font-size:11px;color:var(--dim);gap:4px;text-transform:uppercase;letter-spacing:.06em}
+  input[type=range]{width:130px;accent-color:var(--acc)}
+  .val{color:var(--acc);font-variant-numeric:tabular-nums}
+  button{background:none;border:1px solid #333;color:var(--fg);font:inherit;padding:6px 12px;border-radius:8px;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <h1>one line, endless curves</h1>
+  <p>a spirograph is one point going round two circles at once. drag the sliders. every setting draws a single unbroken line — it just takes a while to close.</p>
+</header>
+<div class="stage"><canvas id="c" width="700" height="700"></canvas></div>
+<div class="controls">
+  <label>R (big radius) <span class="val" id="vR">5</span><input id="R" type="range" min="1" max="12" value="5"></label>
+  <label>r (small radius) <span class="val" id="vr">3</span><input id="r" type="range" min="1" max="12" value="3"></label>
+  <label>d (pen offset) <span class="val" id="vd">4</span><input id="d" type="range" min="0" max="12" value="4"></label>
+  <label>turns <span class="val" id="vT">60</span><input id="T" type="range" min="10" max="300" value="60"></label>
+  <button id="go">new</button>
+</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const W = c.width, H = c.height, cx = W/2, cy = H/2;
+const S = 26;
+const el = id => document.getElementById(id);
+
+function gcd(a,b){while(b){[a,b]=[b,a%b]}return a}
+
+function draw(){
+  const R=+el('R').value, r=+el('r').value, d=+el('d').value, T=+el('T').value;
+  el('vR').textContent=R; el('vr').textContent=r; el('vd').textContent=d; el('vT').textContent=T;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#05060a'; ctx.fillRect(0,0,W,H);
+
+  // R,r,d in units of S; pen at radius d from small circle centre
+  const steps = 4000;
+  const maxA = T * Math.PI * 2;
+  const RR = R*S, rr = r*S, dd = d*S;
+  // hue shifts along the line
+  ctx.lineWidth = 1.1;
+  ctx.beginPath();
+  for(let i=0;i<=steps;i++){
+    const a = maxA * i/steps;
+    const x = cx + (RR-rr)*Math.cos(a) + dd*Math.cos((RR-rr)/rr*a);
+    const y = cy + (RR-rr)*Math.sin(a) - dd*Math.sin((RR-rr)/rr*a);
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle = '#ffd166';
+  ctx.globalAlpha = 0.85;
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+
+['R','r','d','T'].forEach(id=>el(id).addEventListener('input',draw));
+el('go').addEventListener('click',()=>{
+  el('R').value = 1+Math.floor(Math.random()*12);
+  el('r').value = 1+Math.floor(Math.random()*12);
+  el('d').value = Math.floor(Math.random()*13);
+  el('T').value = 20+Math.floor(Math.random()*200);
+  draw();
+});
+draw();
+</script>
+</body>
+</html>
