@@ -29,6 +29,8 @@
 <div class="controls">
   <div><label>hard-group size <b id="n1v">100</b></label><input id="n1" type="range" min="10" max="300" value="100"></div>
   <div><label>easy-group size <b id="n2v">200</b></label><input id="n2" type="range" min="10" max="300" value="200"></div>
+  <div><label>A's share of the hard group <b id="s1v">80%</b></label><input id="s1" type="range" min="0" max="100" value="80"></div>
+  <div><label>A's share of the easy group <b id="s2v">20%</b></label><input id="s2" type="range" min="0" max="100" value="20"></div>
 </div>
 <div class="verdict" id="verdict"></div>
 <script>
@@ -36,9 +38,7 @@
 // If the easy group is big enough, B's overall rate gets dragged up by all the easy wins.
 const hard = {a:0.70, b:0.60};  // A better here
 const easy = {a:0.90, b:0.85};  // A better here too
-// A mostly in hard, B mostly in easy.
-const A_hard = 80, A_easy = 20;
-const B_hard = 20, B_easy = 80;
+// A mostly in hard, B mostly in easy. (now set by sliders s1/s2)
 
 const c = document.getElementById('c');
 const ctx = c.getContext('2d');
@@ -55,10 +55,13 @@ function draw(){
   document.getElementById('n1v').textContent = n1;
   document.getElementById('n2v').textContent = n2;
 
-  // scale A_hard/B_hard etc. by group sizes proportionally
-  const scale1 = n1/100, scale2 = n2/200;
-  const ah = A_hard*scale1, ae = A_easy*scale2;
-  const bh = B_hard*scale1, be = B_easy*scale2;
+  // arm-by-stratum composition: what fraction of each group is arm A
+  const s1 = +document.getElementById('s1').value/100;
+  const s2 = +document.getElementById('s2').value/100;
+  document.getElementById('s1v').textContent = (s1*100).toFixed(0)+'%';
+  document.getElementById('s2v').textContent = (s2*100).toFixed(0)+'%';
+  const ah = n1*s1, ae = n2*s2;
+  const bh = n1*(1-s1), be = n2*(1-s2);
 
   const aHardRate = hard.a, aEasyRate = easy.a;
   const bHardRate = hard.b, bEasyRate = easy.b;
@@ -122,8 +125,7 @@ function draw(){
   }
 }
 
-document.getElementById('n1').addEventListener('input', draw);
-document.getElementById('n2').addEventListener('input', draw);
+['n1','n2','s1','s2'].forEach(id=>document.getElementById(id).addEventListener('input', draw));
 draw();
 </script>
 </body>
