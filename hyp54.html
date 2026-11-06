@@ -19,7 +19,7 @@ html,body{margin:0;background:#060810;color:#dfe8ff;font-family:ui-monospace,Men
 <div class=hint>the disk is infinite. the camera isn't.</div>
 <script>
 (()=>{
-const P=5,Q=4,RINGS=5;
+const P=5,Q=4,RINGS=3;
 const rv=Math.tanh(Math.acosh(Math.cos(Math.PI/Q)/Math.sin(Math.PI/P))/2);
 function centralVerts(){const v=[];for(let i=0;i<P;i++){const a=-Math.PI/2+2*Math.PI*i/P;v.push([rv*Math.cos(a),rv*Math.sin(a)]);}return v;}
 function gc(p1,p2){
@@ -40,39 +40,22 @@ return vs.map(v=>{const dot=v[0]*ux+v[1]*uy;return [2*dot*ux-v[0],2*dot*uy-v[1]]
 }
 function cen(vs){let x=0,y=0;for(const v of vs){x+=v[0];y+=v[1];}return [x/P,y/P];}
 function buildBall(rings){
-const polys=[],adj=[],seen=new Map();
-const G=1e-4;
-const bk=c=>Math.floor(c[0]/G)+','+Math.floor(c[1]/G);
+const polys=[];
+const TOL=1e-4;
 function add(vs){
-const c=cen(vs),bx=Math.floor(c[0]/G),by=Math.floor(c[1]/G);
-for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){
-const k=(bx+dx)+','+(by+dy);
-if(!seen.has(k))continue;
-for(const j of seen.get(k)){const d=Math.hypot(polys[j][0][0]-vs[0][0],polys[j][0][1]-vs[0][1]);if(d<1e-6)return j;}
-}
-const i=polys.length;
-const key=bk(c);
-if(!seen.has(key))seen.set(key,[]);
-seen.get(key).push(i);
-polys.push(vs);adj.push([-1,-1,-1,-1,-1]);
-return i;
+const c=cen(vs);
+for(let j=0;j<polys.length;j++){const pc=cen(polys[j]);if(Math.hypot(pc[0]-c[0],pc[1]-c[1])<TOL)return j;}
+const i=polys.length;polys.push(vs);return i;
 }
 add(centralVerts());
 for(let r=0;r<rings;r++){
 const n=polys.length;
-for(let i=0;i<n;i++){
-for(let e=0;e<P;e++){
-if(adj[i][e]!==-1)continue;
-const nbi=add(rpoly(polys[i],e));
-adj[i][e]=nbi;
-if(adj[nbi].indexOf(i)>=0)continue;
-for(let f=0;f<P;f++){
-if(adj[nbi][f]!==-1)continue;
-const cb=cen(rpoly(polys[nbi],f)),cp=cen(polys[i]);
-if(Math.abs(cb[0]-cp[0])<1e-6&&Math.abs(cb[1]-cp[1])<1e-6){adj[nbi][f]=i;break;}
+for(let i=0;i<n;i++)for(let e=0;e<P;e++)add(rpoly(polys[i],e));
 }
-}
-}
+const adj=polys.map(()=>[-1,-1,-1,-1,-1]);
+for(let i=0;i<polys.length;i++)for(let e=0;e<P;e++){
+const nc=cen(rpoly(polys[i],e));
+for(let j=0;j<polys.length;j++){if(j===i)continue;const jc=cen(polys[j]);if(Math.hypot(jc[0]-nc[0],jc[1]-nc[1])<TOL){adj[i][e]=j;break;}}
 }
 return {polys,adj};
 }
@@ -161,8 +144,8 @@ a.push({cx:c.cx,cy:c.cy,r:c.r,a1,a2,acw:ms<ml?(da<0):(da>0)});
 }
 cache.set(vs,a);return a;
 }
-function mz(z,p){const dx=z[0]-p[0],dy=z[1]-p[1];const ux=1-p[0]*z[0]-p[1]*z[1],uy=p[0]*z[1]-p[1]*z[0];const d=ux*ux+uy*uy;return [(dx*ux+dy*uy)/d,(dy*ux-dx*uy)/d];}
-function mzi(w,p){const ux=1+p[0]*w[0]+p[1]*w[1],uy=p[0]*w[1]-p[1]*w[0];const d=ux*ux+uy*uy;return [(w[0]*ux+w[1]*uy)/d+p[0],(w[1]*ux-w[0]*uy)/d+p[1]];}
+function mz(z,p){const dx=z[0]-p[0],dy=z[1]-p[1];const ux=1-p[0]*z[0]-p[1]*z[1],uy=p[0]*z[1]-p[1]*z[0];const d=ux*ux+uy*uy;return [(dx*ux-dy*uy)/d,(dx*uy+dy*ux)/d];}
+function mzi(w,p){const ux=1+p[0]*w[0]+p[1]*w[1],uy=p[0]*w[1]-p[1]*w[0];const d=ux*ux+uy*uy;const nr=w[0]+p[0],ni=w[1]+p[1];return [(nr*ux+ni*uy)/d,(ni*ux-nr*uy)/d];}
 function arcTo(p,q){
 const qq=mz(q,p);
 const L=Math.hypot(qq[0],qq[1]);
