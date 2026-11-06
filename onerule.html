@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>one rule</title>
+<style>
+  :root{color-scheme:dark}
+  body{margin:0;background:#0b0d10;color:#cfd6dd;font:14px/1.5 ui-monospace,monospace;display:flex;flex-direction:column;min-height:100vh}
+  header{padding:14px 18px;border-bottom:1px solid #1c2229}
+  h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.02em}
+  p{margin:6px 0 0;color:#7d8a97;max-width:62ch}
+  main{flex:1;display:grid;place-items:center;padding:18px}
+  canvas{max-width:min(92vw,720px);width:100%;image-rendering:pixelated;background:#000;border-radius:6px;box-shadow:0 0 0 1px #1c2229}
+  footer{padding:10px 18px;border-top:1px solid #1c2229;color:#5f6b77;font-size:12px}
+  a{color:#7fb0ff;text-decoration:none}
+</style></head><body>
+<header><h1>one rule</h1>
+<p>one rule: each cell looks at the two cells diagonally above it and xors them. that's the whole program. one lit seed cell at the top, run downward, and a sierpinski triangle falls out. no randomness, no tuning, no second rule.</p></header>
+<main><canvas id="c" width="160" height="160"></canvas></main>
+<footer>one rule &middot; <a href="index.html">back</a></footer>
+<script>
+const c=document.getElementById('c'),g=c.getContext('2d');
+const N=160;
+let grid=new Uint8Array(N*N);
+// seed: one lit cell in the middle of the top row. xor grows it downward
+// into a sierpinski triangle.
+for(let i=0;i<N*N;i++) grid[i]=0;
+grid[(N>>1)]=255;
+
+// THE RULE: each cell looks at the two cells diagonally above it and xors them.
+// that's elementary cellular automaton rule 90, run downward. one rule, one seed.
+function step(){
+  const next=new Uint8Array(N*N);
+  // carry row 0 (the seed) through untouched
+  for(let x=0;x<N;x++) next[x]=grid[x];
+  for(let y=1;y<N;y++){
+    for(let x=0;x<N;x++){
+      const i=y*N+x;
+      const ul=grid[(y-1)*N+((x-1+N)%N)];
+      const ur=grid[(y-1)*N+((x+1)%N)];
+      next[i]=(ul^ur)?255:0;
+    }
+  }
+  grid=next;
+}
+const img=g.createImageData(N,N);
+function draw(){
+  for(let i=0;i<N*N;i++){
+    const v=grid[i];
+    img.data[i*4]=v?200:20;
+    img.data[i*4+1]=v?180:22;
+    img.data[i*4+2]=v?255:28;
+    img.data[i*4+3]=255;
+  }
+  g.putImageData(img,0,0);
+}
+// fill the whole triangle immediately, then draw once. (the rule is
+// deterministic and settles after N rows, so there's nothing to animate.)
+for(let k=0;k<N;k++) step();
+draw();
+</script></body></html>
