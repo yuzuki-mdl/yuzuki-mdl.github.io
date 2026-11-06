@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>4d hypercube</title>
+<style>
+  html,body{margin:0;height:100%;background:#07070c;color:#cfcfe0;font:14px/1.5 ui-monospace,monospace;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh;touch-action:none}
+  .hud{position:fixed;left:16px;bottom:14px;opacity:.75;pointer-events:none;font-size:12px}
+  .hud b{color:#9fdcff;font-weight:600}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="hud">drag to rotate &middot; scroll to zoom &middot; a <b>tesseract</b> is 16 points, 32 edges, projected 4d&rarr;3d&rarr;2d</div>
+<script>
+const c=document.getElementById('c'),g=c.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;c.width=W*DPR;c.height=H*DPR;g.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+
+// 16 vertices of a tesseract: all sign combos of (+-1,+-1,+-1,+-1)
+const V=[];
+for(let i=0;i<16;i++)V.push([(i&1)?1:-1,(i&2)?1:-1,(i&4)?1:-1,(i&8)?1:-1]);
+// edges: vertices differing in exactly one bit
+const E=[];
+for(let i=0;i<16;i++)for(let b=0;b<4;b++){const j=i^(1<<b);if(j>i)E.push([i,j]);}
+
+// rotation state: 6 planes in 4d
+let ang=[0,0,0,0,0,0];// xy xz xw yz yw zw
+let auto=[0.004,0.003,0.006,-0.003,0.005,0.002];
+let zoom=1;
+
+function rot(planes){// apply 6 successive plane rotations
+  return V.map(p=>{
+    let [x,y,z,w]=p;
+    for(let k=0;k<6;k++){
+      const a=planes[k];if(!a)continue;
+      const cs=Math.cos(a),sn=Math.sin(a);
+      let nx=x,ny=y,nz=z,nw=w;
+      if(k===0){nx=x*cs-y*sn;ny=x*sn+y*cs;}
+      else if(k===1){nx=x*cs-z*sn;nz=x*sn+z*cs;}
+      else if(k===2){nx=x*cs-w*sn;nw=x*sn+w*cs;}
+      else if(k===3){ny=y*cs-z*sn;nz=y*sn+z*cs;}
+      else if(k===4){ny=y*cs-w*sn;nw=y*sn+w*cs;}
+      else {nz=z*cs-w*sn;nw=z*sn+w*cs;}
+      x=nx;y=ny;z=nz;w=nw;
+    }
+    return [x,y,z,w];
+  });
+}
+
+function project(p){// 4d -> 3d (perspective on w) -> 2d (perspective on z)
+  const [x,y,z,w]=p;
+  const dist4=2.6, dist3=3.2;
+  const k4=dist4/(dist4-w);
+  let X=x*k4,Y=y*k4,Z=z*k4;
+  const k3=dist3/(dist3-Z);
+  return [X*k3,Y*k3,k3];
+}
+
+let dragging=false,lastX=0,lastY=0,velX=0,velY=0;
+c.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;c.setPointerCapture(e.pointerId);});
+c.addEventListener('pointermove',e=>{
+  if(!dragging)return;
+  const dx=(e.clientX-lastX)/220,dy=(e.clientY-lastY)/220;
+  lastX=e.clientX;lastY=e.clientY;
+  ang[0]+=dx;ang[4]+=dy;velX=dx;velY=dy;
+});
+addEventListener('pointerup',()=>dragging=false);
+c.addEventListener('wheel',e=>{e.preventDefault();zoom*=Math.exp(-e.deltaY*0.001);zoom=Math.max(0.3,Math.min(4,zoom));},{passive:false});
+
+function frame(t){
+  if(!dragging){
+    for(let k=0;k<6;k++)ang[k]+=auto[k];
+    ang[0]+=velX*0.6;ang[4]+=velY*0.6;velX*=0.93;velY*=0.93;
+  }
+  g.clearRect(0,0,W,H);
+  const R=rot(ang);
+  const P=R.map(project);
+  const S=Math.min(W,H)*0.105*zoom;
+  const cx=W/2,cy=H/2;
+  const scr=P.map(([x,y,k])=>[cx+x*S,cy+y*S,k]);
+  // edges, brightness by depth
+  for(const [i,j] of E){
+    const a=scr[i],b=scr[j];
+    const d=(a[2]+b[2])/2;
+    const al=Math.max(0.08,Math.min(0.95,(d-0.6)*0.9));
+    g.strokeStyle=`rgba(150,210,255,${al})`;
+    g.lineWidth=Math.max(0.6,1.6*(d-0.5));
+    g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();
+  }
+  // vertices
+  for(const [x,y,k] of scr){
+    const r=Math.max(1,3.2*(k-0.5));
+    g.fillStyle=`rgba(210,240,255,${Math.min(1,(k-0.6)*0.9)})`;
+    g.beginPath();g.arc(x,y,r,0,7);g.fill();
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
