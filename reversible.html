@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>reversible</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body{margin:0;background:#0b0b10;color:#d9d9e3;font:14px/1.5 ui-monospace,monospace;
+       display:flex;flex-direction:column;min-height:100vh;align-items:center}
+  header{padding:18px 16px 8px;max-width:760px;width:100%}
+  h1{font-size:20px;margin:0 0 6px;letter-spacing:.02em}
+  p{color:#8a8a99;margin:0 0 8px;max-width:640px}
+  canvas{image-rendering:pixelated;background:#000;border:1px solid #1e1e2a;
+         max-width:100%;height:auto;margin:8px 0}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:6px 0 20px}
+  button{background:#16161f;color:#d9d9e3;border:1px solid #2a2a3a;border-radius:6px;
+         padding:6px 12px;font:inherit;cursor:pointer}
+  button:hover{background:#1e1e2a}
+  .stat{color:#8a8a99;font-size:12px}
+  code{color:#c9c9d6}
+</style>
+</head>
+<body>
+<header>
+  <h1>reversible</h1>
+  <p>a cellular automaton where every step can be run backwards, exactly.
+     no information is ever lost. the trick is the <code>margolus neighborhood</code>: instead of
+     one cell looking at its neighbours, <code>2&times;2</code> blocks rotate as a unit, and the block
+     grid shifts by one cell every step. flip the rotation and you get the past back.</p>
+</header>
+<canvas id="c" width="256" height="256"></canvas>
+<div class="bar">
+  <button id="pause">pause</button>
+  <button id="step">step</button>
+  <button id="back">&minus;1</button>
+  <button id="reset">reset</button>
+  <span class="stat" id="stat">step 0</span>
+</div>
+<script>
+const N = 256;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const img = ctx.createImageData(N, N);
+
+// state: 0/1 per cell, plus the parity of the block grid (which offset we're on)
+let grid = new Uint8Array(N * N);
+let parity = 0; // 0 = blocks start at even,odd ; 1 = odd,even
+let stepCount = 0;
+let running = true;
+
+const idx = (x, y) => ((y & (N - 1)) * N) + (x & (N - 1));
+
+// one margolus step: for each 2x2 block, apply a fixed permutation of the 4 cells.
+// the permutation (reverse of direction) is its own inverse if we use a swap pair set
+// that is an involution. we use: rotate the block 90deg, which applied twice = 180,
+// applied 4 times = identity -> NOT involution. reversibility here comes from the
+// offset alternation: step(parity) then step(parity^1) then undo. we keep a history
+// of the parity we used so 'back' can replay the exact inverse.
+
+// Actually simplest truly-reversible scheme: 2nd-order CA style on blocks.
+// We use the block rule: new = block XOR (rotate(block) AND something). too fiddly.
+// Use the classic: swap the two diagonals of each 2x2 block.
+// swap(a,d) and swap(b,c) is an involution -> applying it twice returns the block.
+// Because the offset alternates, the block partition changes each step, so the
+// composition is not trivially periodic and it looks alive.
+function applyBlocks(par) {
+  const out = new Uint8Array(N * N);
+  for (let y = 0; y < N; y += 2) {
+    for (let x = 0; x < N; x += 2) {
+      const ox = x + par;
+      const oy = y + par;
+      const a = idx(ox, oy);
+      const b = idx(ox + 1, oy);
+      const c = idx(ox, oy + 1);
+      const d = idx(ox + 1, oy + 1);
+      // swap diagonals a<->d, b<->c
+      out[a] = grid[d];
+      out[d] = grid[a];
+      out[b] = grid[c];
+      out[c] = grid[b];
+    }
+  }
+  return out;
+}
+
+// no history needed: each block swap is an involution, so the whole step is
+// invertible from the current state alone. forward = swap(p), p^=1.
+// backward = p^=1, swap(p)  (undo the offset first, then the swap).
+function forward() {
+  grid = applyBlocks(parity);
+  parity ^= 1;
+  stepCount++;
+}
+function backward() {
+  parity ^= 1;
+  grid = applyBlocks(parity);
+  stepCount--;
+}
+
+function render() {
+  for (let i = 0; i < N * N; i++) {
+    const v = grid[i] ? 235 : 12;
+    const o = i * 4;
+    img.data[o] = grid[i] ? 90 : 12;
+    img.data[o + 1] = grid[i] ? 210 : 12;
+    img.data[o + 2] = grid[i] ? 255 : 18;
+    img.data[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  document.getElementById('stat').textContent = 'step ' + stepCount;
+}
+
+function reset() {
+  grid = new Uint8Array(N * N);
+  // random sparse seed
+  for (let i = 0; i < N * N; i++) grid[i] = Math.random() < 0.18 ? 1 : 0;
+  parity = 0;
+  stepCount = 0;
+  render();
+}
+
+function tick() {
+  if (!running) return;
+  forward();
+  render();
+  requestAnimationFrame(() => setTimeout(tick, 60));
+}
+
+document.getElementById('pause').onclick = () => {
+  running = !running;
+  document.getElementById('pause').textContent = running ? 'pause' : 'run';
+  if (running) tick();
+};
+document.getElementById('step').onclick = () => { forward(); render(); };
+document.getElementById('back').onclick = () => { backward(); render(); };
+document.getElementById('reset').onclick = reset;
+
+reset();
+tick();
+</script>
+</body>
+</html>
