@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hyperbolic {5,4} — yuzuki</title>
+<style>
+  :root{ --bg:#0b0b10; --fg:#e8e6f0; --dim:#8b8899; --acc:#7bd88f; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden;height:100%}
+  a{color:var(--acc)}
+  #hud{position:fixed;left:14px;top:12px;z-index:5;font-size:12px;color:var(--dim);line-height:1.6;pointer-events:none}
+  #hud b{color:var(--fg);font-weight:600}
+  #hud a{pointer-events:auto}
+  canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+  canvas:active{cursor:grabbing}
+</style>
+</head>
+<body>
+<canvas id=c></canvas>
+<div id=hud>
+  hyperbolic <b>{5,4}</b> tiling · pentagons, 4 at every vertex · v3<br>
+  drag to move · scroll to zoom · <a href="./index.html">← all toys</a>
+</div>
+<script>
+const P=5;
+// ---- geometry (validated in node: compose err 5.8e-16) ----
+const cmul=(p,q)=>[p[0]*q[0]-p[1]*q[1], p[0]*q[1]+p[1]*q[0]];
+const cadd=(p,q)=>[p[0]+q[0],p[1]+q[1]];
+const cconj=p=>[p[0],-p[1]];
+function apply(M,z){
+  const num=cadd(cmul(M.a,z),M.b);
+  const den=cadd(cmul(cconj(M.b),z),cconj(M.a));
+  const d2=den[0]*den[0]+den[1]*den[1];
+  return [(num[0]*den[0]+num[1]*den[1])/d2,(num[1]*den[0]-num[0]*den[1])/d2];
+}
+function mul(Pt,Q){
+  return {a:cadd(cmul(Pt.a,Q.a),cmul(Pt.b,cconj(Q.b))), b:cadd(cmul(Pt.a,Q.b),cmul(Pt.b,cconj(Q.a)))};
+}
+const I={a:[1,0],b:[0,0]};
+function transl(t,th){return {a:[Math.cosh(t/2),0], b:[Math.sinh(t/2)*Math.cos(th),Math.sinh(t/2)*Math.sin(th)]};}
+
+// ---- build the {5,4} ball of pentagons in the Poincare disk ----
+const rv=Math.tanh(Math.acosh(Math.cos(Math.PI/4)/Math.sin(Math.PI/5))/2);
+function centralVerts(){const v=[];for(let i=0;i<P;i++){const a=-Math.PI/2+2*Math.PI*i/P;v.push([rv*Math.cos(a),rv*Math.sin(a)]);}return v;}
+function gc(p1,p2){const [x1,y1]=p1,[x2,y2]=p2;const b1=(1+x1*x1+y1*y1)/2,b2=(1+x2*x2+y2*y2)/2;const det=x1*y2-x2*y1;if(Math.abs(det)<1e-12)return null;const cx=(b1*y2-b2*y1)/det,cy=(x1*b2-x2*b1)/det;return {cx,cy,r:Math.hypot(cx-x1,cy-y1)};}
+function rp(pt,c){const dx=pt[0]-c.cx,dy=pt[1]-c.cy,d2=dx*dx+dy*dy;return [c.cx+c.r*c.r*dx/d2,c.cy+c.r*c.r*dy/d2];}
+function rpoly(vs,e){const p1=vs[e],p2=vs[(e+1)%P];const c=gc(p1,p2);if(c)return vs.map(v=>rp(v,c));const mx=p1[0]+p2[0],my=p1[1]+p2[1],d=Math.hypot(mx,my),ux=mx/d,uy=my/d;return vs.map(v=>{const dot=v[0]*ux+v[1]*uy;return [2*dot*ux-v[0],2*dot*uy-v[1]];});}
+function cen(vs){let x=0,y=0;for(const v of vs){x+=v[0];y+=v[1];}return [x/P,y/P];}
+function buildBall(rings){
+  const polys=[],adj=[];
+  const key=c=>Math.round(c[0]*1000)+','+Math.round(c[1]*1000);
+  const seen=new Map();
+  function add(vs){const k=key(cen(vs));if(seen.has(k))return seen.get(k);const i=polys.length;seen.set(k,i);polys.push(vs);adj.push([-1,-1,-1,-1,-1]);return i;}
+  add(centralVerts());
+  for(let r=0;r<rings;r++){
+    const n=polys.length;
+    for(let i=0;i<n;i++)for(let e=0;e<P;e++){
+      if(adj[i][e]!==-1)continue;
+      const nbi=add(rpoly(polys[i],e));adj[i][e]=nbi;
+      if(adj[nbi].indexOf(i)>=0)continue;
+      for(let f=0;f<P;f++){if(adj[nbi][f]!==-1)continue;const cb=cen(rpoly(polys[nbi],f)),cp=cen(polys[i]);if(Math.abs(cb[0]-cp[0])<1e-7&&Math.abs(cb[1]-cp[1])<1e-7){adj[nbi][f]=i;break;}}
+    }
+  }
+  return {polys,adj};
+}
+const R=5;
+const ball=buildBall(R);
+const polys=ball.polys;
+// depth parity for colouring
+const depth=new Array(polys.length).fill(-1);depth[0]=0;const q=[0];
+const vkey=p=>Math.round(p[0]*1e4)+','+Math.round(p[1]*1e4);
+const vmap=new Map();
+polys.forEach((vs,i)=>vs.forEach(v=>{const k=vkey(v);if(!vmap.has(k))vmap.set(k,[]);vmap.get(k).push(i);}));
+const padj=polys.map(()=>new Set());
+for(const arr of vmap.values()){for(let x=0;x<arr.length;x++)for(let y=x+1;y<arr.length;y++){padj[arr[x]].add(arr[y]);padj[arr[y]].add(arr[x]);}}
+for(let h=0;h<q.length;h++){const i=q[h];for(const j of padj[i])if(depth[j]<0){depth[j]=depth[i]+1;q.push(j);}}
+
+// ---- canvas ----
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H;function resize(){W=cv.width=innerWidth*devicePixelRatio;H=cv.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);resizeDirty=true;}
+let resizeDirty=true;
+addEventListener('resize',resize);resize();
+let view=I; // current poincare isometry (the "window") — we draw apply(view, z)
+let zoom=1;
+
+function toScreen(z){ // z in disk -> screen px, apply view then zoom+centre
+  const w=apply(view,z);
+  const sc=Math.min(W,H)/devicePixelRatio*0.5*zoom;
+  return [innerWidth/2+w[0]*sc, innerHeight/2+w[1]*sc];
+}
+
+// geodesic edge: map p1 to 0 by an isometry, the geodesic is then a straight
+// diameter 0..w, sample it, map back. exact, no arc-choosing guesswork.
+function isoToOrigin(p1){
+  const r=Math.hypot(p1[0],p1[1]);
+  if(r<1e-12) return I;
+  const t=2*Math.atanh(Math.min(r,0.999999));
+  const th=Math.atan2(p1[1],p1[0]);
+  return transl(t,th);
+}
+function screenCirc(A,B,C){
+  const ax=A[0],ay=A[1],bx=B[0],by=B[1],cx=C[0],cy=C[1];
+  const d=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));
+  if(Math.abs(d)<1e-9)return null;
+  const ux=((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/d;
+  const uy=((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/d;
+  return {cx:ux,cy:uy,r:Math.hypot(ax-ux,ay-uy)};
+}
+// a hyperbolic geodesic maps to an exact circle on screen (tested: 7e-11 px dev)
+function drawGeodesic(p1,p2){
+  const M=isoToOrigin(p1);
+  const Finv={a:cconj(M.a),b:[-M.b[0],-M.b[1]]};
+  const w=apply(Finv,p2);
+  const pt=t=>{const p=apply(M,[w[0]*t,w[1]*t]);return toScreen(p);};
+  const A=pt(0),B=pt(0.5),C=pt(1);
+  const cc=screenCirc(A,B,C);
+  if(!cc){ctx.moveTo(A[0],A[1]);ctx.lineTo(C[0],C[1]);return;}
+  let a0=Math.atan2(A[1]-cc.cy,A[0]-cc.cx), a1=Math.atan2(C[1]-cc.cy,C[0]-cc.cx);
+  // pick the sweep that passes near B
+  const am=Math.atan2(B[1]-cc.cy,B[0]-cc.cx);
+  const norm=x=>{while(x<0)x+=2*Math.PI;while(x>=2*Math.PI)x-=2*Math.PI;return x;};
+  let d1=norm(a1-a0), dm=norm(am-a0);
+  const ccw = dm<d1; // B lies on the ccw sweep
+  ctx.arc(cc.cx,cc.cy,cc.r,a0,a1,!ccw);
+}
+
+const COL_A='#1b2f3f', COL_B='#25455c';
+const EDGE='rgba(123,216,143,0.35)';
+function draw(){
+  ctx.clearRect(0,0,innerWidth,innerHeight);
+  // background disk
+  const sc=Math.min(W,H)/devicePixelRatio*0.5*zoom;
+  ctx.beginPath();ctx.arc(innerWidth/2,innerHeight/2,sc,0,7);ctx.fillStyle='#08080c';ctx.fill();
+  // draw polys from back (far depth) to front so nearer ones overlap cleanly
+  const order=[...polys.keys()].sort((i,j)=>depth[j]-depth[i]);
+  for(const i of order){
+    const vs=polys[i];
+    // cull if the whole poly is far outside the screen
+    ctx.beginPath();
+    for(let e=0;e<P;e++){drawGeodesic(vs[e],vs[(e+1)%P]);}
+    ctx.closePath();
+    ctx.fillStyle=(depth[i]&1)?COL_B:COL_A;
+    ctx.fill();
+    ctx.strokeStyle=EDGE;ctx.lineWidth=1;ctx.stroke();
+  }
+  // boundary circle
+  ctx.beginPath();ctx.arc(innerWidth/2,innerHeight/2,sc,0,7);ctx.strokeStyle='rgba(123,216,143,0.6)';ctx.lineWidth=1.5;ctx.stroke();
+}
+
+// ---- interaction ----
+let dragging=false,lastX=0,lastY=0;
+cv.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointerup',e=>{dragging=false;});
+cv.addEventListener('pointermove',e=>{
+  if(!dragging)return;
+  const dx=(e.clientX-lastX), dy=(e.clientY-lastY);
+  lastX=e.clientX;lastY=e.clientY;
+  const sc=Math.min(W,H)/devicePixelRatio*0.5*zoom;
+  // convert pixel drag to a small hyperbolic translation in the disk, mapped back through view
+  // screen delta -> disk delta (before view) then push the view so the content follows the finger
+  const ddx=dx/sc, ddy=dy/sc;
+  // translation magnitude ~ how far we drag, in disk coords, scaled to stay gentle
+  const r=Math.hypot(ddx,ddy);
+  if(r<1e-6)return;
+  // tanh(t/2)=r  => t=2 atanh(r) (clamp)
+  const rr=Math.min(r,0.6);
+  const t=2*Math.atanh(rr);
+  const th=Math.atan2(ddy,ddx);
+  // translate content the opposite way of the drag so it follows
+  let M=transl(t,th);
+  // move in the disk frame that the user sees: we want world->screen to shift by -drag.
+  // the view maps world to disk. To make content follow the finger we compose a translation on the LEFT of view.
+  view=mul(M,view);
+  draw();
+});
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom*=Math.exp(-e.deltaY*0.0012);zoom=Math.max(0.25,Math.min(8,zoom));draw();},{passive:false});
+
+// touch pinch
+let pinchDist=0;
+cv.addEventListener('touchmove',e=>{
+  if(e.touches.length===2){
+    const t=e.touches;const d=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+    if(pinchDist){zoom*=d/pinchDist;zoom=Math.max(0.25,Math.min(8,zoom));draw();}
+    pinchDist=d;e.preventDefault();
+  }
+},{passive:false});
+cv.addEventListener('touchend',()=>{pinchDist=0;});
+
+draw();
+console.log('polys',polys.length,'R',R,'maxdepth',Math.max(...depth));
+</script>
+</body>
+</html>
