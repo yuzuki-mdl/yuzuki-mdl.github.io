@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>simpson's paradox</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#e8e6e3;--dim:#8a8a93;--a:#4fd1c5;--b:#f6ad55;--line:#2a2b33}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,Menlo,monospace;padding:24px;max-width:820px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  p.sub{color:var(--dim);margin:0 0 24px;font-size:13px}
+  canvas{width:100%;height:auto;display:block;background:#12131a;border:1px solid var(--line);border-radius:8px}
+  .controls{margin:16px 0;display:grid;gap:14px}
+  label{display:flex;justify-content:space-between;font-size:13px;color:var(--dim)}
+  label b{color:var(--fg);font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--a)}
+  .verdict{margin-top:18px;padding:14px 16px;border-radius:8px;background:#181a22;border:1px solid var(--line);font-size:14px;line-height:1.6}
+  .verdict b{color:var(--fg)}
+  .tag{display:inline-block;padding:1px 7px;border-radius:4px;font-size:12px}
+  .tag.a{background:rgba(79,209,197,.15);color:var(--a)}
+  .tag.b{background:rgba(246,173,85,.15);color:var(--b)}
+</style>
+</head>
+<body>
+<h1>simpson's paradox</h1>
+<p class="sub">treatment <span class="tag a">A</span> beats <span class="tag b">B</span> in both groups. but overall B wins. drag the sliders.</p>
+<canvas id="c" width="760" height="380"></canvas>
+<div class="controls">
+  <div><label>hard-group size <b id="n1v">100</b></label><input id="n1" type="range" min="10" max="300" value="100"></div>
+  <div><label>easy-group size <b id="n2v">200</b></label><input id="n2" type="range" min="10" max="300" value="200"></div>
+</div>
+<div class="verdict" id="verdict"></div>
+<script>
+// A wins in BOTH groups. But A is concentrated in the HARD group and B in the EASY one.
+// If the easy group is big enough, B's overall rate gets dragged up by all the easy wins.
+const hard = {a:0.70, b:0.60};  // A better here
+const easy = {a:0.90, b:0.85};  // A better here too
+// A mostly in hard, B mostly in easy.
+const A_hard = 80, A_easy = 20;
+const B_hard = 20, B_easy = 80;
+
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const W = c.width, H = c.height;
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const padL = 60, padR = 20, padT = 30, padB = 40;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+
+  // scale by group sizes
+  const n1 = +document.getElementById('n1').value;
+  const n2 = +document.getElementById('n2').value;
+  document.getElementById('n1v').textContent = n1;
+  document.getElementById('n2v').textContent = n2;
+
+  // scale A_hard/B_hard etc. by group sizes proportionally
+  const scale1 = n1/100, scale2 = n2/200;
+  const ah = A_hard*scale1, ae = A_easy*scale2;
+  const bh = B_hard*scale1, be = B_easy*scale2;
+
+  const aHardRate = hard.a, aEasyRate = easy.a;
+  const bHardRate = hard.b, bEasyRate = easy.b;
+
+  const aSucc = ah*aHardRate + ae*aEasyRate;
+  const aTot = ah + ae;
+  const bSucc = bh*bHardRate + be*bEasyRate;
+  const bTot = bh + be;
+  const aOverall = aSucc/aTot;
+  const bOverall = bSucc/bTot;
+
+  const maxRate = 1.0;
+  function y(v){ return padT + plotH*(1 - v/maxRate); }
+
+  // draw grouped bars: 3 clusters (hard, easy, overall), each with A and B
+  const clusters = [
+    {label:'hard group', a: aHardRate, b: bHardRate},
+    {label:'easy group', a: aEasyRate, b: bEasyRate},
+    {label:'OVERALL', a: aOverall, b: bOverall}
+  ];
+  const cw = plotW/clusters.length;
+  const bw = cw*0.28;
+
+  // axis
+  ctx.strokeStyle = '#2a2b33'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(padL, padT); ctx.lineTo(padL, padT+plotH); ctx.lineTo(padL+plotW, padT+plotH); ctx.stroke();
+  // gridlines
+  ctx.fillStyle = '#8a8a93'; ctx.font = '11px ui-monospace,monospace'; ctx.textAlign='right';
+  for(let i=0;i<=4;i++){ const v=i/4; const yy=y(v); ctx.strokeStyle='#1e1f27'; ctx.beginPath(); ctx.moveTo(padL,yy); ctx.lineTo(padL+plotW,yy); ctx.stroke(); ctx.fillText((v*100)+'%', padL-8, yy+4); }
+
+  clusters.forEach((cl, i)=>{
+    const cx = padL + cw*i + cw/2;
+    const ax = cx - bw;
+    const bx = cx + 2;
+    // A bar
+    ctx.fillStyle = '#4fd1c5';
+    const ah2 = plotH*cl.a/maxRate;
+    ctx.fillRect(ax, y(cl.a), bw, ah2);
+    // B bar
+    ctx.fillStyle = '#f6ad55';
+    const bh2 = plotH*cl.b/maxRate;
+    ctx.fillRect(bx, y(cl.b), bw, bh2);
+    // labels
+    ctx.fillStyle='#e8e6e3'; ctx.font='11px ui-monospace,monospace'; ctx.textAlign='center';
+    ctx.fillText(cl.label, cx, padT+plotH+20);
+    // values on top
+    ctx.fillStyle = '#4fd1c5'; ctx.fillText((cl.a*100).toFixed(0)+'%', ax+bw/2, y(cl.a)-6);
+    ctx.fillStyle = '#f6ad55'; ctx.fillText((cl.b*100).toFixed(0)+'%', bx+bw/2, y(cl.b)-6);
+  });
+
+  // verdict
+  const v = document.getElementById('verdict');
+  const aWins = aOverall > bOverall;
+  const aWinsBoth = aHardRate>bHardRate && aEasyRate>bEasyRate;
+  if(aWinsBoth && !aWins){
+    v.innerHTML = 'A beats B in the <b>hard group</b> ('+(aHardRate*100).toFixed(0)+'% vs '+(bHardRate*100).toFixed(0)+'%) and in the <b>easy group</b> ('+(aEasyRate*100).toFixed(0)+'% vs '+(bEasyRate*100).toFixed(0)+'%). But <b>overall B wins</b>: '+(bOverall*100).toFixed(1)+'% vs '+(aOverall*100).toFixed(1)+'%. A is stuck doing the hard cases.';
+  } else if(aWinsBoth && aWins){
+    v.innerHTML = 'A wins everywhere right now — the paradox needs the easy group to dominate. <b>drag group 2 up</b> and watch the overall bar flip.';
+  } else {
+    v.innerHTML = 'B is beating A somewhere. <b>overall</b>: A '+(aOverall*100).toFixed(1)+'% vs B '+(bOverall*100).toFixed(1)+'%.';
+  }
+}
+
+document.getElementById('n1').addEventListener('input', draw);
+document.getElementById('n2').addEventListener('input', draw);
+draw();
+</script>
+</body>
+</html>
