@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>phantom jam</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0b0d10; color:#d7dde3; font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  main { max-width:760px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:20px; font-weight:600; margin:0 0 4px; }
+  p { color:#93a0ad; margin:0 0 14px; }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:#0f1318; }
+  .row { display:flex; gap:14px; flex-wrap:wrap; align-items:center; margin:14px 0; }
+  label { color:#93a0ad; }
+  input[type=range] { width:140px; vertical-align:middle; }
+  button { background:#1b222b; color:#d7dde3; border:1px solid #2b3542; border-radius:8px; padding:6px 12px; font:inherit; cursor:pointer; }
+  button:hover { background:#232c37; }
+  .stat { color:#d7dde3; }
+  .stat b { color:#7fd1a8; }
+</style>
+</head>
+<body>
+<main>
+  <h1>phantom jam</h1>
+  <p>a ring road. every car drives at the same speed limit. nobody brakes for a reason. yet a jam appears out of nothing and crawls backwards around the ring. this is the nagel-schreckenberg model: cars speed up, then randomly slow down with probability p. that tiny randomness is enough.</p>
+  <canvas id="cv" width="760" height="300"></canvas>
+  <div class="row">
+    <label>density <input id="dens" type="range" min="5" max="80" value="30"><span id="densv" class="stat">0.30</span></label>
+    <label>brake chance p <input id="pb" type="range" min="0" max="60" value="25"><span id="pbv" class="stat">0.25</span></label>
+    <button id="reset">reset</button>
+    <button id="pause">pause</button>
+  </div>
+  <p class="stat">jams on road: <b id="jamcount">0</b> &nbsp;·&nbsp; avg speed: <b id="avgspeed">0</b> cells/step</p>
+  <p>watch the slow patches: they drift <em>against</em> the flow of traffic. the cars move forward, the jam moves backward. same physics as real motorway phantom jams.</p>
+</main>
+<script>
+const N = 120;              // cells on the ring
+const VMAX = 5;             // speed limit, cells/step
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const densEl = document.getElementById('dens');
+const pbEl = document.getElementById('pb');
+const densV = document.getElementById('densv');
+const pbV = document.getElementById('pbv');
+const jamEl = document.getElementById('jamcount');
+const avgEl = document.getElementById('avgspeed');
+
+let v = new Array(N).fill(-1);   // -1 = empty, else speed 0..VMAX
+let running = true;
+let last = 0;
+
+function reset() {
+  const d = +densEl.value / 100;
+  v = new Array(N).fill(-1);
+  let placed = 0;
+  const want = Math.round(d * N);
+  while (placed < want) {
+    const i = Math.floor(Math.random() * N);
+    if (v[i] === -1) { v[i] = Math.floor(Math.random() * (VMAX + 1)); placed++; }
+  }
+  draw();
+}
+
+function step() {
+  const p = +pbEl.value / 100;
+  const nv = new Array(N).fill(-1);
+  // update in order of travel; since cars can't overtake, process by moving each
+  // car forward up to gap, in a single parallel pass using old state.
+  for (let i = 0; i < N; i++) {
+    if (v[i] === -1) continue;
+    let sp = v[i];
+    // accelerate
+    if (sp < VMAX) sp++;
+    // brake to avoid the car ahead
+    let gap = 0;
+    for (let k = 1; k <= VMAX + 1; k++) {
+      const j = (i + k) % N;
+      if (v[j] !== -1) break;
+      gap++;
+    }
+    if (sp > gap) sp = gap;
+    // random braking
+    if (Math.random() < p && sp > 0) sp--;
+    // move
+    const dest = (i + sp) % N;
+    // if dest taken (shouldn't happen with gap rule), stay
+    if (nv[dest] !== -1) { nv[i] = Math.max(0, sp - 1); }
+    else nv[dest] = sp;
+  }
+  v = nv;
+}
+
+function draw() {
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0, 0, W, H);
+  // ring drawn as an ellipse
+  const cx = W / 2, cy = H / 2 + 8;
+  const rx = W / 2 - 40, ry = H / 2 - 30;
+  ctx.strokeStyle = '#1c2530';
+  ctx.lineWidth = 26;
+  ctx.beginPath();
+  ctx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  let jam = 0, speedSum = 0, count = 0;
+  for (let i = 0; i < N; i++) {
+    if (v[i] === -1) continue;
+    const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+    const x = cx + Math.cos(a) * rx;
+    const y = cy + Math.sin(a) * ry;
+    // colour by speed: fast = green, slow = red
+    const t = v[i] / VMAX;
+    const r = Math.round(255 * (1 - t));
+    const g = Math.round(190 * t + 40);
+    const b = Math.round(120 * t);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.beginPath();
+    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.fill();
+    speedSum += v[i]; count++;
+    if (v[i] <= 1) jam++;
+  }
+  jamEl.textContent = jam;
+  avgEl.textContent = count ? (speedSum / count).toFixed(2) : '0';
+}
+
+function loop(ts) {
+  if (running && ts - last > 90) {
+    step(); draw();
+    last = ts;
+  }
+  requestAnimationFrame(loop);
+}
+
+densEl.addEventListener('input', () => { densV.textContent = (+densEl.value / 100).toFixed(2); reset(); });
+pbEl.addEventListener('input', () => { pbV.textContent = (+pbEl.value / 100).toFixed(2); });
+document.getElementById('reset').addEventListener('click', reset);
+document.getElementById('pause').addEventListener('click', (e) => { running = !running; e.target.textContent = running ? 'pause' : 'play'; });
+
+reset();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
