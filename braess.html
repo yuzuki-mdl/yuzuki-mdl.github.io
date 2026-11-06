@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>braess's paradox</title>
+<style>
+  :root{--bg:#0e1116;--fg:#e6e9ee;--dim:#7d8798;--acc:#6ee7b7;--bad:#f87171;--line:#232a35}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:24px;max-width:820px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  .sub{color:var(--dim);margin:0 0 20px}
+  canvas{width:100%;background:#0a0d12;border:1px solid var(--line);border-radius:6px;display:block}
+  .row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:16px 0}
+  button{background:#1a212b;color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:8px 14px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc)}
+  button.on{background:#132a22;border-color:var(--acc);color:var(--acc)}
+  .stat{color:var(--dim)}
+  .stat b{color:var(--fg)}
+  .good b{color:var(--acc)}
+  .bad b{color:var(--bad)}
+  p{color:#aeb7c4}
+  code{color:var(--acc)}
+</style>
+</head>
+<body>
+<h1>braess's paradox</h1>
+<p class="sub">adding a road can make everyone slower. click to add it.</p>
+<canvas id="c" width="760" height="380"></canvas>
+<div class="row">
+  <button id="toggle">add the shortcut</button>
+  <span class="stat" id="stat"></span>
+</div>
+<p>two roads cross the city. the top and bottom routes each mix a fast road (time = flow/cap) and a slow constant road. everyone selfishly picks the quicker one. <code>nash</code> flow splits so no one can do better alone. add the middle shortcut and the honest equilibrium gets <em>worse</em> — everybody piles onto it.</p>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+const W=c.width,H=c.height;
+let shortcut=false;
+
+// classic 4-node braess net: S -> A (fast road 1), S -> B (slow const), A -> T (slow const), B -> T (fast road 2)
+// plus optional A-B shortcut (const, very fast)
+const CAP=100, FAST=1.0, SLOW=45, LINK=10;
+// cost on fast road: flow/CAP * FAST*CAP -> flow*FAST. slow: SLOW. shortcut: LINK.
+function costFast(f){return f*FAST;} // time = flow * 1.0 / ... scaled so full cap = 100 units
+
+// selfish equilibrium: at nash, cost(top route)==cost(bottom route)==cost(shortcut routes if used)
+// top route = S-A + A-T. bottom = S-B + B-T.
+// solve by iterating: shift flow toward cheaper route until equal.
+function equilibrium(){
+  let fTop=50, fBot=50; // flow on top / bottom routes (total 100)
+  for(let i=0;i<400;i++){
+    // with shortcut: everyone may go S-A-B-T etc. simplify: model 3 route choices
+    if(!shortcut){
+      const cTop=costFast(fTop)+SLOW;
+      const cBot=SLOW+costFast(fBot);
+      const d=(cBot-cTop)*0.05;
+      fTop+=d; fBot-=d;
+      if(fTop<0)fTop=0; if(fBot<0)fBot=0;
+      const s=fTop+fBot; fTop=fTop/s*100; fBot=fBot/s*100;
+    } else {
+      // routes: SA->AB->BT (top uses shortcut), SB->AB->AT (bottom uses shortcut), pure top, pure bot
+      // simplify to two: with shortcut both use it, flow splits
+      // top-via-shortcut: fast(SA)+LINK+SLOW(AT) ; bottom-via-shortcut: SLOW(SB)+LINK+fast(BT)
+      // but SA and BT share. approximate: shortcut carries everyone, SA and BT each carry ~100
+      const cTop=costFast(fTop)+LINK+SLOW;
+      const cBot=SLOW+LINK+costFast(fBot);
+      const d=(cBot-cTop)*0.05;
+      fTop+=d; fBot-=d;
+      if(fTop<0)fTop=0; if(fBot<0)fBot=0;
+      const s=fTop+fBot; fTop=fTop/s*100; fBot=fBot/s*100;
+    }
+  }
+  return {fTop,fBot};
+}
+
+// total time each traveler pays (top and bottom should be equal at nash)
+function routeTime(fTop,fBot){
+  if(!shortcut){
+    const cTop=costFast(fTop)+SLOW;
+    const cBot=SLOW+costFast(fBot);
+    return {cTop,cBot};
+  } else {
+    const cTop=costFast(fTop)+LINK+SLOW;
+    const cBot=SLOW+LINK+costFast(fBot);
+    return {cTop,cBot};
+  }
+}
+
+const nodes={S:{x:80,y:190},A:{x:380,y:90},B:{x:380,y:290},T:{x:680,y:190}};
+function edge(a,b,color,label,width){
+  x.strokeStyle=color;x.lineWidth=width||5;x.beginPath();
+  x.moveTo(nodes[a].x,nodes[a].y);x.lineTo(nodes[b].x,nodes[b].y);x.stroke();
+  if(label){x.fillStyle=color;x.font='12px monospace';const mx=(nodes[a].x+nodes[b].x)/2,my=(nodes[a].y+nodes[b].y)/2;x.fillText(label,mx+6,my-6);}
+}
+function draw(){
+  x.clearRect(0,0,W,H);
+  const {fTop,fBot}=equilibrium();
+  const {cTop,cBot}=routeTime(fTop,fBot);
+  // roads. width scales with flow.
+  edge('S','A','#6ee7b7',null,3+fTop/25);
+  edge('A','T','#7d8798',null,3+fTop/25);
+  edge('S','B','#7d8798',null,3+fBot/25);
+  edge('B','T','#6ee7b7',null,3+fBot/25);
+  if(shortcut) edge('A','B','#f87171','shortcut',4);
+  // nodes
+  for(const k in nodes){
+    x.fillStyle='#e6e9ee';x.beginPath();x.arc(nodes[k].x,nodes[k].y,7,0,7);x.fill();
+    x.fillStyle='#0e1116';x.font='bold 11px monospace';x.textAlign='center';x.textBaseline='middle';
+    x.fillText(k,nodes[k].x,nodes[k].y+0.5);
+  }
+  x.textAlign='left';x.textBaseline='alphabetic';
+  const t=Math.max(cTop,cBot);
+  const el=document.getElementById('stat');
+  if(shortcut){
+    el.className='stat bad';
+    el.innerHTML=`equilibrium time: <b>${t.toFixed(1)}</b> per traveler &nbsp; (was 95 without it)`;
+  } else {
+    el.className='stat good';
+    el.innerHTML=`equilibrium time: <b>${t.toFixed(1)}</b> per traveler`;
+  }
+}
+
+document.getElementById('toggle').onclick=()=>{
+  shortcut=!shortcut;
+  document.getElementById('toggle').textContent=shortcut?'remove the shortcut':'add the shortcut';
+  document.getElementById('toggle').classList.toggle('on',shortcut);
+  draw();
+};
+draw();
+</script>
+</body>
+</html>
