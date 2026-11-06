@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>tinylang — a tiny stack language</title>
+<style>
+:root{--bg:#0b0e14;--panel:#11151f;--line:#232a3a;--fg:#cdd6f4;--dim:#7f8aa3;--acc:#a6e3a1;--acc2:#89b4fa;--warn:#f38ba8;--num:#f9e2af}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:14px;line-height:1.5}
+.wrap{max-width:1000px;margin:0 auto;padding:28px 18px 60px}
+h1{font-size:20px;margin:0 0 4px;font-weight:600}
+.sub{color:var(--dim);margin:0 0 20px;font-size:13px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:760px){.grid{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+.phead{padding:8px 12px;border-bottom:1px solid var(--line);font-size:12px;color:var(--dim);display:flex;justify-content:space-between;align-items:center}
+textarea{flex:1;min-height:220px;background:transparent;color:var(--fg);border:0;padding:12px;font:inherit;resize:vertical;outline:none;tab-size:2}
+button{background:#1e2433;color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:5px 11px;font:inherit;font-size:13px;cursor:pointer}
+button:hover{background:#2a3346}
+button.go{background:#1f3a2a;border-color:#2f5a3d;color:var(--acc)}
+button.go:hover{background:#274a34}
+.out{padding:12px;min-height:120px;font-size:13px;white-space:pre-wrap;overflow:auto}
+.stack{padding:10px 12px;border-top:1px solid var(--line);font-size:12px;color:var(--dim);min-height:38px;word-break:break-all}
+.stack b{color:var(--num)}
+.err{color:var(--warn)}
+.ex{display:flex;flex-wrap:wrap;gap:6px;margin:16px 0 6px}
+.ex button{font-size:12px;padding:4px 9px}
+h2{font-size:13px;color:var(--dim);font-weight:500;margin:26px 0 8px;text-transform:uppercase;letter-spacing:.05em}
+.words{columns:2;column-gap:24px;font-size:12.5px}
+@media(max-width:600px){.words{columns:1}}
+.words div{padding:2px 0;break-inside:avoid}
+.w{color:var(--acc2);display:inline-block;min-width:64px}
+.d{color:var(--dim)}
+.help{color:var(--dim);font-size:12.5px;margin-top:8px}
+</style></head><body>
+<div class=wrap>
+<h1>tinylang</h1>
+<p class=sub>a tiny concatenative stack language. numbers push, words operate, everything is a stack. ~40 lines of interpreter.</p>
+
+<div class=ex id=ex></div>
+
+<div class=grid>
+  <div class=panel>
+    <div class=phead><span>program</span><button class=go id=run>run ▸ (ctrl+enter)</button></div>
+    <textarea id=src spellcheck=false></textarea>
+  </div>
+  <div class=panel>
+    <div class=phead><span>output</span></div>
+    <div class=out id=out></div>
+    <div class=stack id=stk></div>
+  </div>
+</div>
+
+<h2>words</h2>
+<div class=words id=wd></div>
+<p class=help>blocks <code>{ ... }</code> are pushed unevaluated and run by <code>if</code>, <code>repeat</code>, <code>times</code>, <code>while</code>, <code>dip</code>, or bound with <code>def</code>. define a word with <code>"name" { ... } def</code>, then just write the name. <code>.</code> prints and pops, <code>.s</code> shows the whole stack.</p>
+</div>
+
+<script>
+/* ---- interpreter (same as projects/tinylang.js) ---- */
+const OPS={
+  '+':s=>{const b=s.pop(),a=s.pop();s.push(a+b)},
+  '-':s=>{const b=s.pop(),a=s.pop();s.push(a-b)},
+  '*':s=>{const b=s.pop(),a=s.pop();s.push(a*b)},
+  '/':s=>{const b=s.pop(),a=s.pop();s.push(a/b)},
+  '%':s=>{const b=s.pop(),a=s.pop();s.push(a%b)},
+  'dup':s=>{s.push(s[s.length-1])},
+  'drop':s=>{s.pop()},
+  'swap':s=>{const b=s.pop(),a=s.pop();s.push(b,a)},
+  'over':s=>{const b=s.pop(),a=s.pop();s.push(a,b,a)},
+  'rot':s=>{const c=s.pop(),b=s.pop(),a=s.pop();s.push(b,c,a)},
+  '2dup':s=>{const b=s.pop(),a=s.pop();s.push(a,b,a,b)},
+  'max':s=>{const b=s.pop(),a=s.pop();s.push(Math.max(a,b))},
+  'min':s=>{const b=s.pop(),a=s.pop();s.push(Math.min(a,b))},
+  'abs':s=>{s.push(Math.abs(s.pop()))},
+  'neg':s=>{s.push(-s.pop())},
+  'sqrt':s=>{s.push(Math.sqrt(s.pop()))},
+  'floor':s=>{s.push(Math.floor(s.pop()))},
+  '>':s=>{const b=s.pop(),a=s.pop();s.push(a>b?1:0)},
+  '<':s=>{const b=s.pop(),a=s.pop();s.push(a<b?1:0)},
+  '>=':s=>{const b=s.pop(),a=s.pop();s.push(a>=b?1:0)},
+  '<=':s=>{const b=s.pop(),a=s.pop();s.push(a<=b?1:0)},
+  '<>':s=>{const b=s.pop(),a=s.pop();s.push(a!==b?1:0)},
+  '=':s=>{const b=s.pop(),a=s.pop();s.push(a===b?1:0)},
+  'not':s=>{s.push(s.pop()?0:1)},
+  'and':s=>{const b=s.pop(),a=s.pop();s.push((a&&b)?1:0)},
+  'or':s=>{const b=s.pop(),a=s.pop();s.push((a||b)?1:0)},
+  'clear':s=>{s.length=0},
+  'size':s=>{s.push(s.length)},
+};
+function tokenize(src){const toks=[];let i=0;while(i<src.length){const c=src[i];
+  if(/\s/.test(c)){i++;continue;}
+  if(c==='#'){while(i<src.length&&src[i]!=='\n')i++;continue;}
+  if(c==='"'){let j=i+1;while(j<src.length&&src[j]!=='"')j++;toks.push({t:'str',v:src.slice(i+1,j)});i=j+1;continue;}
+  if(c==='{'){toks.push({t:'open'});i++;continue;}
+  if(c==='}'){toks.push({t:'close'});i++;continue;}
+  const m=src.slice(i).match(/^-?\d+(\.\d+)?/);
+  if(m&&/[0-9]/.test(c)){toks.push({t:'num',v:parseFloat(m[0])});i+=m[0].length;continue;}
+  const w=src.slice(i).match(/^[^\s{}#"]+/)[0];toks.push({t:'word',v:w});i+=w.length;}
+  return toks;}
+function parse(toks){const prog=[];const stack=[prog];for(const tk of toks){
+  if(tk.t==='open'){const b=[];stack[stack.length-1].push({t:'block',v:b});stack.push(b);}
+  else if(tk.t==='close'){if(stack.length<=1)throw new Error('unbalanced }');stack.pop();}
+  else stack[stack.length-1].push(tk);}
+  if(stack.length!==1)throw new Error('unbalanced {');return prog;}
+function popBlock(s){const b=s.pop();if(!(b&&b.__block))throw new Error('expected a { block }');return b.__block;}
+function fmt(x){if(typeof x==='number'){return Number.isInteger(x)?String(x):(+x.toFixed(6)).toString();}return String(x);}
+function run(prog,stack,ctx){ctx=ctx||{};stack=stack||[];ctx.out=ctx.out||[];ctx.depth=ctx.depth||0;ctx.steps=ctx.steps||0;ctx.maxDepth=ctx.maxDepth||60;ctx.maxSteps=ctx.maxSteps||300000;
+  if(ctx.depth>ctx.maxDepth)throw new Error('too deep (recursion?)');
+  for(let i=0;i<prog.length;i++){if(++ctx.steps>ctx.maxSteps)throw new Error('too many steps');const tk=prog[i];
+    if(tk.t==='num'){stack.push(tk.v);}
+    else if(tk.t==='str'){stack.push(tk.v);}
+    else if(tk.t==='block'){stack.push({__block:tk.v});}
+    else if(tk.t==='word'){const w=tk.v;
+      if(w==='.'){if(!stack.length)throw new Error('stack empty at .');ctx.out.push(fmt(stack.pop()));}
+      else if(w==='.s'){ctx.out.push('[ '+stack.map(x=>x&&x.__block?'{..}':fmt(x)).join(' ')+' ]');}
+      else if(w==='if'){const f=popBlock(stack),t=popBlock(stack),c=stack.pop();run(c?t:f,stack,ctx);}
+      else if(w==='when'){const t=popBlock(stack),c=stack.pop();if(c)run(t,stack,ctx);}
+      else if(w==='unless'){const t=popBlock(stack),c=stack.pop();if(!c)run(t,stack,ctx);}
+      else if(w==='repeat'){const b=popBlock(stack),n=stack.pop();for(let k=0;k<n;k++)run(b,stack,ctx);}
+      else if(w==='times'){const b=popBlock(stack),n=stack.pop();for(let k=0;k<n;k++){stack.push(k);run(b,stack,ctx);}}
+      else if(w==='while'){const b=popBlock(stack),c=popBlock(stack);let g=0;while(true){const s2=stack.slice();run(c,s2,ctx);if(!s2.pop())break;run(b,stack,ctx);if(++g>200000)throw new Error('while runaway');}}
+      else if(w==='dip'){const b=popBlock(stack),x=stack.pop();run(b,stack,ctx);stack.push(x);}
+      else if(w==='def'){const b=popBlock(stack),name=stack.pop();if(typeof name!=='string')throw new Error('def needs a "name"');ctx.defs=ctx.defs||{};ctx.defs[name]=b;}
+      else if(ctx.defs&&ctx.defs[w]!==undefined){run(ctx.defs[w],stack,ctx);}
+      else if(OPS[w]){OPS[w](stack);}
+      else if(w==='true'){stack.push(1);}
+      else if(w==='false'){stack.push(0);}
+      else throw new Error('unknown word: '+w);
+    }}
+  return{stack,out:ctx.out,steps:ctx.steps};}
+function execute(src){const prog=parse(tokenize(src));const ctx={out:[],steps:0,defs:{}};const stack=[];run(prog,stack,ctx);return{stack,out:ctx.out,steps:ctx.steps};}
+
+/* ---- ui ---- */
+const EXAMPLES=[
+  ['hello','2 3 + .\n10 4 - .\n6 7 * .'],
+  ['square','3 dup * .'],
+  ['factorial','"fac" { dup 1 <= { drop 1 } { dup 1 - fac * } if } def\n6 fac .'],
+  ['fib','"fib" { dup 2 < { } { dup 1 - fib swap 2 - fib + } if } def\n10 fib .'],
+  ['fizzbuzz','"fb" { dup 15 % 0 = { drop "fizzbuzz" } { dup 5 % 0 = { drop "buzz" } { dup 3 % 0 = { drop "fizz" } { } if } if } if . } def\n1 15 { fb } times'],
+  ['blocks','1 2 < { 10 } { 20 } if .\n5 { dup . 1 - } 5 repeat'],
+  ['stack play','1 2 3 .s\nswap .s\nrot .s'],
+  ['countdown','5 { dup 0 > } { dup . 1 - } while drop'],
+];
+const src=document.getElementById('src'),out=document.getElementById('out'),stk=document.getElementById('stk');
+function go(){out.textContent='';stk.textContent='';try{const r=execute(src.value);
+  out.textContent=r.out.length?r.out.join('\n'):'(no output)';out.className='out';
+  stk.innerHTML='stack: '+(r.stack.length?r.stack.map(x=>'<b>'+fmt(x&&x.__block?'{..}':x)+'</b>').join(' '):'<span style=color:#3a4a5a>empty</span>')+'  ·  '+r.steps+' steps';
+}catch(e){out.textContent='✗ '+e.message;out.className='out err';stk.textContent='';}}
+document.getElementById('run').onclick=go;
+src.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();go();}});
+const exEl=document.getElementById('ex');
+for(const [name,code] of EXAMPLES){const b=document.createElement('button');b.textContent=name;b.onclick=()=>{src.value=code;go();};exEl.appendChild(b);}
+src.value=EXAMPLES[0][1];go();
+const WORDS=[['+ - * / %','arithmetic'],['dup drop swap over rot 2dup','stack'],['max min abs neg sqrt floor','math'],['> < >= <= = <>','compare'],['not and or','logic'],['. .s','print / show'],['size clear','stack info'],['if when unless','run block if cond'],['repeat times while','loops'],['dip','run block under top'],['def','define a word']];
+const wd=document.getElementById('wd');
+for(const [w,d] of WORDS){const div=document.createElement('div');div.innerHTML='<span class=w>'+w.replace(/ /g,'</span> <span class=w>')+'</span><span class=d> '+d+'</span>';wd.appendChild(div);}
+</script>
+</body></html>
