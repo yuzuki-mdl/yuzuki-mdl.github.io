@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>gravity sand</title>
+<style>
+  html,body{margin:0;height:100%;background:#0d0d12;color:#e8e8f0;font:14px/1.4 ui-monospace,monospace;overflow:hidden}
+  #c{display:block;width:100vw;height:100vh;touch-action:none;cursor:crosshair}
+  #hud{position:fixed;left:12px;top:12px;pointer-events:none;opacity:.75;font-size:12px}
+  #hud b{color:#7cf}
+  #bar{position:fixed;right:12px;top:12px;display:flex;gap:6px}
+  button{background:#1a1a24;color:#c8c8d8;border:1px solid #333;border-radius:6px;padding:6px 10px;font:inherit;cursor:pointer}
+  button:hover{border-color:#7cf;color:#fff}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">drag to pour sand · <b>arrow keys / buttons</b> rotate gravity · <b>space</b> clears</div>
+<div id="bar">
+  <button id="left">←</button>
+  <button id="down">↓</button>
+  <button id="right">→</button>
+  <button id="up">↑</button>
+</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d', { alpha: false });
+let W, H, cell, cols, rows, grid, img;
+
+// gravity direction: unit-ish vector, one of 4 axis dirs
+const DIRS = { right:[1,0], down:[0,1], left:[-1,0], up:[0,-1] };
+let grav = DIRS.down;
+
+function resize(){
+  W = c.width = innerWidth;
+  H = c.height = innerHeight;
+  cell = Math.max(2, Math.round(Math.min(W,H)/180));
+  cols = Math.floor(W/cell);
+  rows = Math.floor(H/cell);
+  grid = new Uint8Array(cols*rows);
+  img = ctx.createImageData(cols, rows);
+}
+
+const idx = (x,y)=> y*cols + x;
+const inb = (x,y)=> x>=0 && x<cols && y>=0 && y<rows;
+
+// perpendicular axis to gravity, used for the sideways tumble
+function perp(){ return grav[0]!==0 ? [0,1] : [1,0]; }
+
+function step(){
+  const [dx,dy] = grav;
+  const [px,py] = perp();
+  // iterate from the far side so we don't move the same grain twice
+  const xs = dx>0 ? [...Array(cols).keys()].reverse() : [...Array(cols).keys()];
+  const ys = dy>0 ? [...Array(rows).keys()].reverse() : [...Array(rows).keys()];
+  for (const y of ys) for (const x of xs){
+    if (!grid[idx(x,y)]) continue;
+    // try straight down gravity
+    let nx = x+dx, ny = y+dy;
+    if (inb(nx,ny) && !grid[idx(nx,ny)]){
+      grid[idx(nx,ny)] = 1; grid[idx(x,y)] = 0; continue;
+    }
+    // tumble sideways (pick a random side so piles form slopes)
+    const s = Math.random() < 0.5 ? 1 : -1;
+    const sx = x+px*s, sy = y+py*s;
+    // can we slide to the side AND then down?
+    const ddx = sx+dx, ddy = sy+dy;
+    if (inb(sx,sy) && !grid[idx(sx,sy)] && inb(ddx,ddy) && !grid[idx(ddx,ddy)]){
+      grid[idx(ddx,ddy)] = 1; grid[idx(x,y)] = 0; continue;
+    }
+  }
+}
+
+function draw(){
+  const d = img.data;
+  for (let i=0;i<grid.length;i++){
+    const on = grid[i];
+    const o = i*4;
+    if (on){ d[o]=124; d[o+1]=204; d[o+2]=255; d[o+3]=255; }
+    else   { d[o]=13;  d[o+1]=13;  d[o+2]=18;  d[o+3]=255; }
+  }
+  // scale the low-res buffer up to the screen
+  const tmp = document.createElement('canvas');
+  tmp.width = cols; tmp.height = rows;
+  tmp.getContext('2d').putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(tmp, 0, 0, W, H);
+}
+
+let last = 0, acc = 0;
+function loop(t){
+  acc += (t - last); last = t;
+  // fixed timestep ~60 steps/s max
+  while (acc >= 16){ step(); acc -= 16; }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function pour(cx, cy){
+  const x = Math.floor(cx/cell), y = Math.floor(cy/cell);
+  for (let i=0;i<6;i++){
+    const gx = x + Math.floor((Math.random()-0.5)*4);
+    const gy = y + Math.floor((Math.random()-0.5)*4);
+    if (inb(gx,gy)) grid[idx(gx,gy)] = 1;
+  }
+}
+
+let down = false, mx=0, my=0;
+c.addEventListener('pointerdown', e=>{ down=true; mx=e.clientX; my=e.clientY; pour(mx,my); });
+c.addEventListener('pointerup', ()=> down=false);
+c.addEventListener('pointerleave', ()=> down=false);
+c.addEventListener('pointermove', e=>{ mx=e.clientX; my=e.clientY; if(down) pour(mx,my); });
+
+function setGrav(d){ grav = d; }
+document.getElementById('left').onclick = ()=> setGrav(DIRS.left);
+document.getElementById('right').onclick = ()=> setGrav(DIRS.right);
+document.getElementById('up').onclick = ()=> setGrav(DIRS.up);
+document.getElementById('down').onclick = ()=> setGrav(DIRS.down);
+addEventListener('keydown', e=>{
+  if (e.key==='ArrowLeft') setGrav(DIRS.left);
+  if (e.key==='ArrowRight') setGrav(DIRS.right);
+  if (e.key==='ArrowUp') setGrav(DIRS.up);
+  if (e.key==='ArrowDown') setGrav(DIRS.down);
+  if (e.key===' ') grid.fill(0);
+});
+
+addEventListener('resize', ()=> { resize(); });
+resize();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
