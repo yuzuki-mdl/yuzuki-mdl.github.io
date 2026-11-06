@@ -113,7 +113,6 @@ function parse(src){
       const ch=src[y][x]||' ';
       let cell='floor';
       if(ch==='#')cell='wall';
-      if(ch===' '||ch===undefined)cell='void';
       if(ch==='.'||ch==='*'||ch==='+')goals.push({x,y});
       if(ch==='$'||ch==='*')boxes.push({x,y});
       if(ch==='@'||ch==='+')player={x,y};
