@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>snake</title>
+<style>
+  :root{--bg:#0d1117;--fg:#e6edf3;--dim:#7d8590;--acc:#7ee787;--food:#ff7b72;--grid:#161b22}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace}
+  body{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:16px;touch-action:none}
+  h1{font-size:15px;font-weight:600;margin:0;letter-spacing:.08em;color:var(--dim);text-transform:uppercase}
+  #hud{display:flex;gap:22px;font-size:13px;color:var(--dim);letter-spacing:.04em}
+  #hud b{color:var(--fg);font-weight:600}
+  canvas{background:var(--grid);border-radius:8px;display:block;max-width:92vw;max-height:70vh}
+  #msg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;pointer-events:none}
+  #wrap{position:relative}
+  #over{font-size:16px;color:var(--fg);text-align:center;background:rgba(13,17,23,.82);padding:18px 24px;border-radius:10px;display:none}
+  #over small{color:var(--dim);font-size:12px;display:block;margin-top:6px}
+  .hint{color:var(--dim);font-size:12px;text-align:center;max-width:420px}
+  kbd{background:#1f2630;border-radius:4px;padding:1px 5px;font-size:11px;color:var(--fg)}
+</style>
+</head>
+<body>
+<h1>snake</h1>
+<div id="hud"><span>score <b id="score">0</b></span><span>best <b id="best">0</b></span><span>len <b id="len">3</b></span></div>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="msg"><div id="over">game over<small>press space / tap to restart</small></div></div>
+</div>
+<div class="hint"><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> or <kbd>wasd</kbd> · swipe on mobile · <kbd>space</kbd> pause</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const scoreEl=document.getElementById('score'),bestEl=document.getElementById('best'),lenEl=document.getElementById('len'),overEl=document.getElementById('over');
+const COLS=24,ROWS=24,CELL=22;
+cv.width=COLS*CELL;cv.height=ROWS*CELL;
+
+let snake,dir,nextDir,food,score,best,tick,acc,running,over,lastTime;
+best=+(localStorage.getItem('snake_best')||0);bestEl.textContent=best;
+
+function reset(){
+  snake=[{x:12,y:12},{x:11,y:12},{x:10,y:12}];
+  dir={x:1,y:0};nextDir={x:1,y:0};
+  score=0;tick=140;acc=0;running=true;over=false;lastTime=performance.now();
+  placeFood();
+  scoreEl.textContent=0;lenEl.textContent=3;overEl.style.display='none';
+}
+
+function placeFood(){
+  const free=[];
+  for(let y=0;y<ROWS;y++)for(let x=0;x<COLS;x++){
+    if(!snake.some(s=>s.x===x&&s.y===y))free.push({x,y});
+  }
+  food=free[Math.floor(Math.random()*free.length)];
+}
+
+function step(){
+  dir=nextDir;
+  const head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
+  // wrap
+  head.x=(head.x+COLS)%COLS;head.y=(head.y+ROWS)%ROWS;
+  // self collision (tail moves out this tick, so ignore last segment)
+  for(let i=0;i<snake.length-1;i++){
+    if(snake[i].x===head.x&&snake[i].y===head.y){return die();}
+  }
+  snake.unshift(head);
+  if(head.x===food.x&&head.y===food.y){
+    score+=10;scoreEl.textContent=score;
+    if(score>best){best=score;bestEl.textContent=best;localStorage.setItem('snake_best',best);}
+    lenEl.textContent=snake.length;
+    if(tick>70)tick-=2.5;
+    placeFood();
+  }else{
+    snake.pop();
+  }
+}
+
+function die(){
+  over=true;running=false;overEl.style.display='block';
+}
+
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  // subtle grid
+  ctx.strokeStyle='rgba(255,255,255,.02)';ctx.lineWidth=1;
+  for(let x=0;x<=COLS;x++){ctx.beginPath();ctx.moveTo(x*CELL,0);ctx.lineTo(x*CELL,cv.height);ctx.stroke();}
+  for(let y=0;y<=ROWS;y++){ctx.beginPath();ctx.moveTo(0,y*CELL);ctx.lineTo(cv.width,y*CELL);ctx.stroke();}
+  // food
+  if(food){
+    ctx.fillStyle='#ff7b72';
+    const cx=food.x*CELL+CELL/2,cy=food.y*CELL+CELL/2;
+    ctx.beginPath();ctx.arc(cx,cy,CELL*0.32,0,Math.PI*2);ctx.fill();
+    ctx.globalAlpha=.25;ctx.beginPath();ctx.arc(cx,cy,CELL*0.5,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;
+  }
+  // snake
+  for(let i=snake.length-1;i>=0;i--){
+    const s=snake[i];
+    const t=i/Math.max(1,snake.length-1);
+    const g=Math.round(231-(231-126)*t);
+    ctx.fillStyle=i===0?'#7ee787':`rgb(${Math.round(126+t*40)},${g},${Math.round(135-t*40)})`;
+    const pad=i===0?1:2;
+    roundRect(s.x*CELL+pad,s.y*CELL+pad,CELL-pad*2,CELL-pad*2,i===0?6:4);
+  }
+  // eyes on head
+  const h=snake[0];
+  ctx.fillStyle='#0d1117';
+  const ex=h.x*CELL+CELL/2,ey=h.y*CELL+CELL/2;
+  const off=CELL*0.18;
+  const px=dir.y!==0?off:0,py=dir.x!==0?off:0;
+  ctx.beginPath();ctx.arc(ex-px+ (dir.x*off*0.6),ey-py+(dir.y*off*0.6),2,0,Math.PI*2);ctx.fill();
+  ctx.beginPath();ctx.arc(ex+px+ (dir.x*off*0.6),ey+py+(dir.y*off*0.6),2,0,Math.PI*2);ctx.fill();
+}
+
+function roundRect(x,y,w,h,r){
+  ctx.beginPath();
+  ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();ctx.fill();
+}
+
+function frame(now){
+  const dt=now-(lastTime||now);lastTime=now;
+  if(running&&!over){acc+=dt;
+    while(acc>=tick){acc-=tick;step();if(over)break;}
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+
+function setDir(nx,ny){
+  if(over){return;}
+  // no 180
+  if(nx===-dir.x&&ny===-dir.y)return;
+  if(nx===dir.x&&ny===dir.y)return;
+  nextDir={x:nx,y:ny};
+}
+
+const keyMap={
+  ArrowUp:[0,-1],ArrowDown:[0,1],ArrowLeft:[-1,0],ArrowRight:[1,0],
+  w:[0,-1],s:[0,1],a:[-1,0],d:[1,0],W:[0,-1],S:[0,1],A:[-1,0],D:[1,0]
+};
+window.addEventListener('keydown',e=>{
+  if(e.key===' '||e.key==='Spacebar'){
+    e.preventDefault();
+    if(over)reset();else{running=!running;lastTime=performance.now();}
+    return;
+  }
+  const k=keyMap[e.key];
+  if(k){e.preventDefault();setDir(k[0],k[1]);}
+});
+
+// swipe
+let tx=0,ty=0;
+cv.addEventListener('touchstart',e=>{const t=e.changedTouches[0];tx=t.clientX;ty=t.clientY;},{passive:true});
+cv.addEventListener('touchend',e=>{
+  const t=e.changedTouches[0];const dx=t.clientX-tx,dy=t.clientY-ty;
+  if(Math.abs(dx)<20&&Math.abs(dy)<20){if(over)reset();return;}
+  if(Math.abs(dx)>Math.abs(dy))setDir(dx>0?1:-1,0);else setDir(0,dy>0?1:-1);
+},{passive:true});
+cv.addEventListener('click',()=>{if(over)reset();});
+
+reset();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
