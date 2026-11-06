@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>raycast — a little dungeon</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d12;color:#c9d1d9;font:14px ui-monospace,monospace;overflow:hidden}
+  #wrap{display:flex;flex-direction:column;align-items:center;height:100%;justify-content:center;gap:10px}
+  canvas{image-rendering:pixelated;border-radius:6px;box-shadow:0 8px 40px #000a;max-width:96vw;max-height:80vh}
+  #hint{opacity:.55;font-size:12px;text-align:center}
+  #hint b{color:#7ee787}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c" width="480" height="300"></canvas>
+  <div id="hint"><b>WASD</b> move &nbsp; <b>← →</b> look &nbsp; <b>shift</b> run</div>
+</div>
+<script>
+const W=480,H=300;
+const cv=document.getElementById('c');
+const ctx=cv.getContext('2d');
+const img=ctx.createImageData(W,H);
+const buf=img.data;
+
+// map: 1 = wall, 0 = floor
+const MAP=[
+"1111111111111111",
+"1000000010000001",
+"1011100010111101",
+"1010000000000101",
+"1010111111100101",
+"1000100000000001",
+"1111100011110111",
+"1000000000010001",
+"1011111110011101",
+"1010000010000001",
+"1010111011110101",
+"1000100000000101",
+"1011110111110101",
+"1000000100000001",
+"1011111111111101",
+"1111111111111111",
+];
+const MH=MAP.length, MW=MAP[0].length;
+function wall(x,y){ if(x<0||y<0||x>=MW||y>=MH) return 1; return MAP[y][x]==='1'?1:0; }
+
+const px={x:1.5,y:1.5,ang:0.3};
+const FOV=Math.PI/3;
+
+// simple procedural wall texture: brick-ish value by (texX, wallY)
+function texColor(tx, ty, side){
+  // tx in 0..1 across the wall face, ty in 0..1 down the wall
+  const brickH=8, brickW=16;
+  const row=Math.floor(ty*brickH);
+  const off=(row%2)*brickW/2;
+  const col=Math.floor((tx*W/ (1) + off)/brickW);
+  const mortar = (ty*brickH%1<0.12) || ((tx*W+off)%brickW<1.5);
+  let base = mortar ? 40 : 120 + (col*37+row*13)%40;
+  if(side) base*=0.68;
+  // fog by distance handled by caller
+  return base;
+}
+
+function render(){
+  const dirx=Math.cos(px.ang), diry=Math.sin(px.ang);
+  const planex=-diry*Math.tan(FOV/2), planey=dirx*Math.tan(FOV/2);
+  // ceiling + floor gradient
+  for(let y=0;y<H;y++){
+    let isFloor=y>H/2;
+    let t=isFloor?(y-H/2)/(H/2):(H/2-y)/(H/2);
+    let r,g,b;
+    if(isFloor){ r=30+ t*20; g=32+t*22; b=40+t*26; }
+    else { r=8+ t*10; g=10+t*12; b=18+t*16; }
+    for(let x=0;x<W;x++){
+      let i=(y*W+x)*4; buf[i]=r; buf[i+1]=g; buf[i+2]=b; buf[i+3]=255;
+    }
+  }
+  for(let x=0;x<W;x++){
+    const camX=2*x/W-1;
+    const rdx=dirx+planex*camX, rdy=diry+planey*camX;
+    let mapx=Math.floor(px.x), mapy=Math.floor(px.y);
+    const ddx=Math.abs(1/rdx), ddy=Math.abs(1/rdy);
+    let stepx,stepy,sdx,sdy;
+    if(rdx<0){stepx=-1;sdx=(px.x-mapx)*ddx;} else {stepx=1;sdx=(mapx+1-px.x)*ddx;}
+    if(rdy<0){stepy=-1;sdy=(px.y-mapy)*ddy;} else {stepy=1;sdy=(mapy+1-px.y)*ddy;}
+    let hit=0,side=0;
+    while(!hit){
+      if(sdx<sdy){sdx+=ddx;mapx+=stepx;side=0;} else {sdy+=ddy;mapy+=stepy;side=1;}
+      if(wall(mapx,mapy)) hit=1;
+      if(sdx>40&&sdy>40) break;
+    }
+    const perp = side===0 ? (mapx-px.x+(1-stepx)/2)/rdx : (mapy-px.y+(1-stepy)/2)/rdy;
+    const dist=Math.max(0.001,perp);
+    const lineH=Math.floor(H/dist);
+    let drawStart=Math.floor(-lineH/2+H/2); if(drawStart<0)drawStart=0;
+    let drawEnd=Math.floor(lineH/2+H/2); if(drawEnd>H)drawEnd=H;
+    // texture x
+    let wallX = side===0 ? (px.y+perp*rdy)%1 : (px.x+perp*rdx)%1;
+    if((side===0&&rdx>0)||(side===1&&rdy<0)) wallX=1-wallX;
+    const fog=Math.min(1,dist/10);
+    for(let y=drawStart;y<drawEnd;y++){
+      const ty=(y-drawStart)/Math.max(1,(drawEnd-drawStart));
+      let base=texColor(wallX,ty,side);
+      base=base*(1-fog*0.85)+10*fog;
+      let i=(y*W+x)*4; buf[i]=base; buf[i+1]=base*0.95; buf[i+2]=base*1.0; buf[i+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  drawMinimap();
+}
+
+function drawMinimap(){
+  const s=6, ox=8, oy=8;
+  ctx.globalAlpha=0.75;
+  for(let y=0;y<MH;y++)for(let x=0;x<MW;x++){
+    ctx.fillStyle = wall(x,y)?'#3a4152':'#12151c';
+    ctx.fillRect(ox+x*s,oy+y*s,s,s);
+  }
+  ctx.fillStyle='#7ee787';
+  ctx.fillRect(ox+px.x*s-1.5,oy+px.y*s-1.5,3,3);
+  ctx.strokeStyle='#7ee787';ctx.beginPath();
+  ctx.moveTo(ox+px.x*s,oy+px.y*s);
+  ctx.lineTo(ox+(px.x+Math.cos(px.ang)*0.6)*s,oy+(px.y+Math.sin(px.ang)*0.6)*s);
+  ctx.stroke();
+  ctx.globalAlpha=1;
+}
+
+const keys={};
+addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=1; if(['arrowleft','arrowright','arrowup','arrowdown'].includes(e.key.toLowerCase()))e.preventDefault();});
+addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=0;});
+
+let last=performance.now();
+function loop(t){
+  const dt=Math.min(0.05,(t-last)/1000); last=t;
+  const spd=(keys['shift']?3.2:1.8)*dt;
+  const rot=1.8*dt;
+  if(keys['arrowleft']) px.ang-=rot;
+  if(keys['arrowright']) px.ang+=rot;
+  let mx=0,my=0;
+  if(keys['w']){mx+=Math.cos(px.ang);my+=Math.sin(px.ang);}
+  if(keys['s']){mx-=Math.cos(px.ang);my-=Math.sin(px.ang);}
+  if(keys['a']){mx+=Math.cos(px.ang-Math.PI/2);my+=Math.sin(px.ang-Math.PI/2);}
+  if(keys['d']){mx+=Math.cos(px.ang+Math.PI/2);my+=Math.sin(px.ang+Math.PI/2);}
+  const len=Math.hypot(mx,my)||1;
+  const nx=px.x+mx/len*spd, ny=px.y+my/len*spd;
+  if(!wall(Math.floor(nx),Math.floor(px.y))) px.x=nx;
+  if(!wall(Math.floor(px.x),Math.floor(ny))) px.y=ny;
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
