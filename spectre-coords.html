@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12th-cyclotomic coordinates</title>
+<style>
+  :root{--bg:#0e1116;--fg:#e6edf3;--dim:#8b949e;--acc:#7ee787;--grid:#1c2430}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+  header{padding:18px 20px 6px}
+  h1{font-size:17px;margin:0 0 4px;font-weight:600}
+  p{margin:0 0 8px;color:var(--dim);max-width:70ch}
+  .wrap{display:flex;gap:16px;padding:8px 20px 24px;flex-wrap:wrap}
+  canvas{background:#0a0d12;border:1px solid var(--grid);border-radius:10px;touch-action:none;cursor:crosshair}
+  .side{min-width:260px;flex:1}
+  .row{display:flex;gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap}
+  button{background:#1b2430;color:var(--fg);border:1px solid #2d3a4a;border-radius:8px;padding:6px 10px;font:inherit;cursor:pointer}
+  button:hover{background:#243244}
+  button.on{background:var(--acc);color:#0a0d12;border-color:var(--acc)}
+  .dirs{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin:10px 0}
+  .dirs button{padding:6px 0;font-size:13px}
+  .out{background:#0a0d12;border:1px solid var(--grid);border-radius:8px;padding:10px;margin-top:8px;white-space:pre-wrap;min-height:90px}
+  .k{color:var(--acc)}
+  small{color:var(--dim)}
+</style>
+</head>
+<body>
+<header>
+  <h1>exact coordinates on the 12-direction grid</h1>
+  <p>every point is <b>a₀ + a₁d + a₂d² + a₃d³</b> with d = cos30° + i·sin30°, integers aᵢ. no floats, so two vertices are the same iff the tuples match. click the canvas to walk one unit step at a time, or use the buttons.</p>
+</header>
+<div class="wrap">
+  <canvas id="c" width="620" height="520"></canvas>
+  <div class="side">
+    <div class="dirs" id="dirs"></div>
+    <div class="row">
+      <button id="undo">undo</button>
+      <button id="reset">reset</button>
+      <button id="close" class="on">close path</button>
+    </div>
+    <div class="out" id="out"></div>
+    <small>d⁴ = d² − 1, so multiplying by d is a rotation by 30° that stays in the lattice. that's why every vertex has integer coords.</small>
+  </div>
+</div>
+<script>
+// point = [a0,a1,a2,a3] meaning a0 + a1*d + a2*d^2 + a3*d^3, d = e^{i pi/6}
+// multiply by d: d*(a0 + a1 d + a2 d^2 + a3 d^3)
+//   = a0 d + a1 d^2 + a2 d^3 + a3 d^4 = a0 d + a1 d^2 + a2 d^3 + a3(d^2 - 1)
+//   = -a3 + a0 d + (a1+a3) d^2 + a2 d^3
+function mulD(p){ const [a0,a1,a2,a3]=p; return [-a3, a0, a1+a3, a2]; }
+const UNIT=[1,0,0,0];
+const DIRS=[];
+let v=UNIT;
+for(let i=0;i<12;i++){ DIRS.push(v); v=mulD(v); }
+
+// to plane: x = a0 + (sqrt3/2)a1 + (1/2)a2 ; y = a3 + (sqrt3/2)a2 + (1/2)a1
+const S3=Math.sqrt(3)/2;
+function toXY(p){ const [a0,a1,a2,a3]=p; return [a0 + S3*a1 + 0.5*a2, a3 + S3*a2 + 0.5*a1]; }
+function add(p,q){ return p.map((x,i)=>x+q[i]); }
+function neg(p){ return p.map(x=>-x); }
+
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let path=[[0,0,0,0]];
+let showClose=true;
+let cam={x:cv.width/2,y:cv.height/2,s:64};
+
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  // faint lattice grid dots
+  ctx.fillStyle='#16202c';
+  for(let i=0;i<DIRS.length;i++){
+    const [x,y]=toXY(DIRS[i]);
+    for(let r=1;r<=6;r++){
+      ctx.beginPath();
+      ctx.arc(cam.x+x*r*cam.s, cam.y-y*r*cam.s, 1.6,0,7);
+      ctx.fill();
+    }
+  }
+  // path
+  ctx.lineWidth=2.5; ctx.strokeStyle='#7ee787'; ctx.lineJoin='round';
+  ctx.beginPath();
+  for(let i=0;i<path.length;i++){
+    const [x,y]=toXY(path[i]);
+    const px=cam.x+x*cam.s, py=cam.y-y*cam.s;
+    i?ctx.lineTo(px,py):ctx.moveTo(px,py);
+  }
+  if(showClose && path.length>2){
+    const [x,y]=toXY(path[0]); ctx.lineTo(cam.x+x*cam.s, cam.y-y*cam.s);
+  }
+  ctx.stroke();
+  // vertices
+  for(let i=0;i<path.length;i++){
+    const [x,y]=toXY(path[i]);
+    ctx.beginPath();
+    ctx.arc(cam.x+x*cam.s, cam.y-y*cam.s, i===path.length-1?5:3, 0,7);
+    ctx.fillStyle = i===path.length-1 ? '#f0f6fc' : '#7ee787';
+    ctx.fill();
+  }
+  report();
+}
+
+function report(){
+  const last=path[path.length-1];
+  const [x,y]=toXY(last);
+  document.getElementById('out').innerHTML =
+    '<span class="k">vertices</span> '+path.length+'\n'+
+    '<span class="k">last</span>  ['+last.join(', ')+']\n'+
+    '<span class="k">plane</span> ('+x.toFixed(3)+', '+y.toFixed(3)+')\n'+
+    '<span class="k">closed</span> '+((showClose&&path.length>2)?dist(path[0],last).toFixed(3):'—');
+}
+function dist(p,q){ const a=toXY(p),b=toXY(q); return Math.hypot(a[0]-b[0],a[1]-b[1]); }
+
+function step(i){ path.push(add(path[path.length-1], DIRS[i])); draw(); }
+
+function buildDirs(){
+  const box=document.getElementById('dirs');
+  for(let i=0;i<12;i++){
+    const b=document.createElement('button');
+    b.textContent=(i*30)+'°';
+    b.onclick=()=>step(i);
+    box.appendChild(b);
+  }
+}
+buildDirs();
+
+// click near canvas -> snap to nearest of the 12 directions from last vertex
+cv.addEventListener('pointerdown', e=>{
+  const r=cv.getBoundingClientRect();
+  const mx=(e.clientX-r.left), my=(e.clientY-r.top);
+  const last=path[path.length-1]; const [lx,ly]=toXY(last);
+  const dx=mx-(cam.x+lx*cam.s), dy=-(my-(cam.y+ly*cam.s));
+  let best=0,bd=1e9;
+  for(let i=0;i<12;i++){
+    const [x,y]=toXY(DIRS[i]);
+    const d=Math.hypot(dx-x*cam.s, dy-y*cam.s);
+    if(d<bd){bd=d;best=i;}
+  }
+  step(best);
+});
+
+// pan/zoom
+let drag=null;
+cv.addEventListener('pointerdown', e=>{ drag={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y, moved:false}; });
+cv.addEventListener('pointermove', e=>{
+  if(!drag) return;
+  const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+  if(Math.hypot(dx,dy)>4) drag.moved=true;
+  if(drag.moved){ cam.x=drag.cx+dx; cam.y=drag.cy+dy; draw(); }
+});
+cv.addEventListener('pointerup', ()=>{ drag=null; });
+cv.addEventListener('wheel', e=>{ e.preventDefault(); cam.s*= e.deltaY<0?1.1:0.9; cam.s=Math.max(20,Math.min(200,cam.s)); draw(); }, {passive:false});
+
+document.getElementById('undo').onclick=()=>{ if(path.length>1){path.pop();draw();} };
+document.getElementById('reset').onclick=()=>{ path=[[0,0,0,0]]; draw(); };
+document.getElementById('close').onclick=function(){ showClose=!showClose; this.classList.toggle('on',showClose); draw(); };
+
+draw();
+</script>
+</body>
+</html>
