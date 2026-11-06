@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>typing test</title>
+<style>
+  :root{--bg:#0e0e12;--fg:#e8e6e3;--dim:#6b6b78;--acc:#7fd1ae;--bad:#e06c75}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:2rem 1rem}
+  h1{font-weight:400;font-size:1rem;letter-spacing:.3em;text-transform:uppercase;color:var(--dim);margin:0 0 2rem}
+  .stats{display:flex;gap:2.5rem;margin-bottom:1.5rem;font-size:.85rem;color:var(--dim)}
+  .stats b{color:var(--fg);font-size:1.3rem;font-weight:500}
+  .stats span{display:block;font-size:.7rem;letter-spacing:.15em;text-transform:uppercase;margin-bottom:.2rem}
+  #text{max-width:44rem;font-size:1.35rem;line-height:1.9;letter-spacing:.02em;color:var(--dim);cursor:text;user-select:none;position:relative;min-height:6rem}
+  #text .done{color:var(--fg)}
+  #text .ok{color:var(--acc)}
+  #text .bad{color:var(--bad);text-decoration:underline}
+  #text .cur{border-left:2px solid var(--acc);margin-left:-1px;animation:blink 1s steps(2) infinite}
+  @keyframes blink{50%{border-color:transparent}}
+  #hint{margin-top:2rem;font-size:.75rem;color:var(--dim);letter-spacing:.05em}
+  button{background:none;border:1px solid var(--dim);color:var(--fg);font:inherit;font-size:.8rem;padding:.5rem 1.1rem;border-radius:6px;cursor:pointer;margin-top:2rem}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  #result{font-size:.9rem;color:var(--acc);margin-top:1rem;min-height:1.2em}
+</style>
+</head>
+<body>
+<h1>typing test</h1>
+<div class="stats">
+  <div><span>wpm</span><b id="wpm">0</b></div>
+  <div><span>acc</span><b id="acc">100%</b></div>
+  <div><span>time</span><b id="time">0s</b></div>
+</div>
+<div id="text"></div>
+<div id="result"></div>
+<div id="hint">just start typing · backspace to fix · enter when done</div>
+<button id="again">new text</button>
+<script>
+const PASSAGES=[
+"the quick brown fox jumps over the lazy dog while the cat watches from the window and the sun sets behind the hills in a wash of orange and pink",
+"a strange thing about the sea is that it never stops moving even when the air is still and the boats sit idle in the harbor waiting for the wind",
+"she wrote the program at three in the morning and by dawn it had grown into something she did not fully understand but could not bring herself to delete",
+"there is a particular kind of quiet that comes after rain when the streets are wet and the light is low and everything smells like the earth waking up",
+"the machine learned to walk by falling down a thousand times and each time it got up it remembered a little more about how not to fall the next time",
+"i keep a list of things i want to learn and it grows faster than i can cross things off which is either a problem or the whole point of being alive",
+"the stars are very far away and the light we see from them tonight left home before anyone was around to name the thing we are standing on",
+"somewhere in the long quiet of the night a single note was played on a piano and it hung in the air for a moment before the room swallowed it whole"
+];
+let target="", typed="", start=0, timer=null, finished=false;
+const $=id=>document.getElementById(id);
+const textEl=$("text");
+
+function pick(){return PASSAGES[Math.floor(Math.random()*PASSAGES.length)]}
+
+function render(){
+  let html="";
+  for(let i=0;i<target.length;i++){
+    const ch=target[i]===" "?"&nbsp;":target[i];
+    if(i<typed.length){
+      if(typed[i]===target[i]) html+=`<span class="ok">${ch}</span>`;
+      else html+=`<span class="bad">${ch}</span>`;
+    } else if(i===typed.length){
+      html+=`<span class="cur">${ch}</span>`;
+    } else {
+      html+=`<span>${ch}</span>`;
+    }
+  }
+  textEl.innerHTML=html;
+}
+
+function acc(){
+  if(!typed.length) return 100;
+  let ok=0;
+  for(let i=0;i<typed.length;i++) if(typed[i]===target[i]) ok++;
+  return Math.round(ok/typed.length*100);
+}
+
+function tick(){
+  const secs=(performance.now()-start)/1000;
+  $("time").textContent=Math.floor(secs)+"s";
+  const mins=secs/60;
+  const words=typed.length/5;
+  $("wpm").textContent=mins>0?Math.round(words/mins):0;
+  $("acc").textContent=acc()+"%";
+}
+
+function reset(){
+  target=pick(); typed=""; start=0; finished=false;
+  $("result").textContent="";
+  $("wpm").textContent="0"; $("acc").textContent="100%"; $("time").textContent="0s";
+  if(timer) clearInterval(timer); timer=null;
+  render();
+}
+
+function finish(){
+  finished=true;
+  if(timer) clearInterval(timer);
+  tick();
+  const secs=(performance.now()-start)/1000;
+  const wpm=Math.round((typed.length/5)/(secs/60));
+  $("result").textContent=`done · ${wpm} wpm · ${acc()}% accuracy`;
+}
+
+window.addEventListener("keydown",e=>{
+  if(finished){ if(e.key==="Enter"){reset()} return; }
+  if(e.key==="Backspace"){ e.preventDefault(); typed=typed.slice(0,-1); render(); return; }
+  if(e.key==="Enter"){ if(typed.length>0) finish(); return; }
+  if(e.key.length!==1) return;
+  if(!start){ start=performance.now(); timer=setInterval(tick,100); }
+  if(typed.length<target.length){ typed+=e.key; render(); tick();
+    if(typed.length===target.length) finish();
+  }
+});
+
+textEl.addEventListener("click",()=>textEl.focus());
+$("again").addEventListener("click",reset);
+reset();
+</script>
+</body>
+</html>
