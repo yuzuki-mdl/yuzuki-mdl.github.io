@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hyperbolic {5,4} chase — the hunt that can't close</title>
+<style>
+  :root{--bg:#0b0f17;--fg:#e8eef7;--dim:#6b7787;--accent:#7fd1c9;--trail:#f0a868}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+    font:15px/1.5 ui-monospace,Menlo,Consolas,monospace}
+  #wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;min-height:100%}
+  h1{font-size:16px;font-weight:600;margin:0;letter-spacing:.02em}
+  h1 span{color:var(--dim);font-weight:400}
+  canvas{background:#060a10;border:1px solid #1c2735;border-radius:12px;touch-action:none;cursor:pointer}
+  #hud{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;font-size:13px;color:var(--dim)}
+  #hud b{color:var(--fg);font-weight:600}
+  #msg{min-height:1.4em;font-size:13px;color:var(--accent)}
+  .hint{font-size:12px;color:var(--dim);max-width:560px;text-align:center}
+  button{background:#16202e;color:var(--fg);border:1px solid #26333f;border-radius:8px;
+    padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>hyperbolic {5,4} <span>— the hunt that can't close</span></h1>
+  <canvas id="c" width="620" height="620"></canvas>
+  <div id="hud">
+    <span>steps <b id="steps">0</b></span>
+    <span>separation <b id="sep">0.0</b></span>
+    <span>hunter moves <b id="hsteps">0</b></span>
+  </div>
+  <div id="msg"></div>
+  <button id="reset">restart</button>
+  <div class="hint">click a neighbouring pentagon to walk. the hunter steps toward you after every move.
+    the disk is rebuilt around you as you go, so there's no edge to get cornered against. walk away from it
+    and the gap widens — that's the exponential plane, there's always more room behind you. get it past 8
+    and you've escaped. stop, or walk toward it, and it closes and takes you.</div>
+</div>
+<script>
+"use strict";
+const cadd=(a,b)=>[a[0]+b[0],a[1]+b[1]];
+const csub=(a,b)=>[a[0]-b[0],a[1]-b[1]];
+const cmul=(a,b)=>[a[0]*b[0]-a[1]*b[1],a[0]*b[1]+a[1]*b[0]];
+const cdiv=(a,b)=>{const d=b[0]*b[0]+b[1]*b[1];return[(a[0]*b[0]+a[1]*b[1])/d,(a[1]*b[0]-a[0]*b[1])/d];};
+const cconj=a=>[a[0],-a[1]];
+const cabs=a=>Math.hypot(a[0],a[1]);
+const cscale=(a,k)=>[a[0]*k,a[1]*k];
+const CI=[0,1],CONE=[1,0],CZ=[0,0];
+const acosh=x=>Math.log(x+Math.sqrt(x*x-1));
+const AL=Math.PI/5,BE=Math.PI/4,GA=Math.PI/2;
+const sA=acosh((Math.cos(AL)+Math.cos(BE)*Math.cos(GA))/(Math.sin(BE)*Math.sin(GA)));
+const sB=acosh((Math.cos(BE)+Math.cos(AL)*Math.cos(GA))/(Math.sin(AL)*Math.sin(GA)));
+const sC=acosh((Math.cos(GA)+Math.cos(AL)*Math.cos(BE))/(Math.sin(AL)*Math.sin(BE)));
+const VA=[0,0];
+const VB=[Math.tanh(sC/2),0];
+const rB=Math.tanh(sB/2);
+const VC=[rB*Math.cos(AL),rB*Math.sin(AL)];
+const TRI=[VA,VB,VC];
+function reflGeod(p,q){
+  const r1=(p[0]*p[0]+p[1]*p[1]+1)/2,r2=(q[0]*q[0]+q[1]*q[1]+1)/2;
+  const det=p[0]*q[1]-p[1]*q[0];
+  if(Math.abs(det)<1e-12){
+    const src=cabs(p)>1e-12?p:q;
+    const w=cscale(src,1/cabs(src));const w2=cmul(w,w);
+    return z=>cmul(w2,cconj(z));
+  }
+  const cx=(r1*q[1]-r2*p[1])/det,cy=(p[0]*r2-q[0]*r1)/det;
+  const m=[cx,cy],mb=cconj(m);
+  return z=>{const zb=cconj(z);return cdiv(csub(cmul(m,zb),CONE),csub(zb,mb));};
+}
+function matmul(A,B){return{a:cadd(cmul(A.a,B.a),cmul(A.b,B.c)),b:cadd(cmul(A.a,B.b),cmul(A.b,B.d)),c:cadd(cmul(A.c,B.a),cmul(A.d,B.c)),d:cadd(cmul(A.c,B.b),cmul(A.d,B.d))};}
+function norm(M){
+  const det=csub(cmul(M.a,M.d),cmul(M.b,M.c));const s=Math.sqrt(cabs(det));
+  let r={a:cscale(M.a,1/s),b:cscale(M.b,1/s),c:cscale(M.c,1/s),d:cscale(M.d,1/s),anti:M.anti};
+  for(const v of [r.d,r.a,r.b,r.c]){if(cabs(v)>1e-8){const ph=-Math.atan2(v[1],v[0]);const e=[Math.cos(ph),Math.sin(ph)];r={a:cmul(r.a,e),b:cmul(r.b,e),c:cmul(r.c,e),d:cmul(r.d,e),anti:r.anti};break;}}
+  return r;
+}
+function compose(M2,M1){const A=M2.anti?{a:cconj(M1.a),b:cconj(M1.b),c:cconj(M1.c),d:cconj(M1.d)}:M1;const P=matmul(M2,A);return{a:P.a,b:P.b,c:P.c,d:P.d,anti:M2.anti?!M1.anti:M1.anti};}
+function applyM(M,z){const u=M.anti?cconj(z):z;return cdiv(cadd(cmul(M.a,u),M.b),cadd(cmul(M.c,u),M.d));}
+function fitAnti(f){
+  const b=f(CZ),w1=f([1,0]),w2=f([0,-1]);
+  const num=csub(csub(cmul([0,-1],csub(w2,b)),w1),cscale(b,-1));
+  const c=cdiv(num,csub(w1,w2));
+  const a=cadd(csub(w1,b),cmul(w1,c));
+  return norm({a,b,c,d:CONE,anti:true});
+}
+const SIDES=[[VB,VC],[VA,VC],[VA,VB]];
+const RMAT=[0,1,2].map(i=>fitAnti(reflGeod(SIDES[i][0],SIDES[i][1])));
+const IDM={a:CONE,b:CZ,c:CZ,d:CONE,anti:false};
+function key(M){const N=norm(M);const q=v=>Math.round(v*1e5)/1e5;return[q(N.a[0]),q(N.a[1]),q(N.b[0]),q(N.b[1]),q(N.c[0]),q(N.c[1]),q(N.d[0]),q(N.d[1]),N.anti?1:0].join(',');}
+function buildTri(P,depth){
+  const seen=new Map(),out=[{M:P,d:0}];seen.set(key(P),1);const q=[[P,0]];
+  while(q.length){const[M,dd]=q.shift();if(dd>=depth)continue;
+    for(let i=0;i<3;i++){const N=norm(compose(M,RMAT[i]));const k=key(N);if(seen.has(k))continue;seen.set(k,1);out.push({M:N,d:dd+1});q.push([N,dd+1]);}}
+  return out;
+}
+function buildTiling(depth){
+  const tris=buildTri(IDM,depth);
+  const pents=new Map();
+  // pentagon center = VA (angle pi/5), corners = VC (angle pi/2).
+  // r = RMAT[1]*RMAT[2] rotates by 2*pi/5 about VA, order 5.
+  const r=norm(compose(RMAT[1],RMAT[2]));
+  const out=[];
+  const seen=new Set();
+  for(const t of tris){
+    const cen=applyM(t.M,VA);
+    const ck=Math.round(cen[0]*1e4)+','+Math.round(cen[1]*1e4);
+    if(seen.has(ck))continue;
+    seen.add(ck);
+    const corners=[];
+    let M=t.M;
+    for(let k=0;k<5;k++){corners.push(applyM(M,VC));M=norm(compose(M,r));}
+    corners.sort((a,b)=>Math.atan2(a[1]-cen[1],a[0]-cen[0])-Math.atan2(b[1]-cen[1],b[0]-cen[0]));
+    out.push({key:ck,center:cen,corners});
+  }
+  return out;
+}
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height,R=W/2-16,CX=W/2,CY=H/2;
+const toScreen=z=>[CX+z[0]*R,CY+z[1]*R];
+let view=IDM;
+const viewPts=z=>applyM(view,z);
+let tiling=null;
+function rebuild(depth){tiling=buildTiling(depth);}
+let token=[0,0];
+let trail=[token];
+let steps=0;
+let hunter=null,hsteps=0,dead=false,escaped=false;
+function neighborsOf(z){
+  const out=[];
+  for(const P of tiling){const d=hypDist(z,P.center);if(Math.abs(d-ADJ)<0.15)out.push(P.center);}
+  return out;
+}
+function startHunter(){
+  // walk 3 steps out over the adjacency graph (distances are a spread, not rings)
+  let cur=[0,0],prev=null;
+  for(let k=0;k<3;k++){
+    const nb=neighborsOf(cur).filter(q=>!prev||hypDist(q,prev)>1e-6);
+    if(!nb.length)break;
+    prev=cur;cur=nb[0].slice();
+  }
+  hunter=cur;
+  hsteps=0;dead=false;escaped=false;
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.beginPath();ctx.arc(CX,CY,R,0,7);ctx.strokeStyle='#1c2735';ctx.lineWidth=2;ctx.stroke();
+  if(!tiling)return;
+  for(const P of tiling){
+    const cs=P.corners.map(c=>toScreen(viewPts(c)));
+    if(cs.length<3)continue;
+    if(cs.every(p=>p[0]<-40||p[0]>W+40||p[1]<-40||p[1]>H+40))continue;
+    ctx.beginPath();ctx.moveTo(cs[0][0],cs[0][1]);
+    for(let i=1;i<cs.length;i++)ctx.lineTo(cs[i][0],cs[i][1]);
+    ctx.closePath();
+    ctx.fillStyle='rgba(127,209,201,0.03)';ctx.fill();
+    ctx.strokeStyle='#243040';ctx.lineWidth=1;ctx.stroke();
+  }
+  for(let i=0;i<trail.length-1;i++){
+    const a=toScreen(viewPts(trail[i])),b=toScreen(viewPts(trail[i+1]));
+    ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);
+    ctx.strokeStyle='rgba(240,168,104,'+(0.15+0.5*i/trail.length)+')';ctx.lineWidth=3;ctx.stroke();
+  }
+  const tp=toScreen(viewPts(token));
+  ctx.beginPath();ctx.arc(tp[0],tp[1],7,0,7);ctx.fillStyle='#f0a868';ctx.fill();
+  ctx.strokeStyle='#0b0f17';ctx.lineWidth=2;ctx.stroke();
+  if(hunter){
+    const hp=toScreen(viewPts(hunter));
+    ctx.beginPath();ctx.arc(hp[0],hp[1],7,0,7);ctx.fillStyle='#e05a5a';ctx.fill();
+    ctx.strokeStyle='#0b0f17';ctx.lineWidth=2;ctx.stroke();
+    ctx.fillStyle='#e05a5a';ctx.font='11px ui-monospace,monospace';ctx.fillText('hunter',hp[0]+10,hp[1]-8);
+  }
+}
+function hypDist(z1,z2){
+  const num=2*((z1[0]-z2[0])**2+(z1[1]-z2[1])**2);
+  const den=(1-(z1[0]**2+z1[1]**2))*(1-(z2[0]**2+z2[1]**2));
+  return acosh(1+num/den);
+}
+const apothem=hypDist(VA,VB);
+const ADJ=2*apothem;
+function nearestPent(scr){
+  let best=null,bd=1e9;
+  for(const P of tiling){
+    const sp=toScreen(viewPts(P.center));
+    const d=Math.hypot(sp[0]-scr[0],sp[1]-scr[1]);
+    if(d<bd){bd=d;best=P;}
+  }
+  return best;
+}
+cv.addEventListener('click',e=>{
+  const r=cv.getBoundingClientRect();
+  const scr=[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height];
+  const P=nearestPent(scr);
+  if(!P)return;
+  const d=hypDist(token,P.center);
+  if(d<1e-6)return;
+  if(Math.abs(d-ADJ)<0.15){
+    if(dead||escaped)return;
+    token=P.center.slice();steps++;
+    trail.push(token);if(trail.length>40)trail.shift();
+    document.getElementById('steps').textContent=steps;
+    if(hunter){
+      const nb=neighborsOf(hunter);
+      let best=hunter,bd=hypDist(hunter,token);
+      for(const c of nb){const dd=hypDist(c,token);if(dd<bd){bd=dd;best=c;}}
+      if(best!==hunter){hunter=best.slice();hsteps++;}
+      document.getElementById('hsteps').textContent=hsteps;
+      const sp=hypDist(hunter,token);
+      if(sp<1e-6){dead=true;document.getElementById('msg').textContent='caught. it closed because you stopped, or walked toward it';}
+      else if(sp>8){escaped=true;document.getElementById('msg').textContent='escaped. you outran it — the plane grew faster than it could follow';}
+      else document.getElementById('sep').textContent=sp.toFixed(2);
+    }
+    document.getElementById('msg').textContent=dead?document.getElementById('msg').textContent:'';
+    shiftFrame(P.center);draw();
+  } else {
+    document.getElementById('msg').textContent='— not adjacent (click a touching pentagon)';
+  }
+});
+function recenter(z0){
+  const conj0=cconj(z0);
+  view=norm({a:CONE,b:cscale(z0,-1),c:cscale(conj0,-1),d:CONE,anti:false});
+}
+// rebuild the disk around the player so there is never an edge to get cornered against
+function mob(z0,z){
+  const num=csub(z,z0);
+  const den=csub(CONE,cmul(cconj(z0),z));
+  return cdiv(num,den);
+}
+function shiftFrame(z0){
+  if(hunter)hunter=mob(z0,hunter);
+  token=[0,0];
+  trail=trail.map(p=>mob(z0,p));
+  view=IDM;
+  rebuild(20);
+}
+document.getElementById('reset').addEventListener('click',()=>{
+  token=[0,0];trail=[[0,0]];steps=0;view=IDM;
+  document.getElementById('steps').textContent=0;
+  document.getElementById('msg').textContent='';
+  startHunter();
+  document.getElementById('sep').textContent=hypDist(hunter,token).toFixed(2);
+  document.getElementById('hsteps').textContent=0;
+  draw();
+});
+rebuild(20);
+startHunter();
+document.getElementById('sep').textContent=hypDist(hunter,token).toFixed(2);
+draw();
+window.__hyp={buildTiling,hypDist,tiling:()=>tiling,apothem,ADJ,VC,VB,neighborsOf,shiftFrame,getState:()=>({token,hunter,steps,dead}),
+  stepTo(q){ // same path as a click on pentagon centre q
+    if(dead||escaped)return {sep:hypDist(hunter,token),dead,escaped};
+    token=q.slice();steps++;
+    const nb=neighborsOf(hunter);let best=hunter,bd=hypDist(hunter,token);
+    for(const c of nb){const d=hypDist(c,token);if(d<bd){bd=d;best=c;}}
+    if(best!==hunter){hunter=best.slice();hsteps++;}
+    const sp=hypDist(hunter,token);
+    if(sp<1e-6)dead=true;
+    else if(sp>8)escaped=true;
+    shiftFrame(q);
+    return {sep:sp,dead,escaped};
+  }};
+</script>
+</body>
+</html>
