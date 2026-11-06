@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pentagon hunt — hyperbolic {5,4}</title>
+<style>
+  :root{--bg:#0b0f17;--fg:#e8eef7;--dim:#6b7787;--accent:#7fd1c9;--trail:#f0a868;--gold:#ffd166}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+    font:15px/1.5 ui-monospace,Menlo,Consolas,monospace}
+  #wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;min-height:100%}
+  h1{font-size:16px;font-weight:600;margin:0;letter-spacing:.02em}
+  h1 span{color:var(--dim);font-weight:400}
+  canvas{background:#060a10;border:1px solid #1c2735;border-radius:12px;touch-action:none;cursor:pointer}
+  #hud{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;font-size:13px;color:var(--dim)}
+  #hud b{color:var(--fg);font-weight:600}
+  #heat{font-weight:600}
+  #msg{min-height:1.4em;font-size:13px;color:var(--accent);text-align:center;max-width:560px}
+  .hint{font-size:12px;color:var(--dim);max-width:560px;text-align:center}
+  button{background:#16202e;color:var(--fg);border:1px solid #26333f;border-radius:8px;
+    padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>pentagon hunt <span>— hyperbolic {5,4}</span></h1>
+  <canvas id="c" width="620" height="620"></canvas>
+  <div id="hud">
+    <span>round <b id="round">1</b></span>
+    <span>steps <b id="steps">0</b></span>
+    <span>treasure <b id="dist">?</b> away</span>
+    <span id="heat">—</span>
+  </div>
+  <div id="msg"></div>
+  <button id="reset">restart</button>
+  <div class="hint">a treasure pentagon is hidden somewhere in the tiling. click a touching pentagon
+    to walk. the number is the hyperbolic distance to it, rounded — walk and watch it drop.
+    the tiling is a finite patch, so the hunt stays local — but hyperbolic space still folds
+    the pentagons tiny fast as you head out. restart any time.</div>
+</div>
+<script>
+"use strict";
+const cadd=(a,b)=>[a[0]+b[0],a[1]+b[1]];
+const csub=(a,b)=>[a[0]-b[0],a[1]-b[1]];
+const cmul=(a,b)=>[a[0]*b[0]-a[1]*b[1],a[0]*b[1]+a[1]*b[0]];
+const cdiv=(a,b)=>{const d=b[0]*b[0]+b[1]*b[1];return[(a[0]*b[0]+a[1]*b[1])/d,(a[1]*b[0]-a[0]*b[1])/d];};
+const cconj=a=>[a[0],-a[1]];
+const cabs=a=>Math.hypot(a[0],a[1]);
+const cscale=(a,k)=>[a[0]*k,a[1]*k];
+const CI=[0,1],CONE=[1,0],CZ=[0,0];
+const acosh=x=>Math.log(x+Math.sqrt(x*x-1));
+const AL=Math.PI/5,BE=Math.PI/4,GA=Math.PI/2;
+const sA=acosh((Math.cos(AL)+Math.cos(BE)*Math.cos(GA))/(Math.sin(BE)*Math.sin(GA)));
+const sB=acosh((Math.cos(BE)+Math.cos(AL)*Math.cos(GA))/(Math.sin(AL)*Math.sin(GA)));
+const sC=acosh((Math.cos(GA)+Math.cos(AL)*Math.cos(BE))/(Math.sin(AL)*Math.sin(BE)));
+const VA=[0,0];
+const VB=[Math.tanh(sC/2),0];
+const rB=Math.tanh(sB/2);
+const VC=[rB*Math.cos(AL),rB*Math.sin(AL)];
+const TRI=[VA,VB,VC];
+function reflGeod(p,q){
+  const r1=(p[0]*p[0]+p[1]*p[1]+1)/2,r2=(q[0]*q[0]+q[1]*q[1]+1)/2;
+  const det=p[0]*q[1]-p[1]*q[0];
+  if(Math.abs(det)<1e-12){
+    const src=cabs(p)>1e-12?p:q;
+    const w=cscale(src,1/cabs(src));const w2=cmul(w,w);
+    return z=>cmul(w2,cconj(z));
+  }
+  const cx=(r1*q[1]-r2*p[1])/det,cy=(p[0]*r2-q[0]*r1)/det;
+  const m=[cx,cy],mb=cconj(m);
+  return z=>{const zb=cconj(z);return cdiv(csub(cmul(m,zb),CONE),csub(zb,mb));};
+}
+function matmul(A,B){return{a:cadd(cmul(A.a,B.a),cmul(A.b,B.c)),b:cadd(cmul(A.a,B.b),cmul(A.b,B.d)),c:cadd(cmul(A.c,B.a),cmul(A.d,B.c)),d:cadd(cmul(A.c,B.b),cmul(A.d,B.d))};}
+function norm(M){
+  const det=csub(cmul(M.a,M.d),cmul(M.b,M.c));const s=Math.sqrt(cabs(det));
+  let r={a:cscale(M.a,1/s),b:cscale(M.b,1/s),c:cscale(M.c,1/s),d:cscale(M.d,1/s),anti:M.anti};
+  for(const v of [r.d,r.a,r.b,r.c]){if(cabs(v)>1e-8){const ph=-Math.atan2(v[1],v[0]);const e=[Math.cos(ph),Math.sin(ph)];r={a:cmul(r.a,e),b:cmul(r.b,e),c:cmul(r.c,e),d:cmul(r.d,e),anti:r.anti};break;}}
+  return r;
+}
+function compose(M2,M1){const A=M2.anti?{a:cconj(M1.a),b:cconj(M1.b),c:cconj(M1.c),d:cconj(M1.d)}:M1;const P=matmul(M2,A);return{a:P.a,b:P.b,c:P.c,d:P.d,anti:M2.anti?!M1.anti:M1.anti};}
+function applyM(M,z){const u=M.anti?cconj(z):z;return cdiv(cadd(cmul(M.a,u),M.b),cadd(cmul(M.c,u),M.d));}
+function fitAnti(f){
+  const b=f(CZ),w1=f([1,0]),w2=f([0,-1]);
+  const num=csub(csub(cmul([0,-1],csub(w2,b)),w1),cscale(b,-1));
+  const c=cdiv(num,csub(w1,w2));
+  const a=cadd(csub(w1,b),cmul(w1,c));
+  return norm({a,b,c,d:CONE,anti:true});
+}
+const SIDES=[[VB,VC],[VA,VC],[VA,VB]];
+const RMAT=[0,1,2].map(i=>fitAnti(reflGeod(SIDES[i][0],SIDES[i][1])));
+const IDM={a:CONE,b:CZ,c:CZ,d:CONE,anti:false};
+function key(M){const N=norm(M);const q=v=>Math.round(v*1e5)/1e5;return[q(N.a[0]),q(N.a[1]),q(N.b[0]),q(N.b[1]),q(N.c[0]),q(N.c[1]),q(N.d[0]),q(N.d[1]),N.anti?1:0].join(',');}
+function buildTri(P,depth){
+  const seen=new Map(),out=[{M:P,d:0}];seen.set(key(P),1);const q=[[P,0]];
+  while(q.length){const[M,dd]=q.shift();if(dd>=depth)continue;
+    for(let i=0;i<3;i++){const N=norm(compose(M,RMAT[i]));const k=key(N);if(seen.has(k))continue;seen.set(k,1);out.push({M:N,d:dd+1});q.push([N,dd+1]);}}
+  return out;
+}
+function buildTiling(depth){
+  const tris=buildTri(IDM,depth);
+  const r=norm(compose(RMAT[1],RMAT[2]));
+  const out=[];
+  const seen=new Set();
+  for(const t of tris){
+    const cen=applyM(t.M,VA);
+    const ck=Math.round(cen[0]*1e4)+','+Math.round(cen[1]*1e4);
+    if(seen.has(ck))continue;
+    seen.add(ck);
+    const corners=[];
+    let M=t.M;
+    for(let k=0;k<5;k++){corners.push(applyM(M,VC));M=norm(compose(M,r));}
+    corners.sort((a,b)=>Math.atan2(a[1]-cen[1],a[0]-cen[0])-Math.atan2(b[1]-cen[1],b[0]-cen[0]));
+    out.push({key:ck,center:cen,corners});
+  }
+  return out;
+}
+function hypDist(z1,z2){
+  const num=2*((z1[0]-z2[0])**2+(z1[1]-z2[1])**2);
+  const den=(1-(z1[0]**2+z1[1]**2))*(1-(z2[0]**2+z2[1]**2));
+  return acosh(1+num/den);
+}
+const apothem=hypDist(VA,VB);
+const ADJ=2*apothem;
+
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height,R=W/2-16,CX=W/2,CY=H/2;
+const toScreen=z=>[CX+z[0]*R,CY+z[1]*R];
+
+let tiling=[];
+let adj=[]; // adjacency list by index
+let view=IDM;
+const viewPts=z=>applyM(view,z);
+
+let ADJc=ADJ; // true center-to-center distance, measured from the tiling
+function buildGraph(){
+  tiling=buildTiling(14);
+  // the real neighbor spacing: nearest pair of pentagon centers (uniform in a regular tiling)
+  ADJc=1e9;
+  for(let i=0;i<tiling.length;i++)for(let j=i+1;j<tiling.length;j++){
+    const d=hypDist(tiling[i].center,tiling[j].center);if(d<ADJc)ADJc=d;
+  }
+  adj=Array.from({length:tiling.length},()=>[]);
+  for(let i=0;i<tiling.length;i++){
+    for(let j=i+1;j<tiling.length;j++){
+      if(Math.abs(hypDist(tiling[i].center,tiling[j].center)-ADJc)<0.05){adj[i].push(j);adj[j].push(i);}
+    }
+  }
+  return adj;
+}
+function indexOfCenter(z){let best=-1,bd=1e9;for(let i=0;i<tiling.length;i++){const d=hypDist(z,tiling[i].center);if(d<bd){bd=d;best=i;}}return best;}
+function bfs(start){const dist=Array(tiling.length).fill(-1);dist[start]=0;const q=[start];while(q.length){const u=q.shift();for(const v of adj[u])if(dist[v]<0){dist[v]=dist[u]+1;q.push(v);}}return dist;}
+
+let tokenIdx, targetIdx, steps, round, trail, treasureDist;
+const HUD={round:document.getElementById('round'),steps:document.getElementById('steps'),dist:document.getElementById('dist'),heat:document.getElementById('heat'),msg:document.getElementById('msg')};
+
+function heatWord(d){
+  if(d<0.01)return['HERE','var(--gold)'];
+  if(d<1.2)return['burning','#ff6b6b'];
+  if(d<2.4)return['warm','#f0a868'];
+  if(d<4)return['cool','#7fd1c9'];
+  return['cold','#6b7787'];
+}
+function refresh(){
+  treasureDist=hypDist(tiling[tokenIdx].center,tiling[targetIdx].center);
+  HUD.round.textContent=round;
+  HUD.steps.textContent=steps;
+  HUD.dist.textContent=treasureDist<0.01?'0':treasureDist.toFixed(1);
+  const [w,col]=heatWord(treasureDist);
+  HUD.heat.textContent=w;HUD.heat.style.color=col;
+}
+function newRound(){
+  const start=indexOfCenter([0,0]);
+  const dist=bfs(start);
+  let maxd=0;for(const x of dist)if(x>maxd)maxd=x;
+  const want=Math.min(round+1,maxd);
+  const cands=[];
+  for(let i=0;i<tiling.length;i++)if(dist[i]===want)cands.push(i);
+  targetIdx=cands.length?cands[Math.floor(Math.random()*cands.length)]:indexOfCenter([0,0]);
+  tokenIdx=start;steps=0;trail=[tokenIdx];view=IDM;
+  HUD.msg.textContent='';refresh();draw();
+}
+function recenter(z0){
+  const conj0=cconj(z0);
+  view=norm({a:CONE,b:cscale(z0,-1),c:cscale(conj0,-1),d:CONE,anti:false});
+}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.beginPath();ctx.arc(CX,CY,R,0,7);ctx.strokeStyle='#1c2735';ctx.lineWidth=2;ctx.stroke();
+  for(const P of tiling){
+    const cs=P.corners.map(c=>toScreen(viewPts(c)));
+    if(cs.length<3)continue;
+    if(cs.every(p=>p[0]<-40||p[0]>W+40||p[1]<-40||p[1]>H+40))continue;
+    ctx.beginPath();ctx.moveTo(cs[0][0],cs[0][1]);
+    for(let i=1;i<cs.length;i++)ctx.lineTo(cs[i][0],cs[i][1]);
+    ctx.closePath();
+    ctx.fillStyle='rgba(127,209,201,0.03)';ctx.fill();
+    ctx.strokeStyle='#243040';ctx.lineWidth=1;ctx.stroke();
+  }
+  for(let i=0;i<trail.length-1;i++){
+    const a=toScreen(viewPts(tiling[trail[i]].center)),b=toScreen(viewPts(tiling[trail[i+1]].center));
+    ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);
+    ctx.strokeStyle='rgba(240,168,104,'+(0.15+0.5*i/trail.length)+')';ctx.lineWidth=3;ctx.stroke();
+  }
+  const tp=toScreen(viewPts(tiling[tokenIdx].center));
+  ctx.beginPath();ctx.arc(tp[0],tp[1],7,0,7);ctx.fillStyle='#f0a868';ctx.fill();
+  ctx.strokeStyle='#0b0f17';ctx.lineWidth=2;ctx.stroke();
+}
+function nearestPent(scr){
+  let best=-1,bd=1e9;
+  for(let i=0;i<tiling.length;i++){
+    const sp=toScreen(viewPts(tiling[i].center));
+    const d=Math.hypot(sp[0]-scr[0],sp[1]-scr[1]);
+    if(d<bd){bd=d;best=i;}
+  }
+  return best;
+}
+cv.addEventListener('click',e=>{
+  const r=cv.getBoundingClientRect();
+  const scr=[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height];
+  const P=nearestPent(scr);
+  if(P<0||P===tokenIdx)return;
+  if(!adj[tokenIdx].includes(P)){HUD.msg.textContent='— not adjacent (click a touching pentagon)';return;}
+  tokenIdx=P;steps++;trail.push(P);if(trail.length>40)trail.shift();
+  recenter(tiling[P].center);
+  refresh();draw();
+  if(P===targetIdx){
+    HUD.msg.textContent='found it in '+steps+' step'+(steps===1?'':'s')+'! next one is further out…';
+    round++;setTimeout(newRound,900);
+  }
+});
+document.getElementById('reset').addEventListener('click',()=>{round=1;newRound();});
+buildGraph();
+round=1;newRound();
+window.__pentagame={buildGraph,hypDist,tiling:()=>tiling,adj:()=>adj,bfs,indexOfCenter,ADJ};
+</script>
+</body>
+</html>
