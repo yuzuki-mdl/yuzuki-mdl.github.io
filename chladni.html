@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>chladni figures</title>
+<style>
+  :root { color-scheme: dark; }
+  html,body { margin:0; height:100%; background:#0a0a0f; color:#cdd3e0; font:14px/1.5 ui-monospace,monospace; }
+  #wrap { display:flex; height:100%; }
+  #c { flex:1; display:block; }
+  #side { width:230px; padding:16px; box-sizing:border-box; border-left:1px solid #1c2030; background:#0d0f16; overflow:auto; }
+  h1 { font-size:15px; margin:0 0 4px; letter-spacing:.5px; color:#e8ecf6; }
+  p { margin:0 0 14px; color:#6b7488; font-size:12px; }
+  label { display:block; margin:12px 0 2px; font-size:12px; color:#9aa4bb; }
+  input[type=range] { width:100%; accent-color:#7c8cff; }
+  .row { display:flex; gap:8px; }
+  button { flex:1; margin-top:16px; padding:8px; background:#1a1f30; color:#cdd3e0; border:1px solid #2a3148; border-radius:6px; cursor:pointer; font:inherit; font-size:12px; }
+  button:hover { background:#232a40; }
+  .val { float:right; color:#7c8cff; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div id="side">
+    <h1>chladni figures</h1>
+    <p>standing waves on a plate. bright = still, dark = moving. where the plate doesn't move, sand collects.</p>
+    <label>mode m <span class="val" id="vm">2</span></label>
+    <input type="range" id="m" min="1" max="12" value="2">
+    <label>mode n <span class="val" id="vn">3</span></label>
+    <input type="range" id="n" min="1" max="12" value="3">
+    <label>threshold <span class="val" id="vt">0.12</span></label>
+    <input type="range" id="t" min="0" max="100" value="12">
+    <div class="row"><button id="rand">random</button></div>
+    <button id="save">save png</button>
+  </div>
+</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+let W=0, H=0, dpr=Math.min(window.devicePixelRatio||1, 2);
+let M=2, N=3, TH=0.12;
+
+function resize(){
+  const r = c.getBoundingClientRect();
+  W = Math.floor(r.width); H = Math.floor(r.height);
+  c.width = W*dpr; c.height = H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+
+// chladni: cos(n*pi*x)*cos(m*pi*y) - cos(m*pi*x)*cos(n*pi*y), on x,y in [-1,1]
+function field(x, y, m, n){
+  return Math.cos(n*Math.PI*x)*Math.cos(m*Math.PI*y)
+       - Math.cos(m*Math.PI*x)*Math.cos(n*Math.PI*y);
+}
+
+function draw(){
+  const img = ctx.createImageData(W, H);
+  const d = img.data;
+  const S = Math.min(W, H);
+  const cx = W/2, cy = H/2;
+  for (let py=0; py<H; py++){
+    for (let px=0; px<W; px++){
+      const x = (px - cx)/S*2;
+      const y = (py - cy)/S*2;
+      let v = Math.abs(field(x, y, M, N));
+      // nodes are where v ~ 0; make a bright line at the node
+      let node = 1 - Math.min(v/TH, 1);
+      node = node*node;
+      let shade = 0.10 + node*0.9;
+      // subtle warm tint on the curves
+      const r = Math.floor(255*shade*0.55 + 18);
+      const g = Math.floor(255*shade*0.72 + 20);
+      const b = Math.floor(255*shade + 34);
+      const i = (py*W + px)*4;
+      d[i]=r; d[i+1]=g; d[i+2]=b; d[i+3]=255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+const mEl=document.getElementById('m'), nEl=document.getElementById('n'), tEl=document.getElementById('t');
+const vm=document.getElementById('vm'), vn=document.getElementById('vn'), vt=document.getElementById('vt');
+mEl.oninput=()=>{ M=+mEl.value; vm.textContent=M; draw(); };
+nEl.oninput=()=>{ N=+nEl.value; vn.textContent=N; draw(); };
+tEl.oninput=()=>{ TH=+tEl.value/100; vt.textContent=TH.toFixed(2); draw(); };
+document.getElementById('rand').onclick=()=>{
+  M = 1 + Math.floor(Math.random()*11);
+  N = 1 + Math.floor(Math.random()*11);
+  mEl.value=M; nEl.value=N; vm.textContent=M; vn.textContent=N; draw();
+};
+document.getElementById('save').onclick=()=>{
+  const a=document.createElement('a');
+  a.download=`chladni-${M}-${N}.png`;
+  a.href=c.toDataURL('image/png');
+  a.click();
+};
+window.addEventListener('resize', resize);
+resize();
+</script>
+</body>
+</html>
