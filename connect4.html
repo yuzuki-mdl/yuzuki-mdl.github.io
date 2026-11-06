@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>connect four</title>
+<style>
+html,body{margin:0;height:100%;background:#0b0d12;font-family:system-ui,sans-serif;color:#cfd6e6;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;user-select:none}
+h1{font-weight:500;font-size:18px;letter-spacing:.5px;margin:0;color:#8b93a7}
+#board{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;background:#1a1f2b;padding:10px;border-radius:14px;box-shadow:0 10px 40px #0006}
+.cell{width:min(11vw,52px);height:min(11vw,52px);border-radius:50%;background:#0b0d12;cursor:pointer;transition:background .12s}
+.cell.p1{background:#e0574c}
+.cell.p2{background:#f2c14e}
+.cell.win{box-shadow:0 0 0 3px #fff8 inset,0 0 14px #fff8}
+.cell:hover{background:#161b26}
+.cell.p1:hover{background:#e0574c}
+.cell.p2:hover{background:#f2c14e}
+#status{font-size:15px;color:#e8edf7;min-height:20px}
+button{background:#1a1f2b;color:#cfd6e6;border:1px solid #2b3242;padding:8px 16px;border-radius:9px;font-size:14px;cursor:pointer;font-family:inherit}
+button:hover{background:#232a38}
+</style>
+</head>
+<body>
+<h1>connect four · u vs minimax</h1>
+<div id="board"></div>
+<div id="status">your move (red)</div>
+<button id="reset">new game</button>
+<script>
+const ROWS=6,COLS=7;
+let grid,over,turn,lastWin;
+const boardEl=document.getElementById('board'),statusEl=document.getElementById('status');
+
+function idx(r,c){return r*COLS+c;}
+function newGame(){
+  grid=Array.from({length:ROWS},()=>Array(COLS).fill(0));
+  over=false;turn=1;lastWin=[];
+  render();statusEl.textContent='your move (red)';
+}
+function dropRow(c){for(let r=ROWS-1;r>=0;r--)if(!grid[r][c])return r;return -1;}
+function render(){
+  boardEl.innerHTML='';
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    const d=document.createElement('div');
+    d.className='cell'+(grid[r][c]?' p'+grid[r][c]:'');
+    if(lastWin.some(([wr,wc])=>wr===r&&wc===c))d.classList.add('win');
+    d.onclick=()=>playCol(c);
+    d.onmouseenter=()=>{};
+    boardEl.appendChild(d);
+  }
+}
+function checkWin(g,pl){
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    if(g[r][c]!==pl)continue;
+    for(const[dr,dc]of dirs){
+      const cells=[[r,c]];
+      let rr=r+dr,cc=c+dc;
+      while(rr>=0&&rr<ROWS&&cc>=0&&cc<COLS&&g[rr][cc]===pl){cells.push([rr,cc]);rr+=dr;cc+=dc;}
+      if(cells.length>=4)return cells.slice(0,4);
+    }
+  }
+  return null;
+}
+function full(g){return g[0].every(v=>v);}
+
+function playCol(c){
+  if(over)return;
+  if(turn!==1)return;
+  const r=dropRow(c);
+  if(r<0)return;
+  grid[r][c]=1;turn=2;render();
+  const w=checkWin(grid,1);
+  if(w){lastWin=w;over=true;render();statusEl.textContent='u win';return;}
+  if(full(grid)){over=true;statusEl.textContent='draw';return;}
+  statusEl.textContent='thinking…';
+  setTimeout(aiMove,60);
+}
+
+// minimax with alpha-beta, depth 5
+function scoreWindow(g,pl){
+  const w=checkWin(g,pl);if(w)return 100000;
+  const o=checkWin(g,pl===1?2:1);if(o)return -100000;
+  return 0;
+}
+function evalBoard(g){
+  // simple: count 3-in-windows
+  let s=0;
+  const dirs=[[0,1],[1,0],[1,1],[1,-1]];
+  for(let r=0;r<ROWS;r++)for(let c=0;c<COLS;c++){
+    for(const[dr,dc]of dirs){
+      let a=0,b=0;
+      for(let k=0;k<4;k++){
+        const rr=r+dr*k,cc=c+dc*k;
+        if(rr<0||rr>=ROWS||cc<0||cc>=COLS){a=b=-99;break;}
+        if(g[rr][cc]===2)a++;else if(g[rr][cc]===1)b++;
+      }
+      if(a===3&&b===0)s+=10;else if(a===2&&b===0)s+=2;
+      if(b===3&&a===0)s-=12;else if(b===2&&a===0)s-=2;
+    }
+  }
+  return s;
+}
+function minimax(g,depth,alpha,beta,maximizing){
+  const w2=checkWin(g,2),w1=checkWin(g,1);
+  if(w2)return[1000000-depth,null];
+  if(w1)return[-1000000+depth,null];
+  if(full(g))return[0,null];
+  if(depth===0)return[evalBoard(g),null];
+  const valid=[];for(let c=0;c<COLS;c++)if(dropRow2(g,c)>=0)valid.push(c);
+  let bestCol=valid[0];
+  if(maximizing){
+    let best=-Infinity;
+    for(const c of valid){
+      const r=dropRow2(g,c);g[r][c]=2;
+      const[s]=minimax(g,depth-1,alpha,beta,false);
+      g[r][c]=0;
+      if(s>best){best=s;bestCol=c;}
+      alpha=Math.max(alpha,best);
+      if(alpha>=beta)break;
+    }
+    return[best,bestCol];
+  }else{
+    let best=Infinity;
+    for(const c of valid){
+      const r=dropRow2(g,c);g[r][c]=1;
+      const[s]=minimax(g,depth-1,alpha,beta,true);
+      g[r][c]=0;
+      if(s<best){best=s;bestCol=c;}
+      beta=Math.min(beta,best);
+      if(alpha>=beta)break;
+    }
+    return[best,bestCol];
+  }
+}
+function dropRow2(g,c){for(let r=ROWS-1;r>=0;r--)if(!g[r][c])return r;return -1;}
+
+function aiMove(){
+  const[,col]=minimax(grid,5,-Infinity,Infinity,true);
+  const c=col==null?0:col;
+  const r=dropRow(c);
+  if(r<0){over=true;statusEl.textContent='draw';return;}
+  grid[r][c]=2;turn=1;render();
+  const w=checkWin(grid,2);
+  if(w){lastWin=w;over=true;render();statusEl.textContent='minimax wins';return;}
+  if(full(grid)){over=true;statusEl.textContent='draw';return;}
+  statusEl.textContent='your move (red)';
+}
+
+document.getElementById('reset').onclick=newGame;
+newGame();
+</script>
+</body>
+</html>
