@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hyperbolic glider — yuzuki</title>
+<style>
+  :root{ --bg:#08080c; --fg:#e8e6f0; --dim:#8b8899; --acc:#7bd88f; --gem:#ffd166; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden;height:100%}
+  a{color:var(--acc)}
+  #hud{position:fixed;left:14px;top:12px;z-index:5;font-size:12px;color:var(--dim);line-height:1.7;pointer-events:none}
+  #hud b{color:var(--fg);font-weight:600}
+  #hud a{pointer-events:auto}
+  #score{position:fixed;right:14px;top:12px;z-index:5;font-size:13px;color:var(--dim);text-align:right;line-height:1.7}
+  #score b{color:var(--gem);font-weight:600;font-size:18px}
+  canvas{display:block;width:100%;height:100%;touch-action:none;cursor:pointer}
+  #toast{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:6;font-size:14px;color:var(--gem);pointer-events:none;opacity:0;transition:opacity .4s}
+</style>
+</head>
+<body>
+<canvas id=c></canvas>
+<div id=hud>
+  hyperbolic <b>{5,4}</b> glider · pentagons, 4 at every vertex<br>
+  click a neighbouring pentagon to glide · <a href="./index.html">← all toys</a>
+</div>
+<div id=score>gems <b id=gems>0</b><br>moves <span id=moves>0</span></div>
+<div id=toast></div>
+<script>
+const P=5;
+// ---- geometry ----
+const cmul=(p,q)=>[p[0]*q[0]-p[1]*q[1], p[0]*q[1]+p[1]*q[0]];
+const cadd=(p,q)=>[p[0]+q[0],p[1]+q[1]];
+const cconj=p=>[p[0],-p[1]];
+function apply(M,z){const num=cadd(cmul(M.a,z),M.b);const den=cadd(cmul(cconj(M.b),z),cconj(M.a));const d2=den[0]*den[0]+den[1]*den[1];return [(num[0]*den[0]+num[1]*den[1])/d2,(num[1]*den[0]-num[0]*den[1])/d2];}
+function mul(Pt,Q){return {a:cadd(cmul(Pt.a,Q.a),cmul(Pt.b,cconj(Q.b))), b:cadd(cmul(Pt.a,Q.b),cmul(Pt.b,cconj(Q.a)))};}
+const I={a:[1,0],b:[0,0]};
+function transl(t,th){return {a:[Math.cosh(t/2),0], b:[Math.sinh(t/2)*Math.cos(th),Math.sinh(t/2)*Math.sin(th)]};}
+function isoToOrigin(c){const r=Math.hypot(c[0],c[1]); if(r<1e-12) return I; const t=2*Math.atanh(Math.min(r,0.999999)); const th=Math.atan2(c[1],c[0]); return transl(t,th);}
+function recenterIso(c){const r=Math.hypot(c[0],c[1]); if(r<1e-12) return I; const t=2*Math.atanh(Math.min(r,0.999999)); const th=Math.atan2(c[1],c[0]); return transl(-t,th);}
+const rv=Math.tanh(Math.acosh(Math.cos(Math.PI/4)/Math.sin(Math.PI/5))/2);
+function centralVerts(){const v=[];for(let i=0;i<P;i++){const a=-Math.PI/2+2*Math.PI*i/P;v.push([rv*Math.cos(a),rv*Math.sin(a)]);}return v;}
+function gc(p1,p2){const [x1,y1]=p1,[x2,y2]=p2;const b1=(1+x1*x1+y1*y1)/2,b2=(1+x2*x2+y2*y2)/2;const det=x1*y2-x2*y1;if(Math.abs(det)<1e-12)return null;const cx=(b1*y2-b2*y1)/det,cy=(x1*b2-x2*b1)/det;return {cx,cy,r:Math.hypot(cx-x1,cy-y1)};}
+function rp(pt,c){const dx=pt[0]-c.cx,dy=pt[1]-c.cy,d2=dx*dx+dy*dy;return [c.cx+c.r*c.r*dx/d2,c.cy+c.r*c.r*dy/d2];}
+function rpoly(vs,e){const p1=vs[e],p2=vs[(e+1)%P];const c=gc(p1,p2);if(c)return vs.map(v=>rp(v,c));const mx=p1[0]+p2[0],my=p1[1]+p2[1],d=Math.hypot(mx,my),ux=mx/d,uy=my/d;return vs.map(v=>{const dot=v[0]*ux+v[1]*uy;return [2*dot*ux-v[0],2*dot*uy-v[1]];});}
+function cen(vs){let x=0,y=0;for(const v of vs){x+=v[0];y+=v[1];}return [x/P,y/P];}
+function buildBall(rings){const polys=[],adj=[];const key=c=>Math.round(c[0]*1000)+','+Math.round(c[1]*1000);const seen=new Map();function add(vs){const k=key(cen(vs));if(seen.has(k))return seen.get(k);const i=polys.length;seen.set(k,i);polys.push(vs);adj.push([-1,-1,-1,-1,-1]);return i;}add(centralVerts());for(let r=0;r<rings;r++){const n=polys.length;for(let i=0;i<n;i++)for(let e=0;e<P;e++){if(adj[i][e]!==-1)continue;const nbi=add(rpoly(polys[i],e));adj[i][e]=nbi;if(adj[nbi].indexOf(i)>=0)continue;for(let f=0;f<P;f++){if(adj[nbi][f]!==-1)continue;const cb=cen(rpoly(polys[nbi],f)),cp=cen(polys[i]);if(Math.abs(cb[0]-cp[0])<1e-7&&Math.abs(cb[1]-cp[1])<1e-7){adj[nbi][f]=i;break;}}}}return {polys,adj};}
+
+const RINGS=4;
+function mkBall(){return buildBall(RINGS);}
+function recenter(ball, T){
+  // apply T to all vertices, return new ball with same adjacency structure
+  return {polys:ball.polys.map(vs=>vs.map(v=>apply(T,v))), adj:ball.adj};
+}
+function applyBallT(ball, T){return {polys:ball.polys.map(vs=>vs.map(v=>apply(T,v))), adj:ball.adj};}
+
+// ---- state ----
+let ball = mkBall();
+let playerIdx = 0;     // index in ball.polys of the pentagon the player is on (always at origin)
+let Pw = I;           // world isometry: maps world coords to render coords. player world pos = Pw^{-1}(0)
+let gems = [];        // world coords (complex numbers in the ORIGINAL frame at game start)
+let visited = new Set(); // visited world pentagon ids (rounded)
+let score = 0;
+let moves = 0;
+
+function pentKey(c){return Math.round(c[0]*10000)+','+Math.round(c[1]*10000);}
+
+function spawnGems(n){
+  // place n gems on random pentagons in current ball (not center)
+  const candidates = [];
+  for(let i=1;i<ball.polys.length;i++) candidates.push(i);
+  // shuffle
+  for(let i=candidates.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[candidates[i],candidates[j]]=[candidates[j],candidates[i]];}
+  for(let k=0;k<n && k<candidates.length;k++){
+    const c = cen(ball.polys[candidates[k]]);
+    // world coord = P^{-1}(c) but ball is already in render frame, and P maps world→render, so world = P^{-1}(render)
+    const Pinv = {a:cconj(Pw.a), b:[-Pw.b[0],-Pw.b[1]]};
+    gems.push(apply(Pinv, c));
+  }
+}
+
+function collectIfNear(){
+  // player at render origin (0,0). gem render coord = apply(Pw, gem_world).
+  let collected = 0;
+  gems = gems.filter(g=>{
+    const r = apply(Pw, g);
+    if(Math.hypot(r[0],r[1]) < 0.02){collected++;return false;}
+    return true;
+  });
+  if(collected>0){score+=collected;document.getElementById('gems').textContent=score;}
+  return collected;
+}
+
+function moveTo(neighborIdx){
+  // neighborIdx is index of pentagon in current ball (should be one of adj[0])
+  if(neighborIdx<0) return;
+  const c = cen(ball.polys[neighborIdx]);
+  const T = recenterIso(c);
+  // new ball: apply T to all vertices
+  ball = applyBallT(ball, T);
+  // new world isometry: P_new = T ∘ P_old
+  Pw = mul(T, Pw);
+  playerIdx = neighborIdx;
+  moves++;
+  document.getElementById('moves').textContent=moves;
+  // mark player's new pentagon as visited (world coord = origin in render)
+  // collect gems
+  collectIfNear();
+  if(gems.length===0){spawnGems(3);}
+  draw();
+}
+
+// ---- canvas ----
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H;function resize(){W=cv.width=innerWidth*devicePixelRatio;H=cv.height=innerHeight*devicePixelRatio;ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
+addEventListener('resize',resize);resize();
+let zoom=1;
+
+function toScreen(z){
+  const sc=Math.min(innerWidth,innerHeight)*0.5*zoom;
+  return [innerWidth/2+z[0]*sc, innerHeight/2+z[1]*sc];
+}
+function screenCirc(A,B,C){const ax=A[0],ay=A[1],bx=B[0],by=B[1],cx=C[0],cy=C[1];const d=2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));if(Math.abs(d)<1e-9)return null;const ux=((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/d;const uy=((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/d;return {cx:ux,cy:uy,r:Math.hypot(ax-ux,ay-uy)};}
+function drawGeodesic(p1,p2){
+  const M=isoToOrigin(p1);
+  const Finv={a:cconj(M.a),b:[-M.b[0],-M.b[1]]};
+  const w=apply(Finv,p2);
+  const pt=t=>{const p=apply(M,[w[0]*t,w[1]*t]);return toScreen(p);};
+  const A=pt(0),B=pt(0.5),C=pt(1);
+  const cc=screenCirc(A,B,C);
+  if(!cc){ctx.moveTo(A[0],A[1]);ctx.lineTo(C[0],C[1]);return;}
+  let a0=Math.atan2(A[1]-cc.cy,A[0]-cc.cx), a1=Math.atan2(C[1]-cc.cy,C[0]-cc.cx);
+  const am=Math.atan2(B[1]-cc.cy,B[0]-cc.cx);
+  const norm=x=>{while(x<0)x+=2*Math.PI;while(x>=2*Math.PI)x-=2*Math.PI;return x;};
+  let d1=norm(a1-a0), dm=norm(am-a0);
+  const ccw = dm<d1;
+  ctx.arc(cc.cx,cc.cy,cc.r,a0,a1,!ccw);
+}
+
+const COL_A='#1b2f3f', COL_B='#25455c';
+const EDGE='rgba(123,216,143,0.35)';
+const HIGHLIGHT='rgba(123,216,143,0.65)';
+let time=0;
+
+function draw(){
+  time += 0.016;
+  ctx.clearRect(0,0,innerWidth,innerHeight);
+  const sc=Math.min(innerWidth,innerHeight)*0.5*zoom;
+  ctx.beginPath();ctx.arc(innerWidth/2,innerHeight/2,sc,0,7);ctx.fillStyle='#050508';ctx.fill();
+  // depth parity coloring
+  const depthArr=new Array(ball.polys.length).fill(-1);depthArr[0]=0;const qq=[0];
+  const vkey=p=>Math.round(p[0]*1e4)+','+Math.round(p[1]*1e4);
+  const vmap=new Map();
+  ball.polys.forEach((vs,i)=>vs.forEach(v=>{const k=vkey(v);if(!vmap.has(k))vmap.set(k,[]);vmap.get(k).push(i);}));
+  const padj=ball.polys.map(()=>new Set());
+  for(const arr of vmap.values()){for(let x=0;x<arr.length;x++)for(let y=x+1;y<arr.length;y++){padj[arr[x]].add(arr[y]);padj[arr[y]].add(arr[x]);}}
+  for(let h=0;h<qq.length;h++){const i=qq[h];for(const j of padj[i])if(depthArr[j]<0){depthArr[j]=depthArr[i]+1;qq.push(j);}}
+  const order=[...ball.polys.keys()].sort((i,j)=>depthArr[j]-depthArr[i]);
+  // highlight neighbors of center
+  const neighbors = new Set(ball.adj[playerIdx].filter(j=>j>=0));
+  for(const i of order){
+    const vs=ball.polys[i];
+    ctx.beginPath();
+    for(let e=0;e<P;e++){drawGeodesic(vs[e],vs[(e+1)%P]);}
+    ctx.closePath();
+    ctx.fillStyle=(depthArr[i]&1)?COL_B:COL_A;
+    ctx.fill();
+    ctx.strokeStyle = neighbors.has(i) ? HIGHLIGHT : EDGE;
+    ctx.lineWidth = neighbors.has(i) ? 1.8 : 1;
+    ctx.stroke();
+  }
+  // draw gems
+  for(const g of gems){
+    const r = apply(Pw, g);
+    if(Math.hypot(r[0],r[1]) > 0.98) continue;
+    const [sx,sy] = toScreen(r);
+    const pulse = 0.7 + 0.3*Math.sin(time*4 + (g[0]+g[1])*10);
+    ctx.beginPath();
+    ctx.arc(sx,sy, 8*pulse, 0, 7);
+    ctx.fillStyle='rgba(255,209,102,'+(0.3*pulse)+')';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(sx,sy, 4*pulse, 0, 7);
+    ctx.fillStyle='#ffd166';
+    ctx.fill();
+  }
+  // draw player at origin
+  const pulse2 = 0.85 + 0.15*Math.sin(time*3);
+  const [px,py] = toScreen([0,0]);
+  ctx.beginPath();
+  ctx.arc(px,py, 14*pulse2, 0, 7);
+  ctx.fillStyle='rgba(123,216,143,'+(0.18*pulse2)+')';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(px,py, 6, 0, 7);
+  ctx.fillStyle='#7bd88f';
+  ctx.fill();
+  ctx.strokeStyle='#e8e6f0';ctx.lineWidth=1.5;
+  ctx.stroke();
+  // boundary
+  ctx.beginPath();ctx.arc(innerWidth/2,innerHeight/2,sc,0,7);ctx.strokeStyle='rgba(123,216,143,0.6)';ctx.lineWidth=1.5;ctx.stroke();
+}
+
+// ---- interaction ----
+cv.addEventListener('click', e=>{
+  // find nearest neighbor pentagon center to click
+  const rect = cv.getBoundingClientRect();
+  const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+  const sc = Math.min(innerWidth,innerHeight)*0.5*zoom;
+  let best=-1, bestD=Infinity;
+  for(const j of ball.adj[playerIdx]){
+    if(j<0) continue;
+    const c = cen(ball.polys[j]);
+    const [sx,sy] = toScreen(c);
+    const d = Math.hypot(sx-mx, sy-my);
+    if(d<bestD){bestD=d;best=j;}
+  }
+  if(best>=0) moveTo(best);
+});
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom*=Math.exp(-e.deltaY*0.0012);zoom=Math.max(0.4,Math.min(3.5,zoom));draw();},{passive:false});
+
+// start
+spawnGems(3);
+draw();
+setInterval(()=>{ if(gems.length>0) draw(); }, 50);
+console.log('polys',ball.polys.length,'R',RINGS);
+</script>
+</body>
+</html>
