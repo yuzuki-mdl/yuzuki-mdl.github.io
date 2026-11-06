@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the majority illusion</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body{max-width:820px;margin:0 auto;padding:24px 18px 60px;font-family:ui-monospace,Menlo,monospace;line-height:1.55;color:#e8e8e8;background:#141414}
+  h1{font-size:1.5rem;margin:0 0 4px}
+  .sub{color:#888;font-size:.85rem;margin:0 0 22px}
+  p{font-size:.92rem;color:#cfcfcf}
+  canvas{display:block;width:100%;height:auto;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:8px;margin:14px 0}
+  .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:10px 0}
+  label{font-size:.85rem;color:#aaa}
+  input[type=range]{width:180px}
+  .stat{font-size:.85rem;color:#cfcfcf}
+  .stat b{color:#fff}
+  .blue{color:#5aa9ff}.red{color:#ff6b6b}
+  button{background:#222;color:#eee;border:1px solid #3a3a3a;border-radius:6px;padding:6px 12px;font-family:inherit;cursor:pointer}
+  button:hover{background:#2c2c2c}
+  .note{font-size:.8rem;color:#777;border-top:1px solid #262626;padding-top:12px;margin-top:22px}
+</style>
+</head>
+<body>
+<h1>the majority illusion</h1>
+<p class="sub">a minority can look like a majority, if it sits in the right places</p>
+
+<p>Take a network. Colour a <b>minority</b> of people blue — say 25%. Now ask a random person: <i>what fraction of your friends are blue?</i> The answer is usually way higher than 25%, because blue people tend to befriend lots of people, and high-degree nodes get seen more. This is the majority illusion: a real minority that <em>feels</em> like the majority.</p>
+
+<canvas id="cv" width="760" height="420"></canvas>
+
+<div class="row">
+  <label>blue fraction <span id="bfv">0.25</span></label>
+  <input id="bf" type="range" min="0.05" max="0.5" step="0.01" value="0.25">
+</div>
+<div class="row">
+  <label>degree bias <span id="dbv">1.0</span></label>
+  <input id="db" type="range" min="0" max="3" step="0.1" value="1.0">
+</div>
+<div class="row">
+  <button id="re">new network</button>
+  <button id="paint">recolour</button>
+</div>
+
+<p class="stat">true blue fraction: <b id="truef">–</b></p>
+<p class="stat">what the average person sees in their friends: <b id="sees" class="blue">–</b></p>
+<p class="stat">illusion factor: <b id="fac">–</b> (how many times bigger the minority looks)</p>
+
+<p class="note">degree bias = how strongly blue nodes prefer to connect to high-degree nodes. at 0, colour is random. at 1, blue nodes cluster on the hubs. the illusion gets stronger as bias grows — that's the whole trick: <b>it's not that blue is loud, it's that blue is well-connected.</b></p>
+
+<script>
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+let nodes = [], edges = [], W = cv.width, H = cv.height;
+
+function rand(a,b){return a + Math.random()*(b-a);}
+
+function build(){
+  nodes = []; edges = [];
+  const N = 90;
+  // random geometric-ish: place, connect near neighbours + a few hubs
+  for(let i=0;i<N;i++){
+    nodes.push({x: rand(40,W-40), y: rand(40,H-40), deg:0, blue:false});
+  }
+  // preferential-ish attachment for hubs: sort by a random 'popularity'
+  const pop = nodes.map(()=>Math.random());
+  for(let i=0;i<N;i++){
+    // connect to 3 nearest by euclid + 1 random weighted by pop
+    const d = nodes.map((n,j)=>({j, d:Math.hypot(n.x-nodes[i].x, n.y-nodes[i].y)})).filter(o=>o.j!==i).sort((a,b)=>a.d-b.d);
+    for(let k=0;k<3;k++){ addEdge(i, d[k].j); }
+    // one long edge to a high-pop node
+    let best=-1, bp=-1;
+    for(let t=0;t<8;t++){ const j=Math.floor(Math.random()*N); if(j!==i && pop[j]>bp){bp=pop[j]; best=j;} }
+    if(best>=0) addEdge(i,best);
+  }
+  colour();
+  draw();
+}
+
+function addEdge(a,b){
+  if(a===b) return;
+  if(edges.some(e=>(e.a===a&&e.b===b)||(e.a===b&&e.b===a))) return;
+  edges.push({a,b}); nodes[a].deg++; nodes[b].deg++;
+}
+
+function colour(){
+  const bf = parseFloat(document.getElementById('bf').value);
+  const bias = parseFloat(document.getElementById('db').value);
+  const N = nodes.length;
+  const nBlue = Math.round(bf*N);
+  // score = degree^bias * random; pick top nBlue
+  const score = nodes.map((n,i)=>({i, s: Math.pow(n.deg+1, bias) * (0.5+Math.random())}));
+  score.sort((a,b)=>b.s-a.s);
+  nodes.forEach(n=>n.blue=false);
+  for(let k=0;k<nBlue;k++) nodes[score[k].i].blue = true;
+  stats(bf);
+}
+
+function stats(bf){
+  const N = nodes.length;
+  const nBlue = nodes.filter(n=>n.blue).length;
+  let sum=0, cnt=0;
+  for(let i=0;i<N;i++){
+    let nb=0, tot=0;
+    for(const e of edges){
+      if(e.a===i||e.b===i){ const o = e.a===i?e.b:e.a; tot++; if(nodes[o].blue) nb++; }
+    }
+    if(tot>0){ sum += nb/tot; cnt++; }
+  }
+  const sees = sum/cnt;
+  const truef = nBlue/N;
+  document.getElementById('truef').textContent = (truef*100).toFixed(1)+'%';
+  document.getElementById('sees').textContent = (sees*100).toFixed(1)+'%';
+  document.getElementById('fac').textContent = (sees/truef).toFixed(2)+'×';
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.strokeStyle = '#2a2a2a'; ctx.lineWidth = 1;
+  for(const e of edges){
+    ctx.beginPath(); ctx.moveTo(nodes[e.a].x, nodes[e.a].y); ctx.lineTo(nodes[e.b].x, nodes[e.b].y); ctx.stroke();
+  }
+  for(const n of nodes){
+    ctx.beginPath();
+    ctx.arc(n.x, n.y, 4 + Math.sqrt(n.deg)*1.5, 0, 7);
+    ctx.fillStyle = n.blue ? '#5aa9ff' : '#ff6b6b';
+    ctx.fill();
+  }
+}
+
+document.getElementById('bf').addEventListener('input', e=>{ document.getElementById('bfv').textContent = e.target.value; colour(); draw(); });
+document.getElementById('db').addEventListener('input', e=>{ document.getElementById('dbv').textContent = e.target.value; colour(); draw(); });
+document.getElementById('re').addEventListener('click', ()=>{ build(); });
+document.getElementById('paint').addEventListener('click', ()=>{ colour(); draw(); });
+
+build();
+</script>
+</body>
+</html>
