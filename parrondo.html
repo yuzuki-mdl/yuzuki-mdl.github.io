@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>parrondo's paradox</title>
+<style>
+  :root{--bg:#11131a;--fg:#e8e6e3;--dim:#7a7f8c;--a:#e0576b;--b:#5a9bd4;--mix:#7ddc9a;--grid:#232734}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:24px;max-width:920px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:20px}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+  button{background:#1b1f2b;color:var(--fg);border:1px solid #2c3242;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer;transition:.15s}
+  button:hover{background:#252b3a;border-color:#3a4256}
+  button.on{background:#2b3346;border-color:#5a6478}
+  .slider{display:flex;gap:10px;align-items:center;color:var(--dim);font-size:13px}
+  input[type=range]{accent-color:var(--mix);width:140px}
+  canvas{width:100%;background:#0c0e14;border:1px solid #1e2230;border-radius:10px;display:block}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px}
+  .card{background:#161a24;border:1px solid #222838;border-radius:10px;padding:12px 14px}
+  .card .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:4px}
+  .card .val{font-size:22px;font-weight:600}
+  .card .val.pos{color:var(--mix)} .card .val.neg{color:var(--a)}
+  .note{color:var(--dim);font-size:12px;margin-top:18px;line-height:1.6}
+  code{color:var(--fg);background:#1b1f2b;padding:1px 5px;border-radius:4px;font-size:12px}
+</style>
+</head>
+<body>
+<h1>parrondo's paradox</h1>
+<div class="sub">two losing games. play them in the right mix and you win.</div>
+
+<div class="controls">
+  <button id="playA" class="on">game A</button>
+  <button id="playB">game B</button>
+  <button id="playMix">random mix</button>
+  <button id="reset">reset</button>
+  <div class="slider"><label>ε</label><input id="eps" type="range" min="0" max="0.05" step="0.001" value="0.005"><span id="epsval">0.005</span></div>
+</div>
+
+<canvas id="c" width="880" height="360"></canvas>
+
+<div class="stats">
+  <div class="card"><div class="lbl">capital</div><div class="val" id="cap">0</div></div>
+  <div class="card"><div class="lbl">rounds</div><div class="val" id="rounds">0</div></div>
+  <div class="card"><div class="lbl">win rate</div><div class="val" id="wr">—</div></div>
+</div>
+
+<div class="note">
+<b>game A</b>: flip a coin, win with p = 0.5 − ε. loses for any ε &gt; 0.<br>
+<b>game B</b>: if capital ≡ 0 (mod 3), win with p₁ = 0.1 − ε. otherwise win with p₂ = 0.75 − ε. also loses on its own.<br>
+<b>random mix</b>: flip a fair coin each round to pick A or B — and the capital climbs (for small ε). the losing game B is the hand that pulls you off the multiples of 3, where the bad coin lives. note: playing them in strict A B A B... order does <i>not</i> win — it's the randomness that does it.<br>
+<span style="color:#5a6478">the chart shows capital over time. watch what each mode does to the trend.</span>
+</div>
+
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const W = c.width, H = c.height;
+let cap = 0, rounds = 0, wins = 0, history = [0];
+let mode = 'A'; // 'A' | 'B' | 'mix'
+let eps = 0.005;
+let mixToggle = 0;
+
+function winA(){ return Math.random() < (0.5 - eps); }
+function winB(){ return Math.random() < ((cap % 3 === 0) ? (0.1 - eps) : (0.75 - eps)); }
+
+function step(){
+  let w;
+  if(mode === 'A'){ w = winA(); }
+  else if(mode === 'B'){ w = winB(); }
+  else { // random mix: fair coin picks which game
+    w = (Math.random() < 0.5) ? winA() : winB();
+  }
+  cap += w ? 1 : -1;
+  if(w) wins++;
+  rounds++;
+  history.push(cap);
+  if(history.length > 4000) history.shift();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle = '#1a1e29'; ctx.lineWidth = 1;
+  for(let x=0;x<=W;x+=W/8){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=0;y<=H;y+=H/6){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  // zero line
+  const minV = Math.min(0, ...history), maxV = Math.max(0, ...history);
+  const range = Math.max(1, maxV - minV);
+  const pad = 20;
+  const yOf = v => H - pad - ((v - minV) / range) * (H - 2*pad);
+  const y0 = yOf(0);
+  ctx.strokeStyle = '#3a4256'; ctx.beginPath(); ctx.moveTo(0,y0); ctx.lineTo(W,y0); ctx.stroke();
+  // line
+  const col = mode === 'A' ? '#e0576b' : mode === 'B' ? '#5a9bd4' : '#7ddc9a';
+  ctx.strokeStyle = col; ctx.lineWidth = 1.6; ctx.beginPath();
+  const N = history.length;
+  for(let i=0;i<N;i++){
+    const x = N>1 ? (i/(N-1))*W : 0;
+    const y = yOf(history[i]);
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+}
+
+function updateStats(){
+  const capEl = document.getElementById('cap');
+  capEl.textContent = cap;
+  capEl.className = 'val ' + (cap>0?'pos':cap<0?'neg':'');
+  document.getElementById('rounds').textContent = rounds;
+  const wr = rounds ? (100*wins/rounds) : 0;
+  document.getElementById('wr').textContent = rounds ? wr.toFixed(1)+'%' : '—';
+}
+
+// loop
+let acc = 0, last = performance.now();
+function frame(now){
+  const dt = now - last; last = now;
+  acc += dt;
+  // ~ 60 steps/sec
+  while(acc > 16){ step(); acc -= 16; }
+  draw(); updateStats();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// controls
+function setMode(m){
+  mode = m; mixToggle = 0;
+  document.querySelectorAll('.controls button').forEach(b=>b.classList.remove('on'));
+  ({A:'playA',B:'playB',mix:'playMix'})[m] && document.getElementById({A:'playA',B:'playB',mix:'playMix'}[m]).classList.add('on');
+}
+document.getElementById('playA').onclick = ()=>setMode('A');
+document.getElementById('playB').onclick = ()=>setMode('B');
+document.getElementById('playMix').onclick = ()=>setMode('mix');
+document.getElementById('reset').onclick = ()=>{ cap=0;rounds=0;wins=0;history=[0];mixToggle=0; };
+document.getElementById('eps').oninput = e=>{ eps = parseFloat(e.target.value); document.getElementById('epsval').textContent = eps.toFixed(3); };
+</script>
+</body>
+</html>
