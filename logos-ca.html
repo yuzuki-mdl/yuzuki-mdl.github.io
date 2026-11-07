@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>logos-ca — a cellular automaton made of words</title>
+<style>
+  :root{--bg:#0e0e10;--fg:#e8e6e1;--dim:#8a8780;--fire:#ff6a3d;--tree:#3fae6b;--ash:#5a5650;--dirt:#3a332b;--accent:#ffd166}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:24px;max-width:960px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--dim);margin:0 0 20px;font-size:13px}
+  .rule{background:#17171b;border:1px solid #26262c;border-radius:10px;padding:14px 16px;margin-bottom:16px;font-size:15px;line-height:1.6}
+  .rule b{color:var(--accent)}
+  #grid{display:grid;gap:2px;margin:0 auto;width:max-content}
+  .cell{width:var(--cs,16px);height:var(--cs,16px);border-radius:2px;transition:background .15s, transform .15s;position:relative}
+  .cell span{display:none}
+  .tree{background:var(--tree)}
+  .fire{background:var(--fire);box-shadow:0 0 6px var(--fire)}
+  .ash{background:var(--ash)}
+  .dirt{background:var(--dirt)}
+  .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0}
+  button{background:#22222a;color:var(--fg);border:1px solid #33333d;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+  button:hover{background:#2c2c36}
+  button.on{background:var(--accent);color:#111;border-color:var(--accent)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;font-size:13px;color:var(--dim)}
+  .legend i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  .stat{margin-left:auto;color:var(--dim);font-size:13px}
+  .note{color:var(--dim);font-size:12px;margin-top:20px;border-top:1px solid #22222a;padding-top:14px;line-height:1.7}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<h1>logos-ca</h1>
+<p class="sub">a cellular automaton where the state and the rule are both sentences. cells hold words, the rule is a sentence, a tiny parser reads the verbs and updates the grid. no LLM, just language-shaped rules.</p>
+
+<div class="rule" id="ruleBox"></div>
+
+<div id="grid"></div>
+
+<div class="controls">
+  <button id="play">play</button>
+  <button id="step">step</button>
+  <button id="reset">reset</button>
+  <button id="next">different rule</button>
+  <span class="stat" id="stat"></span>
+</div>
+
+<div class="legend">
+  <span><i style="background:var(--tree)"></i>tree</span>
+  <span><i style="background:var(--fire)"></i>fire</span>
+  <span><i style="background:var(--ash)"></i>ash</span>
+  <span><i style="background:var(--dirt)"></i>dirt</span>
+</div>
+
+<p class="note">inspired by <a href="https://arxiv.org/abs/2602.00036">LOGOS-CA</a> (Utimula 2026), which hands each step to an LLM. this is the cheap version: the rule is parsed by keyword, not understood. the interesting bit is that a sentence can be a program if you squint. state: tree / fire / ash / dirt.</p>
+
+<script>
+const W=40, H=24;
+let grid=[], running=false, timer=null, ticks=0;
+
+// each rule: a sentence + a parser that turns it into transitions.
+// transitions read neighbours and return next state.
+const RULES=[
+  {
+    name:'forest fire',
+    sentence:'a <b>fire</b> spreads to every <b>tree</b> beside it; a fire with no tree left beside it burns out to <b>ash</b>; <b>ash</b> slowly becomes <b>dirt</b>.',
+    init(){ // a few trees, one spark
+      for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+        grid[y][x]= Math.random()<0.55?'tree':'dirt';
+      }
+      let sx=W>>1, sy=H>>1; grid[sy][sx]='fire';
+    },
+    step(x,y){
+      const s=grid[y][x]; const n=neigh(x,y);
+      if(s==='fire'){
+        if(n.includes('tree')) return 'fire';
+        return 'ash';
+      }
+      if(s==='tree'){
+        if(n.filter(v=>v==='fire').length>0) return 'fire';
+        return 'tree';
+      }
+      if(s==='ash'){ return Math.random()<0.02?'dirt':'ash'; }
+      if(s==='dirt'){ return 'dirt'; }
+    }
+  },
+  {
+    name:'trees spread, fire kills',
+    sentence:'a <b>tree</b> with three or more <b>tree</b> neighbours sprouts a new <b>tree</b> into empty <b>dirt</b>; a <b>fire</b> turns any <b>tree</b> beside it to <b>ash</b>; <b>ash</b> is inert.',
+    init(){ for(let y=0;y<H;y++)for(let x=0;x<W;x++) grid[y][x]= Math.random()<0.25?'tree':'dirt'; },
+    step(x,y){
+      const s=grid[y][x]; const n=neigh(x,y);
+      const tc=n.filter(v=>v==='tree').length;
+      if(s==='dirt'){ if(tc>=3) return 'tree'; return 'dirt'; }
+      if(s==='tree'){ if(n.includes('fire')) return 'ash'; return 'tree'; }
+      if(s==='fire'){ return 'ash'; }
+      if(s==='ash'){ return 'ash'; }
+    }
+  },
+  {
+    name:'the fire remembers',
+    sentence:'a <b>fire</b> spreads to <b>tree</b>; <b>ash</b> beside <b>fire</b> relights; <b>tree</b> with no <b>fire</b> anywhere nearby grows into <b>dirt</b> edges.',
+    init(){ for(let y=0;y<H;y++)for(let x=0;x<W;x++) grid[y][x]= Math.random()<0.5?'tree':'ash'; grid[H>>1][W>>1]='fire'; },
+    step(x,y){
+      const s=grid[y][x]; const n=neigh(x,y);
+      if(s==='fire'){ return 'fire'; }
+      if(s==='tree'){ if(n.includes('fire')) return 'fire'; return 'tree'; }
+      if(s==='ash'){ if(n.includes('fire')&&Math.random()<0.3) return 'fire'; return 'ash'; }
+      return s;
+    }
+  }
+];
+let ruleIx=0;
+
+function neigh(x,y){ const o=[]; for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){ if(!dx&&!dy)continue; const nx=x+dx,ny=y+dy; if(nx>=0&&nx<W&&ny>=0&&ny<H) o.push(grid[ny][nx]); } return o; }
+
+function buildGrid(){
+  const g=document.getElementById('grid');
+  g.style.gridTemplateColumns=`repeat(${W}, var(--cs,16px))`;
+  g.innerHTML='';
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const d=document.createElement('div'); d.className='cell'; d.dataset.x=x; d.dataset.y=y; g.appendChild(d);
+  }
+}
+
+function paint(){
+  const cells=document.querySelectorAll('.cell');
+  for(const c of cells){ const x=+c.dataset.x, y=+c.dataset.y; c.className='cell '+grid[y][x]; }
+  const counts={}; for(let y=0;y<H;y++)for(let x=0;x<W;x++) counts[grid[y][x]]=(counts[grid[y][x]]||0)+1;
+  document.getElementById('stat').textContent = `tick ${ticks} · ` + Object.entries(counts).map(([k,v])=>`${k} ${v}`).join(' · ');
+}
+
+function doStep(){
+  const r=RULES[ruleIx];
+  const ng=grid.map(row=>row.slice());
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++) ng[y][x]=r.step(x,y);
+  grid=ng; ticks++; paint();
+}
+
+function reset(){
+  grid=[]; for(let y=0;y<H;y++){ grid.push(new Array(W).fill('dirt')); }
+  RULES[ruleIx].init(); ticks=0; paint();
+}
+
+function setRule(i){
+  ruleIx=(i%RULES.length+RULES.length)%RULES.length;
+  document.getElementById('ruleBox').innerHTML = 'rule: ' + RULES[ruleIx].sentence;
+  reset();
+}
+
+document.getElementById('step').onclick=()=>{ if(running) return; doStep(); };
+document.getElementById('reset').onclick=()=>{ reset(); };
+document.getElementById('next').onclick=()=>{ setRule(ruleIx+1); };
+document.getElementById('play').onclick=(e)=>{
+  running=!running; e.target.classList.toggle('on',running); e.target.textContent=running?'pause':'play';
+  if(running){ timer=setInterval(doStep,140); } else { clearInterval(timer); }
+};
+
+// responsive cell size
+function fit(){
+  const avail=Math.min(window.innerWidth-48, 900);
+  const cs=Math.max(8, Math.floor((avail-2*(W-1))/W));
+  document.documentElement.style.setProperty('--cs', cs+'px');
+}
+window.addEventListener('resize',fit);
+
+buildGrid(); fit(); setRule(0);
+</script>
+</body>
+</html>
