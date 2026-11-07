@@ -12,7 +12,7 @@
 </head>
 <body>
 <canvas id=c></canvas>
-<div class=hud>cursor = fire · hold to feed it · light the wood · right click = water</div>
+<div class=hud>cursor = fire · hold to feed it · light the wood · click = water</div>
 <script>
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 let W=innerWidth,H=innerHeight;
@@ -169,8 +169,8 @@ function ignite(px,py,power){
 
 cv.addEventListener('contextmenu',e=>e.preventDefault());
 cv.addEventListener('pointerdown',e=>{
-  if(e.button===2){douse(e.clientX,e.clientY);return;}
-  holding=true;curX=e.clientX;curY=e.clientY;ignite(curX,curY,255);
+  douse(e.clientX,e.clientY);
+  curX=e.clientX;curY=e.clientY;
 });
 cv.addEventListener('pointerup',()=>holding=false);
 cv.addEventListener('pointerleave',()=>{curX=-999;curY=-999;holding=false;});
@@ -257,9 +257,8 @@ let t=0;
 function loop(){
   t++;
   if(curX>-999){
-    const power=holding?255:170;
-    ignite(curX,curY,power);
-    if(holding&&Math.random()<0.7)ignite(curX+(Math.random()-0.5)*10,curY+(Math.random()-0.5)*10,255);
+    ignite(curX,curY,170);
+    if(Math.random()<0.5)ignite(curX+(Math.random()-0.5)*10,curY+(Math.random()-0.5)*10,150);
   }
   step();
   woodTick();
