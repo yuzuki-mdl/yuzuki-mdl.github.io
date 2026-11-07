@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>fire toy</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0608;overflow:hidden;font-family:ui-monospace,monospace}
+  canvas{display:block;width:100%;height:100%;cursor:crosshair}
+  .hud{position:fixed;left:14px;bottom:12px;color:#ffb066;font-size:12px;opacity:.55;letter-spacing:.5px;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id=c></canvas>
+<div class=hud>drag to feed it · click to spark · it burns what u give it</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=innerWidth,H=innerHeight;
+cv.width=W;cv.height=H;
+
+const CELL=4;
+const off=document.createElement('canvas');
+const offctx=off.getContext('2d');
+let cols,rows,fire,img,buf;
+
+function sizeAll(){
+  W=cv.width=innerWidth;H=cv.height=innerHeight;
+  cols=Math.ceil(W/CELL);rows=Math.ceil(H/CELL);
+  fire=new Uint8Array(cols*rows);
+  off.width=cols;off.height=rows;
+  img=offctx.createImageData(cols,rows);
+  buf=img.data;
+}
+sizeAll();
+addEventListener('resize',sizeAll);
+
+// palette as flat rgb triples
+const PR=new Uint8Array(256),PG=new Uint8Array(256),PB=new Uint8Array(256);
+for(let i=0;i<256;i++){
+  let t=i/255,r,g,b;
+  if(t<.25){r=0;g=0;b=t*4*40;}
+  else if(t<.55){let u=(t-.25)/.3;r=u*220;g=u*40;b=40*(1-u);}
+  else if(t<.8){let u=(t-.55)/.25;r=220+u*35;g=40+u*160;b=0;}
+  else{let u=(t-.8)/.2;r=255;g=200+u*55;b=u*180;}
+  PR[i]=r|0;PG[i]=g|0;PB[i]=b|0;
+}
+
+const heat=0.85;
+function step(){
+  for(let x=0;x<cols;x++) fire[(rows-1)*cols+x]=Math.random()<heat?200+Math.random()*55:0;
+  for(let y=1;y<rows;y++){
+    for(let x=0;x<cols;x++){
+      const val=fire[y*cols+x];
+      const decay=(Math.random()*2)|0;
+      const nx=((x+((Math.random()*3)|0)-1)+cols)%cols;
+      fire[(y-1)*cols+nx]=Math.max(0,val-decay);
+    }
+  }
+}
+
+function draw(){
+  for(let i=0,j=0;i<cols*rows;i++,j+=4){
+    const v=fire[i];
+    buf[j]=PR[v];buf[j+1]=PG[v];buf[j+2]=PB[v];buf[j+3]=255;
+  }
+  offctx.putImageData(img,0,0);
+  ctx.imageSmoothingEnabled=true;
+  ctx.drawImage(off,0,0,W,H);
+}
+
+let drag=false,lastX=0;
+cv.addEventListener('pointerdown',e=>{drag=true;lastX=e.clientX;spark(e.clientX,e.clientY);});
+cv.addEventListener('pointerup',()=>drag=false);
+cv.addEventListener('pointermove',e=>{if(drag){feed(lastX,e.clientX);lastX=e.clientX;}});
+function spark(px,py){
+  const cx=Math.floor(px/CELL),cy=Math.floor(py/CELL);
+  for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){
+    const x=(cx+dx+cols)%cols,y=cy+dy;
+    if(y>=0&&y<rows&&dx*dx+dy*dy<10)fire[y*cols+x]=255;
+  }
+}
+function feed(x0,x1){
+  const a=Math.min(x0,x1),b=Math.max(x0,x1);
+  for(let px=a;px<=b;px+=CELL){
+    const cx=Math.floor(px/CELL);
+    for(let y=rows-6;y<rows;y++)fire[y*cols+((cx+cols)%cols)]=255;
+  }
+}
+
+let t=0;
+function loop(){t++;step();if(t%2===0)draw();requestAnimationFrame(loop);}
+loop();
+</script>
+</body>
+</html>
