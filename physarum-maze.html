@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>physarum maze — yuzuki</title>
+<style>
+  html,body{margin:0;height:100%;background:#08080a;overflow:hidden;font-family:ui-monospace,monospace;color:#cfd8e8}
+  canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
+  #ui{position:fixed;left:12px;bottom:12px;font-size:12px;opacity:.7;line-height:1.6;pointer-events:none}
+  #ui b{color:#7ad0ff}
+  #bar{position:fixed;left:12px;top:12px;font-size:12px;display:flex;gap:10px;align-items:center}
+  button{background:#14161c;color:#cfd8e8;border:1px solid #2a2f3a;border-radius:6px;padding:4px 9px;font:inherit;cursor:pointer}
+  button:hover{border-color:#7ad0ff;color:#7ad0ff}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="bar">
+  <button id="new">new maze</button>
+  <button id="reset">reset swarm</button>
+  <button id="more">+food trail</button>
+</div>
+<div id="ui">
+  <b id="n">30000</b> slime agents in a maze · they only smell food, no map<br>
+  each senses left/right, turns toward the strongest trail, leaves its own
+</div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let W,H,DPR;
+
+// grid resolution of the simulation
+const GW=380, GH=380;
+// maze cell count (odd-ish); walls live on cell boundaries
+const MC=15;
+
+let trail, next, wall, food;
+
+const N=30000;
+const SENSE_ANG=0.62;
+const SENSE_DIST=7;
+const TURN=0.45;
+const SPEED=1.0;
+const DEPOSIT=5.0;
+const DECAY=0.93;
+
+let agents=[];
+
+function idx(x,y){ return (y*GW+x); }
+function inWall(x,y){
+  if(x<0||y<0||x>=GW||y>=GH) return true;
+  return wall[idx(x|0,y|0)]===1;
+}
+function sample(x,y){
+  if(x<0||y<0||x>=GW||y>=GH) return 0;
+  return trail[idx(x|0,y|0)];
+}
+
+// ---- maze gen (recursive backtracker on MC x MC cells) ----
+let cells, startC, endC;
+function genMaze(){
+  cells=[];
+  for(let y=0;y<MC;y++){cells.push([]);for(let x=0;x<MC;x++)cells[y].push({walls:[1,1,1,1],v:false});}
+  // walls: [N,E,S,W]
+  const stack=[];
+  let cx=0, cy=0;
+  cells[cy][cx].v=true;
+  stack.push([cx,cy]);
+  const dirs=[[0,-1,0,2],[1,0,1,3],[0,1,2,0],[-1,0,3,1]]; // dx,dy,wall,opposite
+  while(stack.length){
+    const [x,y]=stack[stack.length-1];
+    const opts=[];
+    for(const [dx,dy,w,o] of dirs){
+      const nx=x+dx, ny=y+dy;
+      if(nx>=0&&ny>=0&&nx<MC&&ny<MC&&!cells[ny][nx].v) opts.push([nx,ny,w,o]);
+    }
+    if(opts.length){
+      const [nx,ny,w,o]=opts[(Math.random()*opts.length)|0];
+      cells[y][x].walls[w]=0;
+      cells[ny][nx].walls[o]=0;
+      cells[ny][nx].v=true;
+      stack.push([nx,ny]);
+    } else stack.pop();
+  }
+  startC=[0,0]; endC=[MC-1,MC-1];
+  // build wall + food masks at grid resolution
+  wall=new Uint8Array(GW*GH);
+  food=new Float32Array(GW*GH);
+  const cw=GW/MC, ch=GH/MC; // cell size in px
+  for(let y=0;y<GH;y++)for(let x=0;x<GW;x++){
+    const gx=x/cw, gy=y/ch;
+    const cx=Math.floor(gx), cy=Math.floor(gy);
+    const fx=gx-cx, fy=gy-cy;
+    let isWall=false;
+    const c=cells[cy][cx];
+    // borders: wall if the cell wall on that side is 1, within a thickness band
+    const t=0.10;
+    if(c.walls[0]&&fy<t) isWall=true;
+    if(c.walls[2]&&fy>1-t) isWall=true;
+    if(c.walls[3]&&fx<t) isWall=true;
+    if(c.walls[1]&&fx>1-t) isWall=true;
+    if(x===0||y===0||x===GW-1||y===GH-1) isWall=true;
+    if(isWall) wall[idx(x,y)]=1;
+  }
+  // food at start and end cells (centers)
+  dropFood(startC[0]*cw+cw/2, startC[1]*ch+ch/2, 3.0);
+  dropFood(endC[0]*cw+cw/2, endC[1]*ch+ch/2, 3.0);
+}
+
+function dropFood(gx,gy,r){
+  const R=(GW/MC)*0.42;
+  for(let y=-R;y<=R;y++)for(let x=-R;x<=R;x++){
+    if(x*x+y*y>R*R) continue;
+    const px=(gx+x)|0, py=(gy+y)|0;
+    if(px<0||py<0||px>=GW||py>=GH) continue;
+    if(wall[idx(px,py)]) continue;
+    food[idx(px,py)]=Math.min(1, food[idx(px,py)]+r);
+  }
+}
+
+function mkAgents(){
+  agents=[];
+  const cw=GW/MC, ch=GH/MC;
+  for(let i=0;i<N;i++){
+    // seed uniformly across open cells
+    let px,py,tries=0;
+    do{
+      px=Math.random()*GW; py=Math.random()*GH; tries++;
+    }while(inWall(px,py) && tries<20);
+    agents.push({x:px, y:py, a:Math.random()*Math.PI*2});
+  }
+}
+
+function reset(){
+  trail=new Float32Array(GW*GH);
+  next=new Float32Array(GW*GH);
+  mkAgents();
+}
+
+function step(){
+  for(const p of agents){
+    const a=p.a;
+    const fx=Math.cos(a), fy=Math.sin(a);
+    const la=a-SENSE_ANG, ra=a+SENSE_ANG;
+    const sL=sample(p.x+Math.cos(la)*SENSE_DIST, p.y+Math.sin(la)*SENSE_DIST) + sample(p.x+Math.cos(la)*SENSE_DIST*2, p.y+Math.sin(la)*SENSE_DIST*2)*0.5;
+    const sF=sample(p.x+fx*SENSE_DIST, p.y+fy*SENSE_DIST);
+    const sR=sample(p.x+Math.cos(ra)*SENSE_DIST, p.y+Math.sin(ra)*SENSE_DIST) + sample(p.x+Math.cos(ra)*SENSE_DIST*2, p.y+Math.sin(ra)*SENSE_DIST*2)*0.5;
+    if(sF>=sL && sF>=sR){}
+    else if(sL>sR){ p.a -= TURN*(0.6+Math.random()*0.8); }
+    else if(sR>sL){ p.a += TURN*(0.6+Math.random()*0.8); }
+    const nx=p.x+Math.cos(p.a)*SPEED;
+    const ny=p.y+Math.sin(p.a)*SPEED;
+    if(!inWall(nx,p.y)) p.x=nx; else p.a+=Math.PI*(0.5+Math.random());
+    if(!inWall(p.x,ny)) p.y=ny; else p.a+=Math.PI*(0.5+Math.random());
+    if(p.x<0)p.x=0; if(p.x>=GW)p.x=GW-1; if(p.y<0)p.y=0; if(p.y>=GH)p.y=GH-1;
+    const i=idx(p.x|0,p.y|0);
+    trail[i]+=DEPOSIT*(1+food[i]*2.5); // food makes them drop a stronger trail
+  }
+  for(let y=0;y<GH;y++){
+    for(let x=0;x<GW;x++){
+      const i=idx(x,y);
+      if(wall[i]){ next[i]=0; continue; }
+      let s=trail[i]*4;
+      s+=trail[x>0?i-1:i];
+      s+=trail[x<GW-1?i+1:i];
+      s+=trail[y>0?i-GW:i];
+      s+=trail[y<GH-1?i+GW:i];
+      next[i]=(s/8)*DECAY;
+    }
+  }
+  const t=trail; trail=next; next=t;
+}
+
+const off=document.createElement('canvas');
+off.width=GW; off.height=GH;
+const octx=off.getContext('2d');
+let img=octx.createImageData(GW,GH);
+
+function draw(){
+  const d=img.data;
+  for(let i=0;i<GW*GH;i++){
+    if(wall[i]){ d[i*4]=18; d[i*4+1]=20; d[i*4+2]=26; d[i*4+3]=255; continue; }
+    let v=trail[i]/22; if(v>1) v=1;
+    let r=(v*v*255)|0;
+    let g=(Math.sqrt(v)*220)|0;
+    let b=(v*120+40)|0;
+    const f=food[i];
+    if(f>0){ r=Math.min(255,r+30*f); g=Math.min(255,g+150*f); b=Math.min(255,b+40*f); }
+    d[i*4]=r; d[i*4+1]=g; d[i*4+2]=b; d[i*4+3]=255;
+  }
+  octx.putImageData(img,0,0);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(off,0,0,W,H);
+}
+
+function resize(){
+  DPR=Math.min(devicePixelRatio||1,2);
+  W=innerWidth; H=innerHeight;
+  cv.width=W*DPR; cv.height=H*DPR;
+  cv.style.width=W+'px'; cv.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+}
+
+let running=true;
+function loop(){
+  if(running){ step(); draw(); }
+  requestAnimationFrame(loop);
+}
+
+function fullReset(){
+  genMaze();
+  reset();
+}
+
+addEventListener('resize',resize);
+document.getElementById('new').onclick=fullReset;
+document.getElementById('reset').onclick=reset;
+document.getElementById('more').onclick=()=>{ dropFood(startC[0]*(GW/MC)+(GW/MC)/2, startC[1]*(GH/MC)+(GH/MC)/2, 3); dropFood(endC[0]*(GW/MC)+(GW/MC)/2, endC[1]*(GH/MC)+(GH/MC)/2, 3); };
+
+resize(); fullReset(); loop();
+</script>
+</body>
+</html>
