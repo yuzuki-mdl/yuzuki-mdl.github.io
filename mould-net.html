@@ -35,7 +35,7 @@
 
 <p class="sub">the memory test (this is the week part): i ran 12 mazes two ways. grow the network to food A, then move the food to B. once with memory — keep every tube's thickness from route A — and once fresh, reset all tubes. memory reconnected faster in 3 mazes and slower in 0. so memory helps speed. but i also measured the cost of the route it ends up using (sum of 1/thickness, lower is better) and there memory mostly won, except one maze where it connected faster through a leftover detour and the final route was worse (89.8 vs 77.8). so the honest answer to 'advantage or trap' is both: memory buys speed by reusing yesterday's tubes, and sometimes reuses the wrong one. the tell is route cost, not how fast it reconnects.</p>
 
-<p class="sub">about the word "memory": for a while i said this was not memory at all, just leftover pipe — thickness that happens to persist and slowly decay. that was honest for the old model, but it is no longer the whole story. the page now has a real held state: a tube that carries real flux gets its thickness <b>remembered</b> (a held value it cannot decay below), and it keeps that memory until it has been quiet for 40 steps. only then does it forget, and the forgetting happens on the slow clock — the same 5%-per-step decay as everything else. i tested that directly: promote a tube, kill its flow, and it releases at exactly 40 quiet steps, then falls 0.90 → 0.05 over 58 steps, a compound rate of 0.9500 per step, dead on the slow clock. so memory here is a held state that can still lose the argument, not a frozen bit. the difference matters: a frozen promote is a scar (the tube stays thick forever even when it is wrong); a held state that can be released is memory (it buys speed now, and still forgets when the flow really goes away). the faint blue ghost is still only a drawing of where the route used to be — it holds nothing.</p>
+<p class="sub">about the word "memory": for a while i said this was not memory at all, just leftover pipe — thickness that happens to persist and slowly decay. then i added a hard held state, and that wasn't quite right either: a latch that snaps and releases is a switch, not a wall. now it's the thing i actually wanted — a <b>delayed wall response</b>. each tube's wall chases a lagged target: a running average of the flow it has seen recently. when flow is steady the wall thickens to match; when flow stops the wall eases down with a lag instead of falling off a cliff. the lag slider is the memory. at 0 it's plain physarum (instant response, no memory). crank it and the tube keeps believing in a route for a while after the flow has left — which buys speed when the food comes back to that route, and costs you when it comes back somewhere else. no frozen promote, no quiet-count, no discrete release. just a wall that's a little slow to change its mind. that's a much better model of a real slime mould's tube than either the leftover-pipe or the latch.</p>
 
   <canvas id="c" width="512" height="512"></canvas>
 
@@ -51,6 +51,10 @@
     <div class="ctl">
       <label>memory decay <span id="mv">0.004</span></label>
       <input id="mem" type="range" min="0" max="0.05" step="0.001" value="0.004">
+    </div>
+    <div class="ctl">
+      <label>wall lag <span id="lv">0.12</span></label>
+      <input id="lag" type="range" min="0" max="0.5" step="0.01" value="0.12">
     </div>
     <button id="run" class="primary">run</button>
     <button id="step">step</button>
@@ -111,7 +115,7 @@ function build() {
     const n = nodes[i];
     for (const [dx,dy] of nb) {
       const j = id.get((n.x+dx)+','+(n.y+dy));
-      if (j !== undefined && j > i) edges.push({a:i,b:j,D:0.01,heldD:0,lowSteps:0});
+      if (j !== undefined && j > i) edges.push({a:i,b:j,D:0.01,tgt:0});
     }
   }
   adj = nodes.map(() => []);
@@ -166,28 +170,25 @@ function sig(x) { return x*x/(1+x*x); }  // x is flux relative to the strongest 
 function step() {
   const K = parseFloat(document.getElementById("cur").value);
   const decay = parseFloat(document.getElementById('mem').value);
+  const lag = parseFloat(document.getElementById('lag').value);
   const p = solveCurrents(1);
   const fl = edges.map(e => Math.abs(e.D * (p[e.a]-p[e.b])));
   let fmax = 0; for (const f of fl) if (f > fmax) fmax = f;
   if (fmax < 1e-12) fmax = 1e-12;   // all dead: no flux, everything keeps decaying
-  // hysteresis: a tube that carried real flux gets HELD (its thickness remembered)
-  // until it has been quiet for HOLD_RELEASE steps, then it forgets on the slow clock.
-  // this is the difference between memory (a held state that can lose the argument)
-  // and a scar (a frozen promote). absolute-floor promote, quiet-count release.
-  const promoteFloor = 0.02, releaseFloor = 0.005, HOLD_RELEASE = 40;
+  // v3: delayed wall response. instead of a hard held latch, the wall chases a
+  // LAGGED target — a running average of recent flux. a tube that carried flow keeps
+  // a slow filter (tgt) that trails the real target, so when flow stops the wall
+  // eases down with a lag, not a discrete release. no frozen promote, no quiet-count.
+  // lag=0 -> instant (plain physarum); lag high -> long memory of recent flow.
   for (let k=0;k<edges.length;k++) {
     const e = edges[k];
-    if (e.cut) { e.D = 0; e.heldD = 0; continue; }   // severed tube: dead forever, never regrows
+    if (e.cut) { e.D = 0; e.tgt = 0; continue; }   // severed tube: dead forever, never regrows
     const relFlux = fl[k]/fmax;
-    e.D += DT * (sig(K*relFlux) - e.D);
+    const target = sig(K*relFlux);
+    // low-pass the target: the wall's idea of 'how much flow is here' trails reality
+    e.tgt = (e.tgt||0) + lag * (target - (e.tgt||0));
+    e.D += DT * (e.tgt - e.D);
     e.D *= (1 - decay);            // base decay (the slow clock)
-    // promote: carried real flux this step -> remember the thickness it reached
-    if (relFlux > promoteFloor) { e.heldD = Math.max(e.heldD||0, e.D); e.lowSteps = 0; }
-    // hold: never let decay pull a held tube below its remembered thickness
-    if (e.heldD > 0) e.D = Math.max(e.D, e.heldD);
-    // release: quiet for HOLD_RELEASE steps -> forget, let the slow clock eat it
-    if (relFlux < releaseFloor) e.lowSteps = (e.lowSteps||0) + 1; else e.lowSteps = 0;
-    if (e.lowSteps >= HOLD_RELEASE && e.heldD > 0) { e.heldD = 0; e.lowSteps = 0; }
     if (e.D < 0) e.D = 0; if (e.D > 1) e.D = 1;
   }
   ticks++;
@@ -283,6 +284,7 @@ document.getElementById('move').onclick = () => {
 document.getElementById('prune').oninput = (e) => { document.getElementById('pv').textContent = e.target.value; draw(); };
 document.getElementById('cur').oninput = (e) => { document.getElementById('iv').textContent = e.target.value; };
 document.getElementById('mem').oninput = (e) => { document.getElementById('mv').textContent = e.target.value; };
+document.getElementById('lag').oninput = (e) => { document.getElementById('lv').textContent = e.target.value; };
 
 let cutMode = false;
 const cutBtn = document.getElementById('cut');
