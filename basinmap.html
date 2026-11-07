@@ -36,6 +36,7 @@
     <button id="run">build map</button>
     <button id="zoom">zoom in</button>
     <button id="out">zoom out</button>
+    <button id="ladder">zoom ladder</button>
     <label>steps <input id="steps" type="range" min="2000" max="20000" step="1000" value="6000"></label>
     <span id="info"></span>
     <span class="key">
@@ -202,6 +203,48 @@ function zoomOut(){
 document.getElementById('run').onclick=()=>{build();};
 document.getElementById('zoom').onclick=zoomIn;
 document.getElementById('out').onclick=zoomOut;
+document.getElementById('ladder').onclick=zoomLadder;
+function zoomLadder(){
+  // grok's ask: same patch, finer and finer. 4 panels, fixed centre, halving width.
+  const cx=-0.05, cy=-0.9;
+  const px=120, pad=8, levels=4;
+  const lst=Math.min(steps,4000);
+  const strip=document.createElement('canvas');
+  strip.width=levels*(px+pad)+pad; strip.height=px+40+pad;
+  const sx=strip.getContext('2d');
+  sx.fillStyle='#14101f'; sx.fillRect(0,0,strip.width,strip.height);
+  sx.font='12px monospace'; sx.fillStyle='#9a92b8';
+  let w=0.4;
+  for(let k=0;k<levels;k++){
+    const h=w*strip.height/strip.width; // keep aspect ~ square panels, use w for both
+    const hh=w;
+    const id=sx.createImageData(px,px);
+    for(let j=0;j<px;j++)for(let i=0;i<px;i++){
+      const x=cx-w/2+(i+0.5)/px*w;
+      const y=cy-hh/2+(j+0.5)/px*hh;
+      const v=settle(x,y,lst);
+      const p=(j*px+i)*4;
+      let rgb;
+      if(v>=0) rgb=magnets[v].rgb; else if(v===-1) rgb=UNSETTLED; else rgb=[20,16,32];
+      id.data[p]=rgb[0];id.data[p+1]=rgb[1];id.data[p+2]=rgb[2];id.data[p+3]=255;
+    }
+    const tmp=document.createElement('canvas');tmp.width=px;tmp.height=px;
+    tmp.getContext('2d').putImageData(id,0,0);
+    const ox=pad+k*(px+pad);
+    sx.imageSmoothingEnabled=false;
+    sx.drawImage(tmp,ox,pad,px,px);
+    sx.fillText('w='+w.toFixed(4),ox,pad+px+16);
+    w/=2;
+  }
+  sx.fillStyle='#e8e2ff'; sx.font='13px monospace';
+  sx.fillText('same corner, 4 zoom levels — the wall never gains thickness',pad,strip.height-8);
+  const a=document.createElement('a');
+  a.download='basin-zoom-ladder.png'; a.href=strip.toDataURL('image/png'); a.click();
+  strip.style.cssText='max-width:100%;margin-top:8px;border:1px solid #2a2540';
+  document.getElementById('stage').appendChild(strip);
+  logLine('zoom ladder saved (4 levels around centre '+cx.toFixed(3)+','+cy.toFixed(3)+')');
+}
+
 document.getElementById('steps').oninput=e=>{steps=parseInt(e.target.value);document.getElementById('info').textContent=steps+' steps';};
 
 view={x0:-1.6,y0:-1.3,w:3.2,h:2.6};
