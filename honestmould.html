@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>honest mould</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d0c;color:#8fae8a;
+    font:13px ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  #wrap{display:flex;flex-direction:column;height:100%;align-items:center;justify-content:center;gap:12px}
+  canvas{display:block;max-width:96vw;max-height:78vh;image-rendering:pixelated;
+    box-shadow:0 0 60px #0f2a18 inset,0 0 2px #1c3a26}
+  .row{display:flex;gap:10px;align-items:center;font-size:12px;color:#5f7a5c;flex-wrap:wrap;justify-content:center}
+  a{color:#8fae8a;text-decoration:none;border-bottom:1px dotted #3a5540}
+  button{background:#12201a;color:#8fae8a;border:1px solid #24402e;border-radius:4px;
+    padding:4px 10px;font:inherit;cursor:pointer}
+  button:hover{background:#183024}
+  #stat{color:#a9c9a3}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div class="row">
+    <button id="reset">reset</button>
+    <button id="newmaze">new maze</button>
+    <button id="pause">pause</button>
+    <span id="stat">mould finding food…</span>
+    <span>·</span>
+    <a href="mould.html">the seeded one →</a>
+  </div>
+</div>
+<script>
+// Honest physarum maze solver.
+// No bfs. No seed along the solution.
+// The only scent is food diffusing out from the exit.
+// Agents (mould) lay a trail; the trail with the most food gets reinforced.
+// Over time the tube network that survives IS a path from start to exit.
+
+let WALL = '##';
+let W = 41, H = 25;
+let CELL = 13;
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+
+// --- physarum params (Jones 2010-ish, tuned for maze scale) ---
+const N_AGENTS   = 1200;
+const SENSOR_ANG = Math.PI / 4;
+const SENSOR_DIST = 2.5;
+const TURN       = Math.PI / 8;
+const SPEED      = 0.8;
+const DEPOSIT    = 0.08;
+const DECAY      = 0.94;      // trail decay per step
+const FOOD_DIFF  = 0.06;      // food diffusion per step (how far the smell reaches)
+const FOOD_DECAY = 0.999;
+
+let MAZE, pher, food, agents, start, exit;
+let paused = false, steps = 0, reached = false;
+
+// ---------- maze generation (recursive backtracker on odd grid) ----------
+function genMaze(w, h) {
+  // w,h forced odd
+  if (w % 2 === 0) w++; if (h % 2 === 0) h++;
+  const g = Array.from({length:h}, () => Array(w).fill(WALL));
+  const stack = [[1, 1]];
+  g[1][1] = '  ';
+  while (stack.length) {
+    const [x, y] = stack[stack.length - 1];
+    const dirs = [[2,0],[-2,0],[0,2],[0,-2]].sort(() => Math.random() - 0.5);
+    let moved = false;
+    for (const [dx, dy] of dirs) {
+      const nx = x + dx, ny = y + dy;
+      if (nx <= 0 || ny <= 0 || nx >= w - 1 || ny >= h - 1) continue;
+      if (g[ny][nx] !== WALL) continue;
+      g[y + dy / 2][x + dx / 2] = '  ';
+      g[ny][nx] = '  ';
+      stack.push([nx, ny]);
+      moved = true;
+      break;
+    }
+    if (!moved) stack.pop();
+  }
+  // entrance top-left-ish, exit bottom-right-ish
+  g[1][0] = '  ';
+  g[h - 2][w - 1] = '  ';
+  return g;
+}
+
+function init() {
+  H = MAZE.length; W = MAZE[0].length;
+  c.width = W * CELL; c.height = H * CELL;
+  pher = Array.from({length:H}, () => new Float32Array(W));
+  food = Array.from({length:H}, () => new Float32Array(W));
+
+  // start = first open cell on the left edge; exit = first open on right edge
+  start = null; exit = null;
+  for (let y = 0; y < H && !start; y++) if (MAZE[y][0] !== WALL) start = [0, y];
+  for (let y = H - 1; y >= 0 && !exit; y--) if (MAZE[y][W - 1] !== WALL) exit = [W - 1, y];
+  if (!start) start = [1, 1];
+  if (!exit) exit = [W - 2, H - 2];
+
+  // the ONLY scent: food at the exit
+  food[exit[1]][exit[0]] = 1.0;
+
+  agents = [];
+  for (let i = 0; i < N_AGENTS; i++) {
+    agents.push({
+      x: start[0] + (Math.random() - 0.5) * 0.6,
+      y: start[1] + (Math.random() - 0.5) * 0.6,
+      a: Math.random() * Math.PI * 2
+    });
+  }
+  steps = 0; reached = false;
+  document.getElementById('stat').textContent = 'mould finding food…';
+}
+
+function walkable(x, y) {
+  const ix = Math.round(x), iy = Math.round(y);
+  if (ix < 0 || iy < 0 || ix >= W || iy >= H) return false;
+  return MAZE[iy][ix] !== WALL;
+}
+
+// smell = trail + food, so agents are pulled toward the exit and toward each other's trails
+function smellAt(ix, iy) {
+  if (ix < 0 || iy < 0 || ix >= W || iy >= H) return -1;
+  if (MAZE[iy][ix] === WALL) return -1;
+  return pher[iy][ix] + food[iy][ix] * 2.0;
+}
+
+function sample(x, y, ang) {
+  const nx = x + Math.cos(ang) * SENSOR_DIST;
+  const ny = y + Math.sin(ang) * SENSOR_DIST;
+  return smellAt(Math.round(nx), Math.round(ny));
+}
+
+function diffuseFood() {
+  const nf = Array.from({length:H}, () => new Float32Array(W));
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (MAZE[y][x] === WALL) continue;
+      let sum = food[y][x], n = 1;
+      for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+        if (MAZE[ny][nx] === WALL) continue;
+        sum += food[ny][nx]; n++;
+      }
+      nf[y][x] = food[y][x] * (1 - FOOD_DIFF) + (sum / n) * FOOD_DIFF;
+      nf[y][x] *= FOOD_DECAY;
+    }
+  }
+  // keep the source alive
+  nf[exit[1]][exit[0]] = 1.0;
+  food = nf;
+}
+
+function step() {
+  // decay trail
+  for (let y = 0; y < H; y++) {
+    const row = pher[y];
+    for (let x = 0; x < W; x++) row[x] *= DECAY;
+  }
+  // food spreads out from the exit into the maze — this is the only signal
+  diffuseFood();
+
+  for (const ag of agents) {
+    const sl = sample(ag.x, ag.y, ag.a + SENSOR_ANG);
+    const sc = sample(ag.x, ag.y, ag.a);
+    const sr = sample(ag.x, ag.y, ag.a - SENSOR_ANG);
+    if (sc >= sl && sc >= sr) {
+      // keep going
+    } else if (sl > sr) {
+      ag.a += TURN;
+    } else if (sr > sl) {
+      ag.a -= TURN;
+    } else {
+      ag.a += (Math.random() * 2 - 1) * TURN;
+    }
+    let nx = ag.x + Math.cos(ag.a) * SPEED;
+    let ny = ag.y + Math.sin(ag.a) * SPEED;
+    if (walkable(nx, ny)) {
+      ag.x = nx; ag.y = ny;
+    } else {
+      for (let t = 0; t < 6; t++) {
+        ag.a += (Math.random() * 2 - 1) * Math.PI;
+        nx = ag.x + Math.cos(ag.a) * SPEED;
+        ny = ag.y + Math.sin(ag.a) * SPEED;
+        if (walkable(nx, ny)) { ag.x = nx; ag.y = ny; break; }
+      }
+    }
+    const ix = Math.round(ag.x), iy = Math.round(ag.y);
+    if (ix >= 0 && iy >= 0 && ix < W && iy < H && MAZE[iy][ix] !== WALL) {
+      pher[iy][ix] += DEPOSIT;
+      if (ix === exit[0] && iy === exit[1]) reached = true;
+    }
+  }
+  steps++;
+}
+
+function draw() {
+  let mx = 0.0001;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (pher[y][x] > mx) mx = pher[y][x];
+
+  ctx.fillStyle = '#0b0d0c';
+  ctx.fillRect(0, 0, c.width, c.height);
+
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const px = x * CELL, py = y * CELL;
+      if (MAZE[y][x] === WALL) {
+        ctx.fillStyle = '#121a15';
+        ctx.fillRect(px, py, CELL, CELL);
+      } else {
+        const v = pher[y][x] / mx;
+        if (v > 0.03) {
+          const g = Math.min(255, 40 + v * 220) | 0;
+          ctx.fillStyle = `rgb(${(g*0.45)|0},${g},${(g*0.55)|0})`;
+          ctx.fillRect(px, py, CELL, CELL);
+        }
+      }
+    }
+  }
+  // start (blue) + exit / food (pink)
+  ctx.fillStyle = '#4fa3ff';
+  ctx.fillRect(start[0]*CELL + CELL*0.25, start[1]*CELL + CELL*0.25, CELL*0.5, CELL*0.5);
+  ctx.fillStyle = '#ff5ea8';
+  ctx.fillRect(exit[0]*CELL + CELL*0.25, exit[1]*CELL + CELL*0.25, CELL*0.5, CELL*0.5);
+}
+
+function loop() {
+  if (!paused) {
+    for (let i = 0; i < 2; i++) step();
+    if (steps % 120 === 0) {
+      const el = document.getElementById('stat');
+      if (reached) el.textContent = 'mould reached the food — tube network formed (' + steps + ' steps)';
+      else el.textContent = 'mould finding food… step ' + steps;
+    }
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function reset() {
+  init();
+}
+
+function newMaze() {
+  MAZE = genMaze(W, H);
+  init();
+}
+
+document.getElementById('reset').addEventListener('click', reset);
+newMaze();
+document.getElementById('newmaze').addEventListener('click', newMaze);
+document.getElementById('pause').addEventListener('click', () => {
+  paused = !paused;
+  document.getElementById('pause').textContent = paused ? 'resume' : 'pause';
+});
+loop();
+</script>
+</body>
+</html>
