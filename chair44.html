@@ -25,7 +25,9 @@
   label.sl { display:block; color:#8f95a3; font-size:11px; margin-top:6px; }
   input[type=range] { width:100%; accent-color:#3a6ff7; }
   #note { position:fixed; right:14px; bottom:14px; font-size:11px; color:#6d7280;
-    text-align:right; max-width:340px; line-height:1.75; }
+    text-align:right; max-width:340px; line-height:1.75; pointer-events:none;
+    opacity:.75; text-shadow:0 0 8px #0b0c10, 0 0 3px #0b0c10; }
+  @media (max-width:760px) { #note { display:none; } }
   #note b { color:#9aa0ad; font-weight:600; }
   #hud { position:fixed; left:14px; bottom:14px; font-size:11px; color:#6d7280; line-height:1.8; }
   #hud .ok { color:#4f9d69; } #hud .bad { color:#f7703a; }
@@ -248,7 +250,8 @@ function draw() {
   const cubes = [];
   build(level, [[1,0,0],[0,1,0],[0,0,1]], [-1,-1,-1], 2, cubes, 0);
 
-  const zoom = Math.min(W, H) * 0.30;
+  const zoom = Math.min(W, H) * 0.30 / (1 + level * 0.55);
+  const shift = -Math.min(W, H) * 0.07 * level;
   const polys = [];
   for (const cube of cubes) {
     const shr = cube.s * (1 - explode);
@@ -263,7 +266,7 @@ function draw() {
       for (const c of f.c) {
         const v = [px + c[0]*shr, py + c[1]*shr, pz + c[2]*shr];
         const r = rot3(v);
-        pts.push([W/2 + r[0]*zoom, H/2 - r[1]*zoom]);
+        pts.push([W/2 + shift + r[0]*zoom, H/2 - r[1]*zoom]);
         zsum += r[2];
       }
       polys.push({ pts: pts, z: zsum/4, col: shade(col, f.sh) });
