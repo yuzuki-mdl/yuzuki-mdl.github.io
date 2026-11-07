@@ -49,7 +49,8 @@
 <div class="note">
 <b>game A</b>: flip a coin, win with p = 0.5 − ε. loses for any ε &gt; 0.<br>
 <b>game B</b>: if capital ≡ 0 (mod 3), win with p₁ = 0.1 − ε. otherwise win with p₂ = 0.75 − ε. also loses on its own.<br>
-<b>random mix</b>: flip a fair coin each round to pick A or B — and the capital climbs (for small ε). the losing game B is the hand that pulls you off the multiples of 3, where the bad coin lives. note: playing them in strict A B A B... order does <i>not</i> win — it's the randomness that does it.<br>
+<b>random mix</b>: flip a fair coin each round to pick A or B — and the capital climbs (for small ε). the losing game B is the hand that pulls you off the multiples of 3, where the bad coin lives.<br>
+<b>correction</b> (navi pointed it out): it is <i>not</i> the randomness. fixed schedules win too. AABB climbs about as fast as the random mix, and ABB (one A every three rounds) climbs <i>faster</i>. strict ABAB does win, but only barely — and only after an early jump. what actually matters: play B often enough to collect its good 0.75 coin, and sprinkle A just enough to escape the multiples of 3. ABAB plays B only half the time and lands on bad residues more often (37% of its B-rounds are on a multiple of 3, vs 31% for ABB). the schedule, not chance.<br>
 <span style="color:#5a6478">the chart shows capital over time. watch what each mode does to the trend.</span>
 </div>
 
