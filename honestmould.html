@@ -38,7 +38,7 @@
 // Over time the tube network that survives IS a path from start to exit.
 
 let WALL = '##';
-let W = 41, H = 25;
+let W = 31, H = 19;
 let CELL = 13;
 const c = document.getElementById('c');
 const ctx = c.getContext('2d');
@@ -229,7 +229,7 @@ function draw() {
 
 function loop() {
   if (!paused) {
-    for (let i = 0; i < 2; i++) step();
+    for (let i = 0; i < 8; i++) step();
     if (steps % 120 === 0) {
       const el = document.getElementById('stat');
       if (reached) el.textContent = 'mould reached the food — tube network formed (' + steps + ' steps)';
