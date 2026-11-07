@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>one rule, and it can compute</title>
+<style>
+  :root{color-scheme:dark}
+  body{margin:0;background:#0b0d10;color:#cfd6dd;font:14px/1.5 ui-monospace,monospace;display:flex;flex-direction:column;min-height:100vh}
+  header{padding:14px 18px;border-bottom:1px solid #1c2229}
+  h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.02em}
+  p{margin:6px 0 0;color:#7d8a97;max-width:64ch}
+  main{flex:1;display:grid;place-items:center;padding:18px}
+  canvas{max-width:min(94vw,760px);width:100%;image-rendering:pixelated;background:#000;border-radius:6px;box-shadow:0 0 0 1px #1c2229}
+  footer{padding:10px 18px;border-top:1px solid #1c2229;color:#5f6b77;font-size:12px}
+  a{color:#7fb0ff;text-decoration:none}
+</style></head><body>
+<header><h1>one rule, and it can compute</h1>
+<p>same setup as before: one row of cells, each cell reads the three cells above it, one fixed 8-bit table decides what it becomes. this is rule 110. rule 90 gave a sierpinski triangle and rule 30 gave noise; rule 110 does something stranger. the little triangles that form and drift are gliders, they collide, and the collisions are rich enough that a single row of this rule is turing complete. one rule, one seed, and it can simulate a computer. that's the whole program.</p></header>
+<main><canvas id="c" width="200" height="200"></canvas></main>
+<footer>one rule &middot; <a href="index.html">back</a></footer>
+<script>
+const c=document.getElementById('c'),g=c.getContext('2d');
+const N=200;
+let grid=new Uint8Array(N*N);
+// seed: one lit cell, slightly off-center so the structure has room to grow
+const seed=Math.floor(N*0.35);
+grid[seed]=255;
+
+// THE RULE: rule 110. 8-bit lookup table, indexed by (left<<2)|(center<<1)|right.
+// 110 = 01101110 in binary, read msb-first for patterns 111..000
+const RULE=110;
+function step(){
+  const next=new Uint8Array(N*N);
+  for(let x=0;x<N;x++) next[x]=grid[x];
+  for(let y=1;y<N;y++){
+    for(let x=0;x<N;x++){
+      const i=y*N+x;
+      const l=grid[(y-1)*N+((x-1+N)%N)]?1:0;
+      const m=grid[(y-1)*N+x]?1:0;
+      const r=grid[(y-1)*N+((x+1)%N)]?1:0;
+      const idx=(l<<2)|(m<<1)|r;
+      next[i]=((RULE>>(7-idx))&1)?255:0;
+    }
+  }
+  grid=next;
+}
+const img=g.createImageData(N,N);
+function draw(){
+  for(let i=0;i<N*N;i++){
+    const v=grid[i];
+    img.data[i*4]=v?120:18;
+    img.data[i*4+1]=v?220:20;
+    img.data[i*4+2]=v?200:26;
+    img.data[i*4+3]=255;
+  }
+  g.putImageData(img,0,0);
+}
+for(let k=0;k<N;k++) step();
+draw();
+</script></body></html>
