@@ -25,10 +25,11 @@
 <canvas id="c"></canvas>
 <div id="ui">
   <h1>spectre tiler</h1>
-  <label>depth <input id="depth" type="range" min="1" max="6" value="4"><span id="dval">4</span></label>
+  <label>depth <input id="depth" type="range" min="1" max="6" value="3"><span id="dval">3</span></label>
   <label>colours <select id="col">
+    <option value="mono">one colour</option>
+    <option value="fig53" selected>figure 5.3</option>
     <option value="pride">pride</option>
-    <option value="fig53">figure 5.3</option>
     <option value="mystics">mystics</option>
     <option value="bright">bright</option>
   </select></label>
@@ -110,6 +111,7 @@ function flatten(node,T,out){
 
 // ---- colours ----
 const COLS={
+  mono:{Gamma1:[232,224,204],Gamma2:[232,224,204],Delta:[232,224,204],Theta:[232,224,204],Lambda:[232,224,204],Xi:[232,224,204],Pi:[232,224,204],Sigma:[232,224,204],Phi:[232,224,204],Psi:[232,224,204]},
   pride:{Gamma1:[97,57,21],Gamma2:[0,0,0],Delta:[2,129,33],Theta:[0,76,255],Lambda:[118,0,136],Xi:[229,0,0],Pi:[255,175,199],Sigma:[115,215,238],Phi:[255,141,0],Psi:[255,238,0]},
   fig53:{Gamma1:[203,157,126],Gamma2:[203,157,126],Delta:[163,150,133],Theta:[208,215,150],Lambda:[184,205,178],Xi:[211,177,144],Pi:[218,197,161],Sigma:[191,146,126],Phi:[228,213,167],Psi:[224,223,156]},
   mystics:{Gamma1:[196,201,169],Gamma2:[156,160,116],Delta:[247,252,248],Theta:[247,252,248],Lambda:[247,252,248],Xi:[247,252,248],Pi:[247,252,248],Sigma:[247,252,248],Phi:[247,252,248],Psi:[247,252,248]},
@@ -122,7 +124,7 @@ let W,H,dpr;
 function resize(){dpr=Math.min(window.devicePixelRatio||1,2);W=window.innerWidth;H=window.innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);draw();}
 window.addEventListener('resize',resize);
 
-let depth=4, colScheme='pride';
+let depth=3, colScheme='fig53';
 let view={x:0,y:0,scale:1};
 let leaves=[];
 let bounds={minx:0,miny:0,maxx:1,maxy:1};
