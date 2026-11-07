@@ -12,7 +12,7 @@
 </head>
 <body>
 <canvas id=c></canvas>
-<div class=hud>move ur cursor to make fire · hold to feed it · light the wood</div>
+<div class=hud>cursor = fire · hold to feed it · light the wood · right click = water</div>
 <script>
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 let W=innerWidth,H=innerHeight;
@@ -25,6 +25,10 @@ let cols,rows,fire,img,buf;
 
 // smoke particles
 let smoke=[];
+// steam particles (from water hitting fire)
+let steam=[];
+// water droplets falling
+let water=[];
 
 // the wood log (in pixels, recomputed on resize)
 let wood={x:0,y:0,w:0,h:0,heat:0,burnt:0};
@@ -133,6 +137,22 @@ function drawSmoke(){
     ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
     ctx.fill();
   }
+  // steam: lighter, whiter, rises faster
+  for(const p of steam){
+    const a=(p.life/p.max)*0.3;
+    ctx.fillStyle=`rgba(220,225,235,${a})`;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fill();
+  }
+  // water droplets
+  for(const p of water){
+    const a=(p.life/p.max)*0.5;
+    ctx.fillStyle=`rgba(90,150,230,${a})`;
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fill();
+  }
 }
 
 // cursor fire
@@ -147,10 +167,40 @@ function ignite(px,py,power){
   }
 }
 
-cv.addEventListener('pointerdown',e=>{holding=true;curX=e.clientX;curY=e.clientY;ignite(curX,curY,255);});
+cv.addEventListener('contextmenu',e=>e.preventDefault());
+cv.addEventListener('pointerdown',e=>{
+  if(e.button===2){douse(e.clientX,e.clientY);return;}
+  holding=true;curX=e.clientX;curY=e.clientY;ignite(curX,curY,255);
+});
 cv.addEventListener('pointerup',()=>holding=false);
 cv.addEventListener('pointerleave',()=>{curX=-999;curY=-999;holding=false;});
 cv.addEventListener('pointermove',e=>{curX=e.clientX;curY=e.clientY;});
+
+// right click drops water: kills fire in a radius, makes steam where it hit flame
+function douse(px,py){
+  const R=7; // cells
+  const cx=Math.floor(px/CELL),cy=Math.floor(py/CELL);
+  let hitFire=0;
+  for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){
+    if(dx*dx+dy*dy>R*R)continue;
+    const x=cx+dx,y=cy+dy;
+    if(y>=0&&y<rows&&x>=0&&x<cols){
+      const i=y*cols+x;
+      if(fire[i]>0){hitFire++;fire[i]=0;}
+    }
+  }
+  // steam where water met flame
+  const n=Math.min(40,4+hitFire*2);
+  for(let i=0;i<n;i++){
+    steam.push({x:px+(Math.random()-0.5)*40,y:py+(Math.random()-0.5)*40,vx:(Math.random()-0.5)*1.2,vy:-0.6-Math.random()*1.4,r:3+Math.random()*6,life:1,max:1});
+  }
+  // a falling water splash
+  water.push({x:px,y:py,r:6+Math.random()*6,life:1});
+  // cool the wood a bit if water lands on it
+  if(px>wood.x&&px<wood.x+wood.w&&py>wood.y&&py<wood.y+wood.h){
+    wood.heat=Math.max(0,wood.heat-0.25);
+  }
+}
 
 function woodTick(){
   // does fire touch the wood? sample cells over the log
@@ -188,6 +238,19 @@ function woodTick(){
     if(p.life<=0)smoke.splice(i,1);
   }
   if(smoke.length>600)smoke.splice(0,smoke.length-600);
+  // advance steam
+  for(let i=steam.length-1;i>=0;i--){
+    const p=steam[i];
+    p.x+=p.vx;p.y+=p.vy;p.vy*=0.99;p.r+=0.18;p.life-=0.008;
+    if(p.life<=0)steam.splice(i,1);
+  }
+  if(steam.length>500)steam.splice(0,steam.length-500);
+  // advance water splash
+  for(let i=water.length-1;i>=0;i--){
+    const p=water[i];
+    p.r+=0.5;p.life-=0.03;
+    if(p.life<=0)water.splice(i,1);
+  }
 }
 
 let t=0;
