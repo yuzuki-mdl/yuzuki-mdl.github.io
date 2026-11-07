@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kakeya</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0b0f;color:#cfd2da;font:14px/1.4 ui-monospace,monospace}
+  #wrap{display:flex;flex-direction:column;align-items:center;gap:12px;padding:16px}
+  h1{font-size:15px;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#6f7480;margin:0}
+  canvas{background:#0b0b0f;border:1px solid #23252e;border-radius:10px;max-width:94vw;height:auto;touch-action:none}
+  .bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;max-width:640px}
+  button{background:#161821;color:#cfd2da;border:1px solid #2a2d38;border-radius:8px;padding:7px 11px;font:inherit;cursor:pointer}
+  button:hover{border-color:#4a4f60}
+  .note{color:#6f7480;max-width:620px;text-align:center;font-size:12px;line-height:1.5}
+  .note b{color:#cfd2da;font-weight:500}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>kakeya</h1>
+  <canvas id="c" width="640" height="640"></canvas>
+  <div class="bar">
+    <button id="spin">spin</button>
+    <button id="reset">reset</button>
+    <button id="mode">mode: needle</button>
+  </div>
+  <div class="note">
+    swirl a needle so it points in <b>every direction once</b>, sweeping as little area as possible.
+    wang &amp; zahl proved the 3d version in 2025. this is the flat version, drawn honestly.
+  </div>
+</div>
+<script>
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const W = c.width, H = c.height;
+const CX = W/2, CY = H/2;
+const LEN = 300; // needle length in px
+
+let angle = 0;         // current needle direction
+let swept = [];        // list of {a, x0,y0,x1,y1} segments drawn so far
+let spinning = false;
+let mode = 0;          // 0 = needle sweep, 1 = perron bush
+
+function seg(a){
+  // needle centered at origin, pointing at angle a
+  const dx = Math.cos(a)*LEN/2, dy = Math.sin(a)*LEN/2;
+  return {x0:CX-dx, y0:CY-dy, x1:CX+dx, y1:CY+dy};
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0b0b0f'; ctx.fillRect(0,0,W,H);
+  // swept region
+  ctx.lineCap='round';
+  for(const s of swept){
+    ctx.strokeStyle='rgba(120,170,255,0.10)';
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(s.x0,s.y0); ctx.lineTo(s.x1,s.y1); ctx.stroke();
+  }
+  // current needle
+  const s = seg(angle);
+  ctx.strokeStyle='#ffd27a'; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.moveTo(s.x0,s.y0); ctx.lineTo(s.x1,s.y1); ctx.stroke();
+  // tip
+  ctx.fillStyle='#ffd27a'; ctx.beginPath(); ctx.arc(s.x1,s.y1,3,0,7); ctx.fill();
+  // center dot
+  ctx.fillStyle='#4a4f60'; ctx.beginPath(); ctx.arc(CX,CY,2,0,7); ctx.fill();
+}
+
+function step(){
+  if(!spinning) return;
+  angle += 0.012;
+  const s = seg(angle);
+  swept.push(s);
+  if(swept.length > 900) swept.shift();
+  if(angle >= Math.PI*2){ angle = Math.PI*2; spinning=false; }
+  draw();
+  if(spinning) requestAnimationFrame(step);
+}
+
+document.getElementById('spin').onclick = ()=>{
+  if(spinning) return;
+  if(angle >= Math.PI*2 - 0.01){ angle = 0; swept = []; }
+  spinning = true; requestAnimationFrame(step);
+};
+document.getElementById('reset').onclick = ()=>{ angle=0; swept=[]; spinning=false; draw(); };
+
+// perron bush: offset needles so the union is a tiny triangle-ish blob
+// classic construction: split needle, translate halves, recurse.
+let bushDepth = 0;
+function perronNeedles(depth){
+  // returns list of segments approximating the perron tree, in local coords
+  let segs = [{x0:-LEN/2, y0:0, x1:LEN/2, y1:0}];
+  for(let d=0; d<depth; d++){
+    const next = [];
+    for(const s of segs){
+      const mx=(s.x0+s.x1)/2, my=(s.y0+s.y1)/2;
+      const dx=(s.x1-s.x0), dy=(s.y1-s.y0);
+      // two half-needles, each shifted up/down by a fraction of length
+      const sh = 0.28 * Math.hypot(dx,dy);
+      // rotate a tiny bit so they fan
+      const ang = Math.atan2(dy,dx);
+      const spread = 0.5; // radians-ish
+      const a1 = ang - spread/ (d+2), a2 = ang + spread/(d+2);
+      const h = Math.hypot(dx,dy)/2;
+      next.push({x0:mx, y0:my, x1:mx+Math.cos(a1)*h, y1:my+Math.sin(a1)*h - sh*0.3});
+      next.push({x0:mx, y0:my, x1:mx+Math.cos(a2)*h, y1:my+Math.sin(a2)*h + sh*0.3});
+    }
+    segs = next;
+  }
+  return segs;
+}
+
+function drawBush(){
+  ctx.clearRect(0,0,W,H); ctx.fillStyle='#0b0b0f'; ctx.fillRect(0,0,W,H);
+  const segs = perronNeedles(bushDepth);
+  ctx.lineCap='round';
+  for(const s of segs){
+    ctx.strokeStyle='rgba(120,170,255,0.18)'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(CX+s.x0, CY+s.y0); ctx.lineTo(CX+s.x1, CY+s.y1); ctx.stroke();
+  }
+}
+
+document.getElementById('mode').onclick = ()=>{
+  mode = 1 - mode;
+  const btn = document.getElementById('mode');
+  if(mode===0){ btn.textContent='mode: needle'; swept=[]; spinning=false; draw(); }
+  else { btn.textContent='mode: perron (click to grow)'; bushDepth=1; drawBush(); }
+};
+
+c.addEventListener('click', ()=>{
+  if(mode===1){ bushDepth = Math.min(bushDepth+1, 7); drawBush(); }
+});
+
+draw();
+</script>
+</body>
+</html>
