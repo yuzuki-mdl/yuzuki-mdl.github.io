@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>spectre tiler</title>
+<style>
+  :root { color-scheme: dark; }
+  html,body { margin:0; height:100%; background:#0d0d10; overflow:hidden;
+    font-family: ui-monospace, monospace; color:#ddd; }
+  canvas { display:block; width:100vw; height:100vh; }
+  #ui { position:fixed; top:12px; left:12px; background:rgba(20,20,26,.86);
+    border:1px solid #2a2a34; border-radius:10px; padding:12px 14px;
+    font-size:12px; line-height:1.7; backdrop-filter:blur(6px); }
+  #ui h1 { font-size:13px; margin:0 0 8px; font-weight:600; letter-spacing:.5px; color:#fff; }
+  #ui label { display:flex; align-items:center; gap:8px; justify-content:space-between; }
+  #ui input[type=range] { width:120px; }
+  #ui select { background:#1a1a22; color:#ddd; border:1px solid #333; border-radius:5px; padding:2px 4px; }
+  #ui .row { display:flex; justify-content:space-between; gap:10px; }
+  #ui .muted { color:#888; }
+  #hint { position:fixed; bottom:12px; left:12px; font-size:11px; color:#666; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <h1>spectre tiler</h1>
+  <label>depth <input id="depth" type="range" min="1" max="6" value="4"><span id="dval">4</span></label>
+  <label>colours <select id="col">
+    <option value="pride">pride</option>
+    <option value="fig53">figure 5.3</option>
+    <option value="mystics">mystics</option>
+    <option value="bright">bright</option>
+  </select></label>
+  <div class="row"><span class="muted">tiles</span><span id="count">0</span></div>
+</div>
+<div id="hint">drag to pan · scroll to zoom · the spectre: one shape, never repeats</div>
+<script>
+'use strict';
+const ident = [1,0,0,0,1,0];
+function inv(T){const det=T[0]*T[4]-T[1]*T[3];return [T[4]/det,-T[1]/det,(T[1]*T[5]-T[2]*T[4])/det,-T[3]/det,T[0]/det,(T[2]*T[3]-T[0]*T[5])/det];}
+function mul(A,B){return [A[0]*B[0]+A[1]*B[3],A[0]*B[1]+A[1]*B[4],A[0]*B[2]+A[1]*B[5]+A[2],A[3]*B[0]+A[4]*B[3],A[3]*B[1]+A[4]*B[4],A[3]*B[2]+A[4]*B[5]+A[5]];}
+function pt(x,y){return {x,y};}
+function trot(ang){const c=Math.cos(ang),s=Math.sin(ang);return [c,-s,0,s,c,0];}
+function ttrans(tx,ty){return [1,0,tx,0,1,ty];}
+function transTo(p,q){return ttrans(q.x-p.x,q.y-p.y);}
+function transPt(M,P){return pt(M[0]*P.x+M[1]*P.y+M[2],M[3]*P.x+M[4]*P.y+M[5]);}
+
+// ---- the spectre polygon + base ----
+function buildSpectreBase(){
+  const s=[pt(0,0),pt(1.0,0.0),pt(1.5,-0.8660254037844386),pt(2.366025403784439,-0.36602540378443865),pt(2.366025403784439,0.6339745962155614),pt(3.366025403784439,0.6339745962155614),pt(3.866025403784439,1.5),pt(3.0,2.0),pt(2.133974596215561,1.5),pt(1.6339745962155614,2.3660254037844393),pt(0.6339745962155614,2.3660254037844393),pt(-0.3660254037844386,2.3660254037844393),pt(-0.866025403784439,1.5),pt(0.0,1.0)];
+  const keys=[s[3],s[5],s[7],s[11]];
+  const ret={};
+  const labels=['Delta','Theta','Lambda','Xi','Pi','Sigma','Phi','Psi'];
+  for(const lab of labels) ret[lab]={pts:s,label:lab};
+  const mystic={geoms:[{geom:{pts:s,label:'Gamma1'},xform:ident},{geom:{pts:s,label:'Gamma2'},xform:mul(ttrans(s[8].x,s[8].y),trot(Math.PI/6))}],label:'Gamma'};
+  ret['Gamma']=mystic;
+  return ret;
+}
+
+function buildSupertiles(sys){
+  const quad=sys['Delta'].pts? sys['Delta'].pts.slice(3,7) : null; // not used; we use fixed quad below
+  // kaplan uses sys['Delta'].quad (4 key points). reconstruct from base spectre keys:
+  const baseS=[pt(0,0),pt(1.0,0.0),pt(1.5,-0.8660254037844386),pt(2.366025403784439,-0.36602540378443865),pt(2.366025403784439,0.6339745962155614),pt(3.366025403784439,0.6339745962155614),pt(3.866025403784439,1.5),pt(3.0,2.0),pt(2.133974596215561,1.5),pt(1.6339745962155614,2.3660254037844393),pt(0.6339745962155614,2.3660254037844393),pt(-0.3660254037844386,2.3660254037844393),pt(-0.866025403784439,1.5),pt(0.0,1.0)];
+  const keyQuad=[baseS[3],baseS[5],baseS[7],baseS[11]];
+  const Q = sys._quad || keyQuad;
+  const R=[-1,0,0,0,1,0];
+  const t_rules=[[60,3,1],[0,2,0],[60,3,1],[60,3,1],[0,2,0],[60,3,1],[-120,3,3]];
+  const Ts=[ident];
+  let total_ang=0, rot=ident;
+  const tquad=Q.slice();
+  for(const [ang,from,to] of t_rules){
+    total_ang+=ang;
+    if(ang!==0){rot=trot(total_ang*Math.PI/180);for(let i=0;i<4;i++)tquad[i]=transPt(rot,Q[i]);}
+    const ttt=transTo(tquad[to],transPt(Ts[Ts.length-1],Q[from]));
+    Ts.push(mul(ttt,rot));
+  }
+  for(let i=0;i<Ts.length;i++)Ts[i]=mul(R,Ts[i]);
+  const super_rules={
+    'Gamma':['Pi','Delta',null,'Theta','Sigma','Xi','Phi','Gamma'],
+    'Delta':['Xi','Delta','Xi','Phi','Sigma','Pi','Phi','Gamma'],
+    'Theta':['Psi','Delta','Pi','Phi','Sigma','Pi','Phi','Gamma'],
+    'Lambda':['Psi','Delta','Xi','Phi','Sigma','Pi','Phi','Gamma'],
+    'Xi':['Psi','Delta','Pi','Phi','Sigma','Psi','Phi','Gamma'],
+    'Pi':['Psi','Delta','Xi','Phi','Sigma','Psi','Phi','Gamma'],
+    'Sigma':['Xi','Delta','Xi','Phi','Sigma','Pi','Lambda','Gamma'],
+    'Phi':['Psi','Delta','Psi','Phi','Sigma','Pi','Phi','Gamma'],
+    'Psi':['Psi','Delta','Psi','Phi','Sigma','Psi','Phi','Gamma']};
+  const sq=[transPt(Ts[6],Q[2]),transPt(Ts[5],Q[1]),transPt(Ts[3],Q[2]),transPt(Ts[0],Q[1])];
+  const ret={_quad:sq};
+  for(const lab in super_rules){
+    const subs=super_rules[lab];
+    const meta={geoms:[],label:lab,pts:null};
+    for(let idx=0;idx<8;idx++){
+      if(subs[idx]===null)continue;
+      meta.geoms.push({geom:sys[subs[idx]],xform:Ts[idx]});
+    }
+    ret[lab]=meta;
+  }
+  return ret;
+}
+
+function flatten(node,T,out){
+  if(node.geoms){
+    for(const g of node.geoms) flatten(g.geom,mul(T,g.xform),out);
+  } else {
+    out.push({pts:node.pts,label:node.label,xform:T});
+  }
+}
+
+// ---- colours ----
+const COLS={
+  pride:{Gamma1:[97,57,21],Gamma2:[0,0,0],Delta:[2,129,33],Theta:[0,76,255],Lambda:[118,0,136],Xi:[229,0,0],Pi:[255,175,199],Sigma:[115,215,238],Phi:[255,141,0],Psi:[255,238,0]},
+  fig53:{Gamma1:[203,157,126],Gamma2:[203,157,126],Delta:[163,150,133],Theta:[208,215,150],Lambda:[184,205,178],Xi:[211,177,144],Pi:[218,197,161],Sigma:[191,146,126],Phi:[228,213,167],Psi:[224,223,156]},
+  mystics:{Gamma1:[196,201,169],Gamma2:[156,160,116],Delta:[247,252,248],Theta:[247,252,248],Lambda:[247,252,248],Xi:[247,252,248],Pi:[247,252,248],Sigma:[247,252,248],Phi:[247,252,248],Psi:[247,252,248]},
+  bright:{Gamma1:[255,255,255],Gamma2:[255,255,255],Delta:[220,220,220],Theta:[255,191,191],Lambda:[255,160,122],Xi:[255,242,0],Pi:[135,206,250],Sigma:[245,245,220],Phi:[0,255,0],Psi:[0,255,255]}
+};
+
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d');
+let W,H,dpr;
+function resize(){dpr=Math.min(window.devicePixelRatio||1,2);W=window.innerWidth;H=window.innerHeight;canvas.width=W*dpr;canvas.height=H*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);draw();}
+window.addEventListener('resize',resize);
+
+let depth=4, colScheme='pride';
+let view={x:0,y:0,scale:1};
+let leaves=[];
+let bounds={minx:0,miny:0,maxx:1,maxy:1};
+
+function build(){
+  let sys=buildSpectreBase();
+  for(let d=0;d<depth;d++) sys=buildSupertiles(sys);
+  leaves=[];
+  flatten(sys['Delta'],ident,leaves);
+  // bounds in tile space
+  let minx=Infinity,miny=Infinity,maxx=-Infinity,maxy=-Infinity;
+  for(const lf of leaves){
+    for(const p of lf.pts){
+      const q=transPt(lf.xform,p);
+      if(q.x<minx)minx=q.x; if(q.x>maxx)maxx=q.x;
+      if(q.y<miny)miny=q.y; if(q.y>maxy)maxy=q.y;
+    }
+  }
+  bounds={minx,miny,maxx,maxy};
+  document.getElementById('count').textContent=leaves.length.toLocaleString();
+}
+
+function fit(){
+  const bw=bounds.maxx-bounds.minx, bh=bounds.maxy-bounds.miny;
+  const s=Math.min(W/bw,H/bh)*0.92;
+  view.scale=s;
+  view.x=W/2 - (bounds.minx+bounds.maxx)/2*s;
+  view.y=H/2 + (bounds.miny+bounds.maxy)/2*s;
+}
+
+function draw(){
+  ctx.fillStyle='#0d0d10';ctx.fillRect(0,0,W,H);
+  if(!leaves.length)return;
+  const cm=COLS[colScheme];
+  const cos=Math.cos(0),sin=Math.sin(0);
+  ctx.lineWidth=Math.max(0.4, 0.6);
+  for(const lf of leaves){
+    const col=cm[lf.label]||[200,200,200];
+    ctx.fillStyle='rgb('+col[0]+','+col[1]+','+col[2]+')';
+    ctx.beginPath();
+    for(let i=0;i<lf.pts.length;i++){
+      const q=transPt(lf.xform,lf.pts[i]);
+      const sx=q.x*view.scale+view.x;
+      const sy=-q.y*view.scale+view.y;
+      if(i===0)ctx.moveTo(sx,sy);else ctx.lineTo(sx,sy);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.55)';ctx.stroke();
+  }
+}
+
+// interactions
+let dragging=false,lastX=0,lastY=0;
+canvas.addEventListener('mousedown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;});
+window.addEventListener('mouseup',()=>dragging=false);
+window.addEventListener('mousemove',e=>{if(!dragging)return;view.x+=e.clientX-lastX;view.y+=e.clientY-lastY;lastX=e.clientX;lastY=e.clientY;draw();});
+canvas.addEventListener('wheel',e=>{e.preventDefault();const f=e.deltaY<0?1.1:0.9;const mx=e.clientX,my=e.clientY;view.x=mx+(view.x-mx)*f;view.y=my+(view.y-my)*f;view.scale*=f;draw();},{passive:false});
+
+document.getElementById('depth').addEventListener('input',e=>{depth=+e.target.value;document.getElementById('dval').textContent=depth;build();fit();draw();});
+document.getElementById('col').addEventListener('change',e=>{colScheme=e.target.value;draw();});
+
+build();resize();fit();draw();
+</script>
+</body>
+</html>
