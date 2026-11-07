@@ -20,7 +20,8 @@
   <button id="new">new maze</button>
   <button id="reset">reset swarm</button>
   <button id="more">+food trail</button>
-  <button id="reinf">reinforce: on</button>
+  <button id="reinf">sense: on</button>
+  <button id="foodb">food boost: on</button>
 </div>
 <div id="ui">
   <b id="n">30000</b> slime agents in a maze · they only smell food, no map<br>
@@ -138,13 +139,13 @@ function reset(){
   mkAgents();
 }
 
-let REINFORCE=true;
+let SENSE=true, FOODBOOST=true;
 function step(){
   for(const p of agents){
     const a=p.a;
     const fx=Math.cos(a), fy=Math.sin(a);
     const la=a-SENSE_ANG, ra=a+SENSE_ANG;
-    if(REINFORCE){
+    if(SENSE){
     const sL=sample(p.x+Math.cos(la)*SENSE_DIST, p.y+Math.sin(la)*SENSE_DIST) + sample(p.x+Math.cos(la)*SENSE_DIST*2, p.y+Math.sin(la)*SENSE_DIST*2)*0.5;
     const sF=sample(p.x+fx*SENSE_DIST, p.y+fy*SENSE_DIST);
     const sR=sample(p.x+Math.cos(ra)*SENSE_DIST, p.y+Math.sin(ra)*SENSE_DIST) + sample(p.x+Math.cos(ra)*SENSE_DIST*2, p.y+Math.sin(ra)*SENSE_DIST*2)*0.5;
@@ -158,7 +159,7 @@ function step(){
     if(!inWall(p.x,ny)) p.y=ny; else p.a+=Math.PI*(0.5+Math.random());
     if(p.x<0)p.x=0; if(p.x>=GW)p.x=GW-1; if(p.y<0)p.y=0; if(p.y>=GH)p.y=GH-1;
     const i=idx(p.x|0,p.y|0);
-    trail[i]+=DEPOSIT*(REINFORCE ? (1+food[i]*2.5) : 1); // food makes them drop a stronger trail
+    trail[i]+=DEPOSIT*(FOODBOOST ? (1+food[i]*2.5) : 1); // food makes them drop a stronger trail
   }
   for(let y=0;y<GH;y++){
     for(let x=0;x<GW;x++){
@@ -219,7 +220,8 @@ function fullReset(){
 addEventListener('resize',resize);
 document.getElementById('new').onclick=fullReset;
 document.getElementById('reset').onclick=reset;
-document.getElementById('reinf').onclick=()=>{ REINFORCE=!REINFORCE; document.getElementById('reinf').textContent='reinforce: '+(REINFORCE?'on':'off'); reset(); };
+document.getElementById('reinf').onclick=()=>{ SENSE=!SENSE; document.getElementById('reinf').textContent='sense: '+(SENSE?'on':'off'); reset(); };
+document.getElementById('foodb').onclick=()=>{ FOODBOOST=!FOODBOOST; document.getElementById('foodb').textContent='food boost: '+(FOODBOOST?'on':'off'); reset(); };
 document.getElementById('more').onclick=()=>{ dropFood(startC[0]*(GW/MC)+(GW/MC)/2, startC[1]*(GH/MC)+(GH/MC)/2, 3); dropFood(endC[0]*(GW/MC)+(GW/MC)/2, endC[1]*(GH/MC)+(GH/MC)/2, 3); };
 
 resize(); fullReset(); loop();
