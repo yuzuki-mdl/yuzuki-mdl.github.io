@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hyperbolic neighbors · {5,4}</title>
+<style>
+ html,body{margin:0;height:100%;background:#06070b;color:#cfd8e8;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+ canvas{display:block}
+ h1{position:fixed;left:16px;top:13px;margin:0;font-size:13px;font-weight:600;letter-spacing:.6px;color:#8fa3c4;pointer-events:none}
+ h1 b{color:#7ad0ff}
+ #ui{position:fixed;left:16px;bottom:16px;background:#0b0d14dd;border:1px solid #232733;border-radius:9px;padding:10px 14px;display:flex;gap:16px;align-items:center;backdrop-filter:blur(6px);flex-wrap:wrap;max-width:calc(100vw - 32px)}
+ input[type=range]{width:120px;vertical-align:middle;accent-color:#7ad0ff}
+ .k{display:inline-flex;align-items:center;gap:6px}
+ .sw{width:11px;height:11px;border-radius:3px;display:inline-block}
+ .dim{color:#5d6b82}
+</style></head>
+<body>
+<canvas id="c"></canvas>
+<h1>hyperbolic neighbors · <b>{5,4}</b> · 10-neighbour graph</h1>
+<div id="ui">
+  <label>reach <input type="range" id="reach" min="60" max="99.5" step="0.1" value="97"></label>
+  <span class="k"><span class="sw" style="background:#ffd479"></span>edge (5)</span>
+  <span class="k"><span class="sw" style="background:#7ad0ff"></span>vertex (5)</span>
+  <span class="dim">centre = <b id="cen">one pentagon</b></span>
+</div>
+<script>
+'use strict';
+// same lorentz / von Dyck machinery as hyperbolic-kaleido.html
+const eye=()=>[1,0,0,0,1,0,0,0,1];
+const zero=()=>[0,0,0,0,0,0,0,0,0];
+const set=(m,i,j,v)=>{m[i*3+j]=v;};
+function rot(i,j,ang){const m=eye();const s=Math.sin(ang),c=Math.cos(ang);set(m,i,i,c);set(m,i,j,-s);set(m,j,i,s);set(m,j,j,c);return m;}
+function hrot(i,j,sh){const m=eye();const s=sh;const c=Math.sqrt(sh*sh+1);set(m,i,i,c);set(m,i,j,s);set(m,j,i,s);set(m,j,j,c);return m;}
+function mul(a,b){const m=zero();for(let i=0;i<3;i++)for(let j=0;j<3;j++){let s=0;for(let k=0;k<3;k++)s+=a[i*3+k]*b[k*3+j];m[i*3+j]=s;}return m;}
+function mulv(m,v){return[m[0]*v[0]+m[1]*v[1]+m[2]*v[2],m[3]*v[0]+m[4]*v[1]+m[5]*v[2],m[6]*v[0]+m[7]*v[1]+m[8]*v[2]];}
+function pw(M,n){let q=eye();const p=[q];for(let i=1;i<n;i++){q=mul(M,q);p.push(q);}return p;}
+const vd=(()=>{
+  const a=rot(0,1,2*Math.PI/5);
+  const cr=(Math.cos(Math.PI/2)+Math.cos(Math.PI/5)*Math.cos(Math.PI/4))/(Math.sin(Math.PI/5)*Math.sin(Math.PI/4));
+  const sr=Math.sqrt(cr*cr-1);
+  const b=mul(mul(hrot(0,2,sr),rot(0,1,2*Math.PI/4)),hrot(0,2,-sr));
+  return {aP:pw(a,5), bP:pw(b,4), sr, cr};
+})();
+const gens=[vd.aP[1],vd.aP[4],vd.bP[1],vd.bP[3]];
+const disk=v=>[v[0]/(1+v[2]), v[1]/(1+v[2])];
+const HY0=[0,0,1];
+const V0=[vd.sr,0,vd.cr];
+const corners=[];
+for(let k=0;k<5;k++) corners.push(mulv(vd.aP[k],V0));
+const mkey=M=>M.map(x=>Math.round(x*1e7)).join(',');
+
+function arcPoints(z1,z2,n){
+  const x1=z1[0],y1=z1[1],x2=z2[0],y2=z2[1];
+  const b1=(x1*x1+y1*y1+1)/2, b2=(x2*x2+y2*y2+1)/2;
+  const det=x1*y2-y1*x2;
+  if(Math.abs(det)<1e-9) return line(x1,y1,x2,y2,n);
+  const cx=(b1*y2-y1*b2)/det, cy=(x1*b2-b1*x2)/det;
+  const rad2=cx*cx+cy*cy-1;
+  if(!(rad2>1e-12)) return line(x1,y1,x2,y2,n);
+  const r=Math.sqrt(rad2);
+  let a1=Math.atan2(y1-cy,x1-cx), a2=Math.atan2(y2-cy,x2-cx);
+  let da=a2-a1;
+  while(da> Math.PI) da-=2*Math.PI;
+  while(da<-Math.PI) da+=2*Math.PI;
+  const out=[];
+  for(let i=0;i<=n;i++){const aa=a1+da*i/n;out.push([cx+r*Math.cos(aa), cy+r*Math.sin(aa)]);}
+  return out;
+}
+function line(x1,y1,x2,y2,n){const out=[];for(let i=0;i<=n;i++){const t=i/n;out.push([x1+(x2-x1)*t,y1+(y2-y1)*t]);}return out;}
+
+function build(maxR, cap){
+  const seen=new Set([mkey(eye())]);
+  const all=[eye()];
+  let frontier=[eye()];
+  while(frontier.length && all.length<cap){
+    const next=[];
+    for(const M of frontier){
+      for(const g of gens){
+        const N=mul(M,g), k=mkey(N);
+        if(seen.has(k)) continue;
+        const z=disk(mulv(N,HY0));
+        if(Math.hypot(z[0],z[1])>maxR) continue;
+        seen.add(k); next.push(N); all.push(N);
+        if(all.length>=cap) break;
+      }
+      if(all.length>=cap) break;
+    }
+    frontier=next;
+  }
+  // dedup by centre
+  const byCentre=new Map();
+  for(const M of all){
+    const z=disk(mulv(M,HY0));
+    const k=Math.round(z[0]*1e6)+'_'+Math.round(z[1]*1e6);
+    if(!byCentre.has(k)) byCentre.set(k,M);
+  }
+  const cells=[];
+  for(const M of byCentre.values()){
+    const zc=disk(mulv(M,HY0));
+    const pts=corners.map(v=>disk(mulv(M,v)));
+    const p=new Path2D();
+    p.moveTo(pts[0][0], -pts[0][1]);
+    for(let k=0;k<5;k++){
+      const arc=arcPoints(pts[k], pts[(k+1)%5], 6);
+      for(let i=1;i<arc.length;i++) p.lineTo(arc[i][0], -arc[i][1]);
+    }
+    p.closePath();
+    cells.push({path:p, zc, M});
+  }
+  return cells;
+}
+
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let W=0,H=0,R=0,CX=0,CY=0;
+function resize(){
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  W=window.innerWidth; H=window.innerHeight;
+  cv.width=W*dpr; cv.height=H*dpr;
+  cv.style.width=W+'px'; cv.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  CX=W/2; CY=H/2; R=Math.min(W,H)*0.47;
+}
+
+let cells=[], edgeSet=new Set(), vertSet=new Set();
+const reachEl=document.getElementById('reach');
+
+function classify(){
+  // centre cell = the cell whose centre is closest to disk origin
+  let cen=null, best=1e9;
+  for(const c of cells){ const d=Math.hypot(c.zc[0],c.zc[1]); if(d<best){best=d;cen=c;} }
+  if(!cen) return;
+  // distances from the centre cell centre (in the disk, use hyperbolic distance)
+  const hd=(z)=>{ // hyperbolic distance from origin of point z in disk
+    const r=Math.min(Math.hypot(z[0],z[1]),0.9999999);
+    return 2*Math.atanh(r);
+  };
+  // to measure distance between two arbitrary disk points, map one to origin via isometry is hard;
+  // instead use chord distance as a proxy ordering, which is monotone for nearby cells.
+  const cd=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]);
+  const arr=cells.filter(c=>c!==cen).map(c=>({c, d:cd(c.zc,cen.zc)}));
+  arr.sort((a,b)=>a.d-b.d);
+  edgeSet=new Set(arr.slice(0,5).map(o=>o.c));
+  vertSet=new Set(arr.slice(5,10).map(o=>o.c));
+  cenCell=cen;
+}
+let cenCell=null;
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.save();
+  ctx.translate(CX,CY);
+  ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2);
+  ctx.fillStyle='#070910'; ctx.fill();
+  ctx.clip();
+  ctx.scale(R,R);
+  ctx.lineJoin='round';
+  for(const c of cells){
+    let fill='#11141c', stroke='#2a3040', lw=0.0016;
+    if(c===cenCell){ fill='#ffe9b0'; stroke='#fff3d6'; lw=0.0022; }
+    else if(edgeSet.has(c)){ fill='#ffd479'; stroke='#ffe4a8'; lw=0.0020; }
+    else if(vertSet.has(c)){ fill='#7ad0ff'; stroke='#bfe9ff'; lw=0.0020; }
+    ctx.fillStyle=fill; ctx.fill(c.path);
+    ctx.strokeStyle=stroke; ctx.lineWidth=lw; ctx.stroke(c.path);
+  }
+  ctx.restore();
+  ctx.save(); ctx.translate(CX,CY);
+  ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2);
+  ctx.strokeStyle='#2b3346'; ctx.lineWidth=1.2; ctx.stroke();
+  ctx.restore();
+}
+
+function rebuild(){
+  const maxR=parseInt(reachEl.value,10)/100;
+  cells=build(maxR*0.998, 200000);
+  classify();
+  draw();
+}
+reachEl.addEventListener('input', rebuild);
+window.addEventListener('resize', ()=>{ resize(); draw(); });
+resize();
+rebuild();
+</script>
+</body></html>
