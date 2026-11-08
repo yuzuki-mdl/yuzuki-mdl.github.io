@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pentagrid {5,4}</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0b10;color:#c9c9d4;font:13px/1.4 ui-monospace,monospace}
+  #wrap{display:flex;flex-direction:column;height:100%}
+  canvas{flex:1;display:block;width:100%}
+  .bar{padding:6px 10px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .bar b{color:#e9e9f2;font-weight:600}
+  input[type=range]{width:120px}
+  a{color:#8fb8ff}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div class="bar">
+    <b>pentagrid {5,4}</b>
+    <span>depth <input id="d" type="range" min="2" max="5" value="4"><span id="dv">4</span></span>
+    <span id="cnt"></span>
+    <span style="opacity:.6">cells are pentagons, drawn as dots scaled by the Poincaré factor</span>
+  </div>
+  <canvas id="c"></canvas>
+</div>
+<script>
+// ---- CenteredVonDyck(5,4,2) matrix rep (matches gliderseed2.js) ----
+function eye(){return [1,0,0,0,1,0,0,0,1];}
+function zero(){return [0,0,0,0,0,0,0,0,0];}
+function set(m,i,j,v){m[i*3+j]=v;}
+function rot(i,j,ang){const m=eye(),s=Math.sin(ang),c=Math.cos(ang);set(m,i,i,c);set(m,i,j,-s);set(m,j,i,s);set(m,j,j,c);return m;}
+function hrot(i,j,sinhD){const m=eye(),s=sinhD,c=Math.sqrt(sinhD*sinhD+1);set(m,i,i,c);set(m,i,j,s);set(m,j,i,s);set(m,j,j,c);return m;}
+function mul(m1,m2){const m=zero();for(let i=0;i<3;i++)for(let j=0;j<3;j++){let s=0;for(let k=0;k<3;k++)s+=m1[i*3+k]*m2[k*3+j];m[i*3+j]=s;}return m;}
+function mulv(m,v){return [m[0]*v[0]+m[1]*v[1]+m[2]*v[2],m[3]*v[0]+m[4]*v[1]+m[5]*v[2],m[6]*v[0]+m[7]*v[1]+m[8]*v[2]];}
+function powers(matrix,n){let mp=eye();const p=[mp];for(let i=1;i<n;i++){mp=mul(matrix,mp);p.push(mp);}return p;}
+function makeVD(n,m,k){
+  const alpha=Math.PI/n,beta=Math.PI/m,gamma=Math.PI/k;
+  const a=rot(0,1,2*alpha);
+  const cosh_r=(Math.cos(gamma)+Math.cos(alpha)*Math.cos(beta))/(Math.sin(alpha)*Math.sin(beta));
+  const sinh_r=Math.sqrt(cosh_r*cosh_r-1);
+  const b=mul(mul(hrot(0,2,sinh_r),rot(0,1,2*beta)),hrot(0,2,-sinh_r));
+  return {aP:powers(a,n),bP:powers(b,m)};
+}
+const vd=makeVD(5,4,2);
+function charMat(ch){
+  if(ch==='a')return vd.aP[1];
+  if(ch==='A')return vd.aP[4];
+  if(ch==='b')return vd.bP[1];
+  if(ch==='B')return vd.bP[3];
+}
+function wordMat(word){
+  let M=eye();
+  for(const ch of word) M=mul(M,charMat(ch));
+  return M;
+}
+function disk(M){const v=mulv(M,[0,0,1]);return [v[0]/(1+v[2]),v[1]/(1+v[2])];}
+
+// 10-neighbour reps (extracted from hyp10vd.json adj[0])
+const REPS=['b','B','aB','aaB','AAB','BB','ABB','BAAB','aBAAB','AABB'];
+const REPM=REPS.map(wordMat);
+
+// BFS cells out to a word-length budget
+function build(maxDepth){
+  const seen=new Map(); // word -> {x,y,d}
+  const q=[{w:'',M:eye(),d:0}];
+  seen.set('', {x:0,y:0,d:0});
+  for(let h=0;h<q.length;h++){
+    const cur=q[h];
+    if(cur.d>=maxDepth) continue;
+    for(let r=0;r<10;r++){
+      const M2=mul(cur.M,REPM[r]);
+      const p=disk(M2);
+      const rr=Math.hypot(p[0],p[1]);
+      if(rr>=0.999) continue;
+      const key=p[0].toFixed(6)+','+p[1].toFixed(6);
+      if(seen.has(key)) continue;
+      seen.set(key,{x:p[0],y:p[1],d:cur.d+1});
+      q.push({w:key,M:M2,d:cur.d+1});
+    }
+  }
+  return [...seen.values()];
+}
+
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let cells=[];
+function resize(){
+  const r=cv.getBoundingClientRect(),dpr=devicePixelRatio||1;
+  cv.width=r.width*dpr;cv.height=r.height*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+function draw(){
+  const r=cv.getBoundingClientRect();
+  const W=r.width,H=r.height,R=Math.min(W,H)*0.47;
+  ctx.clearRect(0,0,W,H);
+  const cx=W/2,cy=H/2;
+  // disk outline
+  ctx.beginPath();ctx.arc(cx,cy,R,0,Math.PI*2);ctx.strokeStyle='#2a2a38';ctx.stroke();
+  // colour by BFS depth (concentric shells) — shows the exponential growth
+  const maxd=Math.max(...cells.map(c=>c.d));
+  for(const c of cells){
+    const rr=Math.hypot(c.x,c.y);
+    const px=cx+c.x*R, py=cy-c.y*R;
+    const scale=(1-rr*rr); // Poincaré metric
+    const rad=Math.max(1.5, 8*scale*scale);
+    const hue=(c.d/maxd)*300; // depth 0 = deep blue/red sweep
+    ctx.beginPath();ctx.arc(px,py,rad,0,Math.PI*2);
+    ctx.fillStyle=`hsl(${hue},70%,${45+20*scale}%)`;
+    ctx.fill();
+  }
+  document.getElementById('cnt').textContent=cells.length+' cells';
+}
+function rebuild(){
+  const d=+document.getElementById('d').value;
+  document.getElementById('dv').textContent=d;
+  cells=build(d);
+  draw();
+}
+document.getElementById('d').addEventListener('input',rebuild);
+addEventListener('resize',resize);
+rebuild();resize();
+</script>
+</body>
+</html>
