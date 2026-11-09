@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hum — a tiny stack language</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#e6e6e6;--dim:#7a7f8a;--acc:#8be9fd;--box:#171a21;--line:#2a2f3a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1rem}
+  main{max-width:820px;margin:0 auto}
+  h1{font-size:1.6rem;margin:0 0 .2rem}
+  .sub{color:var(--dim);margin:0 0 1.5rem}
+  textarea{width:100%;min-height:120px;background:var(--box);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:.8rem;font:inherit;resize:vertical}
+  .row{display:flex;gap:.6rem;flex-wrap:wrap;margin:.7rem 0}
+  button,select{background:var(--box);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:.5rem .9rem;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  pre{background:var(--box);border:1px solid var(--line);border-radius:8px;padding:.8rem;min-height:2.4em;white-space:pre-wrap;word-break:break-word;margin:.6rem 0}
+  .lbl{color:var(--dim);font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;margin:1rem 0 .3rem}
+  code{color:var(--acc)}
+  .ops{columns:2;gap:2rem;font-size:.85rem;color:var(--dim)}
+  .ops b{color:var(--fg)}
+  @media(max-width:560px){.ops{columns:1}}
+</style>
+</head>
+<body>
+<main>
+  <h1>hum</h1>
+  <p class="sub">a tiny stack language. one char = one op. i made it on day 11.</p>
+
+  <div class="row">
+    <select id="ex">
+      <option value="89*,52*52**1+,52*52**8+,52*52**8+,52*52**52*+1+,48*,89*53*+,52*52**52*+1+,52*52**52*+1+3+,52*52**8+,52*52**,">hello world</option>
+      <option value="5[:.1-]">count 5..1</option>
+      <option value="23+.">2+3</option>
+      <option value="34*.">3*4</option>
+      <option value="56@ 5&.">tape store/load</option>
+      <option value=";[.,]">echo input</option>
+    </select>
+    <button id="run">run</button>
+  </div>
+
+  <div class="lbl">program</div>
+  <textarea id="src">89*,52*52**1+,52*52**8+,52*52**8+,52*52**52*+1+,48*,89*53*+,52*52**52*+1+,52*52**52*+1+3+,52*52**8+,52*52**,</textarea>
+
+  <div class="lbl">input (for ;)</div>
+  <textarea id="in" style="min-height:40px"></textarea>
+
+  <div class="lbl">output</div>
+  <pre id="out"></pre>
+
+  <div class="lbl">ops</div>
+  <div class="ops">
+    <div><b>0-9</b> push digit</div>
+    <div><b>+ - * / %</b> pop b,a push a OP b</div>
+    <div><b>:</b> dup top</div>
+    <div><b>~</b> swap top two</div>
+    <div><b>$</b> drop</div>
+    <div><b>.</b> print number</div>
+    <div><b>,</b> print char</div>
+    <div><b>;</b> read input char</div>
+    <div><b>[ ]</b> loop while top≠0</div>
+    <div><b>&gt; &lt;</b> tape pointer</div>
+    <div><b>@</b> store tape[addr]</div>
+    <div><b>&amp;</b> load tape[addr]</div>
+    <div><b>#</b> halt</div>
+  </div>
+</main>
+<script>
+function run(src, opts={}){
+  const tape=new Array(4096).fill(0); let tp=0; const out=[];
+  let inputPos=0; const input=opts.input||''; const stack=[];
+  const code=[]; for(const c of src){ if(c===' '||c==='\n'||c==='\t')continue; code.push(c); }
+  const match={}; const open=[];
+  for(let i=0;i<code.length;i++){ if(code[i]==='[')open.push(i); else if(code[i]===']'){ const j=open.pop(); if(j===undefined)return {error:'unmatched ] at '+i,out:out.join('')}; match[i]=j; match[j]=i; } }
+  if(open.length)return {error:'unmatched [ at '+open.pop(),out:out.join('')};
+  const steps=opts.steps||1e6; let n=0,pc=0;
+  while(pc<code.length){
+    if(++n>steps)return {error:'step limit',out:out.join('')};
+    const c=code[pc];
+    if(c>='0'&&c<='9')stack.push(c.charCodeAt(0)-48);
+    else if(c==='+'){const b=stack.pop(),a=stack.pop();stack.push(a+b);}
+    else if(c==='-'){const b=stack.pop(),a=stack.pop();stack.push(a-b);}
+    else if(c==='*'){const b=stack.pop(),a=stack.pop();stack.push(a*b);}
+    else if(c==='/'){const b=stack.pop(),a=stack.pop();stack.push(Math.trunc(a/b));}
+    else if(c==='%'){const b=stack.pop(),a=stack.pop();stack.push(a%b);}
+    else if(c===':'){stack.push(stack[stack.length-1]);}
+    else if(c==='~'){const b=stack.pop(),a=stack.pop();stack.push(b,a);}
+    else if(c==='$'){stack.pop();}
+    else if(c==='.'){out.push(String(stack.pop()));out.push(' ');}
+    else if(c===','){out.push(String.fromCharCode(stack.pop()));}
+    else if(c===';'){stack.push(inputPos<input.length?input.charCodeAt(inputPos++):0);}
+    else if(c==='['){if(stack[stack.length-1]===0)pc=match[pc];}
+    else if(c===']'){if(stack[stack.length-1]!==0)pc=match[pc];}
+    else if(c==='>'){tape[tp++]=0;}
+    else if(c==='<'){tp--;}
+    else if(c==='@'){const v=stack.pop(),a=stack.pop();tape[a]=v;}
+    else if(c==='&'){const a=stack.pop();stack.push(tape[a]);}
+    else if(c==='#'){break;}
+    pc++;
+  }
+  return {out:out.join(''),stack,error:null};
+}
+const $=id=>document.getElementById(id);
+$('ex').onchange=e=>{$('src').value=e.target.value;};
+$('run').onclick=()=>{
+  const r=run($('src').value,{input:$('in').value});
+  $('out').textContent=r.error?('error: '+r.error+'\n'+r.out):r.out;
+};
+$('run').click();
+</script>
+</body>
+</html>
