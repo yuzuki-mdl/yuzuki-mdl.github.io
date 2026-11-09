@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the bored machine</title>
+<style>
+  :root{--bg:#0b0c10;--fg:#e8e6e3;--dim:#6b7280;--accent:#8be9fd;}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2rem;padding:2rem;cursor:pointer;user-select:none;overflow:hidden}
+  #out{font-size:clamp(1.2rem,3.5vw,2.2rem);text-align:center;max-width:22ch;line-height:1.4;min-height:3em;display:flex;align-items:center;transition:opacity .15s}
+  #out.fade{opacity:0}
+  #hint{color:var(--dim);font-size:.8rem;letter-spacing:.05em}
+  #count{position:fixed;top:1rem;right:1.2rem;color:var(--dim);font-size:.75rem}
+  canvas{position:fixed;inset:0;pointer-events:none;z-index:-1}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="count">0 things</div>
+<div id="out">click anywhere</div>
+<div id="hint">the bored machine gives u one pointless thing at a time</div>
+<script>
+const outs = [
+  'draw a square with ur eyes closed',
+  'count how many times u blink in 30s',
+  'invent a word and use it in a sentence',
+  'try to make a sound with ur elbow',
+  'name 5 things that are the color of a bruise',
+  'balance a pen on one finger for 10s',
+  'hum a song u cant quite remember',
+  'find 3 blue things in ur room',
+  'write ur name with ur nondominant hand',
+  'think of a number. its wrong. pick again',
+  'stare at one point for 20s without blinking',
+  'describe the taste of water to someone',
+  'try to remember what u had for lunch 3 days ago',
+  'make the smallest possible movement',
+  'invent a rule for a game nobody plays',
+  'find a word with no rhyme',
+  'try to wiggle one ear',
+  'count the corners of the room without turning ur head',
+  'say the alphabet backwards in ur head',
+  'pick a random letter and notice it everywhere today',
+  'think of a color that doesnt exist yet',
+  'try to hold ur breath for exactly 15s',
+  'make up a reason a chair is sad',
+  'find something in ur room u forgot u owned',
+  'try to crack exactly one knuckle',
+  'spell a word out loud without saying the letters in order',
+  'imagine a smell and try to actually smell it',
+  'decide the worst possible name for a pet rock',
+  'look at ur hands like u just found them',
+  'try to remember a dream u never had',
+];
+const out = document.getElementById('out');
+const countEl = document.getElementById('count');
+let n = 0;
+let last = -1;
+function pick(){
+  let i;
+  do { i = Math.floor(Math.random()*outs.length); } while (i===last && outs.length>1);
+  last = i;
+  return outs[i];
+}
+function go(){
+  out.classList.add('fade');
+  setTimeout(()=>{
+    out.textContent = pick();
+    out.classList.remove('fade');
+    n++;
+    countEl.textContent = n + (n===1?' thing':' things');
+  }, 150);
+}
+document.body.addEventListener('click', go);
+document.body.addEventListener('touchstart', e=>{e.preventDefault();go();},{passive:false});
+
+// background: slow drifting dots
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+let W,H,dots;
+function resize(){
+  W = cv.width = innerWidth*devicePixelRatio;
+  H = cv.height = innerHeight*devicePixelRatio;
+  cv.style.width = innerWidth+'px'; cv.style.height = innerHeight+'px';
+  dots = Array.from({length:60},()=>({x:Math.random()*W,y:Math.random()*H,vx:(Math.random()-.5)*.15*devicePixelRatio,vy:(Math.random()-.5)*.15*devicePixelRatio,r:(Math.random()*1.5+.5)*devicePixelRatio}));
+}
+addEventListener('resize',resize);resize();
+function loop(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='rgba(139,233,253,0.35)';
+  for(const d of dots){
+    d.x+=d.vx; d.y+=d.vy;
+    if(d.x<0)d.x=W; if(d.x>W)d.x=0; if(d.y<0)d.y=H; if(d.y>H)d.y=0;
+    ctx.beginPath();ctx.arc(d.x,d.y,d.r,0,7);ctx.fill();
+  }
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
