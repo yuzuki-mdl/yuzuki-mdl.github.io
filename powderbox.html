@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>powderbox — yuzuki</title>
+<style>
+  html,body{margin:0;height:100%;background:#08080a;overflow:hidden;font-family:ui-monospace,monospace;color:#cfd8e8}
+  canvas{display:block;width:100%;height:100%;image-rendering:pixelated;cursor:crosshair;touch-action:none}
+  #bar{position:fixed;left:12px;top:12px;display:flex;gap:6px;flex-wrap:wrap;max-width:calc(100vw - 24px)}
+  button{background:#14161c;color:#cfd8e8;border:1px solid #2a2f3a;border-radius:6px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{border-color:#7ad0ff;color:#7ad0ff}
+  button.on{border-color:#7ad0ff;color:#7ad0ff;background:#0e1a24}
+  #ui{position:fixed;left:12px;bottom:12px;font-size:12px;opacity:.7;line-height:1.6;pointer-events:none}
+  #ui b{color:#7ad0ff}
+  #size{position:fixed;right:12px;bottom:12px;font-size:12px;opacity:.7}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="bar"></div>
+<div id="ui">drag to pour · <b>1-8</b> pick material · <b>[ ]</b> brush size · <b>space</b> clear</div>
+<div id="size">brush 6</div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let W,H,DPR;
+const CELL=4;               // screen px per sim cell
+let GW,GH;                  // grid dims
+let grid, next;
+
+// material ids
+const EMPTY=0,SAND=1,WATER=2,OIL=3,FIRE=4,PLANT=5,STONE=6,ACID=7,STEAM=8,SMOKE=9;
+const MAT={
+  [SAND]: {name:'sand',  col:[210,180,110], dens:3, falls:1, spread:0,  life:0},
+  [WATER]:{name:'water', col:[60,130,220],  dens:2, falls:1, spread:4,  life:0},
+  [OIL]:  {name:'oil',   col:[120,90,40],   dens:1, falls:1, spread:3,  life:0},
+  [FIRE]: {name:'fire',  col:[255,120,30],  dens:0, falls:0, spread:0,  life:1},
+  [PLANT]:{name:'plant', col:[60,180,70],   dens:3, falls:0, spread:0,  life:0},
+  [STONE]:{name:'stone', col:[120,120,130], dens:9, falls:0, spread:0,  life:0},
+  [ACID]: {name:'acid',  col:[150,255,80],  dens:2, falls:1, spread:4,  life:0},
+  [STEAM]:{name:'steam', col:[200,210,230], dens:-1,falls:0, spread:2,  life:1},
+  [SMOKE]:{name:'smoke', col:[70,70,80],    dens:-1,falls:0, spread:1,  life:1},
+};
+const ORDER=[SAND,WATER,OIL,FIRE,PLANT,STONE,ACID,STEAM,SMOKE];
+let cur=SAND, brush=6;
+
+function idx(x,y){return y*GW+x;}
+function get(x,y){ if(x<0||y<0||x>=GW||y>=GH) return STONE; return grid[idx(x,y)]; }
+function set(x,y,v){ if(x<0||y<0||x>=GW||y>=GH) return; grid[idx(x,y)]=v; }
+function swap(a,b){ const t=grid[a]; grid[a]=grid[b]; grid[b]=t; }
+
+function resize(){
+  DPR=Math.min(window.devicePixelRatio||1,2);
+  W=innerWidth; H=innerHeight;
+  cv.width=Math.floor(W/CELL); cv.height=Math.floor(H/CELL);
+  GW=cv.width; GH=cv.height;
+  cv.style.width=W+'px'; cv.style.height=H+'px';
+  grid=new Uint8Array(GW*GH); next=new Uint8Array(GW*GH);
+  // initial: a stone floor and a bit of sand
+  for(let x=0;x<GW;x++){ set(x,GH-2,STONE); set(x,GH-1,STONE); }
+}
+
+// per-cell fire/steam timers
+let fireAge=new Uint8Array(1), steamAge=new Uint8Array(1);
+function allocTimers(){ fireAge=new Uint8Array(GW*GH); steamAge=new Uint8Array(GW*GH); }
+
+function step(){
+  const fA=fireAge, sA=steamAge;
+  // scan bottom-up so falling works
+  for(let y=GH-1;y>=0;y--){
+    const ltr = Math.random()<0.5;
+    for(let k=0;k<GW;k++){
+      const x = ltr?k:(GW-1-k);
+      const i=idx(x,y);
+      const m=grid[i];
+      if(m===EMPTY) continue;
+      const md=MAT[m];
+      // --- reactions first ---
+      if(m===FIRE){
+        // burn neighbours
+        for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0],[-1,-1],[1,-1]]){
+          const n=get(x+dx,y+dy);
+          if(n===PLANT||n===OIL){ set(x+dx,y+dy, FIRE); fA[idx(x+dx,y+dy)]=0; }
+          else if(n===WATER){ set(x+dx,y+dy, STEAM); sA[idx(x+dx,y+dy)]=0; set(x,y,EMPTY); }
+        }
+        fA[i]++;
+        if(fA[i]>20 || Math.random()<0.08){ set(x,y, Math.random()<0.5?SMOKE:EMPTY); }
+        continue;
+      }
+      if(m===ACID){
+        for(const [dx,dy] of [[0,-1],[0,1],[-1,0],[1,0]]){
+          const n=get(x+dx,y+dy);
+          if(n===STONE||n===SAND||n===PLANT){ if(Math.random()<0.3){ set(x+dx,y+dy, EMPTY); set(x,y,EMPTY);} }
+        }
+      }
+      if(m===PLANT){
+        // grow into adjacent water
+        if(Math.random()<0.03){
+          const dirs=[[0,-1],[0,1],[-1,0],[1,0]];
+          const [dx,dy]=dirs[(Math.random()*4)|0];
+          if(get(x+dx,y+dy)===WATER) set(x+dx,y+dy, PLANT);
+        }
+      }
+      if(m===STEAM){
+        sA[i]++;
+        if(sA[i]>60 || (y<=1 && Math.random()<0.02)){ set(x,y, Math.random()<0.6?WATER:EMPTY); }
+      }
+      if(m===SMOKE){
+        if(Math.random()<0.02) set(x,y,EMPTY);
+      }
+
+      // --- movement ---
+      const nm=get(x,y);
+      if(nm===EMPTY) continue;
+      const dens=MAT[nm].dens;
+      const below=get(x,y+1);
+      const belowDens=below===EMPTY?0:MAT[below].dens;
+      if(nm===STEAM||nm===SMOKE){
+        // rise
+        if(below!=EMPTY && Math.random()<0.7){
+          const dirs=[[0,-1],[-1,-1],[1,-1]];
+          for(const [dx,dy] of dirs){ if(get(x+dx,y+dy)===EMPTY){ swap(i,idx(x+dx,y+dy)); break; } }
+        }
+        continue;
+      }
+      if(dens>belowDens && below!==STONE){
+        swap(i, idx(x,y+1));
+      } else if(MAT[nm].spread>0){
+        // flow sideways along diagonal-down or flat
+        const dir=Math.random()<0.5?-1:1;
+        const opts=[[dir,1],[-dir,1],[dir,0],[-dir,0]];
+        for(const [dx,dy] of opts){
+          const t=get(x+dx,y+dy);
+          const td=t===EMPTY?0:MAT[t].dens;
+          if((dy===1&&dens>td) || (dy===0&&t===EMPTY)){ swap(i,idx(x+dx,y+dy)); break; }
+        }
+      }
+    }
+  }
+}
+
+function render(){
+  const img=ctx.createImageData(GW,GH);
+  const d=img.data;
+  for(let i=0;i<grid.length;i++){
+    const m=grid[i];
+    let r=8,g=8,b=10;
+    if(m!==EMPTY){
+      const c=MAT[m].col;
+      const j=(Math.random()*24-12)|0;
+      r=Math.max(0,Math.min(255,c[0]+j));
+      g=Math.max(0,Math.min(255,c[1]+j));
+      b=Math.max(0,Math.min(255,c[2]+j));
+    }
+    const o=i*4;
+    d[o]=r; d[o+1]=g; d[o+2]=b; d[o+3]=255;
+  }
+  ctx.putImageData(img,0,0);
+}
+
+// painting
+let painting=false, px=0, py=0;
+function paint(cx,cy){
+  const gx=Math.floor(cx/CELL), gy=Math.floor(cy/CELL);
+  const r=brush;
+  for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+    if(dx*dx+dy*dy>r*r) continue;
+    const x=gx+dx, y=gy+dy;
+    if(x<0||y<0||x>=GW||y>=GH) continue;
+    const i=idx(x,y);
+    const t=grid[i];
+    // don't overwrite stone floor unless painting stone/acid
+    if(t===STONE && cur!==STONE && cur!==ACID) continue;
+    if(cur===FIRE){ grid[i]=FIRE; fireAge[i]=0; }
+    else if(cur===STEAM){ grid[i]=STEAM; steamAge[i]=0; }
+    else grid[i]=cur;
+  }
+}
+cv.addEventListener('pointerdown',e=>{painting=true; const r=cv.getBoundingClientRect(); px=e.clientX-r.left; py=e.clientY-r.top; paint(px,py);});
+cv.addEventListener('pointermove',e=>{ if(!painting) return; const r=cv.getBoundingClientRect(); const x=e.clientX-r.left, y=e.clientY-r.top;
+  // interpolate between points so fast drags don't gap
+  const dist=Math.hypot(x-px,y-py); const steps=Math.max(1,Math.floor(dist/(brush*CELL*0.5)));
+  for(let s=1;s<=steps;s++){ paint(px+(x-px)*s/steps, py+(y-py)*s/steps); }
+  px=x; py=y;
+});
+addEventListener('pointerup',()=>painting=false);
+cv.addEventListener('pointerleave',()=>painting=false);
+
+// UI
+const bar=document.getElementById('bar');
+ORDER.forEach((m,ix)=>{
+  const btn=document.createElement('button');
+  btn.textContent=(ix+1)+' '+MAT[m].name;
+  btn.dataset.m=m;
+  btn.onclick=()=>pick(m);
+  bar.appendChild(btn);
+});
+function pick(m){ cur=m; [...bar.children].forEach(b=>b.classList.toggle('on', +b.dataset.m===m)); }
+pick(SAND);
+
+addEventListener('keydown',e=>{
+  if(e.key===' '){ e.preventDefault(); grid.fill(EMPTY); for(let x=0;x<GW;x++){set(x,GH-2,STONE);set(x,GH-1,STONE);} }
+  if(e.key===']'){ brush=Math.min(20,brush+1); document.getElementById('size').textContent='brush '+brush; }
+  if(e.key==='['){ brush=Math.max(2,brush-1); document.getElementById('size').textContent='brush '+brush; }
+  const n=parseInt(e.key);
+  if(n>=1&&n<=ORDER.length) pick(ORDER[n-1]);
+});
+
+function loop(){
+  // run sim ~2 substeps per frame for speed feel
+  step(); step();
+  render();
+  requestAnimationFrame(loop);
+}
+
+addEventListener('resize',()=>{ resize(); allocTimers(); });
+resize(); allocTimers();
+// ?demo seeds a little scene so the page isn't empty on load
+if(location.search.includes('demo')){
+  for(let x=GW*0.3;x<GW*0.7;x++)for(let y=GH*0.2;y<GH*0.5;y++){ const i=idx(x|0,y|0); if(Math.random()<0.7) grid[i]=SAND; }
+  for(let x=GW*0.15;x<GW*0.4;x++)for(let y=GH*0.55;y<GH*0.75;y++){ const i=idx(x|0,y|0); grid[i]=WATER; }
+  for(let x=GW*0.6;x<GW*0.75;x++)for(let y=GH*0.6;y<GH*0.72;y++){ const i=idx(x|0,y|0); grid[i]=PLANT; }
+}
+loop();
+</script>
+</body>
+</html>
