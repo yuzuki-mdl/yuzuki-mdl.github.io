@@ -52,7 +52,7 @@
 <body>
 <header>
   <h1>tinylang, stepped</h1>
-  <p class="tag">a time-travel debugger for the <a href="tinylang-bytecode.html">compiled tinylang</a> — step the stack machine one instruction at a time, scrub back and forth</p>
+  <p class="tag">a time-travel debugger for the <a href="tinylang-bytecode.html">compiled tinylang</a> — step the stack machine one instruction at a time, scrub back and forth — and <b>fork</b> from any frame to re-run from that exact state</p>
 </header>
 <main>
 <section>
@@ -95,6 +95,7 @@
   <button id="prev" title="step back">◀ step</button>
   <button id="next" class="primary" title="step forward">step ▶</button>
   <button id="last" title="jump to end">⏭</button>
+  <button id="fork" title="re-run from this exact state">⎇ fork here</button>
   <input type="range" id="scrub" min="0" max="0" value="0" style="flex:1;min-width:140px">
   <span class="stepnum" id="stepnum">step 0 / 0</span>
 </div>
@@ -183,14 +184,16 @@ function compile(ast){
 function trace(prog,opts={}){
   const {code,consts}=prog;
   const frames=[];
-  const stack=[]; const vars=Object.create(null); const out=[];
+  const stack=(opts.stack||[]).slice();
+  const vars=Object.assign(Object.create(null), opts.vars||{});
+  const out=(opts.out||[]).slice();
   const maxSteps=opts.maxSteps||200000;
-  let pc=0, steps=0, error=null;
+  let pc=opts.pc||0, steps=0, error=null;
   const snap=(nextPc, note)=>frames.push({
     pc: nextPc, stack: stack.slice(), vars: Object.assign({}, vars),
     out: out.slice(), note, step: frames.length
   });
-  snap(pc, 'ready');
+  snap(pc, opts.branched ? 'branched here — now re-running from this state' : 'ready');
   const pop=()=>{if(!stack.length)throw new Error('stack underflow at pc '+(pc-1));return stack.pop();};
   try {
     while(pc<code.length){
@@ -331,6 +334,23 @@ document.getElementById('prev').addEventListener('click', ()=>go(cur-1));
 document.getElementById('first').addEventListener('click', ()=>go(0));
 document.getElementById('last').addEventListener('click', ()=>go(T?T.frames.length-1:0));
 $scrub.addEventListener('input', e=>go(Number(e.target.value)));
+document.getElementById('fork').addEventListener('click', ()=>{
+  if(!T) return;
+  const f=T.frames[cur];
+  try {
+    const prog = compile(parse(lex($src.value)));
+    const tr = trace(prog, {maxSteps:200000, pc:f.pc, stack:f.stack, vars:f.vars, out:f.out, branched:true});
+    T=tr;
+    const rows = disasm(prog);
+    $dis.innerHTML='';
+    for(const r of rows){ const el=document.createElement('span'); el.className='row'; el.dataset.pc=r.i; el.textContent=r.text; $dis.appendChild(el); }
+    $scrub.max = tr.frames.length-1;
+    cur = 0; // land on the branch point, step forward from here
+    render();
+  } catch(e){
+    $out.textContent='fork error: '+e.message; $out.classList.add('err');
+  }
+});
 $src.addEventListener('keydown', e=>{
   if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){ e.preventDefault(); build(); }
   if(e.key==='Tab'){ e.preventDefault(); const s=$src.selectionStart,e2=$src.selectionEnd; $src.value=$src.value.slice(0,s)+'  '+$src.value.slice(e2); $src.selectionStart=$src.selectionEnd=s+2; }
