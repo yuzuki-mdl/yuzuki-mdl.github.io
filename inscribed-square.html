@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>inscribed square</title>
+<style>
+  :root{--bg:#0c0d12;--fg:#e8e8ef;--dim:#7a7d8c;--acc:#7ee0c0;--acc2:#e08c7e}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow:hidden}
+  #wrap{position:fixed;inset:0}
+  canvas{display:block;width:100%;height:100%}
+  #ui{position:fixed;left:14px;top:14px;max-width:min(360px,72vw);pointer-events:none}
+  h1{font-size:15px;margin:0 0 2px;font-weight:600;letter-spacing:.02em}
+  .sub{color:var(--dim);font-size:12px;margin:0 0 10px}
+  #info{font-size:12px;color:var(--dim);line-height:1.6;pointer-events:auto}
+  #info b{color:var(--fg);font-weight:600}
+  #info .acc{color:var(--acc)}
+  #info .acc2{color:var(--acc2)}
+  #bar{position:fixed;left:14px;bottom:14px;right:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  button{font:inherit;font-size:12px;background:#1a1c25;color:var(--fg);border:1px solid #2a2d3a;border-radius:7px;padding:7px 11px;cursor:pointer;transition:.15s}
+  button:hover{background:#232633;border-color:#3a3e50}
+  button.on{background:var(--acc);color:#0c0d12;border-color:var(--acc)}
+  label{font-size:12px;color:var(--dim);display:flex;align-items:center;gap:6px}
+  input[type=range]{width:110px;accent-color:var(--acc)}
+  .tag{font-size:11px;color:var(--dim);margin-left:auto}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas></div>
+<div id="ui">
+  <h1>every closed curve has an inscribed square</h1>
+  <p class="sub">toeplitz, 1911 — still open. draw a curve, watch the hunt</p>
+  <div id="info">
+    <div>square error: <b id="err">—</b></div>
+    <div>angle: <b id="ang">—</b></div>
+    <div>method: <span class="acc" id="meth">brute force</span></div>
+  </div>
+</div>
+<div id="bar">
+  <button id="bDraw" class="on">draw</button>
+  <button id="bTri">triangle</button>
+  <button id="bBlob">blob</button>
+  <button id="bStar">star</button>
+  <button id="bClear">clear</button>
+  <label>samples <input id="samp" type="range" min="3" max="40" value="13"></label>
+  <span class="tag">drag to draw · mouse to move square</span>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',()=>{resize();});
+resize();
+
+// curve = array of points (closed). we resample to a fixed count for math.
+let curve=[];           // control points from drawing / presets
+let pts=[];             // resampled closed polyline
+let mode='draw';
+let dragging=false;
+let hover={x:W*0.5,y:H*0.5};
+let best=null;          // {a,b,c,d,err,ang}
+
+function resample(src,n){
+  if(src.length<2)return [];
+  // closed: append first
+  const P=src.concat([src[0]]);
+  // cumulative length
+  let L=[0];
+  for(let i=1;i<P.length;i++){L.push(L[i-1]+Math.hypot(P[i].x-P[i-1].x,P[i].y-P[i-1].y));}
+  const total=L[L.length-1];
+  if(total<1)return [];
+  const out=[];
+  let j=0;
+  for(let k=0;k<n;k++){
+    const t=total*k/n;
+    while(j<L.length-2&&L[j+1]<t)j++;
+    const seg=L[j+1]-L[j]||1;
+    const f=(t-L[j])/seg;
+    out.push({x:P[j].x+(P[j+1].x-P[j].x)*f,y:P[j].y+(P[j+1].y-P[j].y)*f});
+  }
+  return out;
+}
+
+// error for a candidate square: given 4 points on the curve, how far from a perfect square?
+// a square: all sides equal, diagonals equal, right angles. use side-length variance + diagonal match.
+function squareError(a,b,c,d){
+  const s=[[a,b],[b,c],[c,d],[d,a]];
+  const L=s.map(([p,q])=>Math.hypot(p.x-q.x,p.y-q.y));
+  const mean=L.reduce((x,y)=>x+y,0)/4;
+  if(mean<1e-6)return 1e9;
+  let v=0;for(const l of L)v+=(l-mean)*(l-mean);
+  v/=4;v=Math.sqrt(v)/mean; // side length coefficient of variation
+  // diagonals
+  const d1=Math.hypot(a.x-c.x,a.y-c.y),d2=Math.hypot(b.x-d.x,b.y-d.y);
+  const dv=Math.abs(d1-d2)/((d1+d2)/2||1);
+  return v+dv;
+}
+
+// hunt: choose 4 sample indices i<j<k<l around the loop, evaluate squareError.
+// keep the best. brute force over all quadruples when samples small.
+function hunt(){
+  if(pts.length<8){best=null;return;}
+  const n=pts.length;
+  let bb=null,be=1e9;
+  if(n<=40){
+    for(let i=0;i<n;i++)for(let j=i+1;j<n;j++)for(let k=j+1;k<n;k++)for(let l=k+1;l<n;l++){
+      const e=squareError(pts[i],pts[j],pts[k],pts[l]);
+      if(e<be){be=e;bb={a:pts[i],b:pts[j],c:pts[k],d:pts[l],err:e,i,j,k,l};}
+    }
+  }else{
+    // smart: for each point a, the opposite point c must be roughly across the centroid.
+    // pick a, then find c that maximizes distance-ish, then b,d by angle.
+    const cx=pts.reduce((s,p)=>s+p.x,0)/n, cy=pts.reduce((s,p)=>s+p.y,0)/n;
+    for(let i=0;i<n;i++){
+      const A=pts[i];
+      // candidate c = point most opposite to A across centroid
+      let ci=-1,cd=-1;
+      for(let k=0;k<n;k++){
+        const dx=pts[k].x-cx,dy=pts[k].y-cy;
+        const ax=A.x-cx,ay=A.y-cy;
+        const dot=dx*ax+dy*ay, la=Math.hypot(ax,ay),lk=Math.hypot(dx,dy);
+        const cos=dot/(la*lk||1);
+        if(cos<0&&-cos>cd){cd=-cos;ci=k;}
+      }
+      if(ci<0)continue;
+      const C=pts[ci];
+      // b,d: points closest to the two perpendicular directions from midpoint
+      const mx=(A.x+C.x)/2,my=(A.y+C.y)/2;
+      const vx=C.x-A.x,vy=C.y-A.y;
+      let bi=-1,di=-1,be2=1e9,de2=1e9;
+      for(let k=0;k<n;k++){
+        if(k===i||k===ci)continue;
+        const dx=pts[k].x-mx,dy=pts[k].y-my;
+        const along=(dx*vx+dy*vy)/(vx*vx+vy*vy||1);
+        const perp=Math.abs(dx*vy-dy*vx)/Math.hypot(vx,vy);
+        const score=Math.abs(along)+perp;
+        if(score<be2){be2=score;bi=k;}
+        if(score<de2&&k!==bi){de2=score;di=k;}
+      }
+      if(bi<0||di<0)continue;
+      const e=squareError(A,pts[bi],C,pts[di]);
+      if(e<be){be=e;bb={a:A,b:pts[bi],c:C,d:pts[di],err:e,i,j:bi,k:ci,l:di};}
+    }
+  }
+  best=bb;
+}
+
+// inscribed square from a direction: pick a direction theta, draw the chord, rotate 90, intersect with curve.
+// this is the classic Toeplitz construction. for a convex-ish curve it always finds something.
+function inscribedByDirection(theta){
+  if(pts.length<8)return null;
+  const n=pts.length;
+  const cx=pts.reduce((s,p)=>s+p.x,0)/n, cy=pts.reduce((s,p)=>s+p.y,0)/n;
+  // find 4 points on curve at angles theta, theta+90, theta+180, theta+270 from centroid-ish
+  // (approximation: nearest sample to each angle)
+  const ang=[theta,theta+Math.PI/2,theta+Math.PI,theta+3*Math.PI/2];
+  const pick=ang.map(a=>{
+    const tx=cx+Math.cos(a),ty=cy+Math.sin(a);
+    let bi=0,bd=1e9;
+    for(let k=0;k<n;k++){
+      const dx=pts[k].x-cx,dy=pts[k].y-cy;
+      const la=Math.hypot(dx,dy);
+      const ca=dx/la,sa=dy/la;
+      const d=Math.abs(Math.atan2(sa,ca)-a);
+      const dd=Math.min(d,2*Math.PI-d);
+      if(dd<bd){bd=dd;bi=k;}
+    }
+    return pts[bi];
+  });
+  return {a:pick[0],b:pick[1],c:pick[2],d:pick[3],err:squareError(pick[0],pick[1],pick[2],pick[3]),ang:theta};
+}
+
+// presets
+function preset(kind){
+  const cx=W/2,cy=H/2,r=Math.min(W,H)*0.3;
+  curve=[];
+  if(kind==='tri'){
+    for(let i=0;i<120;i++){const a=i/120*Math.PI*2-Math.PI/2;const rr=r*(1+0.15*Math.cos(3*a));curve.push({x:cx+Math.cos(a)*rr,y:cy+Math.sin(a)*rr});}
+  }else if(kind==='blob'){
+    for(let i=0;i<160;i++){const a=i/160*Math.PI*2;const rr=r*(1+0.25*Math.sin(5*a)+0.12*Math.cos(3*a+1));curve.push({x:cx+Math.cos(a)*rr,y:cy+Math.sin(a)*rr});}
+  }else if(kind==='star'){
+    for(let i=0;i<160;i++){const a=i/160*Math.PI*2;const rr=r*(0.6+0.4*Math.cos(5*a));curve.push({x:cx+Math.cos(a)*rr,y:cy+Math.sin(a)*rr});}
+  }
+  rebuild();
+}
+
+function rebuild(){
+  const n=parseInt(document.getElementById('samp').value);
+  pts=resample(curve,n);
+  hunt();
+}
+
+// drawing
+let last=null;
+cv.addEventListener('mousedown',e=>{if(mode!=='draw')return;dragging=true;last={x:e.clientX,y:e.clientY};curve=[];curve.push(last);});
+cv.addEventListener('mousemove',e=>{
+  hover={x:e.clientX,y:e.clientY};
+  if(dragging&&mode==='draw'){
+    const p={x:e.clientX,y:e.clientY};
+    if(!last||Math.hypot(p.x-last.x,p.y-last.y)>4){curve.push(p);last=p;}
+  }
+});
+cv.addEventListener('mouseup',()=>{if(dragging){dragging=false;rebuild();}});
+cv.addEventListener('touchstart',e=>{e.preventDefault();if(mode!=='draw')return;dragging=true;const t=e.touches[0];last={x:t.clientX,y:t.clientY};curve=[last];},{passive:false});
+cv.addEventListener('touchmove',e=>{e.preventDefault();if(!dragging)return;const t=e.touches[0];const p={x:t.clientX,y:t.clientY};if(!last||Math.hypot(p.x-last.x,p.y-last.y)>4){curve.push(p);last=p;}},{passive:false});
+cv.addEventListener('touchend',e=>{e.preventDefault();if(dragging){dragging=false;rebuild();}},{passive:false});
+
+// buttons
+document.getElementById('bDraw').onclick=()=>{mode='draw';setActive('bDraw');};
+document.getElementById('bTri').onclick=()=>{mode='preset';setActive('bTri');preset('tri');};
+document.getElementById('bBlob').onclick=()=>{mode='preset';setActive('bBlob');preset('blob');};
+document.getElementById('bStar').onclick=()=>{mode='preset';setActive('bStar');preset('star');};
+document.getElementById('bClear').onclick=()=>{curve=[];pts=[];best=null;};
+document.getElementById('samp').oninput=()=>{rebuild();};
+function setActive(id){for(const b of document.querySelectorAll('#bar button'))b.classList.remove('on');document.getElementById(id).classList.add('on');}
+
+// loop
+let t=0;
+function frame(){
+  t+=0.01;
+  ctx.clearRect(0,0,W,H);
+
+  // grid
+  ctx.strokeStyle='#161821';ctx.lineWidth=1;
+  const g=40;
+  for(let x=0;x<W;x+=g){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=g){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // curve
+  if(curve.length>1){
+    ctx.strokeStyle='#3a3e50';ctx.lineWidth=2;ctx.beginPath();
+    ctx.moveTo(curve[0].x,curve[0].y);
+    for(let i=1;i<curve.length;i++)ctx.lineTo(curve[i].x,curve[i].y);
+    ctx.closePath();ctx.stroke();
+  }
+
+  // samples
+  if(pts.length){
+    ctx.fillStyle='#7a7d8c';
+    for(const p of pts){ctx.beginPath();ctx.arc(p.x,p.y,2,0,7);ctx.fill();}
+  }
+
+  // live direction square (Toeplitz-ish) from mouse angle
+  if(pts.length>4){
+    const cx=pts.reduce((s,p)=>s+p.x,0)/pts.length,cy=pts.reduce((s,p)=>s+p.y,0)/pts.length;
+    const th=Math.atan2(hover.y-cy,hover.x-cx);
+    const sq=inscribedByDirection(th);
+    if(sq){
+      ctx.strokeStyle='rgba(126,224,192,0.35)';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(sq.a.x,sq.a.y);ctx.lineTo(sq.b.x,sq.b.y);ctx.lineTo(sq.c.x,sq.c.y);ctx.lineTo(sq.d.x,sq.d.y);ctx.closePath();ctx.stroke();
+      ctx.fillStyle='rgba(126,224,192,0.10)';ctx.fill();
+    }
+  }
+
+  // best square
+  if(best){
+    const {a,b,c,d}=best;
+    ctx.strokeStyle='#e08c7e';ctx.lineWidth=2.5;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.lineTo(c.x,c.y);ctx.lineTo(d.x,d.y);ctx.closePath();ctx.stroke();
+    ctx.fillStyle='rgba(224,140,126,0.10)';ctx.fill();
+    for(const p of [a,b,c,d]){ctx.fillStyle='#e08c7e';ctx.beginPath();ctx.arc(p.x,p.y,4,0,7);ctx.fill();}
+
+    // side length labels
+    const s=[[a,b],[b,c],[c,d],[d,a]];
+    ctx.fillStyle='#e8e8ef';ctx.font='11px ui-monospace,monospace';ctx.textAlign='center';
+    for(const [p,q] of s){
+      const mx=(p.x+q.x)/2,my=(p.y+q.y)/2;
+      const l=Math.hypot(p.x-q.x,p.y-q.y);
+      ctx.fillText(l.toFixed(1),mx,my-3);
+    }
+  }
+
+  // readouts
+  const errEl=document.getElementById('err'),angEl=document.getElementById('ang');
+  if(best){errEl.textContent=best.err.toFixed(4);angEl.textContent=(best.ang!==undefined?(best.ang*180/Math.PI).toFixed(1)+'°':'—');}
+  else{errEl.textContent='—';angEl.textContent='—';}
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+// start with a blob so there's something to see
+preset('blob');
+</script>
+</body>
+</html>
