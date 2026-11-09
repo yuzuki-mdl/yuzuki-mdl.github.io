@@ -1,63 +1,58 @@
 <!doctype html>
-<html><head><meta charset="utf-8"><title>the potato paradox</title>
+<html lang="en">
+<head>
+<meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the potato paradox</title>
 <style>
-  body{margin:0;background:#14110d;color:#efe6d6;font-family:ui-monospace,monospace;display:flex;flex-direction:column;align-items:center;min-height:100vh}
-  h1{font-size:1.1rem;font-weight:400;letter-spacing:.08em;margin:2rem 0 .3rem;color:#c9a86a}
-  .sub{font-size:.75rem;color:#8a7f6a;margin-bottom:1.5rem;text-align:center;max-width:32rem;line-height:1.5}
-  .stage{display:flex;gap:2rem;align-items:flex-end;height:260px;margin-bottom:1rem}
-  .potato{position:relative;width:120px;background:#7a5a2a;border-radius:46% 54% 50% 50%/60% 55% 45% 40%;display:flex;align-items:flex-end;transition:height .25s ease, background .25s}
-  .water{width:100%;background:#3a7fb5;border-radius:0 0 46% 54%/0 0 45% 40%;transition:height .25s ease}
-  .solid{position:absolute;left:0;bottom:0;width:100%;background:#a8792e;border-radius:0 0 46% 54%/0 0 45% 40%;transition:height .25s ease}
-  .label{position:absolute;top:-1.4rem;left:50%;transform:translateX(-50%);font-size:.7rem;color:#c9a86a;white-space:nowrap}
-  .panel{display:flex;flex-direction:column;gap:.6rem;width:280px;font-size:.8rem}
-  input[type=range]{width:100%;accent-color:#c9a86a}
-  .row{display:flex;justify-content:space-between;color:#b5a88f}
-  .row b{color:#efe6d6}
-  .big{font-size:1.4rem;color:#e8c887;text-align:center;margin:.4rem 0}
-  .note{font-size:.7rem;color:#7c715c;margin-top:1rem;text-align:center;max-width:34rem;line-height:1.5}
-</style></head><body>
+  :root{--bg:#12100c;--fg:#efe6d3;--dim:#8a8069;--acc:#c8a24a;--water:#4a90c8;--dry:#b08a4a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,Menlo,monospace;line-height:1.6;padding:2rem 1rem}
+  main{max-width:640px;margin:0 auto}
+  h1{font-size:1.3rem;font-weight:600;color:var(--acc);letter-spacing:.02em}
+  p{color:var(--fg)}
+  .dim{color:var(--dim)}
+  .potato{position:relative;width:180px;height:180px;border-radius:50% 48% 52% 50%;margin:1.5rem auto;background:var(--dry);overflow:hidden;border:2px solid #00000055;box-shadow:0 8px 30px #00000066;transition:width .5s,height .5s}
+  .water{position:absolute;left:0;right:0;bottom:0;background:var(--water);transition:height .5s}
+  .lbl{text-align:center;font-variant-numeric:tabular-nums}
+  .lbl b{color:var(--acc)}
+  input[type=range]{width:100%;accent-color:var(--acc);margin:1rem 0}
+  .row{display:flex;justify-content:space-between;font-variant-numeric:tabular-nums;font-size:.9rem}
+  .big{font-size:2rem;text-align:center;color:var(--acc);font-variant-numeric:tabular-nums;margin:.5rem 0}
+  .note{border-left:2px solid var(--acc);padding-left:1rem;color:var(--dim);font-size:.9rem;margin-top:2rem}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
 <h1>the potato paradox</h1>
-<div class="sub">100 kg of potatoes, 99% water. leave them out overnight. now they're 98% water.<br>how much do they weigh?</div>
-<div class="stage">
-  <div class="potato" id="potato">
-    <div class="label" id="plabel">100 kg</div>
-    <div class="solid" id="solid"></div>
-    <div class="water" id="water"></div>
-  </div>
-</div>
-<div class="panel">
-  <div class="row"><span>water content</span><b id="pct">99%</b></div>
-  <input type="range" id="slider" min="50" max="99" value="99" step="0.5">
-  <div class="big" id="mass">100.0 kg</div>
-  <div class="row"><span>dry matter</span><b>1.0 kg</b></div>
-  <div class="row"><span>water</span><b id="wat">99.0 kg</b></div>
-</div>
-<div class="note">the dry matter never changes. at 98% water, that 1 kg is 2% of the total — so the whole thing halves. the intuitive answer ("loses 1% of its water, ~99 kg") is off by almost half.</div>
+<p>100 kg of potatoes. 99% water. you leave them out overnight. now they're 98% water. how much do they weigh?</p>
+<p class="dim">the dry matter never changes. it's 1% of 100 kg = 1 kg. if that 1 kg must be 2% of the new total, the total is 50 kg.</p>
+
+<div class="potato" id="pot"><div class="water" id="wat"></div></div>
+<div class="big" id="mass">100 kg</div>
+
+<input type="range" id="slider" min="0" max="100" value="0" step="1">
+<div class="row"><span class="dim">water %</span><span id="pct" class="dim">99%</span></div>
+
+<p class="note">the counterintuitive part: water drops by just 1 percentage point, but the potatoes <em>lose half their weight</em>. because the dry matter doubled <em>as a fraction</em>, the total had to halve.</p>
+<p class="dim" style="margin-top:2rem;font-size:.85rem">← <a href="index.html">home</a></p>
+</main>
 <script>
-const slider=document.getElementById('slider');
-const potato=document.getElementById('potato');
-const water=document.getElementById('water');
-const solid=document.getElementById('solid');
-const plabel=document.getElementById('plabel');
-const pct=document.getElementById('pct');
-const mass=document.getElementById('mass');
-const wat=document.getElementById('wat');
-const DRY=1.0;
-function update(){
-  const w=parseFloat(slider.value)/100; // water fraction
-  const total=DRY/(1-w);
-  pct.textContent=slider.value+'%';
+const sl=document.getElementById('slider'),wat=document.getElementById('wat'),mass=document.getElementById('mass'),pct=document.getElementById('pct'),pot=document.getElementById('pot');
+const dry=1; // kg, fixed
+function upd(){
+  // slider 0..100 maps water% from 99 down to 98
+  const w=99-(sl.value/100); // water fraction percent 99..98
+  const wf=w/100;
+  const total=dry/(1-wf);
+  wat.style.height=(wf*100)+'%';
   mass.textContent=total.toFixed(1)+' kg';
-  wat.textContent=(total-DRY).toFixed(1)+' kg';
-  plabel.textContent=total.toFixed(1)+' kg';
-  const maxH=240;
-  const h=Math.max(30, Math.min(maxH, total/100*maxH));
-  potato.style.height=h+'px';
-  water.style.height=(w*100)+'%';
-  solid.style.height=((1-w)*100)+'%';
+  pct.textContent=w.toFixed(2)+'%';
+  pot.style.width=pot.style.height=(90+60*(total/100))+'px';
 }
-slider.addEventListener('input',update);
-update();
+sl.addEventListener('input',upd);
+upd();
 </script>
-</body></html>
+</body>
+</html>
