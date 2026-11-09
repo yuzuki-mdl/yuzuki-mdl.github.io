@@ -1,0 +1,104 @@
+<!doctype html>
+<html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>tidemap</title>
+<style>
+html,body{margin:0;height:100%;background:#0b0e14;color:#cdd6f4;font:14px/1.4 ui-monospace,monospace;overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+#ui{position:fixed;left:12px;bottom:12px;background:#1a1f2bcc;padding:10px 12px;border-radius:8px;backdrop-filter:blur(4px)}
+#ui label{display:block;margin:4px 0}
+button{background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:6px;padding:4px 10px;font:inherit;cursor:pointer;margin-right:6px}
+button:hover{background:#45475a}
+#hud{position:fixed;right:12px;top:12px;text-align:right;opacity:.75;font-size:12px;white-space:pre}
+input[type=range]{vertical-align:middle;width:120px}
+</style></head><body>
+<canvas id=c></canvas>
+<div id=hud></div>
+<div id=ui>
+<button id=reset>re-pour</button><button id=auto>pause</button>
+<label>evaporation <input id=ev type=range min=1 max=100 value=40></label>
+<label>roughness <input id=ru type=range min=0 max=100 value=55></label>
+<label>wobble <input id=wo type=range min=0 max=100 value=45></label>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,running=true;
+// a puddle = a radial level function r(theta) that shrinks. each shoreline snapshot
+// is a closed curve r(theta) at that time. time-contours, not height-contours.
+let t=0,shores=[],rad0=1,seeds=[];
+function resize(){W=cv.width=innerWidth;H=cv.height=innerHeight;regen();}
+function regen(){
+  // random low-freq noise for the shoreline wobble, seeded once
+  seeds=[];
+  const N=64;
+  for(let k=0;k<6;k++)seeds.push({k:k+1,amp:Math.random()*2-1,ph:Math.random()*7});
+  t=0;shores=[];rad0=Math.min(W,H)*0.42;
+}
+const RU=()=>+ru.value/100, WO=()=>+wo.value/100;
+function radius(theta,scale){
+  // base radius scaled, plus multi-harmonic noise so the edge is organic
+  let r=1;
+  const rough=RU();
+  for(const s of seeds){
+    r+=rough*0.12*s.amp*Math.sin(s.k*theta+s.ph);
+  }
+  // little high-freq bite
+  r+=rough*0.05*Math.sin(11*theta+t*0.3);
+  return rad0*scale*r;
+}
+function snap(){
+  const N=240,pts=[];
+  const scale=Math.max(0.02,1-t*0.012*(0.5+ev.value/100));
+  for(let i=0;i<=N;i++){
+    const th=(i/N)*Math.PI*2;
+    const r=radius(th,scale);
+    pts.push([Math.cos(th)*r,Math.sin(th)*r]);
+  }
+  return {pts,age:0};
+}
+function draw(){
+  ctx.fillStyle='#0b0e14';ctx.fillRect(0,0,W,H);
+  const cx=W/2,cy=H/2;
+  // current puddle fill
+  const cur=shores.length?shores[shores.length-1]:null;
+  if(cur){
+    ctx.beginPath();
+    cur.pts.forEach(([x,y],i)=>i?ctx.lineTo(cx+x,cy+y):ctx.moveTo(cx+x,cy+y));
+    ctx.closePath();
+    const grd=ctx.createRadialGradient(cx,cy,0,cx,cy,rad0);
+    grd.addColorStop(0,'rgba(70,140,210,0.55)');
+    grd.addColorStop(1,'rgba(40,90,150,0.25)');
+    ctx.fillStyle=grd;ctx.fill();
+  }
+  // all past shorelines, older = dimmer
+  shores.forEach((sh,idx)=>{
+    const age=1-idx/shores.length;
+    ctx.strokeStyle='rgba(255,175,75,'+(0.08+age*0.65)+')';
+    ctx.lineWidth=1.2;
+    ctx.beginPath();
+    sh.pts.forEach(([x,y],i)=>i?ctx.lineTo(cx+x,cy+y):ctx.moveTo(cx+x,cy+y));
+    ctx.stroke();
+  });
+}
+let acc=0;
+function loop(){
+  if(running){
+    acc+=1;
+    if(acc%6===0){
+      t+=1;
+      const sh=snap();
+      if(sh.pts){shores.push(sh);if(shores.length>70)shores.shift();}
+      // re-pour when puddle nearly gone
+      const scale=Math.max(0.02,1-t*0.012*(0.5+ev.value/100));
+      if(scale<=0.03){t=0;shores=[];seeds.forEach(s=>{s.amp=Math.random()*2-1;s.ph=Math.random()*7});}
+    }
+    document.getElementById('hud').textContent='t = '+t+'   shorelines: '+shores.length+'\neach ring = one drying step, newest bright';
+    draw();
+  }
+  requestAnimationFrame(loop);
+}
+addEventListener('resize',resize);
+document.getElementById('reset').onclick=regen;
+document.getElementById('auto').onclick=()=>{running=!running;document.getElementById('auto').textContent=running?'pause':'play';};
+resize();loop();
+</script>
+</body></html>
