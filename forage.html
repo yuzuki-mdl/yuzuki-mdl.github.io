@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>forage — yuzuki</title>
+<style>
+  html,body{margin:0;height:100%;background:#07070a;overflow:hidden;font-family:ui-monospace,monospace;color:#cfd8e8}
+  canvas{display:block;width:100%;height:100%;image-rendering:pixelated;touch-action:none}
+  #bar{position:fixed;left:12px;top:12px;font-size:12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;pointer-events:none}
+  #bar span{pointer-events:auto;cursor:pointer;padding:2px 8px;border:1px solid #2a2a34;border-radius:4px;background:#111116}
+  #bar span.on{border-color:#7ad0ff;color:#7ad0ff}
+  #hint{position:fixed;left:12px;bottom:12px;font-size:11px;opacity:.55;line-height:1.7;pointer-events:none}
+  #legend{position:fixed;right:12px;top:12px;font-size:11px;line-height:1.7;text-align:right;pointer-events:none}
+  .sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-left:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="bar">
+  <span id="b-reset">reset</span>
+  <span id="b-food">drop food</span>
+  <span id="b-pause">pause</span>
+</div>
+<div id="legend"></div>
+<div id="hint">click to drop food · moulds forage for it and fight for territory · drag to smear food</div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+let W=0,H=0,CELL=3,cols=0,rows=0;
+let deposit,trail,species,food;
+const NSP=3;
+// species params — different foraging styles
+const SP=[
+  {name:'swift', color:[90,200,255], sensorAng:0.55, sensorDist:7, turn:0.42, speed:1.0, dep:4.5,  foodPull:1.0},
+  {name:'patient', color:[255,120,180], sensorAng:0.9, sensorDist:5, turn:0.22, speed:0.75, dep:5.5, foodPull:0.5},
+  {name:'brute', color:[255,205,90], sensorAng:0.35, sensorDist:6, turn:0.5, speed:1.25, dep:3.6, foodPull:0.7}
+];
+const AGENTS=2600;
+let ag=[];
+let paused=false, foodMode=false, dragging=false;
+let t=0;
+
+function idx(x,y){return y*cols+x;}
+
+function setup(){
+  const dpr=1;
+  W=c.clientWidth; H=c.clientHeight;
+  c.width=Math.floor(W/dpr); c.height=Math.floor(H/dpr);
+  CELL=3;
+  cols=Math.floor(c.width/CELL); rows=Math.floor(c.height/CELL);
+  deposit=new Float32Array(cols*rows);
+  trail=new Float32Array(cols*rows);
+  species=new Int8Array(cols*rows).fill(-1);
+  food=new Float32Array(cols*rows);
+  ag=[];
+  for(let i=0;i<AGENTS;i++){
+    const s=i%NSP;
+    ag.push({x:Math.random()*cols, y:Math.random()*rows, a:Math.random()*Math.PI*2, s});
+  }
+  // scatter some food blobs
+  for(let k=0;k<8;k++) dropFood(Math.random()*cols, Math.random()*rows, 9);
+  t=0;
+}
+
+function dropFood(cx,cy,r){
+  for(let y=Math.floor(cy-r);y<=cy+r;y++)for(let x=Math.floor(cx-r);x<=cx+r;x++){
+    if(x<0||y<0||x>=cols||y>=rows)continue;
+    const d=(x-cx)**2+(y-cy)**2;
+    if(d<=r*r) food[idx(x,y)]=Math.min(1, food[idx(x,y)]+0.9);
+  }
+}
+
+function sense(x,y,a){
+  // wrap
+  x=((x%cols)+cols)%cols; y=((y%rows)+rows)%rows;
+  return deposit[idx(Math.floor(x),Math.floor(y))] + food[idx(Math.floor(x),Math.floor(y))]*3.0;
+}
+
+function step(){
+  t++;
+  // diffuse + decay deposit, decay food slowly
+  const nd=new Float32Array(cols*rows);
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+    const i=idx(x,y);
+    let s=deposit[i]*0.9;
+    s+=(deposit[idx((x+1)%cols,y)]+deposit[idx((x-1+cols)%cols,y)]+deposit[idx(x,(y+1)%rows)]+deposit[idx(x,(y-1+rows)%rows)])*0.025;
+    nd[i]=s*0.985;
+    if(food[i]>0) food[i]*=0.9993;
+  }
+  deposit=nd;
+  // agents
+  for(const p of ag){
+    const pr=SP[p.s];
+    const sx=Math.cos(p.a), sy=Math.sin(p.a);
+    const la=p.a-pr.sensorAng, ra=p.a+pr.sensorAng;
+    const F=sense(p.x+sx*pr.sensorDist, p.y+sy*pr.sensorDist, p.a);
+    const L=sense(p.x+Math.cos(la)*pr.sensorDist, p.y+Math.sin(la)*pr.sensorDist, la);
+    const R=sense(p.x+Math.cos(ra)*pr.sensorDist, p.y+Math.sin(ra)*pr.sensorDist, ra);
+    // food gradient pull
+    let gx=0,gy=0;
+    const fx=Math.floor(p.x), fy=Math.floor(p.y);
+    if(fx>=0&&fy>=0&&fx<cols&&fy<rows){
+      const i=idx(fx,fy);
+      // sample food gradient
+      const fR=food[idx((fx+2)%cols,fy)], fL=food[idx((fx-2+cols)%cols,fy)];
+      const fD=food[idx(fx,(fy+2)%rows)], fU=food[idx(fx,(fy-2+rows)%rows)];
+      gx=(fR-fL); gy=(fD-fU);
+    }
+    const gm=Math.hypot(gx,gy);
+    if(gm>0.01 && Math.random()<pr.foodPull){
+      const target=Math.atan2(gy,gx);
+      // steer toward food
+      let da=((target-p.a+Math.PI*3)%(Math.PI*2))-Math.PI;
+      p.a+=da*0.15;
+    } else {
+      // normal physarum
+      if(F>=L&&F>=R){ /* straight */ }
+      else if(F<L&&F<R){ p.a += (Math.random()-0.5)*pr.turn*2; }
+      else if(L>R){ p.a-=pr.turn; }
+      else { p.a+=pr.turn; }
+    }
+    p.x+=Math.cos(p.a)*pr.speed;
+    p.y+=Math.sin(p.a)*pr.speed;
+    // wrap
+    if(p.x<0)p.x+=cols; if(p.x>=cols)p.x-=cols;
+    if(p.y<0)p.y+=rows; if(p.y>=rows)p.y-=rows;
+    const ix=Math.floor(p.x), iy=Math.floor(p.y);
+    if(ix>=0&&iy>=0&&ix<cols&&iy<rows){
+      const i=idx(ix,iy);
+      deposit[i]+=pr.dep*0.1;
+      // claim territory
+      species[i]=p.s;
+      // eat food
+      if(food[i]>0){ food[i]-=0.006; }
+    }
+  }
+  // normalize deposit
+  let mx=0; for(let i=0;i<deposit.length;i++) if(deposit[i]>mx)mx=deposit[i];
+  if(mx>0){ const s=1/mx; for(let i=0;i<deposit.length;i++)deposit[i]*=s; }
+}
+
+function draw(){
+  const img=ctx.createImageData(c.width,c.height);
+  const d=img.data;
+  for(let y=0;y<rows;y++)for(let x=0;x<cols;x++){
+    const i=idx(x,y);
+    const dep=deposit[i];
+    const sp=species[i];
+    let r=6,g=6,b=10;
+    if(sp>=0 && dep>0.02){
+      const col=SP[sp].color;
+      const k=Math.pow(dep,0.7);
+      r=6+col[0]*k; g=6+col[1]*k; b=10+col[2]*k;
+    }
+    const f=food[i];
+    if(f>0.02){ r=Math.min(255,r+f*180); g=Math.min(255,g+f*230); b=Math.min(255,b+f*120); }
+    // paint cell block
+    for(let yy=0;yy<CELL;yy++)for(let xx=0;xx<CELL;xx++){
+      const px=x*CELL+xx, py=y*CELL+yy;
+      if(px>=c.width||py>=c.height)continue;
+      const o=(py*c.width+px)*4;
+      d[o]=r; d[o+1]=g; d[o+2]=b; d[o+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+}
+
+function legend(){
+  let h='';
+  for(const s of SP) h+=s.name+'<span class="sw" style="background:rgb('+s.color.join(',')+'"></span><br>';
+  document.getElementById('legend').innerHTML=h;
+}
+
+let raf=0;
+function loop(){
+  if(!paused){ for(let k=0;k<2;k++) step(); }
+  draw();
+  raf=requestAnimationFrame(loop);
+}
+
+// input
+c.addEventListener('pointerdown',e=>{
+  dragging=true; const r=c.getBoundingClientRect();
+  const x=(e.clientX-r.left)/CELL, y=(e.clientY-r.top)/CELL;
+  dropFood(x,y, foodMode?4:7);
+});
+c.addEventListener('pointermove',e=>{
+  if(!dragging)return; const r=c.getBoundingClientRect();
+  const x=(e.clientX-r.left)/CELL, y=(e.clientY-r.top)/CELL;
+  dropFood(x,y,3);
+});
+c.addEventListener('pointerup',()=>dragging=false);
+c.addEventListener('pointerleave',()=>dragging=false);
+
+function toggleBtn(id,on){document.getElementById(id).classList.toggle('on',on);}
+document.getElementById('b-reset').onclick=()=>{setup();};
+document.getElementById('b-food').onclick=()=>{foodMode=!foodMode; toggleBtn('b-food',foodMode);};
+document.getElementById('b-pause').onclick=()=>{paused=!paused; toggleBtn('b-pause',paused);};
+
+window.addEventListener('resize',()=>{ setup(); });
+setup(); legend(); loop();
+</script>
+</body>
+</html>
