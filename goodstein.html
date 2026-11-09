@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>goodstein — grow forever, then stop</title>
+<style>
+  :root { --bg:#0b0d10; --fg:#d7e0ea; --dim:#6b7885; --hot:#ff7a4d; --cold:#4dc3ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace; padding:24px; }
+  h1 { font-size:16px; font-weight:600; letter-spacing:.02em; margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 20px; max-width:62ch; }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:16px; }
+  input { background:#12161b; border:1px solid #232b34; color:var(--fg); padding:6px 8px; width:90px; font:inherit; border-radius:6px; }
+  button { background:#1a2430; border:1px solid #2c3a48; color:var(--fg); padding:6px 12px; font:inherit; border-radius:6px; cursor:pointer; }
+  button:hover { background:#22303f; }
+  .term { display:flex; gap:12px; align-items:baseline; padding:6px 0; border-bottom:1px solid #161b21; }
+  .n { color:var(--dim); width:44px; text-align:right; flex:none; }
+  .base { color:var(--cold); width:40px; flex:none; }
+  .val { font-variant-numeric:tabular-nums; word-break:break-all; }
+  .val.big { color:var(--hot); }
+  .note { color:var(--dim); margin-top:20px; max-width:66ch; font-size:13px; }
+  code { color:var(--cold); }
+</style>
+</head>
+<body>
+<h1>goodstein sequences</h1>
+<p class="sub">start with any number. write it in hereditary base 2. bump the base, subtract 1. repeat. the number explodes to absurd size, then — always — comes back to 0. provable only with transfinite ordinals.</p>
+
+<div class="row">
+  <label>start n =</label>
+  <input id="n" type="number" value="4" min="1" max="20">
+  <label>show terms:</label>
+  <input id="k" type="number" value="12" min="1" max="40">
+  <button id="go">run</button>
+</div>
+<div id="out"></div>
+
+<p class="note">big integers via BigInt, so early terms are exact. after a while the numbers have thousands of digits — that's the point. <code>4</code> is the classic: it reaches ~3·2<sup>402653211</sup> before finally hitting 0. no shortcut exists; the descent is real but unprovably long in peano arithmetic.</p>
+
+<script>
+// hereditary base-b representation of n as a tree, then bump base, subtract 1.
+// represent n as bigint. build hereditary expr: value = sum of b^e where e is itself hereditary.
+// we only need numeric evaluation, so: to bump base from b to b+1, we rewrite every base b in the
+// hereditary tower as b+1, then subtract 1.
+
+// represent hereditary form as nested arrays: [coef, expTree] pairs at top; expTree is same shape.
+function toHered(n, b){ // n: BigInt, b: number -> array of [coef, exp]
+  let terms=[];
+  let rem=n, bb=BigInt(b);
+  // find highest power
+  let p=0; let pw=1n;
+  while(pw*bb<=rem){ pw*=bb; p++; }
+  // now pw = b^p <= rem < b^(p+1)
+  while(rem>0n){
+    let coef=rem/pw;
+    if(coef>0n){
+      terms.push([coef, p===0?null:toHered(BigInt(p), b)]);
+    }
+    rem-=coef*pw;
+    if(p>0){ pw/=bb; p--; }
+    else break;
+  }
+  return terms;
+}
+
+function evalHered(terms, b){
+  let bb=BigInt(b); let sum=0n;
+  for(const [coef, exp] of terms){
+    let e;
+    if(exp===null) e=1n;
+    else e=pow(bb, evalHered(exp,b));
+    sum += coef*e;
+  }
+  return sum;
+}
+function pow(base, exp){ // BigInt pow
+  let r=1n;
+  while(exp>0n){ if(exp&1n) r*=base; base*=base; exp>>=1n; }
+  return r;
+}
+
+function bump(terms){ // rewrite base b representation to b+1 — but we store tree, base-independent
+  // tree is base-agnostic structure; we just re-evaluate at next base. so bump = identity on tree.
+  return terms;
+}
+
+function goodstein(n0, k){
+  let out=[];
+  let n=BigInt(n0);
+  let base=2;
+  out.push({i:0, base:2, val:n});
+  for(let i=1;i<=k;i++){
+    // hereditary rep in current base
+    let tree=toHered(n, base);
+    // bump base, subtract 1
+    n = evalHered(tree, base+1) - 1n;
+    base++;
+    out.push({i, base, val:n});
+    if(n<=0n) break;
+  }
+  return out;
+}
+
+function fmt(v){
+  let s=v.toString();
+  return s.length>60 ? s.slice(0,60)+'… ('+s.length+' digits)' : s;
+}
+
+document.getElementById('go').onclick=()=>{
+  const n0=Math.max(1,Math.min(20,+document.getElementById('n').value||4));
+  const k=Math.max(1,Math.min(40,+document.getElementById('k').value||12));
+  const out=document.getElementById('out');
+  out.innerHTML='';
+  const seq=goodstein(n0,k);
+  let prevLen=0;
+  for(const t of seq){
+    const d=document.createElement('div'); d.className='term';
+    const s=t.val.toString();
+    d.innerHTML='<span class="n">'+t.i+'</span><span class="base">b'+t.base+'</span><span class="val'+(s.length>12?' big':'')+'">'+fmt(t.val)+'</span>';
+    out.appendChild(d);
+  }
+};
+document.getElementById('go').click();
+</script>
+</body>
+</html>
