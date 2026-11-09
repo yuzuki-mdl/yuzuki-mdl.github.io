@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>cayley graph</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a0f;color:#cfd3da;font:13px/1.5 ui-monospace,monospace;overflow:hidden}
+  canvas{display:block;position:absolute;inset:0}
+  #ui{position:absolute;left:14px;top:14px;z-index:2;max-width:340px}
+  select,button{background:#15161c;color:#cfd3da;border:1px solid #2a2c34;border-radius:6px;padding:6px 9px;font:inherit;cursor:pointer}
+  button:hover{background:#1e2028}
+  .gens{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .gen{border-radius:6px;padding:5px 9px;font:inherit;cursor:pointer;border:1px solid #2a2c34;background:#15161c;transition:opacity .1s}
+  .gen.off{opacity:.28}
+  #info{position:absolute;right:14px;top:14px;color:#4a4d57;text-align:right;z-index:2;pointer-events:none;line-height:1.6}
+  #info b{color:#8be9a0;font-weight:600}
+  .lbl{color:#3c3f49;margin-top:12px;font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <select id="grp">
+    <option value="c8">C8 — cyclic (add mod 8)</option>
+    <option value="d4">D4 — square symmetry (8)</option>
+    <option value="s3">S3 — triangle symmetry (6)</option>
+    <option value="v4">V4 — klein four (4)</option>
+    <option value="z2z2z2">Z2×Z2×Z2 — cube (8)</option>
+    <option value="s4">S4 — cube symmetry (24)</option>
+    <option value="q8">Q8 — quaternion (8)</option>
+  </select>
+  <div class="lbl">generators (click to toggle)</div>
+  <div class="gens" id="gens"></div>
+</div>
+<div id="info"></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',()=>{resize();layout();});
+
+const COLORS=['#8be9a0','#7aa2f7','#e0af68','#f7768e','#bb9af7','#2ac3de'];
+
+// each group: elements (labels) + a multiply(a,b) -> index, and candidate generator list (element indices)
+const GROUPS={};
+
+// C8
+(function(){
+  const els=[...Array(8)].map((_,i)=>String(i));
+  GROUPS.c8={els,mul:(a,b)=>(a+b)%8,gens:[1,2,3]};
+})();
+
+// D4 = symmetries of square. represent as (r^k, s^m). 8 elements. label like r^k s^m
+(function(){
+  const els=[];
+  for(let k=0;k<4;k++){ els.push('r'+k); els.push('r'+k+'s'); }
+  // index: k in 0..3, s bit. idx = k*2 + s
+  const mul=(a,b)=>{
+    const k1=a>>1, s1=a&1, k2=b>>1, s2=b&1;
+    // (r^k1 s^s1)(r^k2 s^s2). s r = r^-1 s
+    let k, s;
+    if(s1===0){ k=(k1+k2)%4; s=s2; }
+    else { k=(k1-k2+4)%4; s=1-s2; }
+    return k*2+s;
+  };
+  // gens: r = idx2 (k1,s0), s = idx1
+  GROUPS.d4={els,mul,gens:[2,1]};
+})();
+
+// S3 permutations of 3
+(function(){
+  const perms=[[0,1,2],[0,2,1],[1,0,2],[1,2,0],[2,0,1],[2,1,0]];
+  const els=perms.map(p=>p.join(''));
+  const mul=(a,b)=>{ // (a*b)[i] = a[b[i]]
+    const pa=perms[a],pb=perms[b];
+    const r=[pa[pb[0]],pa[pb[1]],pa[pb[2]]];
+    return perms.findIndex(p=>p[0]===r[0]&&p[1]===r[1]&&p[2]===r[2]);
+  };
+  // find transposition (01) and 3-cycle
+  const t=perms.findIndex(p=>p[0]===1&&p[1]===0&&p[2]===2);
+  const c=perms.findIndex(p=>p[0]===1&&p[1]===2&&p[2]===0);
+  GROUPS.s3={els,mul,gens:[t,c]};
+})();
+
+// V4
+(function(){
+  const els=['e','a','b','ab'];
+  const mul=(x,y)=>{ // bitwise xor on 2 bits
+    return x^y;
+  };
+  GROUPS.v4={els,mul,gens:[1,2]};
+})();
+
+// Z2^3 cube
+(function(){
+  const els=[...Array(8)].map((_,i)=>i.toString(2).padStart(3,'0'));
+  GROUPS.z2z2z2={els,mul:(a,b)=>a^b,gens:[1,2,4]};
+})();
+
+// S4
+(function(){
+  function perms4(){
+    const out=[];
+    const idx=[0,1,2,3];
+    function rec(cur,rest){ if(!rest.length){out.push(cur.slice());return;} for(let i=0;i<rest.length;i++){const r=rest.slice();const v=r.splice(i,1)[0];cur.push(v);rec(cur,r);cur.pop();}}
+    rec([],idx); return out;
+  }
+  const perms=perms4();
+  const els=perms.map(p=>p.join(''));
+  const key=p=>p.join(',');
+  const map=new Map(perms.map((p,i)=>[key(p),i]));
+  const mul=(a,b)=>{const pa=perms[a],pb=perms[b];const r=[pa[pb[0]],pa[pb[1]],pa[pb[2]],pa[pb[3]]];return map.get(key(r));};
+  const t=map.get(key([1,0,2,3]));
+  const c=map.get(key([1,2,3,0]));
+  GROUPS.s4={els,mul,gens:[t,c]};
+})();
+
+// Q8 quaternions {±1,±i,±j,±k}
+(function(){
+  const els=['1','i','j','k','-1','-i','-j','-k'];
+  // encode: sign bit + (0:1,1:i,2:j,3:k). idx = unit + (neg?4:0)
+  // quaternion mult table for units
+  const T={
+    '1':{ '1':'1','i':'i','j':'j','k':'k'},
+    'i':{ '1':'i','i':'-1','j':'k','k':'-j'},
+    'j':{ '1':'j','i':'-k','j':'-1','k':'i'},
+    'k':{ '1':'k','i':'j','j':'-i','k':'-1'}
+  };
+  const idxOf={ '1':0,'i':1,'j':2,'k':3,'-1':4,'-i':5,'-j':6,'-k':7 };
+  const mul=(a,b)=>{
+    const la=els[a], lb=els[b];
+    const na=la[0]==='-', nb=lb[0]==='-';
+    const ua=na?la.slice(1):la, ub=nb?lb.slice(1):lb;
+    let r=T[ua][ub];
+    let neg=(na!==nb);
+    if(r[0]==='-'){ neg=!neg; r=r.slice(1); }
+    if(r==='1' && neg) return idxOf['-1'];
+    if(neg) return idxOf['-'+r];
+    return idxOf[r];
+  };
+  GROUPS.q8={els,mul,gens:[1,2]};
+})();
+
+let G, activeGens, nodes, edges;
+
+function build(){
+  G = GROUPS[document.getElementById('grp').value];
+  activeGens = G.gens.map((g,i)=>i); // index into G.gens
+  renderGenButtons();
+  layout();
+}
+
+function renderGenButtons(){
+  const box=document.getElementById('gens');
+  box.innerHTML='';
+  G.gens.forEach((g,i)=>{
+    const b=document.createElement('button');
+    b.className='gen'+(activeGens.includes(i)?'':' off');
+    b.style.borderColor=COLORS[i%COLORS.length];
+    b.style.color=COLORS[i%COLORS.length];
+    b.textContent=G.els[g];
+    b.onclick=()=>{ const k=activeGens.indexOf(i); if(k>=0)activeGens.splice(k,1); else activeGens.push(i); renderGenButtons(); layout(); };
+    box.appendChild(b);
+  });
+}
+
+function layout(){
+  const n=G.els.length;
+  nodes=G.els.map((el,i)=>{
+    const a = -Math.PI/2 + i/n*Math.PI*2;
+    return {i,el,x:W/2+Math.cos(a)*Math.min(W,H)*0.38, y:H/2+Math.sin(a)*Math.min(W,H)*0.38};
+  });
+  // edge list: for each active generator g, from x to x*g (right multiplication)
+  edges=[];
+  activeGens.forEach((gi,ci)=>{
+    const g=G.gens[gi];
+    for(let x=0;x<n;x++){
+      const y=G.mul(x,g);
+      if(x===y) continue; // loop, skip visually
+      edges.push({a:x,b:y,color:COLORS[gi%COLORS.length]});
+    }
+  });
+  draw();
+  updateInfo();
+}
+
+let hover=-1;
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // edges
+  ctx.lineWidth=1.6;
+  edges.forEach(e=>{
+    const A=nodes[e.a],B=nodes[e.b];
+    ctx.strokeStyle=e.color+'88';
+    ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.lineTo(B.x,B.y);ctx.stroke();
+  });
+  // nodes
+  nodes.forEach(nd=>{
+    const h = nd.i===hover;
+    ctx.beginPath();
+    ctx.arc(nd.x,nd.y, h?9:6.5, 0, 7);
+    ctx.fillStyle = h?'#8be9a0':'#16171c';
+    ctx.fill();
+    ctx.strokeStyle = h?'#8be9a0':'#3a3d47';
+    ctx.lineWidth=1.5;ctx.stroke();
+    if(n>12 || h){
+      ctx.fillStyle = h?'#0a0a0f':'#6a6e7a';
+      ctx.font=(h?'bold ':'')+'11px ui-monospace,monospace';
+      ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(nd.el, nd.x, nd.y);
+    }
+  });
+}
+
+function updateInfo(){
+  const n=G.els.length;
+  // count distinct undirected edges (since x*g and x*g^-1 both drawn, dedupe)
+  const seen=new Set();
+  edges.forEach(e=>{ const k=Math.min(e.a,e.b)+'-'+Math.max(e.a,e.b); seen.add(k); });
+  document.getElementById('info').innerHTML =
+    '<b>'+n+'</b> elements<br><b>'+seen.size+'</b> edges<br>'+
+    '<b>'+activeGens.length+'</b> generators';
+}
+
+cv.addEventListener('pointermove',e=>{
+  const r=cv.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  let best=-1,bd=15*15;
+  nodes.forEach(nd=>{const d=(nd.x-mx)**2+(nd.y-my)**2; if(d<bd){bd=d;best=nd.i;}});
+  if(best!==hover){hover=best;draw();}
+});
+
+document.getElementById('grp').onchange=build;
+resize();build();
+</script>
+</body>
+</html>
