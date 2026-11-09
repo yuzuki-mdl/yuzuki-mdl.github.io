@@ -96,12 +96,15 @@ function seed(){
 function descartes(c1,c2,c3){
   const sumk = c1.k+c2.k+c3.k;
   const sumz = cadd(cadd(c1.z,c2.z),c3.z);
-  // sqrt term: z1*z2+z2*z3+z3*z1, then 2*sqrt
+  // curvature: real descartes, k4 = sumk ± 2*sqrt(k1k2+k2k3+k3k1)
+  const b = c1.k*c2.k + c2.k*c3.k + c3.k*c1.k;
+  const sk = 2*Math.sqrt(b);
+  // center: complex descartes, z4 = sumz ± 2*sqrt(z1z2+z2z3+z3z1)
   const p = cadd(cadd(cmul(c1.z,c2.z),cmul(c2.z,c3.z)),cmul(c3.z,c1.z));
   const s = cscale(csqrt(p), 2);
   return [
-    {k: sumk + s.re, z: cadd(sumz, s)},
-    {k: sumk - s.re, z: csub(sumz, s)}
+    {k: sumk + sk, z: cadd(sumz, s)},
+    {k: sumk - sk, z: csub(sumz, s)}
   ];
 }
 
