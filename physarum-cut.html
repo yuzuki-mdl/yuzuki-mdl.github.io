@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the cut — physarum rerouting</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a0c;color:#cfc9bd;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  #wrap{position:fixed;inset:0}
+  canvas{display:block;width:100%;height:100%;cursor:crosshair}
+  #hud{position:fixed;left:14px;top:12px;pointer-events:none;max-width:340px}
+  #hud h1{font-size:13px;margin:0 0 4px;font-weight:600;letter-spacing:.02em;color:#e8e2d4}
+  #hud p{margin:0;color:#7d7870;font-size:11.5px}
+  #panel{position:fixed;right:14px;top:12px;display:flex;flex-direction:column;gap:9px;align-items:flex-end}
+  .row{display:flex;gap:8px;align-items:center;background:#14141880;padding:5px 9px;border-radius:6px;backdrop-filter:blur(4px)}
+  .row label{color:#8a857c;font-size:11px;min-width:66px}
+  input[type=range]{width:110px;accent-color:#b8e986}
+  button{background:#1c1c22;color:#cfc9bd;border:1px solid #2e2e38;border-radius:5px;padding:5px 10px;font:inherit;font-size:11px;cursor:pointer}
+  button:hover{background:#26262e;border-color:#3d3d4a}
+  button.on{background:#2a3a1e;border-color:#4a6a2e;color:#c8f0a0}
+  #stat{position:fixed;left:14px;bottom:12px;color:#6a655d;font-size:11px;pointer-events:none}
+  #stat b{color:#b8e986;font-weight:600}
+  .val{color:#b8e986;font-size:11px;min-width:34px;text-align:right}
+</style>
+</head>
+<body>
+<div id="wrap"><canvas id="c"></canvas></div>
+<div id="hud">
+  <h1>the cut</h1>
+  <p>a mould explores between two food sources. click anywhere to puncture it — watch it grow back.</p>
+</div>
+<div id="panel">
+  <div class="row"><label>sense</label><input id="sa" type="range" min="15" max="70" value="38"><span class="val" id="sav">38</span></div>
+  <div class="row"><label>turn</label><input id="ta" type="range" min="5" max="70" value="34"><span class="val" id="tav">34</span></div>
+  <div class="row"><label>decay</label><input id="da" type="range" min="2" max="40" value="9"><span class="val" id="dav">.90</span></div>
+  <div class="row"><button id="pause">pause</button><button id="reset">reset</button></div>
+</div>
+<div id="stat">coverage <b id="plen">—</b>% · cuts <b id="cuts">0</b></div>
+<script>
+(()=>{
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  W=innerWidth;H=innerHeight;
+  cv.width=W*DPR;cv.height=H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  buildGrid();
+}
+
+// --- grid ---
+const CS=3; // cell size px
+let gx=0,gy=0;
+function buildGrid(){
+  gx=Math.ceil(W/CS);gy=Math.ceil(H/CS);
+  dep=new Float32Array(gx*gy);
+  obstacle=new Uint8Array(gx*gy);
+  agents=[];
+  spawnAgents();
+  foodA={x:gx*0.16,y:gy*0.5};
+  foodB={x:gx*0.84,y:gy*0.5};
+  cuts=[];
+}
+
+// obstacles: draw a couple of walls so there's a real choice of route
+function makeMaze(){
+  obstacle.fill(0);
+  const wall=(x0,y0,x1,y1)=>{for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){if(x>=0&&x<gx&&y>=0&&y<gy)obstacle[y*gx+x]=1;}};
+  // vertical wall with a top and bottom gap
+  const wx=Math.floor(gx*0.5);
+  wall(wx,Math.floor(gy*0.18),wx+2,Math.floor(gy*0.42));
+  wall(wx,Math.floor(gy*0.58),wx+2,Math.floor(gy*0.82));
+}
+
+let dep, obstacle, agents=[], cuts=[];
+let foodA,foodB;
+const N_AGENTS=5000;
+function spawnAgents(){
+  agents=[];
+  for(let i=0;i<N_AGENTS;i++){
+    agents.push({x:Math.random()*gx,y:Math.random()*gy,a:Math.random()*Math.PI*2});
+  }
+}
+
+// params
+let SA=38, TA=34, DECAY=0.90;
+let paused=false;
+const sa=document.getElementById('sa'),ta=document.getElementById('ta'),da=document.getElementById('da');
+const sav=document.getElementById('sav'),tav=document.getElementById('tav'),dav=document.getElementById('dav');
+sa.oninput=()=>{SA=+sa.value;sav.textContent=SA;};
+ta.oninput=()=>{TA=+ta.value;tav.textContent=TA;};
+da.oninput=()=>{DECAY=1-(+da.value)/100;dav.textContent=DECAY.toFixed(2);};
+
+// food deposit: strong scent near food sources
+function depositFood(){
+  const R=26;
+  for(const f of [foodA,foodB]){
+    for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){
+      const x=Math.round(f.x+dx),y=Math.round(f.y+dy);
+      if(x<0||x>=gx||y<0||y>=gy)continue;
+      const d2=dx*dx+dy*dy;if(d2>R*R)continue;
+      const i=y*gx+x;
+      dep[i]=Math.min(1,dep[i]+0.35*(1-d2/(R*R)));
+    }
+  }
+}
+
+// cut: a clicked point removes deposit in a disc
+function cutAt(px,py){
+  const R=9; // grid cells
+  const cx=Math.floor(px/CS),cy=Math.floor(py/CS);
+  for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){
+    const x=cx+dx,y=cy+dy;if(x<0||x>=gx||y<0||y>=gy)continue;
+    if(dx*dx+dy*dy>R*R)continue;
+    dep[y*gx+x]=0;
+  }
+  cuts.push({x:cx,y:cy,r:R,t:performance.now()});
+}
+
+function sense(x,y,a){
+  const s=SA*Math.PI/180;
+  let best=-1,ba=a;
+  for(const off of [-s,0,s]){
+    const ang=a+off;
+    const nx=Math.floor(x+Math.cos(ang)*3),ny=Math.floor(y+Math.sin(ang)*3);
+    if(nx<0||nx>=gx||ny<0||ny>=gy){if(best<0)best=0;continue;}
+    const v=dep[ny*gx+nx];
+    if(v>best){best=v;ba=ang;}
+  }
+  return ba;
+}
+
+let lastT=performance.now(),acc=0;
+function step(){
+  const t=performance.now();
+  // diffuse + decay (sparse, cheap): blur neighbours a bit
+  if(((t/1000)|0)%1===0){}
+  // decay
+  for(let i=0;i<dep.length;i++)dep[i]*=DECAY;
+  depositFood();
+  // agents
+  const turn=TA*Math.PI/180;
+  for(const ag of agents){
+    ag.a=sense(ag.x,ag.y,ag.a);
+    ag.a+=(Math.random()-0.5)*turn;
+    const nx=ag.x+Math.cos(ag.a),ny=ag.y+Math.sin(ag.a);
+    const ix=Math.floor(nx),iy=Math.floor(ny);
+    if(ix<0||ix>=gx||iy<0||iy>=gy||obstacle[iy*gx+ix]){
+      ag.a+=Math.PI*(0.5+Math.random());
+      continue;
+    }
+    ag.x=nx;ag.y=ny;
+    const i=iy*gx+ix;
+    dep[i]=Math.min(1,dep[i]+0.18);
+  }
+}
+
+function render(){
+  // background
+  ctx.fillStyle='#0a0a0c';
+  ctx.fillRect(0,0,W,H);
+  // deposit field
+  for(let y=0;y<gy;y++){
+    for(let x=0;x<gx;x++){
+      const d=dep[y*gx+x];
+      if(d>0.02){
+        const a=Math.min(1,d*1.4);
+        ctx.fillStyle='rgba('+(120+60*a|0)+','+(200*a+30|0)+','+(140*a+20|0)+','+a+')';
+        ctx.fillRect(x*CS,y*CS,CS,CS);
+      }
+      if(obstacle[y*gx+x]){
+        ctx.fillStyle='#1a1a20';
+        ctx.fillRect(x*CS,y*CS,CS,CS);
+      }
+    }
+  }
+  // food sources
+  for(const f of [foodA,foodB]){
+    ctx.beginPath();
+    ctx.arc(f.x*CS,f.y*CS,7,0,7);
+    ctx.fillStyle='#ffd479';
+    ctx.fill();
+    ctx.strokeStyle='#fff2c0';ctx.lineWidth=1.5;ctx.stroke();
+  }
+  // cut flashes
+  const now=performance.now();
+  for(const c of cuts){
+    const age=(now-c.t)/1000;
+    if(age<0.6){
+      ctx.beginPath();
+      ctx.arc(c.x*CS,c.y*CS,c.r*CS*(1+age*2),0,7);
+      ctx.strokeStyle='rgba(255,110,90,'+(1-age/0.6)+')';
+      ctx.lineWidth=2;ctx.stroke();
+    }
+  }
+  let cov=0,tot=0;
+  for(let i=0;i<dep.length;i++){if(obstacle[i])continue;tot++;if(dep[i]>0.05)cov++;}
+  document.getElementById('plen').textContent=tot?((100*cov/tot)|0):0;
+  document.getElementById('cuts').textContent=cuts.length;
+}
+
+// crude path length: count connected-but-cheap cells? use BFS on thresholded field weighted
+function pathLen(){
+  // flood from foodA over cells with dep>0.12, BFS, find dist to foodB
+  const TH=0.12;
+  const sx=Math.floor(foodA.x),sy=Math.floor(foodA.y);
+  const tx=Math.floor(foodB.x),ty=Math.floor(foodB.y);
+  const q=[sy*gx+sx];
+  const seen=new Int32Array(gx*gy).fill(-1);
+  seen[sy*gx+sx]=0;
+  let head=0;
+  while(head<q.length){
+    const i=q[head++];
+    const x=i%gx,y=(i/gx)|0;
+    if(x===tx&&y===ty)return seen[i];
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx=x+dx,ny=y+dy;
+      if(nx<0||nx>=gx||ny<0||ny>=gy)continue;
+      const ni=ny*gx+nx;
+      if(seen[ni]>=0||obstacle[ni])continue;
+      if(dep[ni]<TH)continue;
+      seen[ni]=seen[i]+1;
+      q.push(ni);
+    }
+  }
+  return -1;
+}
+
+let errOnce=false;
+function loop(){
+  try{
+    if(!paused){step();step();}
+    render();
+  }catch(e){
+    if(!errOnce){errOnce=true;ctx.fillStyle='#f66';ctx.font='16px monospace';ctx.fillText('ERR: '+e.message,20,80);ctx.fillText((e.stack||'').slice(0,300),20,110);}
+  }
+  requestAnimationFrame(loop);
+}
+
+// controls
+cv.addEventListener('click',e=>{
+  const r=cv.getBoundingClientRect();
+  cutAt(e.clientX-r.left,e.clientY-r.top);
+});
+document.getElementById('pause').onclick=e=>{
+  paused=!paused;
+  e.target.classList.toggle('on',paused);
+  e.target.textContent=paused?'play':'pause';
+};
+document.getElementById('reset').onclick=()=>{
+  dep.fill(0);makeMaze();spawnAgents();cuts=[];
+};
+
+window.addEventListener('resize',resize);
+try{resize();makeMaze();loop();ctx.fillStyle='#0f0';ctx.font='18px monospace';ctx.fillText('W='+W+' H='+H+' gx='+gx+' gy='+gy+' fa='+(foodA&&foodA.x),20,40);}catch(e){ctx.fillStyle='#f66';ctx.font='14px monospace';ctx.fillText('ERR: '+e.message,20,60);}
+})();
+</script>
+</body>
+</html>
