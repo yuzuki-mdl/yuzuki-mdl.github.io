@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>signal — a small story</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  #story{max-width:640px;margin:0 auto;padding:1rem;line-height:1.6;font-size:1.05rem}
+  #text{white-space:pre-wrap;min-height:11rem;transition:opacity .25s}
+  #text.fade{opacity:0}
+  .choice{display:block;width:100%;text-align:left;margin:.5rem 0;padding:.6rem .8rem;font:inherit;cursor:pointer}
+  .choice:hover{background:#eee}
+  #hud{font-size:.8rem;opacity:.6;margin-bottom:1rem;font-family:monospace}
+  #end{margin-top:1rem;font-style:italic;opacity:.7}
+</style>
+</head>
+<body>
+<header><h1>signal</h1><p class="tag">a small story. choices carry.</p></header>
+<div id="story">
+  <div id="hud"></div>
+  <div id="text"></div>
+  <div id="choices"></div>
+  <div id="end"></div>
+</div>
+<script>
+// a tiny branching-story engine. nodes = {text, choices:[{label, to, set, need, if}]}
+// state is a plain object; choices can require or set flags; text can interpolate {flag}.
+const story = {
+  start: {
+    text: "The light has been out for three nights.\n\nYou are the keeper of the north light, and the north light is dark. The bulb burned out on tuesday and the replacement is somewhere in the shed, which you have not entered since the storm took the roof off.\n\nA ship is due through the strait before dawn.",
+    choices: [
+      {label: "Go to the shed.", to: "shed"},
+      {label: "Climb the tower and look at the lamp first.", to: "tower"},
+      {label: "Sit down and think about it.", to: "sit"}
+    ]
+  },
+  tower: {
+    text: "The tower smells of cold brass. The lamp is a great glass drum, and inside it the filament hangs broken, a little curled hair of wire.\n\nYou could fix the filament by hand. It would take the whole night and your hands are not steady. Or you could find the spare.",
+    choices: [
+      {label: "Try to fix the filament.", to: "fix", set: {steady:false}},
+      {label: "Go down and find the spare.", to: "shed"}
+    ]
+  },
+  shed: {
+    text: "The shed door hangs open. Inside it is dark and smells of rust and old rope. Somewhere in here is a bulb in a paper sleeve, and also the reason you have not come in: the roof is a wreck, and the sea has been at the floorboards.\n\nYou can hear the water under the boards, patient.",
+    choices: [
+      {label: "Search the shelves by feel.", to: "shelves"},
+      {label: "Look for a light first.", to: "torch"},
+      {label: "It's not worth it. Go back up.", to: "tower"}
+    ]
+  },
+  shelves: {
+    text: "Your hands find jars, a coil of wire, a dead radio. Then a paper sleeve, and inside it, the weight of glass.\n\nYou have it. But the floor gives a little under your boot and the water below seems to lean in.",
+    choices: [
+      {label: "Take the bulb and run.", to: "run", set: {bulb:true}},
+      {label: "Take it slowly, step by step.", to: "slow", set: {bulb:true}}
+    ]
+  },
+  torch: {
+    text: "There is a torch on the hook by the door. You click it. Nothing. You click it again, harder, and a thin yellow thread of light comes out, enough to see the shelves and the water standing between you and them.\n\nThe bulb is there, three shelves up. The floor between is a lake.",
+    choices: [
+      {label: "Wade for it.", to: "wade", set: {bulb:true, wet:true}},
+      {label: "Not in the dark, not in the water. Go back.", to: "tower"}
+    ]
+  },
+  wade: {
+    text: "The water is to your knees and then your thighs, and it is so cold it is almost a sound. You reach the shelf. The paper sleeve is sodden but the glass inside is whole.\n\nYou turn back toward the door and the torch dies in your hand.",
+    choices: [
+      {label: "Keep going. You know the way.", to: "run"},
+      {label: "Stop. Breathe. Count the steps back.", to: "slow"}
+    ]
+  },
+  run: {
+    text: "You run. The boards complain and give behind you and you do not look. You come out into the night with the bulb held to your chest like something alive.",
+    choices: [
+      {label: "Climb the tower.", to: "install"}
+    ]
+  },
+  slow: {
+    text: "You go slowly, one board at a time, and the water stays where it is, and you come out into the night with the bulb whole in your hands.\n\nThe sea sounds further away than it is.",
+    choices: [
+      {label: "Climb the tower.", to: "install"}
+    ]
+  },
+  fix: {
+    text: "You work at the filament with a pair of pliers and a patience you did not know you had. The wire is thinner than a hair. It bends, and bends, and on the fourth try it holds.\n\nYou close the drum. You hold your breath and throw the switch.",
+    choices: [
+      {label: "Wait.", to: "light_fixed"}
+    ]
+  },
+  install: {
+    text: "You seat the new bulb in the drum. The glass is cold against your palm. You screw it down until it stops, and your hands are shaking, and you are not sure if it is the cold.",
+    choices: [
+      {label: "Throw the switch.", to: "light_new"}
+    ]
+  },
+  light_fixed: {
+    text: "For one long second nothing. Then the filament glows, faint, then white, and the great drum of glass fills with a light you can feel on your face.",
+    choices: [
+      {label: "Look out to sea.", to: "sea"}
+    ]
+  },
+  light_new: {
+    text: "The lamp comes on all at once, clean and steady, and the whole tower is suddenly very bright and very quiet.",
+    choices: [
+      {label: "Look out to sea.", to: "sea"}
+    ]
+  },
+  sea: {
+    text: "Out past the strait the water is black and moving. You hold the light on it, sweeping, sweeping, the way your father did, the way his father did.\n\nAnd then, far out, a small answering light. A ship, coming through.\n\nYou keep sweeping until dawn.",
+    choices: [
+      {label: "End.", to: "__end__"}
+    ]
+  },
+  sit: {
+    text: "You sit on the cold step and let the night get on with itself. The sea does what it does. Somewhere out there a ship is coming and does not know the light is out.\n\nThe thought sits with you. It does not go away.",
+    choices: [
+      {label: "Get up.", to: "shed"},
+      {label: "Stay sitting.", to: "sit_end"}
+    ]
+  },
+  sit_end: {
+    text: "You stay. The cold gets into your bones and the sky goes from black to grey and no ship comes through the strait, because the ship that was due turned back at the last marker, because there was no light.\n\nIn the morning you find the bulb in the shed yourself, and it does not matter.\n\nSome nights you sit and some nights you do not.",
+    choices: [
+      {label: "End.", to: "__end__"}
+    ]
+  }
+};
+
+const state = {};
+const $ = id => document.getElementById(id);
+
+function interp(s){
+  return s.replace(/\{(\w+)\}/g, (_,k) => state[k] === undefined ? '' : String(state[k]));
+}
+
+function render(id){
+  if(id === '__end__'){ showEnd(); return; }
+  const node = story[id];
+  if(!node){ showEnd(); return; }
+  $('text').textContent = interp(node.text);
+  const box = $('choices');
+  box.innerHTML = '';
+  node.choices.forEach((c, i) => {
+    const b = document.createElement('button');
+    b.className = 'choice';
+    b.textContent = (i+1) + '. ' + c.label;
+    b.onclick = () => {
+      if(c.set) Object.assign(state, c.set);
+      $('text').classList.add('fade');
+      setTimeout(() => { $('text').classList.remove('fade'); render(c.to); }, 180);
+    };
+    box.appendChild(b);
+  });
+  const keys = Object.keys(state);
+  $('hud').textContent = keys.length ? 'carrying: ' + keys.join(', ') : '';
+}
+
+function showEnd(){
+  $('text').textContent = '';
+  $('choices').innerHTML = '';
+  $('end').textContent = '— end —';
+  const b = document.createElement('button');
+  b.className = 'choice';
+  b.textContent = 'again';
+  b.onclick = () => { for(const k in state) delete state[k]; $('end').textContent=''; render('start'); };
+  $('choices').appendChild(b);
+}
+
+render('start');
+</script>
+</body>
+</html>
