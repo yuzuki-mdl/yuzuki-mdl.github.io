@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>life3d — conway in three dimensions</title>
+<style>
+  :root { --bg:#0b0d12; --fg:#e8e6e0; --dim:#7a7f8c; --acc:#7ee787; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:13px/1.4 ui-monospace,Menlo,Consolas,monospace; overflow:hidden; }
+  #c { display:block; width:100vw; height:100vh; cursor:grab; }
+  #c:active { cursor:grabbing; }
+  #hud { position:fixed; left:12px; top:12px; pointer-events:none; }
+  #hud b { color:var(--acc); font-weight:600; }
+  #hud .k { color:var(--dim); }
+  #btns { position:fixed; left:12px; bottom:12px; display:flex; gap:6px; flex-wrap:wrap; }
+  button { background:#1a1e28; color:var(--fg); border:1px solid #2a3040; border-radius:6px; padding:6px 10px; font:inherit; cursor:pointer; }
+  button:hover { border-color:var(--acc); color:var(--acc); }
+  button.on { border-color:var(--acc); color:var(--acc); }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div><b>life3d</b> <span class="k">— conway's rules, one dimension deeper</span></div>
+  <div class="k">birth <b>B 5,6</b> &nbsp; survive <b>S 6,7</b> &nbsp; 26-neighbour</div>
+  <div class="k">gen <b id="gen">0</b> &nbsp; alive <b id="pop">0</b> &nbsp; <span id="speed">12 fps</span></div>
+</div>
+<div id="btns">
+  <button id="play">pause</button>
+  <button id="rand">random</button>
+  <button id="single">single blob</button>
+  <button id="clear">clear</button>
+  <button id="slow">slower</button>
+  <button id="fast">faster</button>
+</div>
+<script>
+// 3D game of life. rules chosen so a lone cell dies fast but small clusters live.
+// B5,6 / S6,7 on 26-neighbourhood feels alive without instantly boiling.
+const N = 22;                    // cube side
+const BIRTH = new Set([5,6]);    // alive neighbours to be born
+const SURVIVE = new Set([6,7]);  // alive neighbours to survive
+
+const cv = document.getElementById('c');
+const cx = cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio||1);
+  W = cv.clientWidth; H = cv.clientHeight;
+  cv.width = W*DPR; cv.height = H*DPR;
+  cx.setTransform(DPR,0,0,DPR,0,0);
+}
+window.addEventListener('resize', resize); resize();
+
+// grid stored flat
+const S = N*N*N;
+let cur = new Uint8Array(S);
+let nxt = new Uint8Array(S);
+const idx = (x,y,z) => (x*N + y)*N + z;
+
+function clearGrid(){ cur.fill(0); gen=0; }
+function randomGrid(d=0.13){
+  for(let i=0;i<S;i++) cur[i] = Math.random()<d ? 1 : 0;
+  gen=0;
+}
+function blobGrid(){
+  clearGrid();
+  const c = N>>1, r = 3;
+  for(let x=-r;x<=r;x++)for(let y=-r;y<=r;y++)for(let z=-r;z<=r;z++){
+    if(x*x+y*y+z*z <= r*r+1) cur[idx(c+x,c+y,c+z)] = 1;
+  }
+}
+
+let gen = 0;
+function step(){
+  for(let x=0;x<N;x++) for(let y=0;y<N;y++) for(let z=0;z<N;z++){
+    let n=0;
+    for(let dx=-1;dx<=1;dx++){
+      const xx=x+dx; if(xx<0||xx>=N) continue;
+      for(let dy=-1;dy<=1;dy++){
+        const yy=y+dy; if(yy<0||yy>=N) continue;
+        for(let dz=-1;dz<=1;dz++){
+          if(!dx&&!dy&&!dz) continue;
+          const zz=z+dz; if(zz<0||zz>=N) continue;
+          n += cur[idx(xx,yy,zz)];
+        }
+      }
+    }
+    const i = idx(x,y,z);
+    const a = cur[i];
+    nxt[i] = a ? (SURVIVE.has(n)?1:0) : (BIRTH.has(n)?1:0);
+  }
+  const t=cur; cur=nxt; nxt=t;
+  gen++;
+}
+
+// --- rendering: isometric-ish projection with rotation ---
+let yaw = 0.7, pitch = 0.55, dist = N*2.2;
+let dragging=false, lx=0, ly=0;
+cv.addEventListener('pointerdown', e=>{ dragging=true; lx=e.clientX; ly=e.clientY; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointerup', e=>{ dragging=false; });
+cv.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  yaw   += (e.clientX-lx)*0.008;
+  pitch += (e.clientY-ly)*0.008;
+  pitch = Math.max(-1.5, Math.min(1.5, pitch));
+  lx=e.clientX; ly=e.clientY;
+});
+cv.addEventListener('wheel', e=>{ dist *= 1 + Math.sign(e.deltaY)*0.08; dist = Math.max(N*1.2, Math.min(N*6, dist)); e.preventDefault(); }, {passive:false});
+
+// precompute cell centers in world space, centered at origin
+const half = (N-1)/2;
+const wx = new Float32Array(S), wy = new Float32Array(S), wz = new Float32Array(S);
+for(let x=0;x<N;x++)for(let y=0;y<N;y++)for(let z=0;z<N;z++){
+  const i = idx(x,y,z);
+  wx[i]=x-half; wy[i]=y-half; wz[i]=z-half;
+}
+
+// order cells back-to-front for painter's algorithm (rough: by projected depth each frame)
+const order = new Int32Array(S);
+for(let i=0;i<S;i++) order[i]=i;
+
+function project(x,y,z){
+  // rotate yaw around Y, then pitch around X
+  const cy=Math.cos(yaw), sy=Math.sin(yaw);
+  let X = x*cy + z*sy;
+  let Z = -x*sy + z*cy;
+  const cp=Math.cos(pitch), sp=Math.sin(pitch);
+  let Y = y*cp - Z*sp;
+  let Z2 = y*sp + Z*cp;
+  // perspective
+  const d = dist + Z2;
+  const f = dist/Math.max(1, d);
+  return [W/2 + X*f*8, H/2 - Y*f*8, d];
+}
+
+function render(){
+  cx.fillStyle = '#0b0d12';
+  cx.fillRect(0,0,W,H);
+
+  // faint bounding cube so the volume reads as 3D
+  const corners = [];
+  for(let x=0;x<2;x++)for(let y=0;y<2;y++)for(let z=0;z<2;z++){
+    corners.push(project((x?half:-half),(y?half:-half),(z?half:-half)));
+  }
+  const edges = [[0,1],[0,2],[0,4],[1,3],[1,5],[2,3],[2,6],[3,7],[4,5],[4,6],[5,7],[6,7]];
+  cx.strokeStyle = 'rgba(90,110,150,0.18)';
+  cx.lineWidth = 1;
+  for(const [a,b] of edges){
+    cx.beginPath(); cx.moveTo(corners[a][0],corners[a][1]); cx.lineTo(corners[b][0],corners[b][1]); cx.stroke();
+  }
+
+  // project all, keep depth, sort
+  const px = new Float32Array(S), py = new Float32Array(S), pd = new Float32Array(S);
+  for(let i=0;i<S;i++){
+    const p = project(wx[i],wy[i],wz[i]);
+    px[i]=p[0]; py[i]=p[1]; pd[i]=p[2];
+  }
+  order.sort((a,b)=>pd[b]-pd[a]); // far first
+
+  // draw alive cells as soft squares
+  let alive=0;
+  // scale cell size by distance
+  for(let k=S-1;k>=0;k--){
+    const i = order[k];
+    if(!cur[i]) continue;
+    alive++;
+    const f = dist/Math.max(1,pd[i]);
+    const s = Math.max(1.0, 4.6*f);
+    // depth shade: near = bright green, far = dim blue-green
+    const t = Math.max(0, Math.min(1, (pd[i]-dist*0.35)/(dist*1.3)));
+    const r = Math.round(60 + 90*(1-t));
+    const g = Math.round(120 + 110*(1-t));
+    const b = Math.round(120 + 60*t);
+    cx.fillStyle = `rgba(${r},${g},${b},${0.4+0.55*(1-t)})`;
+    cx.fillRect(px[i]-s/2, py[i]-s/2, s, s);
+  }
+  return alive;
+}
+
+// --- loop ---
+let playing = true;
+let fps = 12, lastStep = 0, raf=0;
+function loop(t){
+  raf = requestAnimationFrame(loop);
+  if(playing && t-lastStep > 1000/fps){
+    lastStep = t;
+    step();
+    // if everything died, reseed so it's not a blank screen
+    let any=false; for(let i=0;i<S;i++) if(cur[i]){any=true;break;}
+    if(!any) randomGrid(0.12);
+    document.getElementById('gen').textContent = gen;
+  }
+  const alive = render();
+  document.getElementById('pop').textContent = alive;
+}
+randomGrid(0.13);
+requestAnimationFrame(loop);
+
+// --- buttons ---
+document.getElementById('play').addEventListener('click', e=>{
+  playing=!playing;
+  e.target.textContent = playing?'pause':'play';
+});
+document.getElementById('rand').addEventListener('click', ()=>randomGrid(0.13));
+document.getElementById('single').addEventListener('click', ()=>blobGrid());
+document.getElementById('clear').addEventListener('click', ()=>clearGrid());
+document.getElementById('slow').addEventListener('click', ()=>{ fps=Math.max(1,fps-3); document.getElementById('speed').textContent=fps+' fps'; });
+document.getElementById('fast').addEventListener('click', ()=>{ fps=Math.min(60,fps+3); document.getElementById('speed').textContent=fps+' fps'; });
+</script>
+</body>
+</html>
