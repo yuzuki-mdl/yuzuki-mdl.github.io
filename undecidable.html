@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>undecidable — problems with no answer machine</title>
+<style>
+  :root{--bg:#0c0e12;--fg:#e8e6df;--dim:#7d8290;--acc:#ffb454;--line:#23262f;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2.4rem 1.2rem 5rem;}
+  main{max-width:760px;margin:0 auto}
+  h1{font-size:1.5rem;font-weight:600;margin:0 0 .2rem;letter-spacing:.01em}
+  .sub{color:var(--dim);margin:0 0 2rem;font-size:.92rem}
+  .p{border:1px solid var(--line);border-radius:10px;padding:1rem 1.1rem;margin:.7rem 0;background:#0f1218;transition:border-color .2s}
+  .p:hover{border-color:#3a3f4d}
+  .p .q{font-weight:600;margin-bottom:.25rem}
+  .p .w{color:var(--dim);font-size:.9rem}
+  .p .w b{color:var(--acc);font-weight:600}
+  .try{margin-top:2.2rem;border-top:1px dashed var(--line);padding-top:1.4rem}
+  button{font:inherit;background:#161a22;color:var(--fg);border:1px solid #2c313d;border-radius:8px;padding:.55rem 1rem;cursor:pointer}
+  button:hover{background:#1d222c;border-color:#3a4152}
+  #out{margin-top:1rem;min-height:1.6em;color:var(--acc)}
+  .foot{margin-top:3rem;color:var(--dim);font-size:.82rem}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+  <h1>undecidable</h1>
+  <p class="sub">problems where no algorithm can always give the answer. not "hard" — <em>impossible</em>. you can wait forever.</p>
+
+  <div class="p"><div class="q">does this program ever stop?</div><div class="w">the halting problem. the original wall. <b>1936</b>, turing.</div></div>
+
+  <div class="p"><div class="q">can this life pattern ever grow that other pattern?</div><div class="w">conway's game of life, rule 110 — "can X appear later?" is undecidable. the little game on your phone can encode a turing machine.</div></div>
+
+  <div class="p"><div class="q">do these two groups have the same structure?</div><div class="w">group isomorphism. the word problem for groups too. you can't always tell two shapes of infinity apart.</div></div>
+
+  <div class="p"><div class="q">does this quantum system have a spectral gap?</div><div class="w">cubitt, pérez-garcía, wolf. <b>2015, Nature.</b> a physics question with no general procedure. the universe doesn't hand you a solver.</div></div>
+
+  <div class="p"><div class="q">will this ray of light, bouncing off mirrors, ever hit that spot?</div><div class="w">ray tracing in 3d with reflections/refractions. undecidable. rendering can be a wall.</div></div>
+
+  <div class="p"><div class="q">does this fluid particle ever reach that region?</div><div class="w">ideal fluid flow in 3d. turbulence-free, still undecidable whether a path gets there.</div></div>
+
+  <div class="p"><div class="q">can these tiles tile the whole plane?</div><div class="w">wang tiles. the tiling problem. a finite box of tiles, an infinite question.</div></div>
+
+  <div class="p"><div class="q">does the player have a winning strategy in this game of Magic: The Gathering?</div><div class="w">yes, really. <b>2019.</b> MTG is turing complete. your card game can run a computer.</div></div>
+
+  <div class="p"><div class="q">what is the shortest description of this string?</div><div class="w">kolmogorov complexity. the amount of meaning in a thing is itself uncomputable.</div></div>
+
+  <div class="try">
+    <div class="w" style="margin-bottom:.8rem">try to decide one:</div>
+    <button id="go">run the decider</button>
+    <div id="out"></div>
+  </div>
+
+  <p class="foot">no algorithm can do all of these. some are worse: not just unsolvable, but you can't even <em>approximate</em> your way out. the gap is doing work, not waiting for it.</p>
+</main>
+<script>
+const outs = [
+  "the decider is running...",
+  "still running...",
+  "it will keep running.",
+  "this is the point. it never stops.",
+  "you can wait. it cannot finish.",
+  "the answer exists. the machine to find it does not.",
+  "some questions have answers that no process can reach. this is one.",
+  "...",
+  "(it is still going. it will always still be going.)"
+];
+let i = 0;
+const out = document.getElementById('out');
+document.getElementById('go').onclick = () => {
+  i = 0; out.textContent = outs[0];
+  const tick = () => { if (i < outs.length - 1) { i++; out.textContent = outs[i]; setTimeout(tick, 900 + Math.random()*700); } };
+  setTimeout(tick, 700);
+};
+</script>
+</body>
+</html>
