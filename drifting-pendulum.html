@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>drifting pendulum</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0b10;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh}
+  #hud{position:fixed;left:12px;bottom:10px;color:#6a6a80;font:11px ui-monospace,monospace;letter-spacing:.5px;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<script>
+// a self-playing harmonograph: two damped pendulums per axis,
+// pen traces a lissajous-ish curve, fades, resets, redraws a new one forever.
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),hud=document.getElementById('hud');
+let W,H,DPR;
+function size(){DPR=Math.min(2,devicePixelRatio||1);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+size();addEventListener('resize',size);
+
+const rnd=(a,b)=>a+Math.random()*(b-a);
+let P,t,trail,hue,frame=0;
+function reset(){
+  P={
+    ax:rnd(.4,1),fx:rnd(1.98,2.02),px:rnd(0,6.28),
+    bx:rnd(.2,.6),gx:rnd(2.98,3.02),qx:rnd(0,6.28),
+    ay:rnd(.4,1),fy:rnd(1.98,2.02),py:rnd(0,6.28),
+    by:rnd(.2,.6),gy:rnd(2.98,3.02),qy:rnd(0,6.28),
+    damp:rnd(.0012,.0026)
+  };
+  t=0;trail=[];hue=rnd(0,360);
+}
+reset();
+
+function step(){
+  t+=0.016;
+  const e=Math.exp(-P.damp*t);
+  const x=(P.ax*Math.sin(P.fx*t+P.px)+P.bx*Math.sin(P.gx*t+P.qx))*e;
+  const y=(P.ay*Math.sin(P.fy*t+P.py)+P.by*Math.sin(P.gy*t+P.qy))*e;
+  const R=Math.min(W,H)*0.42;
+  return [W/2+x*R, H/2+y*R, e];
+}
+
+function loop(){
+  ctx.fillStyle='rgba(11,11,16,0.045)';
+  ctx.fillRect(0,0,W,H);
+  const [x,y,e]=step();
+  trail.push([x,y]);
+  if(trail.length>2){
+    const n=trail.length;
+    ctx.beginPath();
+    ctx.moveTo(trail[n-2][0],trail[n-2][1]);
+    ctx.lineTo(x,y);
+    ctx.strokeStyle=`hsla(${(hue+e*180)%360},75%,${58+e*22}%,${0.22+e*0.7})`;
+    ctx.lineWidth=1.1+0.9*e;
+    ctx.stroke();
+  }
+  if(e<0.02 && trail.length>4000){
+    frame++;
+    if(frame>60){frame=0;reset();}
+  }
+  hud.textContent='drifting pendulum · self-playing · '+P.fx.toFixed(2)+':'+P.gx.toFixed(2)+' / '+P.fy.toFixed(2)+':'+P.gy.toFixed(2);
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
