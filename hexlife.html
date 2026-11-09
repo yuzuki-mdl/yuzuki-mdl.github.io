@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hexlife — conway on a hex grid</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:#0b0d10;color:#dfe6ee;font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+#wrap{display:flex;flex-direction:column;height:100%}
+#hud{display:flex;gap:14px;align-items:center;padding:10px 14px;background:#12161c;border-bottom:1px solid #1e242d;flex-wrap:wrap}
+#hud b{color:#7fd4ff}
+button{background:#1b2129;color:#dfe6ee;border:1px solid #2a333e;border-radius:6px;padding:6px 12px;font:inherit;cursor:pointer}
+button:hover{background:#232b35}
+button.on{background:#1d4a63;border-color:#2e6d8f;color:#bfe9ff}
+canvas{flex:1;display:block;touch-action:none;cursor:crosshair}
+#hud label{display:flex;gap:6px;align-items:center;color:#8a97a5}
+input[type=range]{width:90px;accent-color:#7fd4ff}
+</style>
+</head>
+<body>
+<div id="wrap">
+<div id="hud">
+  <b>hexlife</b>
+  <button id="play">▶ run</button>
+  <button id="step">step</button>
+  <button id="clear">clear</button>
+  <button id="rand">random</button>
+  <label>speed <input id="speed" type="range" min="1" max="30" value="10"></label>
+  <span id="stat">gen 0 · 0 alive</span>
+  <span style="color:#8a97a5;margin-left:auto">click/drag to draw · <span id="rule">B2/S3</span></span>
+</div>
+<canvas id="c"></canvas>
+</div>
+<script>
+'use strict';
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const stat=document.getElementById('stat');
+let W=0,H=0,S=14,ox=0,oy=0;
+let cells=new Set();
+let running=false,gen=0;
+
+// axial hex coords -> pixel (pointy-top)
+const SQ3=Math.sqrt(3);
+function hexToPix(q,r){return {x:S*SQ3*(q+r/2)+ox, y:S*1.5*r+oy};}
+function pixToHex(x,y){
+  x-=ox;y-=oy;
+  const r=(2/3*y)/S;
+  const q=(x/(S*SQ3))-r/2;
+  return hexRound(q,r);
+}
+function hexRound(q,r){
+  let s=-q-r;
+  let rq=Math.round(q),rr=Math.round(r),rs=Math.round(s);
+  const dq=Math.abs(rq-q),dr=Math.abs(rr-r),ds=Math.abs(rs-s);
+  if(dq>dr&&dq>ds)rq=-rr-rs;
+  else if(dr>ds)rr=-rq-rs;
+  return {q:rq,r:rr};
+}
+const key=(q,r)=>q+','+r;
+
+// 6 hex neighbours (axial)
+const NB=[[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+function neighbours(q,r){
+  const out=[];
+  for(const [dq,dr] of NB)out.push([q+dq,r+dr]);
+  return out;
+}
+
+function resize(){
+  const dpr=window.devicePixelRatio||1;
+  const rect=cv.getBoundingClientRect();
+  cv.width=rect.width*dpr;cv.height=rect.height*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  W=rect.width;H=rect.height;
+  ox=W/2;oy=H/2;
+  draw();
+}
+
+function hexPath(cx,cy){
+  const a=S/Math.sqrt(3);
+  ctx.beginPath();
+  for(let i=0;i<6;i++){
+    const ang=Math.PI/180*(60*i-30);
+    const x=cx+a*Math.cos(ang), y=cy+a*Math.sin(ang);
+    i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+  }
+  ctx.closePath();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // draw grid of hexes covering screen
+  const range=Math.ceil(Math.max(W,H)/S)+4;
+  ctx.lineWidth=1;
+  ctx.strokeStyle='#161c24';
+  const drawn=new Set();
+  for(let q=-range;q<=range;q++){
+    for(let r=-range;r<=range;r++){
+      const {x,y}=hexToPix(q,r);
+      if(x<-S||x>W+S||y<-S||y>H+S)continue;
+      hexPath(x,y);
+      ctx.stroke();
+      drawn.add(key(q,r));
+    }
+  }
+  // draw alive
+  ctx.fillStyle='#7fd4ff';
+  for(const k of cells){
+    const [q,r]=k.split(',').map(Number);
+    const {x,y}=hexToPix(q,r);
+    hexPath(x,y);
+    ctx.fill();
+  }
+  stat.textContent='gen '+gen+' · '+cells.size+' alive';
+}
+
+function step(){
+  const counts=new Map();
+  for(const k of cells){
+    const [q,r]=k.split(',').map(Number);
+    for(const [nq,nr] of neighbours(q,r)){
+      const nk=key(nq,nr);
+      counts.set(nk,(counts.get(nk)||0)+1);
+    }
+  }
+  const next=new Set();
+  // B2: dead cell with exactly 2 live neighbours born
+  for(const [k,n] of counts){
+    if(!cells.has(k)&&n===2)next.add(k);
+  }
+  // S3: live cell with 3 live neighbours survives
+  for(const k of cells){
+    const n=counts.get(k)||0;
+    if(n===3)next.add(k);
+  }
+  cells=next;gen++;
+  draw();
+}
+
+let drawMode=true;
+cv.addEventListener('pointerdown',e=>{
+  const rect=cv.getBoundingClientRect();
+  const {q,r}=pixToHex(e.clientX-rect.left,e.clientY-rect.top);
+  const k=key(q,r);
+  drawMode=!cells.has(k);
+  toggle(q,r);
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove',e=>{
+  if(!cv.hasPointerCapture(e.pointerId))return;
+  const rect=cv.getBoundingClientRect();
+  const {q,r}=pixToHex(e.clientX-rect.left,e.clientY-rect.top);
+  if(drawMode){if(!cells.has(key(q,r))){cells.add(key(q,r));draw();}}
+  else{if(cells.has(key(q,r))){cells.delete(key(q,r));draw();}}
+});
+function toggle(q,r){const k=key(q,r);cells.has(k)?cells.delete(k):cells.add(k);draw();}
+
+let acc=0,last=0;
+function loop(t){
+  if(!running)return;
+  const dt=Math.min(100,t-last);last=t;acc+=dt;
+  const interval=1000/parseInt(document.getElementById('speed').value);
+  if(acc>=interval){acc=0;step();}
+  requestAnimationFrame(loop);
+}
+
+const playBtn=document.getElementById('play');
+playBtn.onclick=()=>{
+  running=!running;
+  playBtn.textContent=running?'⏸ pause':'▶ run';
+  playBtn.classList.toggle('on',running);
+  if(running){last=performance.now();acc=0;requestAnimationFrame(loop);}
+};
+document.getElementById('step').onclick=()=>{if(!running)step();};
+document.getElementById('clear').onclick=()=>{cells=new Set();gen=0;draw();};
+document.getElementById('rand').onclick=()=>{
+  cells=new Set();gen=0;
+  const range=Math.ceil(Math.max(W,H)/S)/2;
+  for(let q=-range;q<=range;q++)for(let r=-range;r<=range;r++){
+    const {x,y}=hexToPix(q,r);
+    if(x<0||x>W||y<0||y>H)continue;
+    if(Math.random()<0.28)cells.add(key(q,r));
+  }
+  draw();
+};
+window.addEventListener('resize',resize);
+resize();
+// seed a little glider-ish blob
+cells.add(key(0,0));cells.add(key(0,1));cells.add(key(1,0));
+draw();
+</script>
+</body>
+</html>
