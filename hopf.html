@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hopf fibration</title>
+<style>
+  html,body{margin:0;height:100%;background:#05060a;overflow:hidden;font-family:ui-monospace,monospace;color:#9aa4b2}
+  canvas{display:block;width:100%;height:100%;cursor:grab}
+  canvas:active{cursor:grabbing}
+  #ui{position:fixed;left:14px;bottom:12px;font-size:12px;line-height:1.7;opacity:.85;pointer-events:none}
+  #ui b{color:#e6edf3;font-weight:600}
+  #hint{position:fixed;right:14px;bottom:12px;font-size:12px;opacity:.5;text-align:right}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <b>hopf fibration</b> — the 3-sphere, sliced into circles<br>
+  every point of S<sup>2</sup> is one fibre; fibres link like a chainmail of tori<br>
+  drag to rotate · scroll to change the slice
+</div>
+<div id="hint">s<sup>3</sup> → s<sup>2</sup>, via stereographic projection</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=cv.width=innerWidth*DPR;H=cv.height=innerHeight*DPR;cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';}
+resize();addEventListener('resize',resize);
+
+let rotX=0.4,rotY=0.6,slice=0.0,drag=false,px=0,py=0;
+cv.addEventListener('pointerdown',e=>{drag=true;px=e.clientX;py=e.clientY;cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{if(!drag)return;rotY+=(e.clientX-px)*0.006;rotX+=(e.clientY-py)*0.006;px=e.clientX;py=e.clientY});
+cv.addEventListener('pointerup',()=>drag=false);
+cv.addEventListener('wheel',e=>{slice+=e.deltaY*0.0006;slice=Math.max(-1,Math.min(1,slice));e.preventDefault()},{passive:false});
+
+// rotate a 3d point
+function rot(p){
+  let [x,y,z]=p;
+  let cy=Math.cos(rotY),sy=Math.sin(rotY);
+  let x1=x*cy - z*sy, z1=x*sy + z*cy;
+  let cx=Math.cos(rotX),sx=Math.sin(rotX);
+  let y1=y*cx - z1*sx, z2=y*sx + z1*cx;
+  return [x1,y1,z2];
+}
+
+// stereographic projection S^3 -> R^3, then perspective to screen
+function project(p){
+  const [x,y,z]=p;
+  const d=2.2, s=Math.min(W,H)*0.42;
+  const zz=z+d;
+  if(zz<=0.05) return null;
+  const f=s/zz;
+  return [W/2 + x*f, H/2 - y*f, zz];
+}
+
+// Hopf map: S^3 point (from two complex numbers z1,z2) -> S^2 base point
+// fibre through a base point (theta,phi on S^2) = a circle of S^3 points
+function fibre(theta,phi,t){
+  // standard parametrisation of the Hopf fibre
+  const ct=Math.cos(theta/2), st=Math.sin(theta/2);
+  // z1 = cos(theta/2) e^{i(phi+t)}, z2 = sin(theta/2) e^{i t}
+  const a=phi+t;
+  const z1r=ct*Math.cos(a), z1i=ct*Math.sin(a);
+  const z2r=st*Math.cos(t), z2i=st*Math.sin(t);
+  // (z1,z2) in C^2 ~ R^4 = (x1,y1,x2,y2) on S^3
+  return [z1r,z1i,z2r,z2i];
+}
+// stereographic from S^3 (R^4) to R^3
+function stereo4(v){
+  const [x1,y1,x2,y2]=v;
+  // project from north pole (0,0,0,1)
+  const w=y2; // treat one coord as the 'height'
+  const denom=1-w;
+  const k=1/(denom+1e-6);
+  return [x1*k, y1*k, x2*k];
+}
+
+function basePoint(theta,phi){
+  return [Math.sin(theta)*Math.cos(phi), Math.sin(theta)*Math.sin(phi), Math.cos(theta)];
+}
+
+const NT=120;
+let t0=performance.now();
+
+// nested-torus picture: for each latitude theta0, the fibres over the whole
+// latitude circle sweep a torus. draw many fibres (one per phi0) per torus.
+const TORI=[0.28,0.62,0.95,1.28,1.62,1.95,2.28,2.62,2.86]; // theta0 values
+const PER=30; // fibres per torus
+
+function frame(now){
+  const dt=(now-t0)/1000;t0=now;
+  if(!drag) rotY+=dt*0.12;
+  ctx.fillStyle='#05060a';ctx.fillRect(0,0,W,H);
+  ctx.lineWidth=1.3*DPR;
+  ctx.lineCap='round';
+
+  // draw back-to-front by sorting strokes by depth
+  const strokes=[];
+  for(let ti=0;ti<TORI.length;ti++){
+    const th=TORI[ti];
+    const ct=Math.cos(th/2), st=Math.sin(th/2);
+    for(let pj=0;pj<PER;pj++){
+      const phi0=2*Math.PI*pj/PER;
+      const pts=[];
+      let zsum=0,zn=0;
+      for(let k=0;k<=NT;k++){
+        const a=2*Math.PI*k/NT;
+        // fibre over base point (th, a): S^3 point
+        const v=[ct*Math.cos(a), ct*Math.sin(a), st*Math.cos(a+phi0), st*Math.sin(a+phi0)];
+        const r3=stereo4(v);
+        const rr=rot(r3);
+        const sp=project(rr);
+        if(sp){pts.push(sp);zsum+=sp[2];zn++;}else pts.push(null);
+      }
+      const zavg=zn?zsum/zn:2;
+      strokes.push({pts,zavg,hue:(th/Math.PI)*280, phi:phi0});
+    }
+  }
+  strokes.sort((a,b)=>b.zavg-a.zavg);
+  for(const s of strokes){
+    const alpha=0.18+0.6*Math.min(1,1.5/s.zavg);
+    const lum=Math.round(45+30*Math.min(1,1.6/s.zavg));
+    ctx.strokeStyle=`hsla(${s.hue},72%,${lum}%,${alpha})`;
+    ctx.beginPath();
+    let started=false;
+    for(const p of s.pts){
+      if(!p){started=false;continue;}
+      if(!started){ctx.moveTo(p[0],p[1]);started=true;}
+      else ctx.lineTo(p[0],p[1]);
+    }
+    ctx.stroke();
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
