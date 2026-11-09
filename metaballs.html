@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang=en><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>metaballs — marching squares</title>
+<style>
+:root{--bg:#07070c;--fg:#e8e8f0;--dim:#6b6b80;--acc:#7ee0ff;--line:#1c1c2a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:13px/1.5 ui-monospace,Menlo,monospace;min-height:100vh;display:flex;flex-direction:column}
+header{padding:14px 18px 10px;border-bottom:1px solid var(--line)}
+h1{font-size:16px;margin:0;font-weight:600}h1 span{color:var(--acc)}
+.sub{color:var(--dim);font-size:11px;margin-top:3px}
+main{flex:1;display:flex;min-height:0}
+canvas{flex:1;display:block;width:100%;height:100%;cursor:crosshair}
+#side{width:210px;flex-shrink:0;border-left:1px solid var(--line);padding:12px 14px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;flex-direction:column;gap:4px}
+label{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+input[type=range]{width:100%;accent-color:var(--acc)}
+button{background:#14141f;color:var(--fg);border:1px solid var(--line);border-radius:6px;font:inherit;font-size:12px;padding:6px 10px;cursor:pointer}
+button:hover{border-color:var(--acc);color:var(--acc)}
+.val{color:var(--acc);font-size:11px;float:right}
+.note{color:var(--dim);font-size:11px;line-height:1.5;margin-top:auto}
+</style></head><body>
+<header><h1>metaballs <span>—</span> marching squares</h1>
+<div class=sub>blobs of charge, contoured at every level. move your mouse. click to add.</div></header>
+<main>
+<canvas id=c></canvas>
+<div id=side>
+  <div class=row><label>threshold <span class=val id=vt>0.40</span></label><input id=th type=range min=0.05 max=2 step=0.02 value=0.4></div>
+  <div class=row><label>charge <span class=val id=vc>1.0</span></label><input id=ch type=range min=0.3 max=3 step=0.1 value=1.0></div>
+  <div class=row><label>falloff <span class=val id=vf>2.0</span></label><input id=fa type=range min=1 max=4 step=0.1 value=2.0></div>
+  <div class=row><label>resolution <span class=val id=vr>7</span></label><input id=res type=range min=4 max=14 step=1 value=7></div>
+  <button id=add>add 10 blobs</button>
+  <button id=clr>clear</button>
+  <div class=note>the field is a sum of 1/r^falloff. marching squares walks each grid cell, reads the 4 corners against the threshold, and draws the isocontour. that's the whole trick.</div>
+</div>
+</main>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=Math.min(window.devicePixelRatio||1,2);
+const mouse={x:0,y:0,active:false};
+const blobs=[];
+const thEl=document.getElementById('th'),chEl=document.getElementById('ch'),faEl=document.getElementById('fa'),resEl=document.getElementById('res');
+const vt=document.getElementById('vt'),vc=document.getElementById('vc'),vf=document.getElementById('vf'),vr=document.getElementById('vr');
+
+function resize(){const r=cv.getBoundingClientRect();W=r.width;H=r.height;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+window.addEventListener('resize',resize);
+
+function field(x,y){
+  let s=0;const fall=+faEl.value;const base=+chEl.value;
+  for(const b of blobs){
+    const dx=x-b.x,dy=y-b.y;const d2=dx*dx+dy*dy;
+    s+=b.charge*base/Math.pow(d2+b.r*b.r*0.15,fall/2);
+  }
+  if(mouse.active){
+    const dx=x-mouse.x,dy=y-mouse.y;const d2=dx*dx+dy*dy;
+    s+=base/Math.pow(d2+400,fall/2)*1.5;
+  }
+  return s*60;
+}
+
+// marching squares: for each cell, find contour segments at level th
+function contour(level){
+  const res=+resEl.value;const step=res;
+  const segs=[];
+  const cols=Math.ceil(W/step)+1, rows=Math.ceil(H/step)+1;
+  const grid=new Float32Array(cols*rows);
+  for(let j=0;j<rows;j++)for(let i=0;i<cols;i++)grid[j*cols+i]=field(i*step,j*step);
+  const interp=(a,b,va,vb)=>{const t=(level-va)/(vb-va);return a+(b-a)*t;};
+  for(let j=0;j<rows-1;j++){
+    for(let i=0;i<cols-1;i++){
+      const x0=i*step,y0=j*step,x1=x0+step,y1=y0+step;
+      const tl=grid[j*cols+i],tr=grid[j*cols+i+1],br=grid[(j+1)*cols+i+1],bl=grid[(j+1)*cols+i];
+      let idx=0;
+      if(tl>level)idx|=8; if(tr>level)idx|=4; if(br>level)idx|=2; if(bl>level)idx|=1;
+      if(idx===0||idx===15)continue;
+      // edge points
+      const top=()=>[interp(x0,x1,tl,tr),y0];
+      const right=()=>[x1,interp(y0,y1,tr,br)];
+      const bottom=()=>[interp(x0,x1,bl,br),y1];
+      const left=()=>[x0,interp(y0,y1,tl,bl)];
+      const push=(a,b)=>segs.push([a,b]);
+      switch(idx){
+        case 1:case 14:push(left(),bottom());break;
+        case 2:case 13:push(bottom(),right());break;
+        case 3:case 12:push(left(),right());break;
+        case 4:case 11:push(top(),right());break;
+        case 6:case 9:push(top(),bottom());break;
+        case 7:case 8:push(left(),top());break;
+        case 5:push(left(),top());push(bottom(),right());break;
+        case 10:push(top(),right());push(left(),bottom());break;
+      }
+    }
+  }
+  return segs;
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#07070c';ctx.fillRect(0,0,W,H);
+  const level=+thEl.value;
+  const segs=contour(level);
+  // glow
+  ctx.save();
+  ctx.strokeStyle='rgba(126,224,255,0.15)';ctx.lineWidth=3;
+  ctx.beginPath();for(const [a,b] of segs){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();
+  ctx.strokeStyle='#7ee0ff';ctx.lineWidth=1;
+  ctx.beginPath();for(const [a,b] of segs){ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);}ctx.stroke();
+  ctx.restore();
+  // blob cores
+  for(const b of blobs){
+    const g=ctx.createRadialGradient(b.x,b.y,0,b.x,b.y,b.r*4);
+    g.addColorStop(0,'rgba(126,224,255,0.5)');g.addColorStop(1,'rgba(126,224,255,0)');
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(b.x,b.y,b.r*4,0,7);ctx.fill();
+  }
+  requestAnimationFrame(draw);
+}
+
+function addBlob(x,y){blobs.push({x,y,r:8+Math.random()*14,charge:0.6+Math.random()*1.2,vx:(Math.random()-0.5)*0.6,vy:(Math.random()-0.5)*0.6});}
+
+cv.addEventListener('mousemove',e=>{const r=cv.getBoundingClientRect();mouse.x=e.clientX-r.left;mouse.y=e.clientY-r.top;mouse.active=true;});
+cv.addEventListener('mouseleave',()=>mouse.active=false);
+cv.addEventListener('click',e=>{const r=cv.getBoundingClientRect();addBlob(e.clientX-r.left,e.clientY-r.top);});
+
+document.getElementById('add').onclick=()=>{for(let i=0;i<10;i++)addBlob(Math.random()*W,Math.random()*H);};
+document.getElementById('clr').onclick=()=>{blobs.length=0;};
+thEl.oninput=()=>vt.textContent=(+thEl.value).toFixed(2);
+chEl.oninput=()=>vc.textContent=(+chEl.value).toFixed(1);
+faEl.oninput=()=>vf.textContent=(+faEl.value).toFixed(1);
+resEl.oninput=()=>vr.textContent=resEl.value;
+
+// drift blobs
+function tick(){for(const b of blobs){b.x+=b.vx;b.y+=b.vy;if(b.x<10||b.x>W-10)b.vx*=-1;if(b.y<10||b.y>H-10)b.vy*=-1;}requestAnimationFrame(tick);}
+
+resize();
+for(let i=0;i<7;i++)addBlob(W*0.2+Math.random()*W*0.6,H*0.2+Math.random()*H*0.6);
+tick();draw();
+</script></body></html>
