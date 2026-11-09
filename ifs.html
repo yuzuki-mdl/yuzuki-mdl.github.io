@@ -16,13 +16,17 @@
   button:hover{background:#1c2436;border-color:#3a4a68}
   button.on{background:#1d3a5c;border-color:#4a86c8;color:#a8d4ff}
   .hint{color:#5a6478;font-size:10px;margin-top:8px;line-height:1.4}
+  .cap{color:#6f8db0;font-size:10px;letter-spacing:.04em;margin:6px 0 2px}
+  .cap:first-of-type{margin-top:0}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="panel">
   <h1>ifs chaos game</h1>
+  <div class="cap">a b c d e f — choose the set</div>
   <div id="maps"></div>
+  <div class="cap">· w — chooses where the points fall</div>
   <button id="reset">reset</button>
   <button id="more">+1M pts</button>
   <div class="hint">each map: x' = a·x + b·y + e &nbsp; y' = c·x + d·y + f<br>weights pick the map. change a number, watch it morph.</div>
