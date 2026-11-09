@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>punch the slime</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d0c;color:#8fae8a;
+    font:13px ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden;
+    -webkit-user-select:none;user-select:none;touch-action:none}
+  #wrap{display:flex;flex-direction:column;height:100%;align-items:center;justify-content:center;gap:12px}
+  canvas{display:block;max-width:96vw;max-height:80vh;image-rendering:pixelated;cursor:crosshair;
+    box-shadow:0 0 60px #0f2a18 inset,0 0 2px #1c3a26;border-radius:4px}
+  .row{display:flex;gap:10px;align-items:center;font-size:12px;color:#5f7a5c;flex-wrap:wrap;justify-content:center}
+  a{color:#8fae8a;text-decoration:none;border-bottom:1px dotted #3a5540}
+  button{background:#12201a;color:#8fae8a;border:1px solid #24402e;border-radius:4px;
+    padding:4px 10px;font:inherit;cursor:pointer}
+  button:hover{background:#183024}
+  b{color:#c8e6c0}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="c"></canvas>
+  <div class="row">
+    <button id="reset">reseed</button>
+    <span id="stat">click to punch a hole in the network</span>
+    <span>·</span>
+    <a href="physarum-index.html">all the moulds →</a>
+  </div>
+</div>
+<script>
+// punch the slime — a physarum network you can wound.
+// click = remove pheromone + scatter agents in a radius, watch it heal.
+
+const c = document.getElementById('c');
+const ctx = c.getContext('2d');
+const S = 220;            // grid side
+const CELL = 3;           // px per cell
+c.width = S * CELL; c.height = S * CELL;
+
+// honest Jones 2010-ish params on an open field with 2 food sources
+const DEPOSIT = 0.08, DECAY = 0.945;
+const SENSOR_ANGLE = Math.PI / 4, SENSOR_DIST = 6.0;
+const TURN = Math.PI / 5, SPEED = 1.0;
+const NAGENTS = 1600;
+
+let pher, agents, food;
+
+function init() {
+  pher = Array.from({length:S}, () => new Float32Array(S));
+  agents = [];
+  // two food sources: a blob near one corner, a blob near the other
+  food = [ [S*0.28|0, S*0.30|0, 5], [S*0.72|0, S*0.70|0, 5] ];
+  for (const [fx, fy] of food) {
+    for (let y = fy-2; y <= fy+2; y++)
+      for (let x = fx-2; x <= fx+2; x++)
+        if (x>=0&&y>=0&&x<S&&y<S) pher[y][x] = 1.0;
+  }
+  // agents start in a small cluster at the first food
+  const cx = food[0][0], cy = food[0][1];
+  for (let i = 0; i < NAGENTS; i++) {
+    agents.push({
+      x: cx + (Math.random()*2-1)*3,
+      y: cy + (Math.random()*2-1)*3,
+      a: Math.random() * Math.PI * 2
+    });
+  }
+}
+
+function sample(x, y, ang) {
+  const nx = x + Math.cos(ang) * SENSOR_DIST;
+  const ny = y + Math.sin(ang) * SENSOR_DIST;
+  const ix = nx|0, iy = ny|0;
+  if (ix < 0 || iy < 0 || ix >= S || iy >= S) return -1;
+  return pher[iy][ix];
+}
+
+function step() {
+  // decay everywhere
+  for (let y = 0; y < S; y++) {
+    const row = pher[y];
+    for (let x = 0; x < S; x++) row[x] *= DECAY;
+  }
+  // food keeps its scent
+  for (const [fx, fy] of food) {
+    for (let y = fy-2; y <= fy+2; y++)
+      for (let x = fx-2; x <= fx+2; x++)
+        if (x>=0&&y>=0&&x<S&&y<S) pher[y][x] = 1.0;
+  }
+
+  for (const ag of agents) {
+    const sl = sample(ag.x, ag.y, ag.a + SENSOR_ANGLE);
+    const sc = sample(ag.x, ag.y, ag.a);
+    const sr = sample(ag.x, ag.y, ag.a - SENSOR_ANGLE);
+    if (sc >= sl && sc >= sr) {
+      // keep heading
+    } else if (sl > sr) {
+      ag.a += TURN;
+    } else if (sr > sl) {
+      ag.a -= TURN;
+    } else {
+      ag.a += (Math.random() * 2 - 1) * TURN;
+    }
+    let nx = ag.x + Math.cos(ag.a) * SPEED;
+    let ny = ag.y + Math.sin(ag.a) * SPEED;
+    // bounce off walls
+    if (nx < 0 || ny < 0 || nx >= S || ny >= S) {
+      ag.a += Math.PI * (0.7 + Math.random()*0.6);
+      nx = ag.x + Math.cos(ag.a) * SPEED;
+      ny = ag.y + Math.sin(ag.a) * SPEED;
+      if (nx < 0) nx = 0; if (nx >= S) nx = S-1;
+      if (ny < 0) ny = 0; if (ny >= S) ny = S-1;
+    }
+    ag.x = nx; ag.y = ny;
+    const ix = nx|0, iy = ny|0;
+    pher[iy][ix] += DEPOSIT;
+  }
+}
+
+function draw() {
+  let mx = 0.0001;
+  for (let y = 0; y < S; y++) {
+    const row = pher[y];
+    for (let x = 0; x < S; x++) if (row[x] > mx) mx = row[x];
+  }
+  ctx.fillStyle = '#0b0d0c';
+  ctx.fillRect(0, 0, c.width, c.height);
+  for (let y = 0; y < S; y++) {
+    for (let x = 0; x < S; x++) {
+      const v = pher[y][x] / mx;
+      if (v > 0.05) {
+        const g = Math.min(255, 30 + v * 225) | 0;
+        ctx.fillStyle = `rgb(${(g*0.42)|0},${g},${(g*0.5)|0})`;
+        ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
+      }
+    }
+  }
+}
+
+// punch: remove pheromone and scatter agents inside a radius
+let punchFlash = null;
+function punch(px, py, r) {
+  const gx = (px / CELL) | 0, gy = (py / CELL) | 0;
+  const r2 = r * r;
+  for (let y = gy - r; y <= gy + r; y++) {
+    for (let x = gx - r; x <= gx + r; x++) {
+      if (x < 0 || y < 0 || x >= S || y >= S) continue;
+      const dx = x - gx, dy = y - gy;
+      if (dx*dx + dy*dy <= r2) pher[y][x] = 0;
+    }
+  }
+  // shove nearby agents outward
+  for (const ag of agents) {
+    const dx = ag.x - gx, dy = ag.y - gy;
+    const d2 = dx*dx + dy*dy;
+    if (d2 <= r2) {
+      const d = Math.sqrt(d2) || 0.001;
+      ag.a = Math.atan2(dy, dx) + (Math.random()*2-1) * 0.6;
+    }
+  }
+  punchFlash = { x: gx, y: gy, r, t: 12 };
+}
+
+let frame = 0;
+function loop() {
+  for (let i = 0; i < 2; i++) step();
+  draw();
+  if (punchFlash) {
+    const p = punchFlash;
+    ctx.strokeStyle = `rgba(255,94,168,${p.t/12})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(p.x*CELL, p.y*CELL, p.r*CELL, 0, Math.PI*2);
+    ctx.stroke();
+    if (--p.t <= 0) punchFlash = null;
+  }
+  frame++;
+  requestAnimationFrame(loop);
+}
+
+function pos(e) {
+  const rect = c.getBoundingClientRect();
+  const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
+  const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+  return [cx * (c.width / rect.width), cy * (c.height / rect.height)];
+}
+
+let dragging = false;
+c.addEventListener('mousedown', e => { dragging = true; const [x,y] = pos(e); punch(x, y, 9); });
+c.addEventListener('mousemove', e => { if (dragging) { const [x,y] = pos(e); punch(x, y, 6); } });
+window.addEventListener('mouseup', () => dragging = false);
+c.addEventListener('touchstart', e => { e.preventDefault(); const [x,y] = pos(e); punch(x, y, 9); }, {passive:false});
+c.addEventListener('touchmove', e => { e.preventDefault(); const [x,y] = pos(e); punch(x, y, 6); }, {passive:false});
+
+document.getElementById('reset').addEventListener('click', init);
+
+init();
+loop();
+</script>
+</body>
+</html>
