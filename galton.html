@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>bean machine — yūzuki</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d12;color:#cdd6e6;font-family:ui-monospace,Menlo,monospace;overflow:hidden}
+  #w{display:block;width:100vw;height:100vh}
+  #ui{position:fixed;left:16px;bottom:16px;font-size:13px;line-height:1.9;pointer-events:none;opacity:.9}
+  #ui b{color:#7fd4ff;font-weight:600}
+  .row{pointer-events:auto;display:flex;align-items:center;gap:10px;margin-top:4px}
+  input[type=range]{width:150px;accent-color:#7fd4ff;pointer-events:auto}
+  button{background:#1a2130;border:1px solid #2c3852;color:#cdd6e6;font:inherit;font-size:12px;padding:4px 9px;border-radius:6px;cursor:pointer}
+  button:hover{background:#232d42}
+  #hint{position:fixed;right:16px;top:14px;font-size:12px;opacity:.5;text-align:right}
+</style>
+</head>
+<body>
+<canvas id="w"></canvas>
+<div id="ui">
+  <div>beans: <b id="n">0</b></div>
+  <div class="row">bias <input id="bias" type="range" min="0.05" max="0.95" step="0.01" value="0.5"><b id="bv">0.50</b></div>
+  <div class="row"><button id="reset">reset</button><button id="pause">pause</button></div>
+</div>
+<div id="hint">drop beans · they pile into a bell</div>
+<script>
+const cv=document.getElementById('w'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);layout();}
+addEventListener('resize',resize);
+
+const ROWS=12;
+let pegs=[],bins=[],binCount=0,pegR=0,binW=0,topY=0,boardW=0,binX0=0;
+function layout(){
+  boardW=Math.min(W*0.86,H*0.82);
+  topY=H*0.10;
+  pegR=Math.max(2,boardW/(ROWS*2+2)*0.34);
+  pegs=[];
+  const vgap=(H*0.62-topY)/ROWS;
+  for(let r=0;r<ROWS;r++){
+    const n=r+1;
+    const rowW=boardW*(r+1)/ROWS;
+    for(let i=0;i<n;i++){
+      const x=W/2 - rowW/2 + rowW*(n===1?0.5:i/(n-1)) ;
+      pegs.push({x,y:topY+vgap*r});
+    }
+  }
+  binCount=ROWS+1;
+  binW=boardW/ROWS;
+  binX0=W/2-boardW/2;
+  if(!bins.length){bins=new Array(binCount).fill(0);}
+  else if(bins.length!==binCount){const nb=new Array(binCount).fill(0);for(let i=0;i<Math.min(bins.length,binCount);i++)nb[i]=bins[i];bins=nb;}
+}
+
+let bias=0.5,paused=false,beans=[],n=0;
+const grav=0.4;
+
+function spawn(){
+  beans.push({x:W/2+(Math.random()-0.5)*2, y:topY-40, vx:0, vy:0, hit:new Set()});
+}
+
+function step(){
+  if(!paused && n<4000) { if(Math.random()<0.35) spawn(); }
+  for(let i=beans.length-1;i>=0;i--){
+    const b=beans[i];
+    b.vy+=grav; b.x+=b.vx; b.y+=b.vy; b.vx*=0.97;
+    // peg collisions
+    for(const p of pegs){
+      const dx=b.x-p.x, dy=b.y-p.y, d2=dx*dx+dy*dy, rr=pegR+3;
+      if(d2<rr*rr && !b.hit.has(p)){
+        b.hit.add(p);
+        const d=Math.sqrt(d2)||1;
+        const nx=dx/d, ny=dy/d;
+        // always place bean below-ish the peg and send it sideways
+        b.y=p.y+rr;
+        const dir=(Math.random()<bias)?1:-1;
+        b.vx=dir*(1.5+Math.random()*0.6);
+        b.vy=1.2;
+      }
+    }
+    // land in bins
+    const floorY=H*0.62;
+    if(b.y>floorY){
+      let idx=Math.floor((b.x-binX0)/binW);
+      idx=Math.max(0,Math.min(binCount-1,idx));
+      bins[idx]++; n++;
+      beans.splice(i,1);
+    }
+  }
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0b0d12';ctx.fillRect(0,0,W,H);
+  // pegs
+  ctx.fillStyle='#2c3852';
+  for(const p of pegs){ctx.beginPath();ctx.arc(p.x,p.y,pegR,0,7);ctx.fill();}
+  // bins histogram
+  const max=Math.max(1,...bins);
+  const floorY=H*0.62, maxH=H*0.30;
+  for(let i=0;i<binCount;i++){
+    const h=(bins[i]/max)*maxH;
+    const x=binX0+i*binW+1;
+    ctx.fillStyle='#7fd4ff';
+    ctx.globalAlpha=0.25+0.75*(bins[i]/max);
+    ctx.fillRect(x,floorY-h,binW-2,h);
+  }
+  ctx.globalAlpha=1;
+  // baseline
+  ctx.strokeStyle='#1a2130';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(binX0,floorY);ctx.lineTo(binX0+binW*binCount,floorY);ctx.stroke();
+  ctx.fillStyle='#1a2130';
+  for(let i=1;i<binCount;i++){const x=binX0+i*binW;ctx.fillRect(x,floorY,1,10);}
+  // bins count labels
+  ctx.fillStyle='#5b6780';ctx.font='10px ui-monospace,monospace';ctx.textAlign='center';
+  for(let i=0;i<binCount;i++){const x=binX0+i*binW+binW/2;ctx.fillText(bins[i],x,floorY+22);}
+  // beans
+  for(const b of beans){
+    ctx.fillStyle='#ffcf6b';
+    ctx.beginPath();ctx.arc(b.x,b.y,2.6,0,7);ctx.fill();
+  }
+  document.getElementById('n').textContent=n;
+}
+
+function loop(){step();draw();requestAnimationFrame(loop);}
+
+const biasEl=document.getElementById('bias'),bv=document.getElementById('bv');
+biasEl.addEventListener('input',()=>{bias=+biasEl.value;bv.textContent=bias.toFixed(2);});
+document.getElementById('reset').onclick=()=>{bins.fill(0);beans.length=0;n=0;};
+const pb=document.getElementById('pause');
+pb.onclick=()=>{paused=!paused;pb.textContent=paused?'play':'pause';};
+
+resize();loop();
+</script>
+</body>
+</html>
