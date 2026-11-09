@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pond — a self-playing thing</title>
+<style>
+  html,body{margin:0;height:100%;background:#04100e;overflow:hidden;font-family:ui-monospace,monospace}
+  canvas{display:block;width:100vw;height:100vh;cursor:crosshair}
+  #hud{position:fixed;left:12px;bottom:10px;color:#7fd8c4;font-size:12px;letter-spacing:.5px;opacity:.55;pointer-events:none;line-height:1.5}
+  #hud b{color:#bff5e6;font-weight:500}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"></div>
+<script>
+// pond — a little ecosystem that runs itself.
+// nothing to click, it just lives. click to drop food if u want.
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const hud = document.getElementById('hud');
+let W, H;
+function resize(){
+  W = cv.width = innerWidth * devicePixelRatio;
+  H = cv.height = innerHeight * devicePixelRatio;
+  cv.style.width = innerWidth+'px'; cv.style.height = innerHeight+'px';
+}
+resize(); addEventListener('resize', resize);
+
+// food field: a soft scalar that regrows toward a base level
+const CELL = 16 * devicePixelRatio;
+let gw, gh, food, foodNext;
+function buildGrid(){
+  gw = Math.ceil(W/CELL); gh = Math.ceil(H/CELL);
+  food = new Float32Array(gw*gh); foodNext = new Float32Array(gw*gh);
+  for(let i=0;i<food.length;i++) food[i] = 0.4 + Math.random()*0.6;
+}
+buildGrid();
+const idx = (x,y)=> (y*gw + x);
+
+// agents: little swimmers that graze food, spend energy, split when fat, die when empty
+const agents = [];
+const MAX = 900;
+function spawn(x,y,genes){
+  agents.push({
+    x, y,
+    a: Math.random()*Math.PI*2,
+    e: 8 + Math.random()*6,
+    g: genes || { speed:0.6+Math.random()*0.9, sense:20+Math.random()*40, hue:150+Math.random()*80, r:1.6+Math.random()*1.6 },
+    age:0
+  });
+}
+for(let i=0;i<120;i++) spawn(Math.random()*W, Math.random()*H);
+
+// food regrow rate drifts slowly -> seasons
+let season = 0;
+const seasonBase = ()=> 0.9 + 0.7*Math.sin(season);
+
+function step(dt){
+  season += dt*0.00006;
+  const base = seasonBase();
+  // diffuse + regrow food
+  for(let y=0;y<gh;y++){
+    for(let x=0;x<gw;x++){
+      const i = idx(x,y);
+      let s = food[i]*4;
+      let n = 0;
+      if(x>0){s+=food[i-1];n++;}
+      if(x<gw-1){s+=food[i+1];n++;}
+      if(y>0){s+=food[i-gw];n++;}
+      if(y<gh-1){s+=food[i+gw];n++;}
+      let v = s/(4+n);
+      v += (base - v)*0.004; // regrow toward seasonal base
+      foodNext[i] = Math.max(0, Math.min(1.4, v));
+    }
+  }
+  const t = food; food = foodNext; foodNext = t;
+
+  // agents
+  for(let k=agents.length-1;k>=0;k--){
+    const ag = agents[k];
+    ag.age += dt;
+    const gx = Math.floor(ag.x/CELL), gy = Math.floor(ag.y/CELL);
+    if(gx<0||gy<0||gx>=gw||gy>=gh){ agents.splice(k,1); continue; }
+    // sense food ahead: sample three directions, steer toward most
+    const sense = ag.g.sense*devicePixelRatio;
+    let bestA = ag.a, bestV = -1;
+    for(let d=-1; d<=1; d++){
+      const aa = ag.a + d*0.6;
+      const sx = Math.floor((ag.x+Math.cos(aa)*sense)/CELL);
+      const sy = Math.floor((ag.y+Math.sin(aa)*sense)/CELL);
+      let v = 0;
+      if(sx>=0&&sy>=0&&sx<gw&&sy<gh) v = food[idx(sx,sy)];
+      if(v>bestV){bestV=v; bestA=aa;}
+    }
+    ag.a += (bestA-ag.a)*0.3 + (Math.random()-0.5)*0.15;
+    const sp = ag.g.speed*devicePixelRatio*dt*0.06;
+    ag.x += Math.cos(ag.a)*sp;
+    ag.y += Math.sin(ag.a)*sp;
+    // wrap edges softly
+    if(ag.x<0)ag.x+=W; if(ag.x>W)ag.x-=W;
+    if(ag.y<0)ag.y+=H; if(ag.y>H)ag.y-=H;
+    // eat
+    const ei = idx(Math.floor(ag.x/CELL), Math.floor(ag.y/CELL));
+    const bite = Math.min(food[ei], 0.06);
+    food[ei] -= bite;
+    ag.e += bite*22 - 0.06*dt*0.06;
+    // split
+    if(ag.e>26 && agents.length<MAX){
+      ag.e *= 0.5;
+      const child = {
+        x:ag.x, y:ag.y, a:ag.a+Math.PI+(Math.random()-0.5),
+        e:ag.e, age:0,
+        g:{ speed:clampM(ag.g.speed+(Math.random()-0.5)*0.12,0.3,2.2),
+            sense:clampM(ag.g.sense+(Math.random()-0.5)*6,10,70),
+            hue:clampH(ag.g.hue+(Math.random()-0.5)*12),
+            r:clampM(ag.g.r+(Math.random()-0.5)*0.3,1,3.4) }
+      };
+      agents.push(child);
+    }
+    // die
+    if(ag.e<=0 || ag.age>60000){ agents.splice(k,1); }
+  }
+  // rare reseed if empty
+  if(agents.length<6) for(let i=0;i<8;i++) spawn(Math.random()*W, Math.random()*H);
+}
+const clampM=(v,a,b)=>Math.max(a,Math.min(b,v));
+const clampH=(v)=>{ v%=360; return v<0?v+360:v; };
+
+// draw
+let t0 = performance.now();
+let frame=0;
+function draw(){
+  // fade trails
+  ctx.fillStyle='rgba(4,16,14,0.18)';
+  ctx.fillRect(0,0,W,H);
+  // food as faint glow
+  ctx.globalCompositeOperation='lighter';
+  for(let y=0;y<gh;y++){
+    for(let x=0;x<gw;x++){
+      const v = food[idx(x,y)];
+      if(v<0.05) continue;
+      ctx.fillStyle = 'rgba(30,'+Math.floor(90+v*90)+','+Math.floor(70+v*80)+','+(v*0.10)+')';
+      ctx.fillRect(x*CELL, y*CELL, CELL, CELL);
+    }
+  }
+  // agents
+  for(const ag of agents){
+    ctx.fillStyle = 'hsla('+ag.g.hue+',80%,65%,0.9)';
+    ctx.beginPath();
+    ctx.arc(ag.x, ag.y, ag.g.r*devicePixelRatio, 0, 6.283);
+    ctx.fill();
+  }
+  ctx.globalCompositeOperation='source-over';
+}
+
+function loop(now){
+  const dt = Math.min(50, now-t0); t0 = now;
+  step(dt);
+  draw();
+  if(frame++%20===0){
+    hud.innerHTML = 'pond &nbsp;·&nbsp; <b>'+agents.length+'</b> swimmers &nbsp;·&nbsp; season <b>'+(seasonBase()>1?'rich':'lean')+'</b> &nbsp;·&nbsp; click to feed';
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// click = drop food
+cv.addEventListener('pointerdown', e=>{
+  const x = e.clientX*devicePixelRatio, y = e.clientY*devicePixelRatio;
+  const cx = Math.floor(x/CELL), cy = Math.floor(y/CELL);
+  for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++){
+    const i = idx(cx+dx, cy+dy);
+    if(i>=0&&i<food.length) food[i] = 1.4;
+  }
+});
+</script>
+</body>
+</html>
