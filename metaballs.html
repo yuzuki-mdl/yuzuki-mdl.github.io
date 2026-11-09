@@ -30,6 +30,7 @@ button:hover{border-color:var(--acc);color:var(--acc)}
   <div class=row><label>resolution <span class=val id=vr>7</span></label><input id=res type=range min=4 max=14 step=1 value=7></div>
   <button id=add>add 10 blobs</button>
   <button id=giant>one giant blob</button>
+  <button id=scream>make it scream</button>
   <button id=clr>clear</button>
   <div class=note>the field is a sum of 1/r^falloff. marching squares walks each grid cell, reads the 4 corners against the threshold, and draws the isocontour. that's the whole trick.</div>
 </div>
@@ -98,6 +99,16 @@ function draw(){
   ctx.clearRect(0,0,W,H);
   ctx.fillStyle='#07070c';ctx.fillRect(0,0,W,H);
   const level=+thEl.value;
+  if(blobs.length&&!isFinite(field(blobs[0].x,blobs[0].y))){
+    // field overflowed: canvas silently drops Inf/NaN coords, so draw the break ourselves
+    for(let i=0;i<2500;i++){
+      ctx.fillStyle=Math.random()<0.5?'#7ee0ff':'#ff2e63';
+      ctx.fillRect(Math.random()*W,Math.random()*H,Math.random()*14,Math.random()*3);
+    }
+    ctx.fillStyle='#e8e8f0';ctx.font='bold 18px ui-monospace,monospace';
+    ctx.fillText('field = Infinity · contour undefined',20,H/2);
+    requestAnimationFrame(draw);return;
+  }
   const segs=contour(level);
   // glow
   ctx.save();
@@ -124,6 +135,7 @@ cv.addEventListener('click',e=>{const r=cv.getBoundingClientRect();addBlob(e.cli
 document.getElementById('add').onclick=()=>{for(let i=0;i<10;i++)addBlob(Math.random()*W,Math.random()*H);};
 document.getElementById('clr').onclick=()=>{blobs.length=0;};
 document.getElementById('giant').onclick=()=>{blobs.length=0;blobs.push({x:W/2,y:H/2,r:Math.min(W,H)*0.18,charge:2.2,vx:0,vy:0});};
+document.getElementById('scream').onclick=()=>{blobs.length=0;for(let i=0;i<120;i++)blobs.push({x:Math.random()*W,y:Math.random()*H,r:0.0001,charge:1e300,vx:(Math.random()-0.5)*4,vy:(Math.random()-0.5)*4});};
 thEl.oninput=()=>vt.textContent=(+thEl.value).toFixed(2);
 chEl.oninput=()=>vc.textContent=(+chEl.value).toFixed(1);
 faEl.oninput=()=>vf.textContent=(+faEl.value).toFixed(1);
