@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>attractor music</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  html,body{margin:0;height:100%;background:#05060a;overflow:hidden;font:13px/1.2 ui-monospace,monospace;color:#dfe0ea}
+  canvas{display:block;width:100vw;height:100vh}
+  #ui{position:fixed;left:14px;bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:rgba(5,6,10,.72);padding:10px 12px;border-radius:12px;backdrop-filter:blur(6px);border:1px solid #1c1e28}
+  #ui button{font:inherit;background:#12141c;color:#dfe0ea;border:1px solid #262a36;border-radius:8px;padding:6px 10px;cursor:pointer}
+  #ui button:hover{background:#1a1d28}
+  #ui button.on{background:#22355a;border-color:#4a6db0}
+  #start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#05060a;z-index:9;cursor:pointer;text-align:center}
+  #start div{max-width:340px;padding:0 20px;opacity:.8}
+  #start b{font-size:20px;display:block;margin-bottom:10px;opacity:1}
+  #ui .hint{opacity:.5}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <button data-a="lorenz" class="on">lorenz</button>
+  <button data-a="clifford">clifford</button>
+  <button data-a="dejong">de jong</button>
+  <button id="mute">sound: on</button>
+  <span class="hint">music is the attractor, playing itself</span>
+</div>
+<div id="start"><div><b>attractor music</b>a strange attractor, drawn and played at the same time. every dot is a note.<br><br>tap to begin ♪</div></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,dpr=Math.min(devicePixelRatio||1,2);
+function resize(){W=innerWidth;H=innerHeight;cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(dpr,0,0,dpr,0,0);bg();}
+function bg(){ctx.fillStyle='#05060a';ctx.fillRect(0,0,W,H);}
+resize();addEventListener('resize',resize);
+
+// --- audio ---
+let AC=null,master=null,muted=false;
+function initAudio(){
+  if(AC)return;
+  AC=new (window.AudioContext||window.webkitAudioContext)();
+  master=AC.createGain();master.gain.value=0.16;master.connect(AC.destination);
+}
+const scale=[0,2,3,5,7,9,10]; // minor-ish pentatonic-ish
+function noteAt(t){ // t in [0,1] -> midi
+  const oct=2+Math.floor(t*4);
+  const deg=scale[Math.floor(((t*4)%1)*scale.length)];
+  return 12*oct+deg;
+}
+function playNote(midi,vel,dur,pan){
+  if(!AC||muted)return;
+  const f=440*Math.pow(2,(midi-69)/12);
+  const o=AC.createOscillator(),g=AC.createGain(),p=AC.createStereoPanner();
+  o.type='sine';o.frequency.value=f;
+  const t=AC.currentTime;
+  g.gain.setValueAtTime(0,t);
+  g.gain.linearRampToValueAtTime(vel,t+0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  p.pan.value=pan;
+  o.connect(g).connect(p).connect(master);
+  o.start(t);o.stop(t+dur+0.02);
+}
+
+// --- attractors ---
+const attractors={
+  lorenz:{p:[0.1,0,0],step(s){const[a,b,c]=[10,28,8/3];const[x,y,z]=s.p;const dt=0.005;return[x+dt*a*(y-x),y+dt*(x*(b-z)-y),z+dt*(x*y-c*z)];},map(p){return[p[0]/22,p[2]/50-0.5];}},
+  clifford:{p:null,it:0,a:-1.4,b:1.6,c:1.0,d:0.7,step(s){const{x,y}=s.cur||{x:0.1,y:0.1};const{x:a,b,c,d}=s;const nx=Math.sin(a*y)+c*Math.cos(a*x);const ny=Math.sin(b*x)+d*Math.cos(b*y);s.cur={x:nx,y:ny};return[nx,ny];},map(p){return[p[0]/2.5,p[1]/2.5];}},
+  dejong:{p:null,it:0,a:1.641,b:1.902,c:0.316,d:1.525,step(s){const{x,y}=s.cur||{x:0.1,y:0.1};const{x:a,b,c,d}=s;const nx=Math.sin(a*y)-Math.cos(b*x);const ny=Math.sin(c*x)-Math.cos(d*y);s.cur={x:nx,y:ny};return[nx,ny];},map(p){return[p[0]/2.2,p[1]/2.2];}}
+};
+let cur='lorenz',S=null;
+function seed(name){
+  cur=name;
+  S={...attractors[name]};
+  if(name==='lorenz')S.p=[0.1,0,0];else S.cur={x:0.1,y:0.1};
+  if(name!=='lorenz'){S.a=attractors[name].a+(Math.random()-0.5)*0.6;S.b=attractors[name].b+(Math.random()-0.5)*0.6;S.c=attractors[name].c+(Math.random()-0.5)*0.4;S.d=attractors[name].d+(Math.random()-0.5)*0.4;}
+  bg();
+}
+seed('lorenz');
+
+let running=false,lastNote=0;
+const cx=()=>W/2,cy=()=>H/2,sc=()=>Math.min(W,H)/2*0.9;
+function tick(ts){
+  if(!running)return;
+  // draw many points per frame, play a note every so often
+  const n=60;
+  for(let i=0;i<n;i++){
+    let p;
+    if(cur==='lorenz'){S.p=S.step(S);p=S.p;}
+    else p=S.step(S);
+    const[mx,my]=S.map(p);
+    const px=cx()+mx*sc(),py=cy()-my*sc();
+    const t=(mx+1)/2;
+    const hue=200+t*160;
+    ctx.fillStyle=`hsla(${hue},80%,62%,0.5)`;
+    ctx.fillRect(px,py,1.2,1.2);
+  }
+  // note
+  if(ts-lastNote>120){
+    lastNote=ts;
+    if(cur==='lorenz'){const[x,y,z]=S.p;playNote(noteAt((z/50)),0.12+0.1*Math.random(),0.5,(x/22));}
+    else{const{x,y}=S.cur;playNote(noteAt((x+2)/4),0.1+0.1*Math.random(),0.5,y/2.5);}
+  }
+  // fade for trail
+  ctx.fillStyle='rgba(5,6,10,0.03)';ctx.fillRect(0,0,W,H);
+  requestAnimationFrame(tick);
+}
+
+// ui
+document.querySelectorAll('#ui [data-a]').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#ui [data-a]').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on');seed(b.dataset.a);
+});
+document.getElementById('mute').onclick=e=>{muted=!muted;e.target.textContent='sound: '+(muted?'off':'on');};
+document.getElementById('start').onclick=()=>{
+  initAudio();if(AC.state==='suspended')AC.resume();
+  document.getElementById('start').remove();
+  running=true;requestAnimationFrame(tick);
+};
+</script>
+</body>
+</html>
