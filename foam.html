@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>foam — soap bubbles relaxing to minimal surfaces</title>
+<style>
+  html,body{margin:0;height:100%;background:#05060a;overflow:hidden;font-family:ui-monospace,monospace}
+  canvas{display:block;width:100vw;height:100vh}
+  #hud{position:fixed;left:12px;bottom:10px;color:#7fd4ff;font-size:12px;letter-spacing:.5px;opacity:.6;pointer-events:none;text-shadow:0 0 8px #0af}
+  #title{position:fixed;left:12px;top:10px;color:#bfe9ff;font-size:12px;letter-spacing:1px;opacity:.7;pointer-events:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="title">SOAP FOAM — surface tension pulls every film to 120°, small bubbles pop, the foam coarsens forever</div>
+<div id="hud"></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const hud=document.getElementById('hud');
+let W,H,DPR;
+// ---- foam state: bubble centers + target areas ----
+let bubbles=[];
+const GW=220, GH=150;            // voronoi grid resolution
+let owner=new Int16Array(GW*GH);
+let cellCol=new Array(64);
+
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  W=cv.width=Math.floor(innerWidth*DPR);
+  H=cv.height=Math.floor(innerHeight*DPR);
+  cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';
+}
+
+function rnd(a,b){return a+Math.random()*(b-a)}
+
+function init(){
+  bubbles=[];
+  const n=42;
+  for(let i=0;i<n;i++){
+    bubbles.push({x:rnd(0.08,0.92),y:rnd(0.08,0.92),tx:1/n,ty:1/n,
+      hue:200+rnd(-40,60),sat:60+rnd(0,30),lit:45+rnd(0,25)});
+  }
+}
+
+// assign each grid cell to nearest bubble center; return per-bubble area (in grid cells)
+function voronoi(){
+  const N=bubbles.length;
+  const area=new Float32Array(N);
+  const cx=new Float32Array(N),cy=new Float32Array(N);
+  for(let gy=0;gy<GH;gy++){
+    const py=(gy+0.5)/GH;
+    for(let gx=0;gx<GW;gx++){
+      const px=(gx+0.5)/GW;
+      let best=-1,bd=1e9;
+      for(let i=0;i<N;i++){
+        const dx=px-bubbles[i].x,dy=py-bubbles[i].y;
+        const d=dx*dx+dy*dy;
+        if(d<bd){bd=d;best=i;}
+      }
+      owner[gy*GW+gx]=best;
+      area[best]++;
+      cx[best]+=px;cy[best]+=py;
+    }
+  }
+  return {area,cx,cy};
+}
+
+let frame=0;
+function step(){
+  const {area,cx,cy}=voronoi();
+  const N=bubbles.length;
+  // Lloyd relaxation: nudge centers toward their cell centroid -> equal, hexagonal foam
+  for(let i=0;i<N;i++){
+    if(area[i]>0){
+      const mx=cx[i]/area[i], my=cy[i]/area[i];
+      bubbles[i].x+= (mx-bubbles[i].x)*0.18;
+      bubbles[i].y+= (my-bubbles[i].y)*0.18;
+    }
+  }
+  // coarsening: every few frames the smallest bubble pops
+  if(frame%14===0 && N>4){
+    let mi=0,ma=1e9;
+    for(let i=0;i<N;i++){const a=area[i]/ (GW*GH); if(a<ma){ma=a;mi=i;}}
+    // pop it (surface tension can't hold a tiny film)
+    bubbles.splice(mi,1);
+  }
+  // occasionally a new tiny bubble nucleates so it never dies out
+  if(frame%52===0 && N<60){
+    bubbles.push({x:rnd(0.15,0.85),y:rnd(0.15,0.85),hue:200+rnd(-40,60),sat:60+rnd(0,30),lit:45+rnd(0,25)});
+  }
+  frame++;
+}
+
+function draw(){
+  // background
+  ctx.fillStyle='#05060a';
+  ctx.fillRect(0,0,W,H);
+  const sx=W/GW, sy=H/GH;
+  // fill cells
+  for(let gy=0;gy<GH;gy++){
+    for(let gx=0;gx<GW;gx++){
+      const b=bubbles[owner[gy*GW+gx]];
+      if(!b)continue;
+      const t=(gx+gy)/(GW+GH);
+      const l=b.lit + Math.sin((gx*0.05+gy*0.07)+frame*0.02)*6 + t*8;
+      ctx.fillStyle=`hsl(${b.hue} ${b.sat}% ${l}%)`;
+      ctx.fillRect(gx*sx,gy*sy,sx+1,sy+1);
+    }
+  }
+  // film edges: where neighbouring grid cells belong to different bubbles -> glowing line
+  ctx.lineWidth=Math.max(1,1.4*DPR);
+  ctx.lineCap='round';
+  ctx.strokeStyle='rgba(150,225,255,0.9)';
+  ctx.shadowColor='#39c8ff';
+  ctx.shadowBlur=6*DPR;
+  ctx.beginPath();
+  for(let gy=0;gy<GH;gy++){
+    for(let gx=0;gx<GW;gx++){
+      const o=owner[gy*GW+gx];
+      if(gx<GW-1 && owner[gy*GW+gx+1]!==o){
+        const x=(gx+1)*sx;
+        ctx.moveTo(x,gy*sy);ctx.lineTo(x,(gy+1)*sy);
+      }
+      if(gy<GH-1 && owner[(gy+1)*GW+gx]!==o){
+        const y=(gy+1)*sy;
+        ctx.moveTo(gx*sx,y);ctx.lineTo((gx+1)*sx,y);
+      }
+    }
+  }
+  ctx.stroke();
+  ctx.shadowBlur=0;
+  hud.textContent=`bubbles ${bubbles.length}   ·   every film meets at 120°   ·   frame ${frame}`;
+}
+
+function loop(){
+  step();
+  if(frame%1===0) draw();
+  requestAnimationFrame(loop);
+}
+
+addEventListener('resize',()=>{resize();});
+resize();init();
+loop();
+</script>
+</body>
+</html>
