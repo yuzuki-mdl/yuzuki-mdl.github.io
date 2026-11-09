@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pixel sort</title>
+<style>
+  :root{--bg:#0b0d10;--fg:#e6e6e6;--dim:#5a6472;--acc:#7ee0c0}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font:13px/1.4 ui-monospace,Menlo,monospace;-webkit-user-select:none;user-select:none}
+  #wrap{max-width:1000px;margin:0 auto;padding:16px 18px 40px}
+  header{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:14px}
+  h1{font-size:15px;font-weight:400;letter-spacing:.3em;color:var(--dim);margin:0}
+  #hint{color:var(--dim);font-size:12px}
+  .bar{display:flex;gap:14px 22px;align-items:center;margin-bottom:16px;flex-wrap:wrap;font-size:12px;color:var(--dim)}
+  .bar label{display:flex;flex-direction:column;gap:4px}
+  .bar .val{color:var(--fg)}
+  input[type=range]{width:130px;accent-color:var(--acc)}
+  button{background:#161a20;color:var(--fg);border:1px solid #232a33;border-radius:6px;padding:7px 14px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  canvas{display:block;width:100%;border-radius:8px;border:1px solid #1a1f26;image-rendering:pixelated;cursor:crosshair}
+  #note{color:var(--dim);font-size:12px;margin-top:14px;line-height:1.6;max-width:640px}
+  #note b{color:var(--acc);font-weight:400}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <h1>PIXEL SORT</h1>
+    <span id="hint">drag on the image to draw · sliders re-sort live</span>
+  </header>
+  <div class="bar">
+    <label>angle <span class="val" id="aV">0°</span><input type="range" id="ang" min="0" max="180" value="0"></label>
+    <label>threshold <span class="val" id="tV">0.55</span><input type="range" id="thr" min="0" max="100" value="55"></label>
+    <label>interval <span class="val" id="iV">1</span><input type="range" id="itv" min="1" max="6" value="1"></label>
+    <button id="reseed">new image</button>
+    <button id="shuffle">re-sort</button>
+  </div>
+  <canvas id="cv" width="720" height="480"></canvas>
+  <div id="note">
+    <b>what this is:</b> along lines at a chosen angle, runs of pixels brighter than the threshold get
+    sorted by brightness — dark gaps survive, bright streaks smear into silk. it's a glitch-art classic.
+    <b>drag</b> to paint more fuel, then hit re-sort. <b>new image</b> makes a fresh procedural field.
+  </div>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+const ang=document.getElementById('ang'),thr=document.getElementById('thr'),itv=document.getElementById('itv');
+const aV=document.getElementById('aV'),tV=document.getElementById('tV'),iV=document.getElementById('iV');
+
+let base=ctx.createImageData(W,H);
+function randField(){
+  const d=base.data;
+  // high-contrast structured field: layered sine bands + per-pixel noise,
+  // so thresholded runs have real luminance spread to sort into streaks
+  const ox=Math.random()*100,oy=Math.random()*100;
+  const f1=0.006+Math.random()*0.02, f2=0.004+Math.random()*0.02;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const i=(y*W+x)*4;
+    let n=Math.sin(x*f1+ox)+Math.sin(y*f2+oy)+Math.sin((x+y)*0.01+ox*0.3);
+    n=n*0.5+0.5; // 0..1
+    n+= (Math.random()-0.5)*0.35; // grain so runs scramble
+    n=Math.max(0,Math.min(1,n));
+    // color ramp: deep blue -> cyan -> white
+    const t=n;
+    const r=(t*t)*255;
+    const gg=(t*1.2)*230+20;
+    const b=90+t*165;
+    d[i]=Math.min(255,r); d[i+1]=Math.min(255,gg); d[i+2]=Math.min(255,b); d[i+3]=255;
+  }
+  // sprinkle bright dots as sort fuel
+  for(let k=0;k<600;k++){
+    const x=Math.random()*W|0,y=Math.random()*H|0,i=(y*W+x)*4;
+    d[i]=255;d[i+1]=255;d[i+2]=255;
+  }
+}
+
+function lum(r,g,b){return 0.2126*r+0.7152*g+0.0722*b;}
+
+function pixelSort(src,angleDeg,threshold,interval){
+  const a=angleDeg*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a);
+  const out=new ImageData(W,H);
+  out.data.set(src.data);
+  const d=out.data, s=src.data;
+  // max line length across the diagonal
+  const R=Math.ceil(Math.hypot(W,H));
+  // scan lines perpendicular to angle; param t along angle direction, u across
+  const stepT=interval;
+  for(let u=-R; u<=R; u+=1){
+    // collect pixels along this line
+    const line=[];
+    for(let t=-R;t<=R;t+=stepT){
+      const x=Math.round(t*ca - u*sa + W/2);
+      const y=Math.round(t*sa + u*ca + H/2);
+      if(x<0||x>=W||y<0||y>=H)continue;
+      const i=(y*W+x)*4;
+      line.push({x,y,i,l:lum(s[i],s[i+1],s[i+2])});
+    }
+    // find runs above threshold, sort each run by luminance
+    let run=[];
+    const flush=()=>{
+      if(run.length>1){
+        run.sort((p,q)=>p.l-q.l);
+        // write sorted colors back into the run positions
+        const cols=run.map(p=>[s[p.i],s[p.i+1],s[p.i+2]]);
+        run.forEach((p,idx)=>{
+          d[p.i]=cols[idx][0]; d[p.i+1]=cols[idx][1]; d[p.i+2]=cols[idx][2];
+        });
+      }
+      run=[];
+    };
+    for(const p of line){
+      if(p.l/255>threshold) run.push(p);
+      else flush();
+    }
+    flush();
+  }
+  return out;
+}
+
+let current=base;
+function render(){
+  const a=+ang.value, t=+thr.value/100, iv=+itv.value;
+  aV.textContent=a+'°'; tV.textContent=t.toFixed(2); iV.textContent=iv;
+  const sorted=pixelSort(current,a,t,iv);
+  ctx.putImageData(sorted,0,0);
+}
+
+function reseed(){
+  randField();
+  current=new ImageData(new Uint8ClampedArray(base.data),W,H);
+  render();
+}
+
+// painting
+let drawing=false;
+cv.addEventListener('pointerdown',e=>{drawing=true; paint(e);});
+cv.addEventListener('pointerup',()=>drawing=false);
+cv.addEventListener('pointermove',e=>{if(drawing)paint(e);});
+function paint(e){
+  const r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left)/r.width*W, y=(e.clientY-r.top)/r.height*H;
+  ctx.save();
+  // paint into current buffer
+  const tmp=ctx.getImageData(0,0,W,H);
+  for(let dy=-14;dy<=14;dy++)for(let dx=-14;dx<=14;dx++){
+    if(dx*dx+dy*dy>196)continue;
+    const px=(x+dx)|0,py=(y+dy)|0;
+    if(px<0||px>=W||py<0||py>=H)continue;
+    const i=(py*W+px)*4;
+    tmp.data[i]=255;tmp.data[i+1]=255;tmp.data[i+2]=255;tmp.data[i+3]=255;
+  }
+  current=tmp;
+  render();
+}
+
+ang.addEventListener('input',render);
+thr.addEventListener('input',render);
+itv.addEventListener('input',render);
+document.getElementById('reseed').addEventListener('click',reseed);
+document.getElementById('shuffle').addEventListener('click',()=>{render();});
+
+reseed();
+</script>
+</body>
+</html>
