@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>marching cubes (dots)</title>
+<style>
+  html,body{margin:0;height:100%;background:#08080c;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh}
+  #hud{position:fixed;left:14px;bottom:12px;font:12px/1.4 ui-monospace,monospace;color:#6a6a7a;pointer-events:none;user-select:none}
+  #hud b{color:#a9a9c0;font-weight:normal}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud"><b>marching cubes</b> &middot; a metaball field, isosurfaced into a shell of dots<br><span id="s"></span></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+
+const CORNERS=[[0,0,0],[1,0,0],[1,1,0],[0,1,0],[0,0,1],[1,0,1],[1,1,1],[0,1,1]];
+const EDGES=[[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+
+let balls=[];
+function initBalls(){
+  balls=[];
+  const n=3+Math.floor(Math.random()*3);
+  for(let i=0;i<n;i++){
+    balls.push({
+      x:0.5+(Math.random()-0.5)*0.62,
+      y:0.5+(Math.random()-0.5)*0.62,
+      z:0.5+(Math.random()-0.5)*0.62,
+      r:0.16+0.10*Math.random(),
+      vx:(Math.random()-0.5)*0.004,
+      vy:(Math.random()-0.5)*0.004,
+      vz:(Math.random()-0.5)*0.004,
+    });
+  }
+}
+initBalls();
+
+const N=26;
+function field(x,y,z){
+  let v=0;
+  for(const b of balls){
+    const dx=x-b.x,dy=y-b.y,dz=z-b.z;
+    v += (b.r*b.r)/(dx*dx+dy*dy+dz*dz+0.0006);
+  }
+  return v;
+}
+
+let ang=0, ang2=0;
+function project(x,y,z,cx,cy,sc,ca,sa,cb,sb){
+  x-=0.5;y-=0.5;z-=0.5;
+  const x1=x*ca - z*sa, z1=x*sa + z*ca;
+  const y1=y*cb - z1*sb, z2=y*sb + z1*cb;
+  const persp=1/(1.9 - z2*0.85);
+  return [cx + x1*sc*persp, cy + y1*sc*persp, z2];
+}
+
+function frame(){
+  for(const b of balls){
+    b.x+=b.vx; b.y+=b.vy; b.z+=b.vz;
+    if(b.x<0.18||b.x>0.82)b.vx*=-1;
+    if(b.y<0.18||b.y>0.82)b.vy*=-1;
+    if(b.z<0.18||b.z>0.82)b.vz*=-1;
+  }
+  ang+=0.006; ang2+=0.0032;
+  const ca=Math.cos(ang),sa=Math.sin(ang),cb=Math.cos(ang2),sb=Math.sin(ang2);
+  const cx=W/2, cy=H/2, sc=Math.min(W,H)*0.95;
+  const iso=1.0;
+
+  const g=new Float32Array(N*N*N);
+  for(let k=0;k<N;k++)for(let j=0;j<N;j++)for(let i=0;i<N;i++){
+    g[i + j*N + k*N*N]=field(i/(N-1), j/(N-1), k/(N-1));
+  }
+  const val=(i,j,k)=>g[i + j*N + k*N*N];
+  const px=(i,j,k)=>[i/(N-1), j/(N-1), k/(N-1)];
+
+  const pts=[];
+  for(let k=0;k<N-1;k++)for(let j=0;j<N-1;j++)for(let i=0;i<N-1;i++){
+    const vs=[];
+    for(let c=0;c<8;c++) vs.push(val(i+CORNERS[c][0], j+CORNERS[c][1], k+CORNERS[c][2]));
+    for(const e of EDGES){
+      const a=e[0],b=e[1];
+      const va=vs[a], vb=vs[b];
+      if((va<iso)!==(vb<iso)){
+        const t=(iso-va)/(vb-va);
+        const pa=px(i+CORNERS[a][0],j+CORNERS[a][1],k+CORNERS[a][2]);
+        const pb=px(i+CORNERS[b][0],j+CORNERS[b][1],k+CORNERS[b][2]);
+        const X=pa[0]+(pb[0]-pa[0])*t;
+        const Y=pa[1]+(pb[1]-pa[1])*t;
+        const Z=pa[2]+(pb[2]-pa[2])*t;
+        pts.push([X,Y,Z]);
+      }
+    }
+  }
+
+  const proj=pts.map(p=>{
+    const P=project(p[0],p[1],p[2],cx,cy,sc,ca,sa,cb,sb);
+    return {x:P[0],y:P[1],z:P[2]};
+  });
+  proj.sort((a,b)=>a.z-b.z);
+
+  ctx.fillStyle='#08080c';ctx.fillRect(0,0,W,H);
+  for(const p of proj){
+    const dz=Math.max(0,Math.min(1,(p.z+0.6)/1.2));
+    const rad=1.0+2.2*dz;
+    const hue=250+50*dz;
+    const light=0.30+0.55*dz;
+    ctx.fillStyle='hsl('+hue+',60%,'+Math.floor(light*100)+'%)';
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,rad,0,6.2832);
+    ctx.fill();
+  }
+  document.getElementById('s').textContent=pts.length+' surface points  '+balls.length+' balls  N='+N+'^3';
+}
+
+let last=0;
+function loop(ts){
+  if(ts-last>60){frame();last=ts;}
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
