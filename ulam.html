@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ulam spiral</title>
+<style>
+  html,body{margin:0;height:100%;background:#08090c;color:#cfd3dd;font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh;image-rendering:pixelated}
+  #ui{position:fixed;left:12px;top:12px;background:rgba(10,12,18,.85);border:1px solid #232838;border-radius:10px;padding:10px 12px;backdrop-filter:blur(6px);max-width:min(92vw,320px)}
+  #ui h1{margin:0 0 8px;font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#7d879e;font-weight:600}
+  .row{display:flex;align-items:center;gap:8px;margin:6px 0}
+  .row label{flex:0 0 90px;color:#8a93a8}
+  input[type=range]{flex:1;accent-color:#5fd3c0}
+  .val{color:#5fd3c0;min-width:64px;text-align:right}
+  button{background:#1a2030;color:#cfd3dd;border:1px solid #2b3348;border-radius:6px;padding:4px 10px;cursor:pointer;font:inherit;margin-right:6px}
+  button:hover{border-color:#5fd3c0;color:#fff}
+  .hint{color:#5a6277;font-size:11px;margin-top:8px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+  <h1>ulam spiral</h1>
+  <div class="row"><label>size</label><input id="n" type="range" min="51" max="801" step="50" value="101"><span class="val" id="nv">101</span></div>
+  <div class="row"><label>mode</label>
+    <button data-m="prime">prime</button>
+    <button data-m="twin">twin prime</button>
+    <button data-m="quad">n mod 4</button>
+  </div>
+  <div class="hint">numbers spiral out from the center; primes fall on diagonals</div>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let N=401,mode='prime';
+
+function sieve(n){const p=new Uint8Array(n+1);p.fill(1);p[0]=p[1]=0;for(let i=2;i*i<=n;i++)if(p[i])for(let j=i*i;j<=n;j+=i)p[j]=0;return p;}
+
+function render(){
+  const total=N*N;
+  const prime=sieve(total*2);
+  const dpr=Math.min(devicePixelRatio||1,2);
+  const cs=Math.floor(Math.min(innerWidth,innerHeight)/N);
+  const px=Math.max(1,cs);
+  cv.width=N*px;cv.height=N*px;
+  cv.style.width=(N*px)+'px';cv.style.height=(N*px)+'px';
+  const img=ctx.createImageData(cv.width,cv.height);
+  const data=img.data;
+  const cx=Math.floor(N/2),cy=Math.floor(N/2);
+  let x=cx,y=cy,dx=0,dy=-1,num=1;
+  const put=(x,y,v)=>{ if(x<0||y<0||x>=N||y>=N)return;
+    const col=v; const bx=x*px,by=y*px;
+    for(let yy=0;yy<px;yy++)for(let xx=0;xx<px;xx++){const idx=((by+yy)*cv.width+(bx+xx))*4;data[idx]=col[0];data[idx+1]=col[1];data[idx+2]=col[2];data[idx+3]=255;}
+  };
+  let steps=1,stepc=0,turn=0;
+  for(let n=1;n<=total;n++){
+    let v;
+    if(mode==='prime') v = prime[n] ? [95,211,192] : (n%2?[18,22,32]:[12,15,22]);
+    else if(mode==='twin') v = (prime[n]&&prime[n+2]) ? [240,180,90] : (prime[n]?[40,70,80]:[12,15,22]);
+    else { const m=n%4; v = m===0?[95,211,192]:m===1?[220,120,160]:m===2?[240,180,90]:[120,150,230]; }
+    put(x,y,v);
+    // move in spiral
+    x+=dx;y+=dy;
+    stepc++;
+    if(stepc===steps){stepc=0;turn++;const t=dx;dx=-dy;dy=t;if(turn%2===0)steps++;}
+  }
+  ctx.putImageData(img,0,0);
+}
+
+document.getElementById('n').addEventListener('input',e=>{N=+e.target.value;document.getElementById('nv').textContent=N;render();});
+document.querySelectorAll('[data-m]').forEach(b=>b.addEventListener('click',()=>{mode=b.dataset.m;render();}));
+addEventListener('resize',render);
+render();
+</script>
+</body>
+</html>
