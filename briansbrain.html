@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>brian's brain</title>
+<style>
+  html,body{margin:0;height:100%;background:#05060a;overflow:hidden;font-family:ui-monospace,monospace}
+  canvas{display:block;width:100vw;height:100vh;image-rendering:pixelated}
+  #hud{position:fixed;left:12px;bottom:10px;color:#3a4a6a;font-size:11px;letter-spacing:.06em;pointer-events:none;user-select:none}
+  #hud b{color:#6f8fd8;font-weight:500}
+  #hud button{pointer-events:auto;background:none;border:1px solid #26324a;color:#6f8fd8;font:inherit;font-size:11px;padding:2px 7px;margin-left:8px;border-radius:3px;cursor:pointer}
+  #hud button:hover{border-color:#6f8fd8}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">brian's brain · <b id="pop">0</b> firing · <span id="gen">0</span> gens<button id="reseed">reseed</button></div>
+<script>
+// Brian's Brain: 3 states. 0=off, 1=firing, 2=dying.
+// rule: firing -> dying. dying -> off. off -> firing iff exactly 2 neighbours firing.
+// self-playing on a torus. colours: firing = hot blue-white, dying = deep magenta.
+const c = document.getElementById('c');
+const g = c.getContext('2d');
+let W, H, cell, cols, rows, grid, next;
+const OFF = 0, FIRE = 1, DYING = 2;
+
+function setup(){
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const vw = Math.max(innerWidth || 0, document.documentElement.clientWidth || 0, 320);
+  const vh = Math.max(innerHeight || 0, document.documentElement.clientHeight || 0, 240);
+  c.width = vw * dpr; c.height = vh * dpr;
+  g.setTransform(dpr,0,0,dpr,0,0);
+  cell = 5;
+  cols = Math.ceil(vw / cell);
+  rows = Math.ceil(vh / cell);
+  grid = new Uint8Array(cols*rows);
+  next = new Uint8Array(cols*rows);
+  seed();
+}
+
+function seed(){
+  grid.fill(OFF);
+  const n = Math.floor(cols*rows*0.06);
+  for(let i=0;i<n;i++) grid[(Math.random()*cols*rows)|0] = FIRE;
+  gen = 0;
+}
+
+let gen = 0;
+function step(){
+  let pop = 0;
+  for(let y=0;y<rows;y++){
+    const ym = ((y-1+rows)%rows)*cols, y0 = y*cols, yp = ((y+1)%rows)*cols;
+    for(let x=0;x<cols;x++){
+      const xm = (x-1+cols)%cols, xp = (x+1)%cols;
+      const s = grid[y0+x];
+      let out;
+      if(s === FIRE){ out = DYING; }
+      else if(s === DYING){ out = OFF; }
+      else {
+        // count firing neighbours among 8
+        let k = 0;
+        if(grid[ym+xm]===FIRE)k++;
+        if(grid[ym+x ]===FIRE)k++;
+        if(grid[ym+xp]===FIRE)k++;
+        if(grid[y0+xm]===FIRE)k++;
+        if(grid[y0+xp]===FIRE)k++;
+        if(grid[yp+xm]===FIRE)k++;
+        if(grid[yp+x ]===FIRE)k++;
+        if(grid[yp+xp]===FIRE)k++;
+        out = (k===2) ? FIRE : OFF;
+      }
+      next[y0+x] = out;
+      if(out===FIRE) pop++;
+    }
+  }
+  const t = grid; grid = next; next = t;
+  gen++;
+  return pop;
+}
+
+function draw(){
+  g.fillStyle = '#05060a';
+  g.fillRect(0,0,innerWidth,innerHeight);
+  for(let y=0;y<rows;y++){
+    const y0 = y*cols;
+    for(let x=0;x<cols;x++){
+      const s = grid[y0+x];
+      if(s===OFF) continue;
+      if(s===FIRE) g.fillStyle = '#a9d4ff';
+      else g.fillStyle = '#7a1f6a';
+      g.fillRect(x*cell, y*cell, cell-0.4, cell-0.4);
+    }
+  }
+}
+
+let popEl = document.getElementById('pop'), genEl = document.getElementById('gen');
+let acc = 0, last = performance.now(), speed = 90; // ms per gen
+let pop = 0;
+function loop(t){
+  const dt = t - last; last = t; acc += dt;
+  if(acc >= speed){ acc = 0; pop = step(); draw(); popEl.textContent = pop; genEl.textContent = gen; }
+  requestAnimationFrame(loop);
+}
+
+// if the board dies out, reseed so it keeps playing
+function watchdog(){
+  if(pop < cols*rows*0.001){ setTimeout(()=>{ if(pop < cols*rows*0.001) seed(); }, 800); }
+  setTimeout(watchdog, 1500);
+}
+
+document.getElementById('reseed').onclick = seed;
+addEventListener('resize', () => { setup(); });
+setup();
+// prime a few gens + draw synchronously so there's always something on screen
+for(let i=0;i<6;i++) pop = step();
+draw(); popEl.textContent = pop; genEl.textContent = gen;
+requestAnimationFrame(loop);
+watchdog();
+</script>
+</body>
+</html>
