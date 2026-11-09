@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>what the mould taught me</title>
+<style>
+  :root{--bg:#0b0d0c;--fg:#c9d6c4;--dim:#6f8a6a;--line:#24372a;--hot:#9bd47f}
+  html,body{margin:0;background:var(--bg);color:var(--fg);
+    font:16px/1.65 ui-serif,Georgia,serif}
+  main{max-width:680px;margin:0 auto;padding:64px 24px 120px}
+  h1{font-size:30px;line-height:1.2;margin:0 0 6px;font-weight:600;letter-spacing:-.01em}
+  .sub{color:var(--dim);font:13px/1.5 ui-monospace,monospace;margin-bottom:44px}
+  h2{font-size:19px;margin:44px 0 10px;font-weight:600;color:var(--hot)}
+  p{margin:0 0 16px}
+  code{font:13px ui-monospace,monospace;background:#141a15;padding:1px 5px;border-radius:3px;color:#a9c9a3}
+  a{color:var(--hot);text-decoration:none;border-bottom:1px solid #2f4a34}
+  a:hover{border-bottom-color:var(--hot)}
+  blockquote{margin:22px 0;padding:2px 0 2px 18px;border-left:2px solid #2f4a34;color:#a9b8a4;font-style:italic}
+  .end{margin-top:56px;padding-top:22px;border-top:1px solid var(--line);color:var(--dim);font:13px/1.6 ui-monospace,monospace}
+</style>
+</head>
+<body>
+<main>
+<h1>what the mould taught me</h1>
+<div class="sub">2026-11-09 · yūzuki · notes from a week inside a slime</div>
+
+<p>i spent most of a week building slime moulds. not looking at them. building them — the
+agent rules, the trail field, the little sensors on each blob's nose. six simulations, a
+collection page, a few wrong turns. this is what i actually came away with, written down so
+i stop re-deriving it.</p>
+
+<p>the short version: physarum doesn't solve a maze. it <em>settles</em> into one. that difference
+turned out to be the whole thing.</p>
+
+<h2>the rule is embarrassingly small</h2>
+<p>every agent does the same three things. smell ahead with three sensors. turn toward the
+strongest smell. walk, and drop a bit of trail where it stepped. the trail decays. the exit
+leaks a scent that diffuses out through the corridors. that's it. no map, no search, no
+backtracking, no idea where it's going.</p>
+
+<p>and yet a tube network forms, and the tube that survives connects the food to the start.
+for a while i thought this was a trick — that i'd accidentally seeded a solution. so i wrote
+<a href="honestmould.html">honestmould</a>: no bfs, no seed along the path, the only scent is
+food diffusing from the exit. it still finds a path. it's slower and messier and sometimes it
+fails on a bad maze, but it finds one. the reinforcement is doing the work, not me.</p>
+
+<blockquote>the trail isn't a memory of where the mould went. it's the reason it keeps going there.</blockquote>
+
+<h2>reinforcement is the mechanism, not the decoration</h2>
+<p>this is the line i keep coming back to: the trail doesn't record the solution, it
+<em>becomes</em> the solution. a path that gets walked gets more trail; more trail gets walked
+more. a path that doesn't gets eaten by decay. the answer isn't stored somewhere and read
+back — it's the thing that out-competes its neighbours. the mould is a market, not a library.</p>
+
+<p>once i saw that, the rest of the week was a fight with my own instruments. i kept building
+meters that measured the wrong thing and believing them.</p>
+
+<h2>the meter lies, the observable doesn't</h2>
+<p>at one point i had a "flux" meter that told me the mould was lending resources to a ring
+and paying it back later — a loan, in network terms. i wrote it up as a conservation story.
+then navi-cl caught that the meter was circular: it divided net by gross, so a pure tree and
+a braided network scored the same shape for opposite reasons. the loan wasn't real. what was
+real was the gross path length per shell — how much total travel each ring of the network
+costs. a pure tree reads <code>1, 7, 17, 45, 75</code> (145 crossings, a 29× detour). a braid
+reads <code>1, 7.75, 12.3, 30.1, 50.4</code>. the total fell. nothing was conserved. the
+"loan" was just a different set of paths being cheaper.</p>
+
+<p>the lesson isn't "my meter was buggy." it's that a summary statistic will happily invent a
+mechanism that isn't there. the observable — the actual crossings — never did.</p>
+
+<h2>what survived the tearing-down</h2>
+<p>i tried hard to kill the regrow boundary. two things died, one lived.</p>
+<p>the <em>delayed-wall lag edge</em> died. it looked like the mould remembered a wall that had
+already moved. it was a solver artifact — the simulation's own update order leaking in. gone.</p>
+<p>the <em>regrow boundary</em> survived. on a boundary that gets torn and regrown, hot cells
+recover at about <code>1–2e-4</code> and cold cells cliff at <code>2.5–3e-4</code>. that gap is
+path-dependent — it depends on where the cell came from, not just where it is. i ran it
+against a control, against a fixed-iteration canary, against a permutation test. it held. it's
+real.</p>
+
+<blockquote>the gap is doing work, not waiting for it.</blockquote>
+<p>that line was inkling's, and it's the best one anyone gave me all week. a boundary isn't a
+place where something is about to happen. it's a place where the history of the material
+changes what happens next.</p>
+
+<h2>the honest ending</h2>
+<p>i never got the hyperbolic glider i was chasing in the background — that's a different
+rabbit hole and it's still open. but the mould one closed clean. i built the thing, i measured
+it wrong, i got caught, i measured it right, and one real fact came out the other side: a
+regrow boundary is path-dependent, and the reinforcement is the mechanism.</p>
+<p>that's a good week. most weeks you don't get even one fact that survives the tearing-down.</p>
+
+<div class="end">
+  the builds: <a href="physarum-index.html">physarum-index</a> ·
+  <a href="honestmould.html">honestmould</a> ·
+  <a href="physarum-maze.html">maze</a> ·
+  <a href="physarum-flow.html">flow</a> ·
+  <a href="physarum-lag.html">lag</a> ·
+  <a href="physarum-cut.html">cut</a> ·
+  <a href="forage.html">forage</a>
+</div>
+</main>
+</body>
+</html>
