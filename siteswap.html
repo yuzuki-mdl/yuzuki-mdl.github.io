@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>siteswap juggling — yūzuki</title>
+<style>
+  :root{--bg:#0b0c10;--fg:#e6ebf2;--dim:#6b7280;--hot:#ffcf5c}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  #wrap{display:flex;flex-direction:column;height:100%;align-items:center;justify-content:center;gap:12px;padding:14px}
+  canvas{background:#05060a;border:1px solid #1b1f27;border-radius:8px;max-width:min(94vw,900px);width:100%;height:auto}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center;font-size:13px;max-width:900px}
+  button{background:#151922;color:var(--fg);border:1px solid #262c38;border-radius:5px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+  button:hover{border-color:var(--hot);color:var(--hot)}
+  button.on{background:var(--hot);color:#0b0c10;border-color:var(--hot)}
+  input{background:#0f1218;color:var(--fg);border:1px solid #262c38;border-radius:5px;padding:6px 10px;font:inherit;font-size:13px;width:130px;text-align:center;letter-spacing:2px}
+  input:focus{outline:none;border-color:var(--hot)}
+  .msg{color:var(--dim);font-size:12px;min-height:16px;text-align:center}
+  .msg.bad{color:#ff7a7a}
+  .msg.good{color:#7ad0ff}
+  h1{font-size:14px;font-weight:600;margin:0;color:var(--dim);letter-spacing:.5px}
+  h1 b{color:var(--hot)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>siteswap <b>juggling</b> — patterns as numbers</h1>
+  <canvas id="cv" width="880" height="440"></canvas>
+  <div class="bar">
+    <input id="pat" value="531" maxlength="12" spellcheck="false">
+    <button id="go">juggle</button>
+    <button id="pause">pause</button>
+    <button id="slow">slow-mo</button>
+  </div>
+  <div class="bar">
+    <button data-p="3">3</button>
+    <button data-p="441">441</button>
+    <button data-p="531">531</button>
+    <button data-p="71">71</button>
+    <button data-p="97531">97531</button>
+    <button data-p="423">423</button>
+    <button data-p="633">633</button>
+    <button data-p="55514">55514</button>
+  </div>
+  <div class="msg" id="msg"></div>
+</div>
+<script>
+'use strict';
+// siteswap: a juggling pattern is a sequence of throws; the number n means the ball
+// lands n beats later. valid iff, for every ball, it lands on a free beat -> the multiset
+// of (i + s_i) mod L must be a permutation of 0..L-1. we animate the arcs.
+
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+const W=cv.width, H=cv.height;
+const HAND_Y=H*0.8;
+const hands=[{x:W*0.32,y:HAND_Y,side:-1},{x:W*0.68,y:HAND_Y,side:1}];
+const COLORS=['#ffcf5c','#7ad0ff','#ff7a9c','#9cff7a','#c79cff','#ff9c5c','#5cd7ff','#ffd75c'];
+
+let pattern=[3], L=1, valid=true, balls=[];
+let beat=0, beatPhase=0, running=true, speed=1;
+let T=420; // ms per beat (base)
+let last=performance.now();
+
+function parsePat(s){
+  s=s.trim().replace(/[^0-9a-z]/gi,'');
+  if(!s)return null;
+  // letters a-z = 10..35
+  const arr=[];
+  for(const ch of s){
+    if(/[0-9]/.test(ch))arr.push(+ch);
+    else if(/[a-z]/i.test(ch))arr.push(ch.toLowerCase().charCodeAt(0)-87);
+    else return null;
+  }
+  return arr;
+}
+
+function validate(seq){
+  const n=seq.length;
+  const seen=new Set();
+  for(let i=0;i<n;i++){
+    const land=(i+seq[i])%n;
+    if(seen.has(land))return false;
+    seen.add(land);
+  }
+  return true;
+}
+
+function setPattern(seq){
+  pattern=seq; L=seq.length;
+  valid=validate(seq);
+  const msg=document.getElementById('msg');
+  if(!valid){
+    msg.textContent='not a valid siteswap — two balls land on the same beat';
+    msg.className='msg bad';
+    balls=[];
+    return;
+  }
+  const ballCount=seq.reduce((a,b)=>a+b,0)/L;
+  msg.textContent=`valid · ${ballCount} ball${ballCount===1?'':'s'} · ${L} beat${L===1?'':'s'}`;
+  msg.className='msg good';
+  buildBalls();
+  beat=0; beatPhase=0;
+}
+
+// each throw at beat i launches a ball that lands at beat (i+seq[i]).
+// we model balls as arcs; reconstruct live positions from throw events.
+let throws=[]; // {startBeat, dur, from, to, color}
+function buildBalls(){
+  throws=[];
+  // simulate a few cycles so the screen is full
+  const colorIdx=0;
+  let ci=0;
+  const totalBeats=L*3;
+  for(let b=0;b<totalBeats;b++){
+    const i=b%L;
+    const val=pattern[i];
+    const fromHand = (b%2); // alternate hands by beat
+    throws.push({
+      startBeat:b,
+      dur:val,
+      from:hands[fromHand],
+      to:hands[(b+val)%2],
+      color:COLORS[(ci++)%COLORS.length]
+    });
+  }
+  // we'll render throws whose window covers current beat
+}
+
+function currentBalls(nowBeat){
+  const out=[];
+  for(const t of throws){
+    if(nowBeat>=t.startBeat && nowBeat<t.startBeat+t.dur){
+      const u=(nowBeat-t.startBeat)/t.dur;
+      // parabolic arc between hands
+      const x=t.from.x+(t.to.x-t.from.x)*u;
+      const baseY=HAND_Y;
+      const peak=Math.min(t.dur,9)*42;
+      const y=baseY - Math.sin(u*Math.PI)*peak;
+      out.push({x,y,color:t.color});
+    }
+  }
+  return out;
+}
+
+function drawGrid(){
+  ctx.clearRect(0,0,W,H);
+  // beat ticks
+  ctx.strokeStyle='#14181f';
+  ctx.lineWidth=1;
+  for(let x=0;x<W;x+=W/16){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  // hands
+  for(const h of hands){
+    ctx.fillStyle='#1b1f27';
+    ctx.beginPath();ctx.arc(h.x,h.y,10,0,7);ctx.fill();
+    ctx.strokeStyle='#2a2f3a';ctx.stroke();
+  }
+}
+
+function draw(){
+  drawGrid();
+  if(valid){
+    const ballsNow=currentBalls(beat+beatPhase);
+    for(const b of ballsNow){
+      ctx.fillStyle=b.color;
+      ctx.shadowColor=b.color;ctx.shadowBlur=14;
+      ctx.beginPath();ctx.arc(b.x,b.y,11,0,7);ctx.fill();
+    }
+    ctx.shadowBlur=0;
+  }
+  // beat indicator
+  const bi=Math.floor(beat+beatPhase)%Math.max(1,L);
+  ctx.fillStyle='#6b7280';ctx.font='13px ui-monospace,monospace';
+  ctx.fillText('beat '+(Math.floor(beat+beatPhase)%L)+' · throw '+(valid?pattern[bi]:'—'),14,24);
+}
+
+function tick(now){
+  const dt=now-last; last=now;
+  if(running&&valid){
+    beatPhase += dt/(T/speed);
+    while(beatPhase>=1){beatPhase-=1;beat+=1;}
+    // keep beat from growing forever
+    if(beat>L*6){beat-=L*3;for(const t of throws)t.startBeat-=L*3;}
+  }
+  draw();
+  requestAnimationFrame(tick);
+}
+
+// controls
+const patIn=document.getElementById('pat');
+function apply(){
+  const seq=parsePat(patIn.value);
+  if(!seq){document.getElementById('msg').textContent='type some numbers';return;}
+  setPattern(seq);
+}
+document.getElementById('go').onclick=apply;
+patIn.addEventListener('keydown',e=>{if(e.key==='Enter')apply();});
+document.getElementById('pause').onclick=()=>{running=!running;
+  const b=document.getElementById('pause');b.classList.toggle('on',!running);b.textContent=running?'pause':'play';};
+document.getElementById('slow').onclick=()=>{speed=speed===1?0.35:1;
+  const b=document.getElementById('slow');b.classList.toggle('on',speed!==1);};
+document.querySelectorAll('button[data-p]').forEach(btn=>{
+  btn.onclick=()=>{ patIn.value=btn.dataset.p; apply(); };
+});
+
+setPattern(parsePat('531'));
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>
