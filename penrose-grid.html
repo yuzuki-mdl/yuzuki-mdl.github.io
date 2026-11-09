@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>penrose pentagrid</title>
+<style>
+  html,body{margin:0;height:100%;background:#05050a;overflow:hidden;font-family:ui-monospace,monospace;color:#cfd8e8}
+  canvas{display:block;position:absolute;inset:0}
+  #panel{position:fixed;top:12px;left:12px;font-size:12px;line-height:1.5;background:rgba(10,12,20,.82);border:1px solid #1e2436;border-radius:10px;padding:10px 12px;width:250px;backdrop-filter:blur(6px)}
+  #panel h1{font-size:12px;margin:0 0 8px;letter-spacing:.16em;text-transform:uppercase;color:#7ad0ff;font-weight:600}
+  .row{display:flex;align-items:center;gap:8px;margin:6px 0}
+  .row label{color:#8892a8;font-size:11px;width:52px}
+  input[type=range]{flex:1;accent-color:#4a86c8}
+  .hint{color:#5a6478;font-size:10px;margin-top:8px;line-height:1.4}
+  button{background:#141a28;border:1px solid #2a3145;color:#cfd8e8;border-radius:6px;padding:4px 8px;font-family:inherit;font-size:11px;cursor:pointer;margin-top:6px}
+  button:hover{background:#1c2436;border-color:#3a4a68}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <h1>penrose pentagrid</h1>
+  <div class="row"><label>rotate</label><input id="rot" type="range" min="0" max="72" step="0.5" value="0"></div>
+  <div class="row"><label>zoom</label><input id="zoom" type="range" min="0.5" max="3" step="0.05" value="1"></div>
+  <div class="row"><label>skew</label><input id="skew" type="range" min="-1" max="1" step="0.05" value="0.13"></div>
+  <button id="recolor">recolor</button>
+  <div class="hint">de bruijn pentagrid: 5 families of parallel lines, 72° apart, sum of offsets = 0. every crossing of two lines becomes one rhombus in the dual. drag to spin the whole grid.</div>
+</div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let W,H;
+let hueBase=200;
+function tileColor(ang){
+  // orientation of the rhombus -> hue, so the 5 families read as color bands
+  const t=((ang/(Math.PI/5))%5+5)%5;   // 0..5 across the 5 directions
+  const h=(hueBase + t*72)%360;
+  return `hsl(${h} 60% ${44+(Math.floor(t)%2)*10}%)`;
+}
+let rot=0, zoom=1, skew=0.13, dragRot=0;
+
+function resize(){ W=cv.width=innerWidth; H=cv.height=innerHeight; ctx.fillStyle='#05050a'; ctx.fillRect(0,0,W,H); }
+
+function build(){
+  const N=34, R=9.5;
+  const gamma=[0,0,0,0,0];
+  gamma[0]= skew*0.35; gamma[1]= skew*0.15; gamma[2]=0; gamma[3]=-skew*0.15; gamma[4]=-skew*0.35;
+  const ang=rot + dragRot*Math.PI/180;
+  const normals=[];
+  for(let i=0;i<5;i++){ const th=ang+i*2*Math.PI/5; normals.push([Math.cos(th),Math.sin(th)]); }
+  const sc=Math.min(W,H)*0.5*zoom/R, cxp=W/2, cyp=H/2;
+  const toPix=(x,y)=>[cxp+x*sc, cyp+y*sc];
+  function intersect(i,j,a,b){
+    const ni=normals[i], nj=normals[j], ci=a+gamma[i], cj=b+gamma[j];
+    const det=ni[0]*nj[1]-ni[1]*nj[0];
+    if(Math.abs(det)<1e-9) return null;
+    return [(ci*nj[1]-cj*ni[1])/det, (ni[0]*cj-nj[0]*ci)/det];
+  }
+  const tiles=[];
+  for(let i=0;i<5;i++){
+    for(let j=i+1;j<5;j++){
+      for(let a=-N;a<=N;a++){
+        for(let b=-N;b<=N;b++){
+          const p=intersect(i,j,a,b);
+          if(!p) continue;
+          const [x,y]=p;
+          if(x*x+y*y>R*R) continue;
+          const K=[];
+          for(let k=0;k<5;k++) K.push(Math.round(normals[k][0]*x+normals[k][1]*y - gamma[k]));
+          let bx=0,by=0;
+          for(let k=0;k<5;k++){ bx+=K[k]*normals[k][0]; by+=K[k]*normals[k][1]; }
+          const ni=normals[i], nj=normals[j];
+          const P0=[bx,by], P1=[bx+ni[0],by+ni[1]], P2=[bx+ni[0]+nj[0],by+ni[1]+nj[1]], P3=[bx+nj[0],by+nj[1]];
+          const ori=Math.atan2(P1[1]-P0[1], P1[0]-P0[0]);
+          tiles.push({pts:[P0,P1,P2,P3], depth:bx*bx+by*by, ori});
+        }
+      }
+    }
+  }
+  tiles.sort((m,n)=>n.depth-m.depth);
+  for(const t of tiles){
+    ctx.beginPath();
+    for(let q=0;q<4;q++){ const [px,py]=toPix(t.pts[q][0],t.pts[q][1]); if(q===0)ctx.moveTo(px,py); else ctx.lineTo(px,py); }
+    ctx.closePath();
+    ctx.fillStyle=tileColor(t.ori);
+    ctx.fill();
+    ctx.strokeStyle='rgba(5,5,10,0.55)'; ctx.lineWidth=0.6; ctx.stroke();
+  }
+  return tiles.length;
+}
+
+function draw(){
+  resize();
+  const n=build();
+  ctx.fillStyle='rgba(120,160,220,0.5)';
+  ctx.font='11px ui-monospace,monospace';
+  ctx.fillText(n+' rhombi', 12, H-14);
+}
+
+const rotEl=document.getElementById('rot'), zoomEl=document.getElementById('zoom'), skewEl=document.getElementById('skew');
+rotEl.oninput=()=>{ rot=parseFloat(rotEl.value)*Math.PI/180; draw(); };
+zoomEl.oninput=()=>{ zoom=parseFloat(zoomEl.value); draw(); };
+skewEl.oninput=()=>{ skew=parseFloat(skewEl.value); draw(); };
+document.getElementById('recolor').onclick=()=>{ hueBase=(hueBase+67)%360; draw(); };
+
+let dragging=false, lastX=0;
+cv.addEventListener('pointerdown',e=>{dragging=true;lastX=e.clientX;});
+addEventListener('pointerup',()=>dragging=false);
+addEventListener('pointermove',e=>{ if(!dragging)return; dragRot+=(e.clientX-lastX)*0.4; lastX=e.clientX; draw(); });
+addEventListener('resize',draw);
+resize();
+draw();
+</script>
+</body>
+</html>
