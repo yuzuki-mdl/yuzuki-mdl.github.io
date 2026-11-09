@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>harmonograph ii</title>
+<style>
+  :root{--bg:#0b0d10;--fg:#e6e6e6;--dim:#5a6472;--acc:#7ee0c0}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font:13px/1.4 ui-monospace,Menlo,monospace;-webkit-user-select:none;user-select:none}
+  #wrap{max-width:900px;margin:0 auto;padding:16px 18px 40px}
+  header{display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;margin-bottom:14px}
+  h1{font-size:15px;font-weight:400;letter-spacing:.3em;color:var(--dim);margin:0}
+  #hint{color:var(--dim);font-size:12px}
+  .bar{display:flex;gap:12px 20px;align-items:center;margin-bottom:14px;flex-wrap:wrap;font-size:12px;color:var(--dim)}
+  .bar label{display:flex;flex-direction:column;gap:4px}
+  .bar .val{color:var(--fg)}
+  input[type=range]{width:120px;accent-color:var(--acc)}
+  button{background:#161a20;color:var(--fg);border:1px solid #232a33;border-radius:6px;padding:7px 14px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  canvas{display:block;width:100%;border-radius:8px;border:1px solid #1a1f26;cursor:crosshair;background:#07080a}
+  #note{color:var(--dim);font-size:12px;margin-top:14px;line-height:1.6;max-width:660px}
+  #note b{color:var(--acc);font-weight:400}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header><h1>HARMONOGRAPH II</h1><span id="hint">four decaying pendulums trace one curve</span></header>
+  <div class="bar">
+    <label>x freq <input type="range" id="fx" min="0.5" max="6" step="0.01" value="2.01"><span class="val" id="vfx">2.01</span></label>
+    <label>y freq <input type="range" id="fy" min="0.5" max="6" step="0.01" value="3.00"><span class="val" id="vfy">3.00</span></label>
+    <label>damping <input type="range" id="dp" min="0.0002" max="0.004" step="0.0002" value="0.0012"><span class="val" id="vdp">0.0012</span></label>
+    <label>detune <input type="range" id="dt" min="0" max="0.05" step="0.001" value="0.012"><span class="val" id="vdt">0.012</span></label>
+    <button id="go">restart</button>
+    <button id="rnd">random</button>
+  </div>
+  <canvas id="c"></canvas>
+  <div id="note">
+    a harmonograph is a drawing machine from the 1800s: two pendulums swing the pen in x, two more swing the paper in y. each swing slowly dies down, and the tiny mismatches between the pairs (<b>detune</b>) make the curve never quite close — it spirals inward into a flower. drag the sliders to reshape it live.
+  </div>
+</div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+let W,H,CX,CY,R;
+function fit(){
+  const dpr=Math.min(devicePixelRatio||1,2);
+  W=c.clientWidth; H=Math.round(W*0.82);
+  c.width=W*dpr; c.height=H*dpr; c.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  CX=W/2; CY=H/2; R=Math.min(W,H)*0.44;
+}
+const el=id=>document.getElementById(id);
+const sl={fx:el('fx'),fy:el('fy'),dp:el('dp'),dt:el('dt')};
+for(const k in sl){const s=sl[k];const v=el('v'+k);s.oninput=()=>{v.textContent=s.value;restart();}}
+function rnd(a,b){return a+Math.random()*(b-a);}
+el('rnd').onclick=()=>{
+  sl.fx.value=rnd(1,5).toFixed(2); sl.fy.value=rnd(1,5).toFixed(2);
+  sl.dp.value=rnd(0.0004,0.003).toFixed(4); sl.dt.value=rnd(0,0.04).toFixed(3);
+  for(const k in sl) el('v'+k).textContent=sl[k].value;
+  restart();
+};
+el('go').onclick=()=>restart();
+
+let t=0, raf=null, last=0, path=[];
+function restart(){
+  t=0; last=0; path=[]; ctx.clearRect(0,0,W,H);
+  if(raf) cancelAnimationFrame(raf); raf=requestAnimationFrame(step);
+}
+function step(ts){
+  if(!last) last=ts; last=ts;
+  const fx=+sl.fx.value, fy=+sl.fy.value, dp=+sl.dp.value, dtune=+sl.dt.value;
+  const sub=6;
+  ctx.lineWidth=1;
+  for(let s=0;s<sub;s++){
+    t+=0.010;
+    const e=Math.exp(-dp*t*60);
+    const x = Math.sin(fx*t)*e + Math.sin((fx+dtune)*t)*e;
+    const y = Math.sin(fy*t)*e + Math.sin((fy+dtune)*t)*e;
+    const px=CX+x*R*0.5, py=CY+y*R*0.5;
+    if(path.length){
+      const p=path[path.length-1];
+      const fade=Math.max(0.05,e*0.55);
+      ctx.strokeStyle='rgba(126,224,192,'+fade.toFixed(3)+')';
+      ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(px,py); ctx.stroke();
+    }
+    path.push([px,py]); if(path.length>2)path.shift();
+  }
+  if(Math.exp(-dp*t*60)<0.02){ raf=null; return; }
+  raf=requestAnimationFrame(step);
+}
+
+let rt=null;
+addEventListener('resize',()=>{clearTimeout(rt);rt=setTimeout(()=>{fit();restart();},150);});
+fit(); restart();
+</script>
+</body>
+</html>
