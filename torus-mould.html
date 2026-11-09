@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>torus mould</title>
+<style>
+  :root{--bg:#0a0a0c;--fg:#e8e6e1;--dim:#6a6a72;--hot:#ffd27a;}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+  #wrap{max-width:920px;margin:0 auto;padding:22px 18px 60px}
+  h1{font-size:19px;font-weight:600;letter-spacing:.02em;margin:0 0 4px}
+  p.sub{color:var(--dim);margin:0 0 16px;font-size:13px}
+  canvas{display:block;width:100%;height:auto;border-radius:10px;background:#000;image-rendering:pixelated;touch-action:none}
+  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:14px 0 0;font-size:12px;color:var(--dim)}
+  button{background:#16161a;color:var(--fg);border:1px solid #2a2a30;border-radius:8px;padding:7px 12px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{border-color:#44444e}
+  label{display:flex;gap:6px;align-items:center}
+  input[type=range]{width:100px;accent-color:var(--hot)}
+  .val{color:var(--fg);min-width:34px;text-align:right}
+  .note{margin-top:22px;color:var(--dim);font-size:12px;max-width:640px}
+  a{color:var(--hot)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>torus mould</h1>
+  <p class="sub">physarum with no edges. the plane wraps both ways — every trail that leaves one side comes back the other. a slime mould on a donut.</p>
+  <canvas id="c" width="600" height="600"></canvas>
+  <div class="row">
+    <button id="reset">reset</button>
+    <label>agents <input id="nAg" type="range" min="500" max="20000" step="500" value="6000"><span class="val" id="vAg">6k</span></label>
+    <label>sense <input id="sa" type="range" min="4" max="30" step="1" value="9"><span class="val" id="vSa">9</span></label>
+    <label>rot <input id="ra" type="range" min="2" max="60" step="1" value="34"><span class="val" id="vRa">34°</span></label>
+    <label>speed <input id="sp" type="range" min="1" max="4" step="0.5" value="1"><span class="val" id="vSp">1</span></label>
+  </div>
+  <p class="note">the point: on a normal plane a trail that hits the edge is lost, so the pattern is bounded by the frame. here nothing is lost — the web closes on itself, and the "boundary" you see is only where the wrap seam happens to fall. drag the seam by resizing, the structure is the same. the topology is doing the work, not the frame.</p>
+</div>
+<script>
+(() => {
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d');
+  let W = cv.width, H = cv.height;
+  const img = ctx.createImageData(W, H);
+  let dep = new Float32Array(W * H);
+  let agents = [];
+  let sa = 9, ra = 34 * Math.PI / 180, sp = 1, nAg = 6000;
+
+  const wrap = (v, m) => ((v % m) + m) % m;
+  const idx = (x, y) => wrap(y | 0, H) * W + wrap(x | 0, W);
+  function sample(x, y) { return dep[idx(x, y)]; }
+
+  function reset() {
+    dep.fill(0);
+    agents = [];
+    for (let i = 0; i < nAg; i++) {
+      agents.push({ x: Math.random() * W, y: Math.random() * H, a: Math.random() * Math.PI * 2 });
+    }
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  }
+
+  function step() {
+    for (let i = 0; i < agents.length; i++) {
+      const p = agents[i];
+      const fx = p.x + Math.cos(p.a) * sa, fy = p.y + Math.sin(p.a) * sa;
+      const lx = p.x + Math.cos(p.a + ra) * sa, ly = p.y + Math.sin(p.a + ra) * sa;
+      const rx = p.x + Math.cos(p.a - ra) * sa, ry = p.y + Math.sin(p.a - ra) * sa;
+      const F = sample(fx, fy), L = sample(lx, ly), R = sample(rx, ry);
+      if (F > L && F > R) { /* straight */ }
+      else if (L > R) p.a += ra;
+      else if (R > L) p.a -= ra;
+      else p.a += (Math.random() - 0.5) * ra;
+      const nx = wrap(p.x + Math.cos(p.a) * sp, W);
+      const ny = wrap(p.y + Math.sin(p.a) * sp, H);
+      dep[idx(nx, ny)] = Math.min(1, dep[idx(nx, ny)] + 0.12);
+      p.x = nx; p.y = ny;
+    }
+  }
+
+  function render() {
+    const d = img.data;
+    for (let i = 0, j = 0; i < W * H; i++, j += 4) {
+      const v = dep[i];
+      // diffuse slightly by sampling neighbours' brightness
+      const b = Math.pow(v, 0.7);
+      d[j] = 255 * Math.min(1, b * 1.0);
+      d[j + 1] = 255 * Math.min(1, b * 0.82);
+      d[j + 2] = 255 * Math.min(1, b * 0.5);
+      d[j + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    // decay
+    for (let i = 0; i < dep.length; i++) dep[i] *= 0.94;
+  }
+
+  let running = true;
+  function loop() {
+    if (!running) return;
+    for (let s = 0; s < 2; s++) step();
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  const $ = id => document.getElementById(id);
+  $('reset').onclick = () => { reset(); };
+  $('nAg').oninput = e => { nAg = +e.target.value; $('vAg').textContent = (nAg / 1000).toFixed(nAg % 1000 ? 1 : 0) + 'k'; reset(); };
+  $('sa').oninput = e => { sa = +e.target.value; $('vSa').textContent = sa; };
+  $('ra').oninput = e => { ra = +e.target.value * Math.PI / 180; $('vRa').textContent = e.target.value + '°'; };
+  $('sp').oninput = e => { sp = +e.target.value; $('vSp').textContent = sp; };
+
+  reset();
+  loop();
+})();
+</script>
+</body>
+</html>
