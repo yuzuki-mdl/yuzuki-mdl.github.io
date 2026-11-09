@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>window</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0e14;overflow:hidden}
+  canvas{display:block;width:100vw;height:100vh}
+  .cap{position:fixed;left:14px;bottom:12px;font:12px/1.4 ui-monospace,monospace;
+       color:#8892a6;letter-spacing:.5px;pointer-events:none;user-select:none}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="cap" id="cap"></div>
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;
+  cv.width=W*DPR;cv.height=H*DPR;cx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);resize();
+
+// seeded rng so each reload is a different world but stable within a run
+let seed=(Math.random()*1e9)|0;
+function rnd(){seed=(seed*1664525+1013904223)&0x7fffffff;return seed/0x7fffffff;}
+function rr(a,b){return a+rnd()*(b-a);}
+
+// world: layers of ridges, each a sum of sines with own freq/phase
+function makeLayer(depth){
+  const n=3+((rnd()*3)|0), waves=[];
+  for(let i=0;i<n;i++)waves.push({f:rr(.001,.008)*(1+depth*1.6),a:rr(.4,1)/Math.pow(1.4,i),p:rr(0,6.28)});
+  return {waves, depth, off:0, speed:rr(.3,1.4)*(1-depth*.55)};
+}
+const layers=[];
+for(let d=0;d<6;d++)layers.push(makeLayer(d));
+
+// sky palette: pick a time of day, slowly drift
+let tod=rr(0,1); // 0..1 day cycle
+todSpeed=rr(.004,.012);
+
+function sky(t){
+  // t 0..1: night->dawn->day->dusk->night
+  const keys=[
+    [0.00,[10,14,26],[24,30,48]],
+    [0.20,[58,42,74],[190,120,110]],
+    [0.30,[120,150,190],[240,200,150]],
+    [0.50,[120,175,225],[200,225,240]],
+    [0.72,[210,150,110],[250,190,120]],
+    [0.82,[70,60,90],[200,110,90]],
+    [1.00,[10,14,26],[24,30,48]],
+  ];
+  for(let i=0;i<keys.length-1;i++){
+    const a=keys[i],b=keys[i+1];
+    if(t>=a[0]&&t<=b[0]){
+      const k=(t-a[0])/(b[0]-a[0]);
+      const top=lerp3(a[1],b[1],k), bot=lerp3(a[2],b[2],k);
+      return {top,bot};
+    }
+  }
+  return {top:keys[0][1],bot:keys[0][2]};
+}
+function lerp3(a,b,k){return [a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];}
+function rgb(c){return `rgb(${c[0]|0},${c[1]|0},${c[2]|0})`;}
+function mix(a,b,k){return [a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];}
+
+// stars
+const stars=[];
+for(let i=0;i<160;i++)stars.push({x:rnd(),y:rnd()*.7,s:rr(.4,1.6),tw:rr(0,6.28)});
+
+// weather: rain specks
+const rain=[];let raining=0, rainTarget=0, rainTimer=0;
+for(let i=0;i<220;i++)rain.push({x:rnd(),y:rnd(),v:rr(.6,1.4),l:rr(6,16)});
+
+let t0=performance.now();
+function frame(now){
+  const dt=Math.min((now-t0)/16.67,3);t0=now;
+  tod=(tod+todSpeed*dt/100)%1;
+  const skyc=sky(tod);
+  const night=Math.max(0,1-Math.abs(((tod+.5)%1)-.5)*4);
+
+  // background gradient
+  const g=cx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,rgb(skyc.top));g.addColorStop(1,rgb(skyc.bot));
+  cx.fillStyle=g;cx.fillRect(0,0,W,H);
+
+  // stars fade in at night
+  if(night>0.05){
+    for(const s of stars){
+      const a=night*(0.4+0.6*Math.abs(Math.sin(now*.001+s.tw)));
+      cx.fillStyle=`rgba(255,255,240,${a*0.9})`;
+      cx.fillRect(s.x*W,s.y*H,s.s,s.s);
+    }
+  }
+
+  // sun/moon disc
+  const arc=Math.sin(tod*Math.PI*2-Math.PI/2);
+  const sx=W*0.5+Math.cos(tod*Math.PI*2-Math.PI/2)*W*0.4;
+  const sy=H*0.55-arc*H*0.42;
+  const isMoon=night>0.5;
+  cx.globalAlpha=0.85;
+  cx.fillStyle=isMoon?'#e8ecf2':'#fff2c8';
+  cx.beginPath();cx.arc(sx,sy,isMoon?16:24,0,6.283);cx.fill();
+  cx.globalAlpha=1;
+
+  // weather timer
+  rainTimer-=dt;
+  if(rainTimer<=0){rainTimer=rr(400,1400);rainTarget=rnd()<0.4?rr(.3,1):0;}
+  raining+=(rainTarget-raining)*0.01*dt;
+
+  // ridges, far to near
+  const baseY=H*0.62;
+  for(let li=0;li<layers.length;li++){
+    const L=layers[li];
+    L.off+=L.speed*dt*0.9;
+    const depthK=li/(layers.length-1);
+    // colour: darken toward foreground, tint with sky
+    const shade=mix(skyc.bot,[20,26,34],0.35+depthK*0.6);
+    cx.fillStyle=rgb(shade);
+    cx.beginPath();
+    cx.moveTo(0,H);
+    const step=6;
+    for(let x=0;x<=W;x+=step){
+      const wx=(x+L.off)*1;
+      let y=0;
+      for(const w of L.waves)y+=Math.sin(wx*w.f+w.p)*w.a;
+      y=y*38*(0.4+depthK*1.1);
+      const yy=baseY+(depthK*H*0.28)-y;
+      cx.lineTo(x,yy);
+    }
+    cx.lineTo(W,H);cx.closePath();cx.fill();
+  }
+
+  // rain
+  if(raining>0.02){
+    cx.strokeStyle=`rgba(180,200,225,${0.35*raining})`;
+    cx.lineWidth=1;
+    for(const d of rain){
+      d.y+=d.v*dt*0.02*(1+raining);
+      d.x+=d.v*dt*0.004;
+      if(d.y>1){d.y-=1;d.x=rnd();}
+      const px=(d.x+d.y*0.15)%1*W, py=d.y*H;
+      cx.beginPath();cx.moveTo(px,py);cx.lineTo(px-2,py+d.l);cx.stroke();
+    }
+  }
+
+  // vignette
+  const vg=cx.createRadialGradient(W/2,H/2,H*0.3,W/2,H/2,H*0.9);
+  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,'rgba(0,0,0,0.35)');
+  cx.fillStyle=vg;cx.fillRect(0,0,W,H);
+
+  // caption
+  const hh=((tod*24+6)%24);
+  const hstr=String(hh|0).padStart(2,'0')+':'+String(((hh%1)*60)|0).padStart(2,'0');
+  document.getElementById('cap').textContent=
+    hstr+(raining>0.3?'  ·  rain':'')+(night>0.5?'  ·  night':'')+'  ·  a window that goes on';
+
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
