@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ca atlas</title>
+<style>
+  :root{color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;background:#0b0d10;color:#cfd6dd;font:13px/1.4 ui-monospace,monospace}
+  header{padding:14px 18px;border-bottom:1px solid #1c2229;display:flex;gap:18px;align-items:baseline;flex-wrap:wrap}
+  h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.02em}
+  p{margin:0;color:#7d8a97;max-width:60ch;font-size:12px}
+  a{color:#7fb0ff;text-decoration:none}
+  main{display:flex;gap:16px;padding:16px;flex-wrap:wrap;align-items:flex-start}
+  #grid{display:grid;grid-template-columns:repeat(16,1fr);gap:3px;flex:1 1 560px;min-width:320px}
+  .cell{position:relative;aspect-ratio:1;cursor:pointer;border-radius:2px;overflow:hidden;background:#000;outline:1px solid #1a1f26}
+  .cell canvas{width:100%;height:100%;display:block;image-rendering:pixelated}
+  .cell span{position:absolute;left:2px;top:1px;font-size:8px;color:#3f4a55;pointer-events:none}
+  .cell:hover{outline-color:#4a6a9a}
+  .cell.sel{outline:2px solid #7fb0ff}
+  #panel{flex:0 0 300px;display:flex;flex-direction:column;gap:10px}
+  #big{width:100%;aspect-ratio:1;background:#000;border-radius:8px;image-rendering:pixelated;box-shadow:0 0 0 1px #1c2229}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  button{background:#161821;color:#cfd6dd;border:1px solid #2a2d38;border-radius:7px;padding:6px 10px;font:inherit;cursor:pointer}
+  button:hover{border-color:#4a4f60}
+  .rule{font-size:13px;color:#9fb0c0}
+  .rule b{color:#e8eef4}
+  .bin{color:#5f6b77;font-size:11px}
+</style></head><body>
+<header><h1>ca atlas</h1>
+<p>all 256 elementary cellular automata. one cell looks at its two neighbours above, applies one of 256 possible 8-bit rules. click any to see it evolve from a single seed. rule 30, 90, 110 are in here — so is everything else.</p>
+<a href="index.html">back</a></header>
+<main>
+  <div id="grid"></div>
+  <div id="panel">
+    <canvas id="big" width="300" height="300"></canvas>
+    <div class="rule" id="lbl"></div>
+    <div class="bin" id="bin"></div>
+    <div class="row">
+      <button id="rand">random rule</button>
+      <button id="again">restart</button>
+    </div>
+  </div>
+</main>
+<script>
+const W=64, H=64;
+function evolve(rule, seed){
+  // returns W x H grid of 0/1
+  const rows=[];
+  let cur=new Uint8Array(W);
+  cur[W>>1]=1;
+  for(let y=0;y<H;y++){
+    rows.push(cur.slice());
+    const nxt=new Uint8Array(W);
+    for(let x=0;x<W;x++){
+      const l=cur[(x-1+W)%W], c=cur[x], r=cur[(x+1)%W];
+      const idx=(l<<2)|(c<<1)|r;
+      nxt[x]=(rule>>idx)&1;
+    }
+    cur=nxt;
+  }
+  return rows;
+}
+function draw(ctx, rows, w, h, cellpx, color){
+  ctx.fillStyle='#000';ctx.fillRect(0,0,w,h);
+  ctx.fillStyle=color;
+  for(let y=0;y<rows.length;y++)for(let x=0;x<rows[y].length;x++){
+    if(rows[y][x]) ctx.fillRect(x*cellpx, y*cellpx, cellpx, cellpx);
+  }
+}
+const grid=document.getElementById('grid');
+const big=document.getElementById('big'), bctx=big.getContext('2d');
+const lbl=document.getElementById('lbl'), bin=document.getElementById('bin');
+let selected=null;
+for(let rule=0;rule<256;rule++){
+  const d=document.createElement('div');d.className='cell';d.dataset.rule=rule;
+  const cv=document.createElement('canvas');cv.width=W;cv.height=H;
+  const g=cv.getContext('2d');
+  draw(g, evolve(rule), W, H, 1, '#8fd6ff');
+  const sp=document.createElement('span');sp.textContent=rule;
+  d.appendChild(cv);d.appendChild(sp);
+  d.onclick=()=>select(rule);
+  grid.appendChild(d);
+}
+function select(rule){
+  selected=rule;
+  document.querySelectorAll('.cell.sel').forEach(e=>e.classList.remove('sel'));
+  const el=document.querySelector('.cell[data-rule="'+rule+'"]');
+  if(el) el.classList.add('sel');
+  const rows=evolve(rule);
+  draw(bctx, rows, big.width, big.height, big.width/W, '#8fd6ff');
+  lbl.innerHTML='rule <b>'+rule+'</b>';
+  bin.textContent='binary '+rule.toString(2).padStart(8,'0')+'  (111→110→...→000)';
+}
+document.getElementById('rand').onclick=()=>select(Math.floor(Math.random()*256));
+document.getElementById('again').onclick=()=>{ if(selected!=null) select(selected); };
+select(30);
+</script>
+</body></html>
