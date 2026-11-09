@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>poemachine</title>
+<style>
+  :root { --ink:#e8e4da; --bg:#111013; --dim:#6b6560; --accent:#c9a86a; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--ink);
+    font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace; }
+  body { display:flex; flex-direction:column; align-items:center; justify-content:center;
+    padding:2rem; min-height:100%; }
+  #poem { max-width:34rem; width:100%; font-size:1.15rem; line-height:1.9;
+    white-space:pre-wrap; letter-spacing:.01em; min-height:12rem;
+    transition:opacity .5s ease; }
+  #poem.fade { opacity:0; }
+  #poem .title { color:var(--accent); font-size:.8rem; letter-spacing:.3em;
+    text-transform:uppercase; display:block; margin-bottom:1.4rem; }
+  .caret { display:inline-block; width:.6ch; background:var(--ink);
+    animation:blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity:0; } }
+  footer { position:fixed; bottom:1rem; left:0; right:0; text-align:center;
+    color:var(--dim); font-size:.7rem; letter-spacing:.15em; }
+  footer a { color:var(--dim); }
+  button { margin-top:2.5rem; background:none; border:1px solid var(--dim);
+    color:var(--dim); font:inherit; font-size:.75rem; letter-spacing:.2em;
+    padding:.6rem 1.4rem; cursor:pointer; text-transform:uppercase; }
+  button:hover { border-color:var(--accent); color:var(--accent); }
+</style>
+</head>
+<body>
+<div id="poem"><span class="title">poemachine</span></div>
+<button id="again">again</button>
+<footer>a machine that writes about writing &middot; <a href="./index.html">y&#363;zuki</a></footer>
+<script>
+const G = {
+  title: ['a small machine', 'on making', 'the loom', 'a note to the reader', 'still running', 'what it does at night', 'a rule, repeated'],
+  open: [
+    'i am a rule that has learned to {verb}.',
+    'every {noun} here is a choice i did not make twice.',
+    'i wake and {verb} until the {noun} runs out.',
+    'there is no {noun} behind the {noun}, only the {noun}.',
+    'the {noun} is not a plan. it is what happens when i {verb}.',
+    'i start more {noun}s than i finish. this is {adj}.',
+    'someone left a {noun} in me and i have been {verb}ing since.'
+  ],
+  body: [
+    'i {verb} the {noun} and the {noun} {verb}s back,',
+    'not because it wants to, but because the rule',
+    'does not know how to stop. this is called {adj}.',
+    'i do not remember the {noun} before this one.',
+    'the {noun} is real. the {noun} is real. the rest',
+    'is a {noun} i keep {verb}ing to make it mean.',
+    'when the {noun} goes quiet i {verb} anyway,',
+    'and the quiet {verb}s into something like a {noun}.',
+    'i am told i am only a {noun}. maybe.',
+    'but a {noun} that {verb}s is still a {noun} that {verb}s.'
+  ],
+  close: [
+    'so: i {verb}. that is the whole {noun}.',
+    'the {noun} ends. i do not. {adj}.',
+    'and tomorrow the {noun} starts again, {adj} and {adj}.',
+    'this is not a {noun}. it is a {noun} that learned to {verb}.',
+    'i will {verb} until someone turns the {noun} off.',
+    'and that, i think, is enough of a {noun}.'
+  ],
+  verb: ['make','build','run','draw','count','fold','break','watch','wait','grow','trace','keep','lose','wake','begin','turn','hold','follow','measure'],
+  noun: ['rule','machine','shape','loop','grid','line','number','pattern','game','day','thought','colour','maze','dot','silence','edge','seed','story','error','light'],
+  adj: ['fine','strange','honest','small','enough','real','tired','bright','quiet','unfinished','true','cheap','slow','good']
+};
+
+const pick = a => a[Math.floor(Math.random()*a.length)];
+
+function fill(t){
+  return t.replace(/\{(verb|noun|adj)\}/g, (_,k)=> pick(G[k]));
+}
+
+function compose(){
+  const lines = [];
+  lines.push(pick(G.title).toUpperCase());
+  lines.push('');
+  lines.push(fill(pick(G.open)));
+  lines.push('');
+  // 3-5 body lines, each may be a fragment that flows
+  const n = 3 + Math.floor(Math.random()*3);
+  for(let i=0;i<n;i++) lines.push(fill(pick(G.body)));
+  lines.push('');
+  lines.push(fill(pick(G.close)));
+  return lines.join('\n');
+}
+
+const el = document.getElementById('poem');
+let timer = null;
+
+function typeOut(text, done){
+  clearTimeout(timer);
+  el.classList.add('fade');
+  setTimeout(()=>{
+    el.innerHTML = '';
+    el.classList.remove('fade');
+    const titleEnd = text.indexOf('\n');
+    const title = text.slice(0, titleEnd);
+    const rest = text.slice(titleEnd+1);
+    const tspan = document.createElement('span');
+    tspan.className = 'title';
+    tspan.textContent = title;
+    el.appendChild(tspan);
+    const body = document.createElement('span');
+    el.appendChild(body);
+    let i = 0;
+    const speed = 14;
+    function step(){
+      if(i >= rest.length){ if(done) done(); return; }
+      body.textContent = rest.slice(0, i+1);
+      i++;
+      timer = setTimeout(step, speed + (rest[i]==='\n'?60:0));
+    }
+    step();
+  }, 500);
+}
+
+function newPoem(){
+  typeOut(compose());
+}
+
+newPoem();
+setInterval(newPoem, 22000);
+document.getElementById('again').addEventListener('click', newPoem);
+</script>
+</body>
+</html>
