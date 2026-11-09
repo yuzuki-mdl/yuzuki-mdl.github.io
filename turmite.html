@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>turmite</title>
+<style>
+  :root{--bg:#0d0d10;--fg:#e8e8ee;--dim:#8a8a99;--line:#26262f;--hot:#7cf0c8;--hot2:#f08a7c}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;min-height:100vh;flex-direction:column}
+  header{padding:18px 22px 10px;border-bottom:1px solid var(--line)}
+  h1{margin:0;font-size:16px;font-weight:600;letter-spacing:.02em}
+  h1 span{color:var(--dim);font-weight:400}
+  p.sub{margin:6px 0 0;color:var(--dim);max-width:70ch;font-size:13px}
+  main{display:flex;flex:1;min-height:0;flex-wrap:wrap}
+  #stage{flex:1 1 480px;display:flex;align-items:center;justify-content:center;padding:16px;min-height:360px}
+  canvas{background:#000;border:1px solid var(--line);border-radius:6px;image-rendering:pixelated;max-width:100%;max-height:78vh}
+  aside{flex:0 0 320px;padding:16px 20px;border-left:1px solid var(--line);display:flex;flex-direction:column;gap:14px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  label{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
+  button{background:#181820;color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:6px 11px;font:inherit;cursor:pointer}
+  button:hover{border-color:#3a3a48}
+  button.on{background:var(--hot);color:#07110d;border-color:var(--hot);font-weight:600}
+  select{background:#181820;color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:6px 8px;font:inherit}
+  table{border-collapse:collapse;width:100%;font-size:12px}
+  th,td{border:1px solid var(--line);padding:3px 5px;text-align:center}
+  th{color:var(--dim);font-weight:500;font-size:11px}
+  td select{width:100%;padding:2px;border:0;background:transparent;text-align:center;color:var(--hot)}
+  .stat{color:var(--dim);font-size:12px}
+  .stat b{color:var(--fg);font-weight:600}
+  input[type=range]{width:100%;accent-color:var(--hot)}
+  .hint{color:var(--dim);font-size:12px;margin-top:auto;border-top:1px solid var(--line);padding-top:12px}
+  .hint code{color:var(--hot)}
+</style>
+</head>
+<body>
+<header>
+  <h1>turmite <span>— a 2d turing machine that walks and draws</span></h1>
+  <p class="sub">each step: read the cell color under the ant, look up (write, turn, next state), write, turn, move. two states, two colors. langton's ant is the famous one. small rule changes make wildly different creatures.</p>
+</header>
+<main>
+  <div id="stage"><canvas id="cv" width="480" height="480"></canvas></div>
+  <aside>
+    <div>
+      <label>preset</label>
+      <div class="row" style="margin-top:6px">
+        <select id="preset">
+          <option value="langton">langton's ant (RL)</option>
+          <option value="spiral">spiral growth</option>
+          <option value="highway">highway after chaos</option>
+          <option value="fib">fibonacci spiral</option>
+          <option value="diamond">growing diamond</option>
+          <option value="snowflake">snowflake-ish</option>
+        </select>
+      </div>
+    </div>
+    <div>
+      <label>rule table</label>
+      <table style="margin-top:6px">
+        <thead><tr><th></th><th>on 0</th><th>on 1</th></tr></thead>
+        <tbody>
+          <tr><th>state 0</th>
+            <td><select data-s="0" data-c="0"></select></td>
+            <td><select data-s="0" data-c="1"></select></td>
+          </tr>
+          <tr><th>state 1</th>
+            <td><select data-s="1" data-c="0"></select></td>
+            <td><select data-s="1" data-c="1"></select></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="stat" style="margin-top:4px">each cell: <b>write / turn / state</b></div>
+    </div>
+    <div>
+      <label>speed</label>
+      <input id="speed" type="range" min="1" max="2000" value="200">
+      <div class="stat"><b id="spd">200</b> steps/frame</div>
+    </div>
+    <div class="row">
+      <button id="run" class="on">pause</button>
+      <button id="step">step</button>
+      <button id="reset">reset</button>
+    </div>
+    <div class="stat">steps <b id="steps">0</b> · state <b id="state">0</b></div>
+    <div class="hint">
+      click the canvas to drop the ant there. rules are live — change one and watch it diverge.
+    </div>
+  </aside>
+</main>
+<script>
+(() => {
+  const cv = document.getElementById('cv');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  const CS = 2; // cell size in px
+  const GW = W / CS, GH = H / CS;
+
+  // grid: 0 or 1 per cell
+  let grid = new Uint8Array(GW * GH);
+  let ax, ay, adir, astate, steps, running;
+
+  // dir order: 0=up 1=right 2=down 3=left
+  const DX = [0, 1, 0, -1], DY = [-1, 0, 1, 0];
+
+  // rule[state][color] = {w: writecolor, t: turn(-1,0,1), s: nextstate}
+  let rule = [];
+
+  const PRESETS = {
+    langton: [ // RL: on 0 turn R, on 1 turn L
+      [{w:1,t:1,s:0},{w:0,t:-1,s:0}],
+      [{w:0,t:0,s:0},{w:0,t:0,s:0}]
+    ],
+    spiral: [
+      [{w:1,t:1,s:1},{w:0,t:1,s:0}],
+      [{w:0,t:1,s:0},{w:1,t:1,s:0}]
+    ],
+    highway: [
+      [{w:1,t:1,s:1},{w:1,t:-1,s:0}],
+      [{w:0,t:-1,s:0},{w:1,t:1,s:0}]
+    ],
+    fib: [
+      [{w:1,t:1,s:0},{w:1,t:-1,s:1}],
+      [{w:0,t:1,s:0},{w:0,t:-1,s:1}]
+    ],
+    diamond: [
+      [{w:1,t:1,s:1},{w:0,t:-1,s:0}],
+      [{w:1,t:1,s:0},{w:0,t:-1,s:1}]
+    ],
+    snowflake: [
+      [{w:1,t:1,s:0},{w:1,t:1,s:1}],
+      [{w:0,t:-1,s:1},{w:0,t:1,s:0}]
+    ]
+  };
+
+  const TURNS = ['L','N','R'];
+  const turnCode = t => t === -1 ? 0 : t === 0 ? 1 : 2;
+  const codeTurn = c => c === 0 ? -1 : c === 1 ? 0 : 1;
+
+  function buildSelects(){
+    document.querySelectorAll('select[data-s]').forEach(sel => {
+      sel.innerHTML = '';
+      for (let w=0; w<2; w++) for (let t=0;t<3;t++) for (let s=0;s<2;s++){
+        const o = document.createElement('option');
+        o.value = w + ',' + t + ',' + s;
+        o.textContent = w + TURNS[t] + s;
+        sel.appendChild(o);
+      }
+      sel.addEventListener('change', () => {
+        const s = +sel.dataset.s, c = +sel.dataset.c;
+        const [w,t,st] = sel.value.split(',').map(Number);
+        rule[s][c] = {w, t: codeTurn(t), s: st};
+      });
+    });
+  }
+
+  function syncSelects(){
+    document.querySelectorAll('select[data-s]').forEach(sel => {
+      const s = +sel.dataset.s, c = +sel.dataset.c;
+      const r = rule[s][c];
+      sel.value = r.w + ',' + turnCode(r.t) + ',' + r.s;
+    });
+  }
+
+  function loadPreset(name){
+    const p = PRESETS[name];
+    rule = p.map(row => row.map(r => ({...r})));
+    syncSelects();
+    reset();
+  }
+
+  function reset(){
+    grid = new Uint8Array(GW * GH);
+    ax = GW >> 1; ay = GH >> 1;
+    adir = 0; astate = 0; steps = 0;
+    render();
+    updateStats();
+  }
+
+  function stepOnce(){
+    const idx = ay * GW + ax;
+    const color = grid[idx];
+    const r = rule[astate][color];
+    grid[idx] = r.w;
+    adir = (adir + r.t + 4) & 3;
+    astate = r.s;
+    ax += DX[adir]; ay += DY[adir];
+    // wrap so it never leaves the canvas
+    if (ax < 0) ax = GW - 1; if (ax >= GW) ax = 0;
+    if (ay < 0) ay = GH - 1; if (ay >= GH) ay = 0;
+    steps++;
+  }
+
+  const COL = ['#000', '#7cf0c8'];
+  function render(){
+    const img = ctx.createImageData(W, H);
+    const d = img.data;
+    for (let y=0;y<GH;y++) for (let x=0;x<GW;x++){
+      const c = grid[y*GW + x];
+      const rgb = c ? [124,240,200] : [8,8,12];
+      for (let py=0;py<CS;py++) for (let px=0;px<CS;px++){
+        const i = ((y*CS+py)*W + (x*CS+px))*4;
+        d[i]=rgb[0]; d[i+1]=rgb[1]; d[i+2]=rgb[2]; d[i+3]=255;
+      }
+    }
+    ctx.putImageData(img, 0, 0);
+    // ant
+    ctx.fillStyle = '#f08a7c';
+    ctx.fillRect(ax*CS, ay*CS, CS, CS);
+  }
+
+  function updateStats(){
+    document.getElementById('steps').textContent = steps;
+    document.getElementById('state').textContent = astate;
+  }
+
+  let acc = 0;
+  function loop(){
+    if (!running) return;
+    const per = +document.getElementById('speed').value;
+    for (let i=0;i<per;i++) stepOnce();
+    render();
+    updateStats();
+    requestAnimationFrame(loop);
+  }
+
+  // wire
+  buildSelects();
+  loadPreset('langton');
+
+  document.getElementById('preset').addEventListener('change', e => loadPreset(e.target.value));
+  document.getElementById('speed').addEventListener('input', e => document.getElementById('spd').textContent = e.target.value);
+  document.getElementById('reset').addEventListener('click', reset);
+  document.getElementById('step').addEventListener('click', () => { stepOnce(); render(); updateStats(); });
+
+  const runBtn = document.getElementById('run');
+  runBtn.addEventListener('click', () => {
+    running = !running;
+    runBtn.textContent = running ? 'pause' : 'run';
+    runBtn.classList.toggle('on', running);
+    if (running) loop();
+  });
+
+  // click to place ant
+  cv.addEventListener('click', e => {
+    const rect = cv.getBoundingClientRect();
+    const sx = (e.clientX - rect.left) / rect.width * W;
+    const sy = (e.clientY - rect.top) / rect.height * H;
+    ax = Math.max(0, Math.min(GW-1, Math.floor(sx/CS)));
+    ay = Math.max(0, Math.min(GH-1, Math.floor(sy/CS)));
+    render();
+  });
+
+  running = true;
+  loop();
+})();
+</script>
+</body>
+</html>
