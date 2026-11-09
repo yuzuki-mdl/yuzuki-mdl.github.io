@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>jelly — a wobble pet</title>
+<style>
+  html,body{margin:0;height:100%;background:#0e0b1a;overflow:hidden;font-family:ui-monospace,monospace;color:#c9c2e8}
+  canvas{display:block;touch-action:none;cursor:grab}
+  canvas:active{cursor:grabbing}
+  #hud{position:fixed;left:12px;bottom:10px;font-size:12px;opacity:.55;pointer-events:none;line-height:1.5}
+  #hud b{color:#ff8fb1}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">drag the jelly · fling it · let it fall<br>space = drop a new one · double-click = poke</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',resize);
+
+// verlet point
+class P{constructor(x,y){this.x=x;this.y=y;this.px=x;this.py=y;this.pin=false;}move(g,dt){if(this.pin)return;const vx=(this.x-this.px)*0.99,vy=(this.y-this.py)*0.99;this.px=this.x;this.py=this.y;this.x+=vx;this.y+=vy+g*dt*dt;}}
+
+class Jelly{
+  constructor(cx,cy,r,n=26){
+    this.pts=[];this.n=n;this.r=r;this.rest=[];this.hue=Math.random()*360;
+    for(let i=0;i<n;i++){const a=i/n*Math.PI*2;this.pts.push(new P(cx+Math.cos(a)*r,cy+Math.sin(a)*r));}
+    // rest lengths: ring edges + second-neighbor (for stiffness)
+    for(let i=0;i<n;i++){
+      const a=this.pts[i],b=this.pts[(i+1)%n];this.rest.push([i,(i+1)%n,Math.hypot(a.x-b.x,a.y-b.y)]);
+      const c=this.pts[(i+2)%n];this.rest.push([i,(i+2)%n,Math.hypot(a.x-c.x,a.y-c.y)]);
+    }
+  }
+  idx(i){return this.pts[i];}
+  centroid(){let x=0,y=0;for(const p of this.pts){x+=p.x;y+=p.y;}return{x:x/this.n,y:y/this.n};}
+  step(g,dt){
+    for(const p of this.pts)p.move(g,dt);
+    // constraints, several iterations
+    for(let it=0;it<6;it++){
+      for(const [i,j,len] of this.rest){
+        const a=this.idx(i),b=this.idx(j);
+        let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1e-6;
+        const diff=(d-len)/d*0.5;
+        const ox=dx*diff,oy=dy*diff;
+        if(!a.pin){a.x+=ox;a.y+=oy;}
+        if(!b.pin){b.x-=ox;b.y-=oy;}
+      }
+      // keep on screen
+      for(const p of this.pts){p.x=Math.max(8,Math.min(W-8,p.x));p.y=Math.max(8,Math.min(H-8,p.y));}
+    }
+  }
+  draw(){
+    // body
+    ctx.beginPath();
+    const pts=this.pts;
+    ctx.moveTo((pts[0].x+pts[pts.length-1].x)/2,(pts[0].y+pts[pts.length-1].y)/2);
+    for(let i=0;i<pts.length;i++){const a=pts[i],b=pts[(i+1)%pts.length];ctx.quadraticCurveTo(a.x,a.y,(a.x+b.x)/2,(a.y+b.y)/2);}
+    ctx.closePath();
+    const c=this.centroid();
+    const grd=ctx.createRadialGradient(c.x-this.r*0.2,c.y-this.r*0.3,this.r*0.1,c.x,c.y,this.r*1.3);
+    grd.addColorStop(0,`hsl(${this.hue},90%,78%)`);
+    grd.addColorStop(0.5,`hsl(${this.hue},80%,62%)`);
+    grd.addColorStop(1,`hsl(${this.hue+40},70%,45%)`);
+    ctx.fillStyle=grd;ctx.fill();
+    ctx.strokeStyle=`hsla(${this.hue},90%,85%,.5)`;ctx.lineWidth=2;ctx.stroke();
+    // face: eyes track the cursor
+    const cx=c.x,cy=c.y;
+    const ang=Math.atan2(mouse.y-cy,mouse.x-cx);
+    const ex=Math.cos(ang)*this.r*0.22,ey=Math.sin(ang)*this.r*0.18;
+    const eyeR=this.r*0.12;
+    for(const s of [-1,1]){
+      const bx=cx+s*this.r*0.28,by=cy-this.r*0.05;
+      ctx.fillStyle='#fff';ctx.beginPath();ctx.arc(bx,by,eyeR,0,7);ctx.fill();
+      ctx.fillStyle='#241b3a';ctx.beginPath();ctx.arc(bx+ex*0.5,by+ey*0.5,eyeR*0.55,0,7);ctx.fill();
+    }
+    // mouth = a little smile that squishes with wobble
+    const wob=Math.hypot(this.pts[0].x-this.pts[this.n/2|0].x,this.pts[0].y-this.pts[this.n/2|0].y)/this.r;
+    ctx.strokeStyle='#241b3a';ctx.lineWidth=2.5;ctx.beginPath();
+    ctx.arc(cx,cy+this.r*0.22,this.r*0.18,0.15*Math.PI,0.85*Math.PI);ctx.stroke();
+    // blush
+    ctx.fillStyle=`hsla(${this.hue+340},90%,70%,.35)`;
+    for(const s of [-1,1]){ctx.beginPath();ctx.ellipse(cx+s*this.r*0.45,cy+this.r*0.18,this.r*0.14,this.r*0.09,0,0,7);ctx.fill();}
+  }
+  nearest(x,y){let best=null,bd=1e9;for(const p of this.pts){const d=Math.hypot(p.x-x,p.y-y);if(d<bd){bd=d;best=p;}}return best;}
+}
+
+let jellies=[],mouse={x:innerWidth/2,y:innerHeight/2},drag=null,dragJ=null;
+function spawn(x,y){jellies.push(new Jelly(x||W/2,y||H*0.35,Math.min(W,H)*0.13));}
+spawn();
+
+function pointer(e){const t=e.touches?e.touches[0]:e;return{x:t.clientX,y:t.clientY};}
+cv.addEventListener('pointerdown',e=>{
+  const p=pointer(e);mouse=p;
+  for(const j of jellies){const q=j.nearest(p.x,p.y);if(Math.hypot(q.x-p.x,q.y-p.y)<j.r*0.9){drag=q;dragJ=j;q.pin=true;return;}}
+});
+cv.addEventListener('pointermove',e=>{
+  const p=pointer(e);mouse=p;
+  if(drag){drag.x=p.x;drag.y=p.y;}
+});
+cv.addEventListener('pointerup',()=>{if(drag){drag.pin=false;drag=null;dragJ=null;}});
+cv.addEventListener('pointercancel',()=>{if(drag){drag.pin=false;drag=null;dragJ=null;}});
+cv.addEventListener('dblclick',e=>{
+  const p=pointer(e);
+  for(const j of jellies){const q=j.nearest(p.x,p.y);if(Math.hypot(q.x-p.x,q.y-p.y)<j.r*1.1){// poke: shove outward
+    for(const pt of j.pts){const dx=pt.x-p.x,dy=pt.y-p.y,d=Math.hypot(dx,dy)||1;pt.px-=dx/d*14;pt.py-=dy/d*14;}
+  }}
+});
+addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();spawn();}});
+
+let last=performance.now();
+function loop(t){
+  const dt=Math.min((t-last)/1000,0.033);last=t;
+  ctx.clearRect(0,0,W,H);
+  // soft background glow
+  const bg=ctx.createRadialGradient(W/2,H*0.3,0,W/2,H*0.3,Math.max(W,H)*0.7);
+  bg.addColorStop(0,'#181231');bg.addColorStop(1,'#0e0b1a');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  const g=1600;
+  for(const j of jellies){j.step(g,dt);j.draw();}
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
