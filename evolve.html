@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>evolve a walker</title>
+<style>
+  :root{--bg:#0e1116;--ink:#e8edf2;--dim:#7a8899;--acc:#7ee0a1;--acc2:#ffb86b;}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.5 ui-monospace,Menlo,monospace}
+  #wrap{display:grid;grid-template-columns:1fr 300px;height:100%}
+  #stage{position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  canvas{display:block}
+  #side{padding:16px;border-left:1px solid #1c232c;display:flex;flex-direction:column;gap:14px;overflow:auto}
+  h1{font-size:15px;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--dim);font-size:12px}
+  .row{display:flex;justify-content:space-between;gap:8px;font-size:12px}
+  .row b{color:var(--acc)}
+  button{background:#182029;color:var(--ink);border:1px solid #263140;border-radius:8px;padding:8px 10px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  .gen{font-size:26px;color:var(--acc2)}
+  .bar{height:6px;background:#1c232c;border-radius:3px;overflow:hidden}
+  .bar>i{display:block;height:100%;background:var(--acc);width:0}
+  .hint{color:var(--dim);font-size:11px;line-height:1.6}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage"><canvas id="c"></canvas></div>
+  <div id="side">
+    <div>
+      <h1>evolve a walker</h1>
+      <div class="sub">little bodies with jointed legs. natural selection does the rest.</div>
+    </div>
+    <div class="gen">gen <span id="gen">0</span></div>
+    <div>
+      <div class="row"><span>best distance</span><b id="best">0</b></div>
+      <div class="bar" style="margin-top:6px"><i id="bestbar"></i></div>
+    </div>
+    <div>
+      <div class="row"><span>pop</span><b id="popn">0</b></div>
+      <div class="row"><span>alive</span><b id="alive">0</b></div>
+    </div>
+    <button id="speed">speed: 1x</button>
+    <button id="reset">reset</button>
+    <div class="hint">each body = a chain of segments with spring joints. genes set rest angles + stiffness. fitness = how far right it gets before it flops. survivors breed with mutation. watch the funny little guys learn to drag themselves forward.</div>
+  </div>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR=Math.min(2,devicePixelRatio||1);
+function fit(){W=cv.clientWidth;H=cv.clientHeight;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+new ResizeObserver(()=>{fit();}).observe(cv);
+
+// physics: verlet points + distance constraints. a body = N points in a chain, feet touch ground.
+const N=7; // body segments (points)
+const GRAV=0.5, DAMP=0.995, ITER=8;
+const GROUND=0;
+
+function rand(a,b){return a+Math.random()*(b-a);}
+
+class Body{
+  constructor(genes){
+    this.genes=genes||this.randomGenes();
+    this.pts=[];
+    this.gen=0;
+    this.dist=0;
+    this.dead=false;
+    this.age=0;
+    this.init();
+  }
+  randomGenes(){
+    const g={rest:[],stiff:[]};
+    for(let i=0;i<N-1;i++){g.rest.push(rand(-1,1));g.stiff.push(rand(0.2,1));}
+    return g;
+  }
+  init(){
+    this.pts=[];
+    for(let i=0;i<N;i++){
+      this.pts.push({x:60+i*14,y:H*0.55,px:60+i*14,py:H*0.55});
+    }
+    this.gen=0;this.dist=0;this.dead=false;this.age=0;
+    this.startX=this.pts[0].x;
+    this.phase=Math.random()*6.28;
+  }
+  step(ground){// ground = y of floor
+    // integrate
+    const g=this.genes;
+    this.age++;
+    for(let i=0;i<N;i++){
+      const p=this.pts[i];
+      let vx=(p.x-p.px)*DAMP, vy=(p.y-p.py)*DAMP;
+      p.px=p.x;p.py=p.y;
+      p.x+=vx;p.y+=vy+GRAV;
+      // muscle: bias joints by rest angle over time via torque-ish on middle points
+    }
+    // active muscles: traveling phase wave drives each joint's target length
+    for(let it=0;it<ITER;it++){
+      for(let i=0;i<N-1;i++){
+        const a=this.pts[i],b=this.pts[i+1];
+        let dx=b.x-a.x,dy=b.y-a.y;let d=Math.hypot(dx,dy)||1e-6;
+        const wave=Math.sin(this.age*0.16 + i*0.9 + this.phase);
+        const target=14*(1 + g.rest[i]*0.6*wave);
+        const diff=(d-target)/d*0.5*g.stiff[i];
+        a.x+=dx*diff;a.y+=dy*diff;
+        b.x-=dx*diff;b.y-=dy*diff;
+      }
+      // ground collision + friction (grip): grounded points barely slide
+      for(let i=0;i<N;i++){
+        const p=this.pts[i];
+        if(p.y>ground){
+          p.y=ground;
+          p.x = p.x*0.15 + p.px*0.85;
+        }
+      }
+    }
+    // fitness: rightward progress of head, minus vertical drift penalty
+    const head=this.pts[N-1];
+    this.dist=Math.max(this.dist,head.x-this.startX);
+    // death: if it flips over (head below body avg) or stalls
+    const avgY=this.pts.reduce((s,p)=>s+p.y,0)/N;
+    if(head.y>avgY+40) this.dead=true; // flipped
+    if(this.age>420) this.dead=true; // time up
+  }
+  fitness(){return this.dist;}
+}
+
+let pop=[],gen=0,bestEver=0,tick=0,speed=1,groundY=0;
+const SPEEDS=[1,2,4,8];
+
+function initPop(){
+  pop=[];for(let i=0;i<40;i++)pop.push(new Body());
+  gen=0;bestEver=0;
+  groundY=H*0.8;
+  for(const b of pop){b.init();b.pts.forEach(p=>{p.y=groundY-30;p.py=groundY-30;});}
+}
+
+function breed(){
+  if(pop.length===0){initPop();return;}
+  // sort by fitness
+  pop.sort((a,b)=>b.fitness()-a.fitness());
+  const best=pop[0].fitness();
+  if(best>bestEver)bestEver=best;
+  const survivors=pop.slice(0,10);
+  const next=[];
+  // keep elites
+  for(let i=0;i<6;i++){const e=new Body(JSON.parse(JSON.stringify(survivors[Math.min(i,survivors.length-1)].genes)));next.push(e);}
+  // breed
+  while(next.length<40){
+    const a=survivors[Math.floor(Math.random()*survivors.length)];
+    const b=survivors[Math.floor(Math.random()*survivors.length)];
+    const g={rest:[],stiff:[]};
+    for(let i=0;i<N-1;i++){
+      g.rest.push(Math.random()<0.5?a.genes.rest[i]:b.genes.rest[i]);
+      g.stiff.push(Math.random()<0.5?a.genes.stiff[i]:b.genes.stiff[i]);
+      if(Math.random()<0.12)g.rest[i]+=rand(-0.4,0.4);
+      if(Math.random()<0.12)g.stiff[i]=Math.min(1,Math.max(0.1,g.stiff[i]+rand(-0.2,0.2)));
+    }
+    next.push(new Body(g));
+  }
+  pop=next;gen++;
+  for(const b of pop){b.init();b.pts.forEach(p=>{p.y=groundY-30;p.py=groundY-30;});}
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // ground
+  ctx.strokeStyle='#263140';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(0,groundY);ctx.lineTo(W,groundY);ctx.stroke();
+  // best marker
+  if(bestEver>0){
+    ctx.strokeStyle='rgba(126,224,161,.25)';ctx.setLineDash([4,6]);
+    ctx.beginPath();ctx.moveTo(60+bestEver,0);ctx.lineTo(60+bestEver,H);ctx.stroke();ctx.setLineDash([]);
+  }
+  // bodies
+  for(const b of pop){
+    if(b.dead)continue;
+    ctx.strokeStyle='rgba(126,224,161,.85)';ctx.lineWidth=2;
+    ctx.beginPath();
+    for(let i=0;i<N;i++){const p=b.pts[i];if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}
+    ctx.stroke();
+    // head dot
+    const h=b.pts[N-1];ctx.fillStyle='#ffb86b';ctx.beginPath();ctx.arc(h.x,h.y,3,0,7);ctx.fill();
+  }
+  // leader highlight
+  const lead=pop.filter(b=>!b.dead).sort((a,b)=>b.fitness()-a.fitness())[0];
+  if(lead){
+    ctx.strokeStyle='#7ee0a1';ctx.lineWidth=3;
+    ctx.beginPath();
+    for(let i=0;i<N;i++){const p=lead.pts[i];if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}
+    ctx.stroke();
+  }
+}
+
+function loop(){
+  for(let s=0;s<speed;s++){
+    let alive=0;
+    for(const b of pop){if(!b.dead){b.step(groundY);if(!b.dead)alive++;}}
+    if(alive===0){breed();}
+  }
+  draw();
+  document.getElementById('gen').textContent=gen;
+  document.getElementById('best').textContent=Math.round(bestEver);
+  document.getElementById('bestbar').style.width=Math.min(100,bestEver/6)+'%';
+  document.getElementById('popn').textContent=pop.length;
+  document.getElementById('alive').textContent=pop.filter(b=>!b.dead).length;
+  requestAnimationFrame(loop);
+}
+
+fit();
+groundY=H*0.8;
+initPop();
+
+let si=0;
+document.getElementById('speed').onclick=e=>{si=(si+1)%SPEEDS.length;speed=SPEEDS[si];e.target.textContent='speed: '+speed+'x';};
+document.getElementById('reset').onclick=()=>{fit();initPop();};
+loop();
+</script>
+</body>
+</html>
