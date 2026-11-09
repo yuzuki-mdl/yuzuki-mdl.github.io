@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>lonely runner — a problem nobody can solve</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  #stage{display:flex;flex-wrap:wrap;gap:1.5rem;align-items:flex-start;justify-content:center;margin:1rem 0}
+  canvas{background:#0d1117;border-radius:12px;touch-action:none}
+  #panel{max-width:320px;font-size:.92rem;line-height:1.5}
+  .row{display:flex;gap:.5rem;align-items:center;margin:.4rem 0;flex-wrap:wrap}
+  label{font-size:.85rem;opacity:.8}
+  input[type=range]{width:120px}
+  button{font:inherit;padding:.4rem .7rem;cursor:pointer;border-radius:8px;border:1px solid #444;background:#1a1f27;color:#e6edf3}
+  button:hover{background:#232a34}
+  #stat{font-family:monospace;font-size:.85rem;margin-top:.6rem;background:#161b22;padding:.6rem .7rem;border-radius:8px;line-height:1.7}
+  .bar{height:8px;background:#21262d;border-radius:4px;overflow:hidden;margin-top:.3rem}
+  .bar>i{display:block;height:100%;background:#3fb950;width:0;transition:width .05s linear}
+  .k{opacity:.6}
+  .hi{color:#3fb950}
+  .lo{color:#f0883e}
+</style>
+</head>
+<body>
+<header><h1>lonely runner</h1><p class="tag">a problem nobody can solve, that you can watch fail to fail</p></header>
+<main>
+<p>k+1 runners on a circular track, all starting together at the line, every one at a different constant speed. the <b>lonely runner conjecture</b> says: eventually some runner is at least <b>1/(k+1)</b> of the track away from <i>every other</i> runner — that runner gets to be <em>lonely</em>.</p>
+<p>it's been proven for up to 6 runners (k≤6). for 7 or more, nobody knows. this is the picture people stare at.</p>
+
+<div id="stage">
+  <canvas id="c" width="460" height="460"></canvas>
+  <div id="panel">
+    <div class="row"><label>runners</label><span id="nval" class="hi">5</span></div>
+    <div class="row"><input id="n" type="range" min="2" max="12" value="5"></div>
+    <div class="row"><button id="play">pause</button><button id="reset">new speeds</button></div>
+    <label class="k">speed</label>
+    <div class="row"><input id="spd" type="range" min="1" max="60" value="18"></div>
+    <div id="stat"></div>
+    <p class="k" style="font-size:.8rem;margin-top:.8rem">the green bar is the <i>best</i> loneliness ever reached so far. the dashed line on it is the target 1/(k+1). if the bar always crosses the line, that's a witness — the conjecture holding for these speeds. it has never not crossed for anyone, which is why it's a conjecture and not a theorem.</p>
+  </div>
+</div>
+</main>
+<script>
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height, cx = W/2, cy = H/2, R = Math.min(W,H)/2 - 34;
+
+let N = 5;
+let speeds = [];
+let t = 0;              // track-time
+let best = 0;           // best loneliness reached so far
+let bestT = 0;
+let playing = true;
+let rate = 18;
+const colors = ['#58a6ff','#f0883e','#3fb950','#db61a2','#d29922','#a371f7','#79c0ff','#ff7b72','#7ee787','#ffa657','#d2a8ff','#56d364'];
+
+function newSpeeds(){
+  // distinct integer speeds, shuffled small set
+  const pool = [];
+  for(let i=1;i<=N+3;i++) pool.push(i);
+  // pick N distinct
+  speeds = [];
+  const copy = pool.slice();
+  for(let i=0;i<N;i++){
+    const j = Math.floor(Math.random()*copy.length);
+    speeds.push(copy.splice(j,1)[0]);
+  }
+  t = 0; best = 0; bestT = 0;
+  document.getElementById('nval').textContent = N;
+}
+
+function pos(speed){ // position in [0,1) on the circle
+  return ((speed * t) % 1 + 1) % 1;
+}
+
+function loneliness(){ // min over others of circular distance, for the loneliest runner
+  const ps = speeds.map(pos);
+  let bestMin = 0, who = -1;
+  for(let i=0;i<N;i++){
+    let mn = 1;
+    for(let j=0;j<N;j++){
+      if(i===j) continue;
+      let d = Math.abs(ps[i]-ps[j]);
+      d = Math.min(d, 1-d);
+      if(d < mn) mn = d;
+    }
+    if(mn > bestMin){ bestMin = mn; who = i; }
+  }
+  return {min: bestMin, who, ps};
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // track
+  ctx.beginPath(); ctx.arc(cx,cy,R,0,Math.PI*2);
+  ctx.strokeStyle = '#30363d'; ctx.lineWidth = 2; ctx.stroke();
+
+  const {min, who, ps} = loneliness();
+
+  // draw runner dots
+  for(let i=0;i<N;i++){
+    const a = ps[i]*Math.PI*2 - Math.PI/2;
+    const x = cx + Math.cos(a)*R, y = cy + Math.sin(a)*R;
+    ctx.beginPath(); ctx.arc(x,y, i===who?9:6, 0, Math.PI*2);
+    ctx.fillStyle = colors[i%colors.length];
+    ctx.globalAlpha = (i===who)?1:0.75;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    if(i===who){
+      ctx.beginPath(); ctx.arc(x,y,14,0,Math.PI*2);
+      ctx.strokeStyle = colors[i%colors.length]; ctx.lineWidth=2; ctx.stroke();
+    }
+  }
+
+  // update best
+  if(min > best){ best = min; bestT = t; }
+
+  // target line
+  const target = 1/(N); // k+1 runners = N, so 1/N
+  const frac = Math.min(1, best/target);
+  document.getElementById('stat').innerHTML =
+    '<div><span class="k">runners k+1 =</span> '+N+' &nbsp; <span class="k">target 1/(k+1) =</span> '+target.toFixed(3)+'</div>'+
+    '<div><span class="k">current loneliest gap =</span> '+min.toFixed(3)+'</div>'+
+    '<div><span class="k">best ever =</span> <span class="hi">'+best.toFixed(3)+'</span>'+(best>=target-1e-9?' ✓ crossed':'')+'</div>'+
+    '<div class="bar"><i style="width:'+(frac*100).toFixed(1)+'%"></i></div>'+
+    '<div class="k" style="font-size:.78rem;margin-top:.2rem">bar fills to best/target; dashed at 100%</div>';
+}
+
+function step(){
+  if(playing){
+    t += 0.0006 * rate;
+  }
+  draw();
+  requestAnimationFrame(step);
+}
+
+function resize(){
+  const s = Math.min(window.innerWidth-40, 520);
+  cv.width = s; cv.height = s;
+  // recompute R
+}
+
+// controls
+document.getElementById('n').addEventListener('input', e=>{
+  N = parseInt(e.target.value); newSpeeds();
+});
+document.getElementById('play').addEventListener('click', e=>{
+  playing = !playing; e.target.textContent = playing?'pause':'play';
+});
+document.getElementById('reset').addEventListener('click', ()=> newSpeeds());
+document.getElementById('spd').addEventListener('input', e=>{ rate = parseInt(e.target.value); });
+
+newSpeeds();
+step();
+</script>
+</body>
+</html>
