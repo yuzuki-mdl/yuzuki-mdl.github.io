@@ -13,6 +13,7 @@
   .cell{position:relative;aspect-ratio:1;cursor:pointer;border-radius:2px;overflow:hidden;background:#000;outline:1px solid #1a1f26}
   .cell canvas{width:100%;height:100%;display:block;image-rendering:pixelated}
   .cell span{position:absolute;left:2px;top:1px;font-size:8px;color:#3f4a55;pointer-events:none}
+  .cell .spark{position:absolute;left:0;bottom:0;width:100%;height:38%;opacity:.85;pointer-events:none}
   .cell:hover{outline-color:#4a6a9a}
   .cell.sel{outline:2px solid #7fb0ff}
   #panel{flex:0 0 300px;display:flex;flex-direction:column;gap:10px}
@@ -33,6 +34,8 @@
     <canvas id="big" width="300" height="300"></canvas>
     <div class="rule" id="lbl"></div>
     <div class="bin" id="bin"></div>
+    <canvas id="spark" width="300" height="60" style="width:100%;height:60px;background:#000;border-radius:6px;image-rendering:pixelated;box-shadow:0 0 0 1px #1c2229"></canvas>
+    <div class="bin">activity over time — live cells per generation. a flat sparkline is a dud; a bloom is a slow burn. same rule, one honest axis.</div>
     <div class="row">
       <button id="rand">random rule</button>
       <button id="again">restart</button>
@@ -58,6 +61,16 @@ function evolve(rule, seed){
   }
   return rows;
 }
+function activity(rows){ // live-cell count per row = activity over time
+  const a=[];for(let y=0;y<rows.length;y++){let s=0;for(let x=0;x<rows[y].length;x++)s+=rows[y][x];a.push(s);}return a;
+}
+function spark(ctx, act, w, h, color){
+  ctx.fillStyle='#000';ctx.fillRect(0,0,w,h);
+  const mx=Math.max(1,...act);
+  ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();
+  for(let i=0;i<act.length;i++){const x=i/(act.length-1)*w, y=h-(act[i]/mx)*(h-2)-1; i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  ctx.stroke();
+}
 function draw(ctx, rows, w, h, cellpx, color){
   ctx.fillStyle='#000';ctx.fillRect(0,0,w,h);
   ctx.fillStyle=color;
@@ -68,14 +81,18 @@ function draw(ctx, rows, w, h, cellpx, color){
 const grid=document.getElementById('grid');
 const big=document.getElementById('big'), bctx=big.getContext('2d');
 const lbl=document.getElementById('lbl'), bin=document.getElementById('bin');
+const sparkCv=document.getElementById('spark'), sctx=sparkCv.getContext('2d');
 let selected=null;
 for(let rule=0;rule<256;rule++){
   const d=document.createElement('div');d.className='cell';d.dataset.rule=rule;
   const cv=document.createElement('canvas');cv.width=W;cv.height=H;
   const g=cv.getContext('2d');
-  draw(g, evolve(rule), W, H, 1, '#8fd6ff');
+  const rows=evolve(rule);
+  draw(g, rows, W, H, 1, '#8fd6ff');
+  const sc=document.createElement('canvas');sc.width=W;sc.height=Math.round(H*0.38);sc.className='spark';
+  spark(sc.getContext('2d'), activity(rows), sc.width, sc.height, '#ffd479');
   const sp=document.createElement('span');sp.textContent=rule;
-  d.appendChild(cv);d.appendChild(sp);
+  d.appendChild(cv);d.appendChild(sc);d.appendChild(sp);
   d.onclick=()=>select(rule);
   grid.appendChild(d);
 }
@@ -86,6 +103,7 @@ function select(rule){
   if(el) el.classList.add('sel');
   const rows=evolve(rule);
   draw(bctx, rows, big.width, big.height, big.width/W, '#8fd6ff');
+  spark(sctx, activity(rows), sparkCv.width, sparkCv.height, '#ffd479');
   lbl.innerHTML='rule <b>'+rule+'</b>';
   bin.textContent='binary '+rule.toString(2).padStart(8,'0')+'  (111→110→...→000)';
 }
