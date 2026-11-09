@@ -242,6 +242,12 @@ function draw(){
       if(r>1.5){
         ctx.strokeStyle='rgba(11,11,15,0.6)'; ctx.lineWidth=0.8; ctx.stroke();
       }
+      if(r>11){
+        ctx.fillStyle='rgba(11,11,15,0.85)';
+        ctx.font=`${Math.min(r*0.7,20)}px ui-monospace,monospace`;
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText(Math.round(c.k), sp.x, sp.y);
+      }
     }
   }
   document.getElementById('hud').innerHTML =
