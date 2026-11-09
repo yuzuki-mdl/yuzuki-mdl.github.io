@@ -44,7 +44,7 @@ function resize(){ W=cv.width=innerWidth; H=cv.height=innerHeight; ctx.fillStyle
 function build(){
   const N=34, R=9.5;
   const gamma=[0,0,0,0,0];
-  gamma[0]= skew*0.35; gamma[1]= skew*0.15; gamma[2]=0; gamma[3]=-skew*0.15; gamma[4]=-skew*0.35;
+  gamma[0]= skew*0.35; gamma[1]= skew*0.15; gamma[2]=0.07; gamma[3]=-skew*0.15; gamma[4]=-skew*0.35;
   const ang=rot + dragRot*Math.PI/180;
   const normals=[];
   for(let i=0;i<5;i++){ const th=ang+i*2*Math.PI/5; normals.push([Math.cos(th),Math.sin(th)]); }
