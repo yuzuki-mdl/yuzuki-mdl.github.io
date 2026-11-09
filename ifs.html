@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ifs chaos game</title>
+<style>
+  html,body{margin:0;height:100%;background:#05050a;overflow:hidden;font-family:ui-monospace,monospace;color:#cfd8e8}
+  canvas{display:block;position:absolute;inset:0}
+  #panel{position:fixed;top:12px;left:12px;font-size:12px;line-height:1.5;background:rgba(10,12,20,.82);border:1px solid #1e2436;border-radius:10px;padding:10px 12px;width:250px;backdrop-filter:blur(6px)}
+  #panel h1{font-size:12px;margin:0 0 8px;letter-spacing:.16em;text-transform:uppercase;color:#7ad0ff;font-weight:600}
+  .row{display:flex;align-items:center;gap:6px;margin:3px 0}
+  .row input[type=number]{width:52px;background:#0d1018;border:1px solid #2a3145;color:#cfd8e8;border-radius:5px;padding:2px 4px;font-family:inherit;font-size:11px}
+  .row span{color:#8892a8;width:14px;text-align:center}
+  button{background:#141a28;border:1px solid #2a3145;color:#cfd8e8;border-radius:6px;padding:4px 8px;font-family:inherit;font-size:11px;cursor:pointer;margin-top:6px}
+  button:hover{background:#1c2436;border-color:#3a4a68}
+  button.on{background:#1d3a5c;border-color:#4a86c8;color:#a8d4ff}
+  .hint{color:#5a6478;font-size:10px;margin-top:8px;line-height:1.4}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="panel">
+  <h1>ifs chaos game</h1>
+  <div id="maps"></div>
+  <button id="reset">reset</button>
+  <button id="more">+1M pts</button>
+  <div class="hint">each map: x' = a·x + b·y + e &nbsp; y' = c·x + d·y + f<br>weights pick the map. change a number, watch it morph.</div>
+</div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let W,H,img,data;
+
+// four maps: a b c d e f weight
+let maps=[
+  {a:.5, b:0,  c:0,  d:.5, e:0,   f:0,   w:.25},
+  {a:.5, b:0,  c:0,  d:.5, e:.5,  f:0,   w:.25},
+  {a:.5, b:0,  c:0,  d:.5, e:.25, f:.5,  w:.25},
+  {a:.5, b:0,  c:0,  d:.5, e:.25, f:.25, w:.25},
+];
+
+// interesting presets
+const presets={
+  fern:[{a:0,b:0,c:0,d:.16,e:0,f:0,w:.01},{a:.85,b:.04,c:-.04,d:.85,e:0,f:1.6,w:.85},{a:.2,b:-.26,c:.23,d:.22,e:0,f:1.6,w:.07},{a:-.15,b:.28,c:.26,d:.24,e:0,f:.44,w:.07}],
+  tree:[{a:0,b:0,c:0,d:.5,e:0,f:0,w:.05},{a:.42,b:0,c:0,d:.42,e:0,f:.2,w:.4},{a:.42,b:0,c:0,d:.42,e:.42,f:.2,w:.4},{a:.1,b:0,c:0,d:.1,e:.1,f:.2,w:.15}],
+  sierp:[{a:.5,b:0,c:0,d:.5,e:0,f:0,w:.33},{a:.5,b:0,c:0,d:.5,e:.5,f:0,w:.33},{a:.5,b:0,c:0,d:.5,e:.25,f:.5,w:.34}],
+  dragon:[{a:.5,b:-.5,c:.5,d:.5,e:0,f:0,w:.5},{a:.5,b:.5,c:-.5,d:.5,e:1,f:0,w:.5}],
+};
+
+function resize(){
+  W=cv.width=innerWidth; H=cv.height=innerHeight;
+  img=ctx.createImageData(W,H); data=img.data;
+  for(let i=3;i<data.length;i+=4) data[i]=255;
+  ctx.fillStyle='#05050a'; ctx.fillRect(0,0,W,H);
+}
+
+let px, py, scale, ox, oy;
+
+function fit(){
+  // rough fit: sample maps, find bounds of a few thousand points
+  let x=0,y=0, minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+  const tot=maps.reduce((s,m)=>s+m.w,0);
+  for(let i=0;i<20000;i++){
+    let r=Math.random()*tot, m=maps[0];
+    for(const mm of maps){ if(r<mm.w){m=mm;break;} r-=mm.w; }
+    const nx=m.a*x+m.b*y+m.e, ny=m.c*x+m.d*y+m.f; x=nx; y=ny;
+    if(i>20){ if(x<minx)minx=x; if(x>maxx)maxx=x; if(y<miny)miny=y; if(y>maxy)maxy=y; }
+  }
+  const pad=40;
+  const sx=(W-2*pad)/(maxx-minx||1), sy=(H-2*pad)/(maxy-miny||1);
+  scale=Math.min(sx,sy);
+  ox=pad - minx*scale + ((W-2*pad)-(maxx-minx)*scale)/2;
+  oy=pad - miny*scale + ((H-2*pad)-(maxy-miny)*scale)/2;
+  // flip y so it looks natural
+  oy = H - oy;
+  scale = scale;
+}
+
+let cx=0, cy=0;
+
+function iterate(n){
+  const tot=maps.reduce((s,m)=>s+m.w,0);
+  for(let i=0;i<n;i++){
+    let r=Math.random()*tot, m=maps[0];
+    for(const mm of maps){ if(r<mm.w){m=mm;break;} r-=mm.w; }
+    const nx=m.a*cx+m.b*cy+m.e, ny=m.c*cx+m.d*cy+m.f;
+    cx=nx; cy=ny;
+    const sx=Math.round(cx*scale+ox), sy=Math.round(-cy*scale+oy);
+    if(sx>=0&&sx<W&&sy>=0&&sy<H){
+      const o=(sy*W+sx)*4;
+      // additive glow, clamped
+      data[o]=Math.min(255,data[o]+22);
+      data[o+1]=Math.min(255,data[o+1]+30);
+      data[o+2]=Math.min(255,data[o+2]+46);
+    }
+  }
+  ctx.putImageData(img,0,0);
+}
+
+function buildPanel(){
+  const box=document.getElementById('maps');
+  box.innerHTML='';
+  maps.forEach((m,mi)=>{
+    const d=document.createElement('div');
+    d.className='row';
+    ['a','b','c','d','e','f','w'].forEach(k=>{
+      if(k==='w'){ const sp=document.createElement('span'); sp.textContent='·'; d.appendChild(sp); }
+      const inp=document.createElement('input');
+      inp.type='number'; inp.step='0.01'; inp.value=m[k];
+      inp.oninput=()=>{ m[k]=parseFloat(inp.value)||0; redraw(); };
+      d.appendChild(inp);
+    });
+    box.appendChild(d);
+  });
+}
+
+function redraw(){
+  resize();
+  fit();
+  cx=0; cy=0;
+  iterate(400000);
+}
+
+function init(){
+  resize();
+  fit();
+  cx=0; cy=0;
+  iterate(600000);
+}
+
+addEventListener('resize',()=>{ init(); });
+
+document.getElementById('reset').onclick=()=>{ init(); };
+document.getElementById('more').onclick=()=>{ iterate(1000000); };
+
+// preset buttons
+const pbox=document.createElement('div');
+pbox.className='row'; pbox.style.flexWrap='wrap';
+Object.keys(presets).forEach(name=>{
+  const b=document.createElement('button'); b.textContent=name;
+  b.onclick=()=>{ maps=presets[name].map(o=>({...o})); buildPanel(); redraw(); };
+  pbox.appendChild(b);
+});
+document.getElementById('panel').insertBefore(pbox, document.getElementById('reset'));
+
+buildPanel();
+init();
+</script>
+</body>
+</html>
