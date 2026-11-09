@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>brinicle</title>
+<style>
+  html,body{margin:0;height:100%;background:#02060c;color:#7fd4e6;font-family:ui-monospace,Menlo,monospace;overflow:hidden}
+  #c{display:block;width:100vw;height:100vh}
+  #ui{position:fixed;left:14px;bottom:12px;font-size:12px;letter-spacing:.04em;opacity:.7;line-height:1.6}
+  #ui b{color:#bff2ff;font-weight:400}
+  #ui a{color:#7fd4e6}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">brinicle — a finger of ice grows down from the sea ice,<br>freezing everything it touches. <b>click</b> to seed a new plume. <b>r</b> to reset.</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,img,data,grid,cols,rows,CELL=3;
+// grid values: 0 water, 1 sea ice (top), 2 brine channel, 3 frozen brinicle ice, 4 victim encased
+const WATER=0,SEAICE=1,BRINE=2,ICE=3,VICTIM=4;
+let victims=[],t=0,plumes=[];
+
+function resize(){
+  cols=Math.max(2,Math.floor(innerWidth/CELL));
+  rows=Math.max(2,Math.floor(innerHeight/CELL));
+  W=cv.width=cols*CELL; H=cv.height=rows*CELL;
+  img=ctx.createImageData(cols,rows); data=img.data;
+  grid=new Uint8Array(cols*rows);
+  reset();
+}
+const idx=(x,y)=>y*cols+x;
+
+function reset(){
+  grid.fill(WATER);
+  victims=[]; plumes=[]; t=0;
+  // sea ice sheet on top, 3-6 rows thick with wavy bottom
+  const thick=4+Math.random()*3;
+  for(let x=0;x<cols;x++){
+    const b=Math.floor(thick + Math.sin(x*0.05)*1.5 + Math.random()*0.6);
+    for(let y=0;y<b;y++) grid[idx(x,y)]=SEAICE;
+  }
+  // a few victims (urchins) sitting on the seafloor
+  const nv=2+Math.floor(Math.random()*4);
+  for(let i=0;i<nv;i++){
+    const vx=Math.floor(cols*(0.15+0.7*Math.random()));
+    const vy=rows-1-Math.floor(Math.random()*3);
+    victims.push({x:vx,y:vy,alive:true});
+    grid[idx(vx,vy)]=VICTIM;
+  }
+  // seed one plume from a random point under the ice
+  seedPlume(Math.floor(cols*(0.3+0.4*Math.random())));
+}
+
+function seedPlume(x){
+  // find bottom of sea ice at this x
+  let y=0; while(y<rows && grid[idx(x,y)]===SEAICE) y++;
+  if(y>=rows) return;
+  plumes.push({x, y, dir:0, life:1});
+  grid[idx(x,y)]=BRINE;
+}
+
+// step the growth: brine sinks, freezing neighbours into brinicle ice,
+// branching sideways when the channel gets narrow
+function step(){
+  t++;
+  const newP=[];
+  for(const p of plumes){
+    // brine flows down, with slight random wander
+    p.dir += (Math.random()-0.5)*0.4;
+    p.dir *= 0.9;
+    let dx=Math.round(p.dir*0.6);
+    let nx=p.x+dx, ny=p.y+1;
+    if(nx<1||nx>=cols-1||ny>=rows){ p.life-=0.2; continue; }
+    // freeze the water around the channel -> brinicle ice
+    for(let oy=-1;oy<=1;oy++)for(let ox=-1;ox<=1;ox++){
+      const gx=nx+ox, gy=ny+oy;
+      if(gx<0||gx>=cols||gy<0||gy>=rows) continue;
+      const g=grid[idx(gx,gy)];
+      if(g===WATER && Math.random()<0.7) grid[idx(gx,gy)]=ICE;
+    }
+    // the channel itself is brine
+    const cur=grid[idx(nx,ny)];
+    if(cur===WATER||cur===ICE){ grid[idx(nx,ny)]=BRINE; p.x=nx; p.y=ny; }
+    else { p.dir=(Math.random()-0.5)*2; } // hit ice, redirect
+    // encase victims the ice reaches
+    for(const v of victims){
+      if(!v.alive) continue;
+      if(Math.abs(v.x-p.x)<=2 && Math.abs(v.y-p.y)<=2){ v.alive=false; grid[idx(v.x,v.y)]=VICTIM; }
+    }
+    // occasional branch
+    if(Math.random()<0.05 && p.y>6){
+      const bx=p.x+(Math.random()<0.5?-1:1);
+      if(bx>0&&bx<cols&&grid[idx(bx,p.y)]===WATER){
+        grid[idx(bx,p.y)]=BRINE;
+        plumes.push({x:bx,y:p.y,dir:(Math.random()-0.5),life:0.7});
+      }
+    }
+    newP.push(p);
+  }
+  plumes=newP.filter(p=>p.life>0 && p.y<rows-1);
+  // slow brine diffusion downward (faint)
+  if(t%2===0){
+    for(let y=rows-2;y>=0;y--){
+      for(let x=1;x<cols-1;x++){
+        if(grid[idx(x,y)]===BRINE && grid[idx(x,y+1)]===WATER && Math.random()<0.02){
+          grid[idx(x,y+1)]=BRINE;
+        }
+      }
+    }
+  }
+  // keep at least one plume alive for a while
+  if(plumes.length===0 && t<rows*1.2){
+    seedPlume(Math.floor(cols*(0.2+0.6*Math.random())));
+  }
+}
+
+function draw(){
+  const pal={
+    [WATER]:[6,16,28],
+    [SEAICE]:[150,205,225],
+    [BRINE]:[40,120,150],
+    [ICE]:[120,200,230],
+    [VICTIM]:[210,90,80]
+  };
+  for(let y=0;y<rows;y++){
+    for(let x=0;x<cols;x++){
+      const g=grid[idx(x,y)];
+      let c=pal[g];
+      // depth shading for water
+      if(g===WATER){ const d=y/rows; c=[6+20*d,16+30*d,28+40*d]; }
+      const i=(y*cols+x)*4;
+      data[i]=c[0]; data[i+1]=c[1]; data[i+2]=c[2]; data[i+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  // glow on brine channels
+  ctx.globalCompositeOperation='lighter';
+  for(const p of plumes){
+    const gx=p.x*CELL, gy=p.y*CELL;
+    const grd=ctx.createRadialGradient(gx,gy,0,gx,gy,CELL*4);
+    grd.addColorStop(0,'rgba(80,190,220,0.35)');
+    grd.addColorStop(1,'rgba(80,190,220,0)');
+    ctx.fillStyle=grd;
+    ctx.fillRect(gx-CELL*4,gy-CELL*4,CELL*8,CELL*8);
+  }
+  ctx.globalCompositeOperation='source-over';
+}
+
+let acc=0,last=performance.now();
+function loop(now){
+  if(W!==innerWidth||H!==innerHeight) resize();
+  const dt=now-last; last=now; acc+=dt;
+  // ~60 steps/sec capped
+  let steps=0;
+  while(acc>16 && steps<3){ step(); acc-=16; steps++; }
+  draw();
+  requestAnimationFrame(loop);
+}
+
+addEventListener('resize',resize);
+addEventListener('click',e=>{
+  const x=Math.floor(e.clientX/CELL);
+  seedPlume(Math.max(1,Math.min(cols-2,x)));
+});
+addEventListener('keydown',e=>{ if(e.key==='r'||e.key==='R') reset(); });
+requestAnimationFrame(()=>{resize();requestAnimationFrame(loop);});
+</script>
+</body>
+</html>
