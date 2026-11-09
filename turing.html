@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>turing machine</title>
+<style>
+  :root{ --bg:#0d0f14; --panel:#151922; --ink:#e6e6e6; --dim:#7a8296; --accent:#6ee7b7; --hot:#f59e0b; --line:#232a38; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font:14px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;flex-direction:column}
+  header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  h1{font-size:15px;margin:0;font-weight:600;letter-spacing:.04em}
+  header .sub{color:var(--dim);font-size:12px}
+  header .grow{flex:1}
+  button{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 12px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button.hot{border-color:var(--hot);color:var(--hot)}
+  select{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font:inherit}
+  main{flex:1;display:flex;min-height:0}
+  #stage{flex:1;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:center}
+  #tape-wrap{overflow-x:auto;overflow-y:hidden;padding:30px 0}
+  #tape{display:flex;gap:2px;width:max-content;margin:0 auto;padding:0 40px}
+  .cell{width:44px;height:52px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;background:var(--panel);border:1px solid var(--line);border-radius:5px;font-size:20px;position:relative;transition:background .1s,transform .1s}
+  .cell.blank{color:var(--dim)}
+  .cell.head{border-color:var(--hot);box-shadow:0 0 0 2px rgba(245,158,11,.25)}
+  .cell.head::after{content:'▼';position:absolute;top:-20px;left:50%;transform:translateX(-50%);color:var(--hot);font-size:12px}
+  #status{text-align:center;padding:10px;color:var(--dim);font-size:13px;min-height:34px}
+  #status b{color:var(--accent)}
+  #status .halt{color:var(--hot)}
+  aside{width:340px;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+  aside h2{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin:0;padding:12px 14px 6px}
+  #rules{flex:1;overflow-y:auto;padding:0 8px 12px}
+  .rule{display:grid;grid-template-columns:1fr 26px 1fr 26px 1fr;gap:4px;align-items:center;padding:4px 6px;border-radius:5px}
+  .rule:hover{background:var(--panel)}
+  .rule.active{background:rgba(245,158,11,.12);outline:1px solid rgba(245,158,11,.35)}
+  .rule input{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:4px;color:var(--ink);font:inherit;text-align:center;padding:4px 2px}
+  .rule input:focus{outline:none;border-color:var(--accent)}
+  .rule .arrow{color:var(--dim);text-align:center;font-size:11px}
+  .rule .lbl{color:var(--dim);font-size:10px;text-align:center}
+  #addrow{margin:0 14px 14px}
+  #speed{display:flex;align-items:center;gap:8px;padding:0 14px 12px;color:var(--dim);font-size:12px}
+  input[type=range]{accent-color:var(--accent);flex:1}
+  .hint{color:var(--dim);font-size:11px;padding:0 14px 14px;line-height:1.5}
+</style>
+</head>
+<body>
+<header>
+  <h1>turing machine</h1>
+  <span class="sub">tape · head · states — build it, step it, watch it halt</span>
+  <span class="grow"></span>
+  <select id="preset">
+    <option value="unary-add">unary add (1+1+1)</option>
+    <option value="busy3">busy beaver 3-state</option>
+    <option value="binary-inc">binary increment</option>
+    <option value="palindrome">palindrome check</option>
+  </select>
+  <button id="run" class="hot">run</button>
+  <button id="step">step</button>
+  <button id="reset">reset</button>
+</header>
+<main>
+  <div id="stage">
+    <div id="tape-wrap"><div id="tape"></div></div>
+    <div id="status"></div>
+  </div>
+  <aside>
+    <h2>transition table</h2>
+    <div id="rules"></div>
+    <button id="addrow">+ rule</button>
+    <div id="speed">slow<input type="range" id="spd" min="0" max="100" value="55">fast</div>
+    <div class="hint">each rule: <b>state</b> · read → write · move (L/R) · next state. blank tape symbol is <b>␣</b>. halting state is <b>H</b>.</div>
+  </aside>
+</main>
+<script>
+const TAPE_LEN = 120;
+const ORIGIN = 55; // index of the first non-blank
+
+const presets = {
+  'unary-add': {
+    start: 'A', head: ORIGIN, tape: {0:'1',1:'1',2:'0',3:'1',4:'1'},
+    rules: [
+      {s:'A', r:'1', w:'1', m:'R', n:'A'},
+      {s:'A', r:'0', w:'1', m:'R', n:'B'},
+      {s:'B', r:'1', w:'1', m:'R', n:'B'},
+      {s:'B', r:'␣', w:'␣', m:'L', n:'C'},
+      {s:'C', r:'1', w:'␣', m:'L', n:'H'},
+    ]
+  },
+  'busy3': {
+    start: 'A', head: ORIGIN, tape: {},
+    rules: [
+      {s:'A', r:'␣', w:'1', m:'R', n:'B'},
+      {s:'A', r:'1', w:'1', m:'L', n:'C'},
+      {s:'B', r:'␣', w:'1', m:'L', n:'A'},
+      {s:'B', r:'1', w:'1', m:'R', n:'B'},
+      {s:'C', r:'␣', w:'1', m:'L', n:'B'},
+      {s:'C', r:'1', w:'1', m:'R', n:'H'},
+    ]
+  },
+  'binary-inc': {
+    start: 'A', head: ORIGIN, tape: {0:'1',1:'0',2:'1',3:'1'},
+    rules: [
+      {s:'A', r:'1', w:'1', m:'R', n:'A'},
+      {s:'A', r:'0', w:'0', m:'R', n:'A'},
+      {s:'A', r:'␣', w:'␣', m:'L', n:'B'},
+      {s:'B', r:'1', w:'0', m:'L', n:'B'},
+      {s:'B', r:'0', w:'1', m:'L', n:'H'},
+      {s:'B', r:'␣', w:'1', m:'L', n:'H'},
+    ]
+  },
+  'palindrome': {
+    start: 'A', head: ORIGIN, tape: {0:'1',1:'0',2:'0',3:'1'},
+    rules: [
+      {s:'A', r:'1', w:'X', m:'R', n:'B'},
+      {s:'A', r:'0', w:'Y', m:'R', n:'C'},
+      {s:'A', r:'␣', w:'␣', m:'R', n:'H'},
+      {s:'B', r:'1', w:'1', m:'R', n:'B'},
+      {s:'B', r:'0', w:'0', m:'R', n:'B'},
+      {s:'B', r:'␣', w:'␣', m:'L', n:'D'},
+      {s:'C', r:'1', w:'1', m:'R', n:'C'},
+      {s:'C', r:'0', w:'0', m:'R', n:'C'},
+      {s:'C', r:'␣', w:'␣', m:'L', n:'E'},
+      {s:'D', r:'1', w:'X', m:'L', n:'F'},
+      {s:'D', r:'0', w:'0', m:'L', n:'G'},
+      {s:'D', r:'X', w:'X', m:'L', n:'D'},
+      {s:'D', r:'Y', w:'Y', m:'L', n:'D'},
+      {s:'E', r:'0', w:'Y', m:'L', n:'G'},
+      {s:'E', r:'1', w:'1', m:'L', n:'G'},
+      {s:'E', r:'X', w:'X', m:'L', n:'E'},
+      {s:'E', r:'Y', w:'Y', m:'L', n:'E'},
+      {s:'F', r:'X', w:'X', m:'L', n:'F'},
+      {s:'F', r:'Y', w:'Y', m:'L', n:'F'},
+      {s:'F', r:'␣', w:'␣', m:'R', n:'H'},
+      {s:'G', r:'X', w:'X', m:'L', n:'G'},
+      {s:'G', r:'Y', w:'Y', m:'L', n:'G'},
+      {s:'G', r:'␣', w:'␣', m:'R', n:'H'},
+    ]
+  }
+};
+
+let tape, head, state, rules, running=false, timer=null, steps=0;
+
+const $ = id => document.getElementById(id);
+
+function loadPreset(name){
+  const p = presets[name];
+  tape = new Array(TAPE_LEN).fill('␣');
+  for (const k in p.tape) tape[ORIGIN + +k] = p.tape[k];
+  head = p.head; state = p.start; steps = 0;
+  rules = p.rules.map(r => ({...r}));
+  stop();
+  renderRules();
+  render();
+  setStatus();
+}
+
+function renderRules(){
+  const box = $('rules');
+  box.innerHTML = '';
+  const cur = state;
+  rules.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'rule' + (r.s === cur ? ' active' : '');
+    div.innerHTML =
+      `<input data-i="${i}" data-f="s" value="${esc(r.s)}">` +
+      `<span class="arrow">·</span>` +
+      `<input data-i="${i}" data-f="r" value="${esc(r.r)}">` +
+      `<span class="arrow">→</span>` +
+      `<div style="display:flex;gap:3px">` +
+        `<input data-i="${i}" data-f="w" value="${esc(r.w)}" style="flex:1">` +
+        `<input data-i="${i}" data-f="m" value="${esc(r.m)}" style="width:22px">` +
+        `<input data-i="${i}" data-f="n" value="${esc(r.n)}" style="flex:1">` +
+      `</div>`;
+    box.appendChild(div);
+  });
+  box.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('change', e => {
+      const i = +e.target.dataset.i, f = e.target.dataset.f;
+      let v = e.target.value.trim() || '␣';
+      if (f === 'm') v = v.toUpperCase() === 'L' ? 'L' : (v.toUpperCase()==='R'?'R':r.m);
+      rules[i][f] = v;
+      renderRules();
+    });
+  });
+}
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;'); }
+
+function render(){
+  const box = $('tape');
+  box.innerHTML = '';
+  // window the visible tape around the head
+  const lo = Math.max(0, head - 26), hi = Math.min(TAPE_LEN, head + 27);
+  for (let i = lo; i < hi; i++){
+    const c = document.createElement('div');
+    const sym = tape[i];
+    c.className = 'cell' + (sym === '␣' ? ' blank' : '') + (i === head ? ' head' : '');
+    c.textContent = sym;
+    box.appendChild(c);
+  }
+  // keep head centered
+  const wrap = $('tape-wrap');
+  const cell = box.children[head - lo];
+  if (cell) wrap.scrollLeft = cell.offsetLeft - wrap.clientWidth/2 + 22;
+}
+
+function setStatus(msg){
+  const s = $('status');
+  if (msg){ s.innerHTML = msg; return; }
+  if (state === 'H'){ s.innerHTML = `<span class="halt">halted</span> · ${steps} steps`; return; }
+  s.innerHTML = `state <b>${esc(state)}</b> · head at ${head} · ${steps} steps`;
+}
+
+function findRule(){
+  const sym = tape[head];
+  return rules.find(r => r.s === state && r.r === sym);
+}
+
+function step(){
+  if (state === 'H'){ stop(); return false; }
+  const rule = findRule();
+  if (!rule){
+    stop();
+    setStatus(`<span class="halt">no rule</span> for state <b>${esc(state)}</b> reading <b>${esc(tape[head])}</b> — halted`);
+    return false;
+  }
+  tape[head] = rule.w;
+  head += rule.m === 'L' ? -1 : 1;
+  if (head < 0){ head = 0; }
+  if (head >= TAPE_LEN){ tape.push('␣'); }
+  state = rule.n;
+  steps++;
+  render();
+  renderRules();
+  setStatus();
+  if (state === 'H'){ stop(); setStatus(`<span class="halt">halted</span> · ${steps} steps`); return false; }
+  return true;
+}
+
+function start(){
+  if (running) return;
+  running = true;
+  $('run').textContent = 'pause';
+  tick();
+}
+function tick(){
+  if (!running) return;
+  const ok = step();
+  if (!ok){ running = false; $('run').textContent = 'run'; return; }
+  const pct = +$('spd').value;
+  const delay = Math.round(400 * Math.pow(1 - pct/100, 2)) + 8;
+  timer = setTimeout(tick, delay);
+}
+function stop(){
+  running = false;
+  clearTimeout(timer);
+  $('run').textContent = 'run';
+}
+
+$('run').addEventListener('click', () => running ? stop() : start());
+$('step').addEventListener('click', () => { stop(); step(); });
+$('reset').addEventListener('click', () => loadPreset($('preset').value));
+$('preset').addEventListener('change', e => loadPreset(e.target.value));
+$('addrow').addEventListener('click', () => { rules.push({s:'A',r:'␣',w:'␣',m:'R',n:'H'}); renderRules(); });
+
+loadPreset('unary-add');
+</script>
+</body>
+</html>
