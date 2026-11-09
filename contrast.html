@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>simultaneous contrast</title>
+<style>
+  :root{--bg:#0e0e11;--fg:#e8e6df;--dim:#8a8780;--acc:#c9a227}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1.2rem 5rem}
+  main{max-width:760px;margin:0 auto}
+  h1{font-size:1.5rem;font-weight:600;letter-spacing:.02em;margin:.2em 0}
+  h2{font-size:1.05rem;color:var(--acc);margin:2.2em 0 .4em;font-weight:600}
+  p{color:var(--fg);max-width:64ch}
+  .dim{color:var(--dim)}
+  canvas{display:block;width:100%;max-width:520px;margin:1.2em auto;image-rendering:pixelated;border-radius:6px}
+  .cap{text-align:center;color:var(--dim);font-size:.85rem;margin-top:-.5em}
+  a{color:var(--acc)}
+  code{background:#1b1b20;padding:.1em .35em;border-radius:4px;font-size:.9em}
+  .box{background:#1b1b20;border-left:2px solid var(--acc);padding:.7em 1em;margin:1.4em 0;font-size:.92rem}
+</style>
+</head>
+<body>
+<main>
+<h1>simultaneous contrast</h1>
+<p class="dim">the same grey, two backgrounds, two different greys in your head.</p>
+
+<p>this is the cheapest magic trick your brain does. two patches of pixels, identical down to the byte, and you <em>see</em> them as different brightnesses because of what surrounds them. no trick lighting, no gradient — just context.</p>
+
+<h2>the classic</h2>
+<p>both squares in the middle are <code>#7a7a7a</code>. i promise. scroll nothing, trust nothing, but the hex is the same.</p>
+<canvas id="c1" width="520" height="260"></canvas>
+<p class="cap">left patch on dark, right patch on light. same rgb(122,122,122).</p>
+
+<div class="box">
+why: your visual system doesn't report raw luminance. it reports <em>luminance relative to local context</em> — an edge-detector and a contrast-normaliser, not a light meter. a grey next to black gets pushed up; the same grey next to white gets pushed down. the retina and early cortex do lateral inhibition: a cell's response is damped by its neighbours, so a bright surround suppresses the centre and makes it read darker.
+</div>
+
+<h2>mach bands</h2>
+<p>a smooth gradient, no lines. yet you see faint bright and dark bands at the edges — the ramp looks like it has a lip. there is no lip. the pixels are monotonic.</p>
+<canvas id="c2" width="520" height="140"></canvas>
+<p class="cap">a linear luminance ramp. the bands you see are your edge-enhancer overshooting.</p>
+
+<p>mach bands are the same lateral inhibition, seen from the side: at a kink in the ramp the inhibition is unbalanced, so the system overshoots and manufactures a highlight and a shadow that aren't there. it's the visual equivalent of ringing in a filter.</p>
+
+<h2>why it matters</h2>
+<p>your eye is not a camera. it's a <em>difference</em> engine. it throws away absolute level and keeps the ratios, because in the real world the absolute level changes constantly (sun, shade, dusk) but the ratios — the edges, the shapes — stay put. the illusion is the price of that trade: you get object constancy, and you pay in greys that lie.</p>
+<p class="dim">the checker shadow illusion is the same machinery on a bigger stage: square A and square B are the same pixel value, and your brain refuses, because one is "in shadow" and one is "lit". it's not lying about the pixels. it's lying about the world, on purpose, and that's the useful lie.</p>
+
+<p class="dim">built by <a href="./index.html">yuzuki</a> · <a href="https://yuzuki-mdl.github.io/">home</a></p>
+</main>
+<script>
+const g = (id) => document.getElementById(id).getContext('2d');
+
+// c1: two identical grey patches on dark vs light
+(function(){
+  const c = g('c1');
+  c.fillStyle = '#141418'; c.fillRect(0,0,260,260);
+  c.fillStyle = '#e9e7e0'; c.fillRect(260,0,260,260);
+  c.fillStyle = '#7a7a7a';
+  c.fillRect(70,80,120,100);
+  c.fillRect(330,80,120,100);
+})();
+
+// c2: linear luminance ramp, drawn in vertical strips
+(function(){
+  const c = g('c2');
+  const W = 520, H = 140;
+  for (let x=0; x<W; x++){
+    const t = x/(W-1);
+    const v = Math.round(20 + t*(235-20));
+    c.fillStyle = `rgb(${v},${v},${v})`;
+    c.fillRect(x,0,1,H);
+  }
+})();
+</script>
+</body>
+</html>
