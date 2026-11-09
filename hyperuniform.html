@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>hyperuniform</title>
+<style>
+  :root{--bg:#0b0e13;--fg:#d8e0ea;--dim:#5a6675;--acc:#7fd8c9;--acc2:#e8a24b}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:24px 16px}
+  h1{font-weight:400;font-size:15px;letter-spacing:.15em;text-transform:uppercase;color:var(--acc);margin:0 0 4px}
+  p.sub{color:var(--dim);font-size:12px;max-width:640px;text-align:center;margin:0 0 20px}
+  .wrap{display:flex;flex-wrap:wrap;gap:24px;justify-content:center;align-items:flex-start}
+  canvas{background:#070a0e;border:1px solid #1c242e;border-radius:8px;display:block}
+  .lbl{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);margin:6px 0 0;text-align:center}
+  .lbl b{color:var(--fg);font-weight:400}
+  .ctrl{display:flex;gap:14px;margin:18px 0 0;flex-wrap:wrap;justify-content:center}
+  button{background:#131a22;color:var(--fg);border:1px solid #263240;border-radius:6px;padding:7px 14px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  .sk{color:var(--dim);font-size:12px;margin-top:14px;text-align:center}
+  .sk b{font-weight:400}
+</style>
+</head>
+<body>
+<h1>hyperuniform</h1>
+<p class="sub">points can look random and still be weirdly even. poisson points clump and leave gaps. hyperuniform points kill the big empty patches and the big blobs — long-wavelength density fluctuations go to zero. the plot below is the structure factor S(k); it tells you how much density wobbles at each scale.</p>
+<div class="wrap">
+  <div><canvas id="cp" width="300" height="300"></canvas><p class="lbl">poisson · <b>S(0)≈1</b></p></div>
+  <div><canvas id="ch" width="300" height="300"></canvas><p class="lbl">hyperuniform · <b>S(0)≈0</b></p></div>
+  <div><canvas id="ck" width="330" height="300"></canvas><p class="lbl">structure factor S(k)</p></div>
+</div>
+<div class="ctrl">
+  <button id="re">new points</button>
+  <button id="jit">jitter ±</button>
+</div>
+<p class="sk" id="sk"></p>
+<script>
+const W=300,N=340;
+let jitter=0.12;
+function poisson(canvas){
+  const c=canvas.getContext('2d');c.clearRect(0,0,W,W);
+  const pts=[];
+  for(let i=0;i<N;i++)pts.push([Math.random()*W,Math.random()*W]);
+  draw(c,pts,'#e8a24b');return pts;
+}
+function hyper(canvas){
+  const c=canvas.getContext('2d');c.clearRect(0,0,W,W);
+  // stratified / jittered lattice: one point per cell, jittered
+  const g=Math.round(Math.sqrt(N));const s=W/g;const pts=[];
+  for(let y=0;y<g;y++)for(let x=0;x<g;x++){
+    pts.push([(x+0.5+(Math.random()-0.5)*jitter*2)*s,(y+0.5+(Math.random()-0.5)*jitter*2)*s]);
+  }
+  draw(c,pts,'#7fd8c9');return pts;
+}
+function draw(c,pts,col){
+  c.clearRect(0,0,W,W);
+  c.fillStyle=col;
+  for(const[px,py]of pts){c.beginPath();c.arc(px,py,1.7,0,7);c.fill();}
+}
+// structure factor: radial average of |sum exp(i k.r)|^2 / N
+function structure(pts,kmax=40,nk=40){
+  const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]);
+  const n=pts.length;
+  const bins=new Array(nk).fill(0),cnt=new Array(nk).fill(0);
+  const dk=kmax/nk;
+  const steps=60;
+  for(let ki=0;ki<steps;ki++){
+    const k=dk*(ki+0.5)* (nk/steps);
+    for(let ai=0;ai<48;ai++){
+      const th=ai/48*2*Math.PI;
+      const kx=k*Math.cos(th),ky=k*Math.sin(th);
+      let re=0,im=0;
+      for(let i=0;i<n;i++){const ph=kx*xs[i]+ky*ys[i];re+=Math.cos(ph);im+=Math.sin(ph);}
+      const S=(re*re+im*im)/n;
+      const bi=Math.min(nk-1,Math.floor(k/dk));
+      bins[bi]+=S;cnt[bi]++;
+    }
+  }
+  const out=[];
+  for(let i=0;i<nk;i++)out.push([dk*(i+0.5),cnt[i]?bins[i]/cnt[i]:0]);
+  return out;
+}
+function plotSk(canvas,sp,sh){
+  const c=canvas.getContext('2d');c.clearRect(0,0,canvas.width,canvas.height);
+  const Wc=canvas.width,Hc=canvas.height,pad=30;
+  // axes
+  c.strokeStyle='#1c242e';c.lineWidth=1;
+  c.beginPath();c.moveTo(pad,Hc-pad);c.lineTo(Wc-pad,Hc-pad);c.moveTo(pad,pad);c.lineTo(pad,Hc-pad);c.stroke();
+  const kMax=41,sMax=2.2;
+  function X(k){return pad+(k/kMax)*(Wc-2*pad);}
+  function Y(s){return Hc-pad-(Math.min(s,sMax)/sMax)*(Hc-2*pad);}
+  // gridline at S=1
+  c.strokeStyle='#243040';c.setLineDash([3,4]);c.beginPath();c.moveTo(pad,Y(1));c.lineTo(Wc-pad,Y(1));c.stroke();c.setLineDash([]);
+  c.fillStyle='#5a6675';c.font='10px monospace';c.fillText('S=1',pad+3,Y(1)-4);
+  function line(data,col){
+    c.strokeStyle=col;c.lineWidth=2;c.beginPath();
+    data.forEach(([k,s],i)=>{const x=X(k),y=Y(s);i?c.lineTo(x,y):c.moveTo(x,y);});c.stroke();
+  }
+  line(sp,'#e8a24b');line(sh,'#7fd8c9');
+  c.fillStyle='#5a6675';c.font='10px monospace';c.fillText('k →',Wc-pad-24,Hc-pad+16);
+  c.save();c.translate(14,pad+20);c.rotate(-Math.PI/2);c.fillText('S(k)',0,0);c.restore();
+  // legend
+  c.fillStyle='#e8a24b';c.fillText('poisson',Wc-70,pad+10);
+  c.fillStyle='#7fd8c9';c.fillText('hyperuniform',Wc-88,pad+24);
+}
+const cp=document.getElementById('cp'),ch=document.getElementById('ch'),ck=document.getElementById('ck');
+let sp,sh;
+function rebuild(){
+  sp=poisson(cp);sh=hyper(ch);
+  const fp=structure(sp),fh=structure(sh);
+  plotSk(ck,fp,fh);
+  const s0p=fp[0][1],s0h=fh[0][1];
+  document.getElementById('sk').innerHTML=`N=${sh.length} points · S(k→0): poisson <b style="color:#e8a24b">${s0p.toFixed(2)}</b> vs hyperuniform <b style="color:#7fd8c9">${s0h.toFixed(2)}</b>`;
+}
+document.getElementById('re').onclick=rebuild;
+document.getElementById('jit').onclick=()=>{jitter=jitter>0.2?0.12:0.45;rebuild();};
+rebuild();
+</script>
+</body>
+</html>
