@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rule 90 — the monster is arithmetic</title>
+<style>
+  :root{--bg:#0a0a0c;--fg:#e8e6e0;--dim:#8a8880;--gold:#c9a227;--line:#1e1e22}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:24px;max-width:1100px;margin:0 auto}
+  h1{font-size:16px;font-weight:600;letter-spacing:.02em;margin:0 0 4px}
+  .sub{color:var(--dim);margin:0 0 22px;font-size:12.5px}
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:720px){.cols{grid-template-columns:1fr}}
+  .panel{background:#0d0d10;border:1px solid var(--line);border-radius:8px;padding:12px}
+  .panel h2{font-size:12px;font-weight:500;color:var(--dim);margin:0 0 8px;letter-spacing:.04em;text-transform:uppercase}
+  canvas{width:100%;height:auto;display:block;image-rendering:pixelated;border-radius:4px}
+  .note{margin-top:20px;padding:14px 16px;border-left:2px solid var(--gold);background:#0d0d10;border-radius:0 6px 6px 0;color:#cfccc4;font-size:13px}
+  .note b{color:var(--gold);font-weight:600}
+  .mono{color:var(--dim)}
+  .controls{margin:18px 0 0;display:flex;gap:14px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--dim)}
+  button{background:#16161a;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px 12px;font:inherit;font-size:12.5px;cursor:pointer}
+  button:hover{border-color:var(--gold);color:var(--gold)}
+  input[type=range]{accent-color:var(--gold);width:160px}
+  .same{color:var(--gold);font-weight:600}
+</style>
+</head>
+<body>
+<h1>rule 90 — the monster is arithmetic</h1>
+<p class="sub">left: the cellular automaton, cell by cell. right: pascal's triangle mod 2. same picture, two ways. one is a machine, the other is a closed form.</p>
+
+<div class="cols">
+  <div class="panel">
+    <h2>the automaton · a(i,t) = a(i-1,t-1) XOR a(i+1,t-1)</h2>
+    <canvas id="ca" width="512" height="512"></canvas>
+  </div>
+  <div class="panel">
+    <h2>the closed form · C(t, i) mod 2</h2>
+    <canvas id="cf" width="512" height="512"></canvas>
+  </div>
+</div>
+
+<div class="controls">
+  <label>generations <input type="range" id="gens" min="16" max="256" value="256" step="16"></label>
+  <span id="gnum">256</span>
+  <span id="match" class="same">✓ pixel-identical</span>
+  <button id="seed">new seed</button>
+</div>
+
+<div class="note">
+  <b>rule 90 looks like it's losing its mind.</b> it isn't. every cell is just the XOR of its two parents — a linear map over GF(2). expand it and generation t is a row of pascal's triangle taken mod 2. no chaos, no memory, no monster. it's a straight line wearing a costume. the sierpinski triangle is what a bit of arithmetic looks like when you let it run.
+</div>
+
+<script>
+const ca = document.getElementById('ca'), cf = document.getElementById('cf');
+const W = 512, H = 512;
+const gctx = ca.getContext('2d'), fctx = cf.getContext('2d');
+const gens = document.getElementById('gens'), gnum = document.getElementById('gnum'), matchEl = document.getElementById('match');
+let seed = W>>1; // centered so the cone never hits the wall within max gens
+
+function rule90(seed, n){ // returns ImageData rows
+  const img = gctx.createImageData(W, H);
+  let row = new Uint8Array(W); row[seed] = 1;
+  const rowH = H / n; // each gen is rowH pixels tall
+  for(let t=0;t<n;t++){
+    // draw this row
+    const y0 = Math.floor(t*rowH), y1 = Math.floor((t+1)*rowH);
+    for(let x=0;x<W;x++){
+      if(row[x]){
+        for(let y=y0;y<y1;y++){
+          const idx=(y*W+x)*4; img.data[idx]=232; img.data[idx+1]=230; img.data[idx+2]=224; img.data[idx+3]=255;
+        }
+      }
+    }
+    // step
+    const next = new Uint8Array(W);
+    for(let x=0;x<W;x++){
+      const l = x>0 ? row[x-1] : 0, r = x<W-1 ? row[x+1] : 0;
+      next[x] = l ^ r;
+    }
+    row = next;
+  }
+  return img;
+}
+
+function closedForm(seed, n){
+  const img = fctx.createImageData(W, H);
+  const rowH = H / n;
+  for(let t=0;t<n;t++){
+    const y0 = Math.floor(t*rowH), y1 = Math.floor((t+1)*rowH);
+    for(let i=0;i<W;i++){
+      // cell at (i,t) lit iff C(t, i-seed) is odd  (with wraparound handled by mod)
+      const d = i - seed;
+      // rule 90 from one seed: cell lit iff C(t,k) odd, k=(t+d)/2, |d|<=t, t+d even
+      if(Math.abs(d) <= t && ((t+d)&1)===0){
+        const k=(t+d)/2;
+        if((k & t) === k){
+        for(let y=y0;y<y1;y++){
+          const idx=(y*W+i)*4; img.data[idx]=232; img.data[idx+1]=230; img.data[idx+2]=224; img.data[idx+3]=255;
+        }
+      }
+      }
+    }
+  }
+  return img;
+}
+
+function draw(){
+  const n = +gens.value;
+  gnum.textContent = n;
+  // reset canvas (clear)
+  gctx.fillStyle='#0d0d10'; gctx.fillRect(0,0,W,H);
+  fctx.fillStyle='#0d0d10'; fctx.fillRect(0,0,W,H);
+  const a = rule90(seed, n), b = closedForm(seed, n);
+  gctx.putImageData(a,0,0);
+  fctx.putImageData(b,0,0);
+  // compare
+  let same = true;
+  for(let k=0;k<a.data.length;k+=4){
+    if(a.data[k]!==b.data[k]){ same=false; break; }
+  }
+  matchEl.textContent = same ? '✓ pixel-identical' : '✗ differ';
+  matchEl.className = same ? 'same' : '';
+}
+
+gens.addEventListener('input', draw);
+document.getElementById('seed').addEventListener('click', ()=>{ seed = W>>1; draw(); });
+draw();
+</script>
+</body>
+</html>
