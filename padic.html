@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>p-adic distance — yūzuki</title><style>
+:root{--bg:#0d0f14;--fg:#e6e6e6;--dim:#8a8f99;--acc:#7ee0c0}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-monospace,monospace;padding:2rem 1rem}
+main{max-width:760px;margin:0 auto}h1{font-size:1.5rem;font-weight:600;color:var(--acc)}
+p{color:var(--fg)}.dim{color:var(--dim)}code{background:#1a1d24;padding:.1em .35em;border-radius:4px}
+canvas{background:#10131a;border-radius:10px;width:100%;display:block;margin:1rem 0}
+.ctrl{display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin:1rem 0;font-size:.9rem}
+input[type=range]{flex:1;min-width:140px}button{background:#1a1d24;color:var(--acc);border:1px solid #2a2f3a;padding:.4rem .8rem;border-radius:6px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--acc)}
+.out{background:#10131a;padding:.8rem 1rem;border-radius:8px;font-size:.9rem;margin:.5rem 0}
+</style></head><body><main>
+<h1>p-adic distance</h1>
+<p>in normal math, two numbers are close when they're <em>nearby</em>. in p-adic math, two numbers are close when their <em>difference is very divisible by p</em>. 1 and 3 are far apart in the reals. in 2-adics they're 2 apart... no wait, closer than 1 and 2.</p>
+<p>the distance is <code>|a-b|&#8346; = p^(-v)</code>, where v is how many times p divides (a-b). so <code>|2-0|&#8322; = 1/2</code>, <code>|4-0|&#8322; = 1/4</code>, <code>|8-0|&#8322; = 1/8</code>. multiples of 2 get <em>closer</em> to zero the more powers of 2 they have.</p>
+<p>the wild part: <code>...111111</code> in binary is -1. it's an infinite string of 1s, and adding 1 to it carries all the way forever, giving 0. so <code>...111 + 1 = 0</code>, meaning <code>...111 = -1</code>. p-adic numbers let you write infinite expansions to the <em>left</em>.</p>
+<p class="dim">pick p below. left panel: 2-adic distance from 0 for the first 32 integers. right panel: the tree — numbers sharing more low bits sit under the same branch.</p>
+<div class="ctrl"><label>p =</label><input id="p" type="range" min="2" max="7" value="2" step="1"><span id="pv" class="dim">2</span><button id="rand">random pair</button></div>
+<canvas id="c" width="720" height="340"></canvas>
+<div class="out" id="out"></div>
+</main><script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+const pEl=document.getElementById('p'),pv=document.getElementById('pv'),out=document.getElementById('out');
+let P=2;
+function vp(n,p){if(n===0)return Infinity;let v=0;while(n%p===0){n/=p;v++}return v}
+function dist(a,b,p){const d=Math.abs(a-b);if(d===0)return 0;return Math.pow(p,-vp(d,p))}
+function draw(){
+  x.clearRect(0,0,c.width,c.height);
+  const N=32, W=c.width, H=c.height;
+  // left: distance bars from 0
+  const leftW=W*0.45, pad=24, bw=(leftW-2*pad)/N;
+  x.fillStyle='#8a8f99';x.font='12px ui-monospace,monospace';
+  x.fillText('distance from 0 (p='+P+')',pad,16);
+  for(let i=0;i<N;i++){
+    const d=dist(i,0,P);const h=(d)*(H-60);
+    x.fillStyle=d>0?'#7ee0c0':'#2a2f3a';
+    x.fillRect(pad+i*bw,H-30-h,Math.max(1,bw-1),h);
+  }
+  x.strokeStyle='#2a2f3a';x.beginPath();x.moveTo(pad,H-30);x.lineTo(leftW-pad,H-30);x.stroke();
+  // right: tree grouping by shared low digits
+  const tx=leftW+10, tw=W-tx-10, cx=tx+tw/2, top=40, rows=Math.ceil(Math.log(N)/Math.log(P))+1;
+  x.fillStyle='#8a8f99';x.fillText('tree by shared low base-'+P+' digits',tx,16);
+  const rowH=(H-70)/rows;
+  function node(level,xpos,ypos){x.fillStyle='#7ee0c0';x.beginPath();x.arc(xpos,ypos,3,0,7);x.fill()}
+  // place each number at depth = vp(number, P)+1 along a branch
+  const groups={};
+  for(let i=1;i<N;i++){const v=vp(i,P);(groups[v]=groups[v]||[]).push(i)}
+  for(let v=0;v<rows;v++){
+    const arr=groups[v]||[];const y=top+v*rowH;
+    arr.forEach((n,j)=>{const xx=tx+ (tw*(j+1)/(arr.length+1));node(v,xx,y);});
+  }
+  // a sample pair distance readout
+  const a=Math.floor(Math.random()*N), b=Math.floor(Math.random()*N);
+  out.textContent='|'+a+' - '+b+'|_'+P+' = '+dist(a,b,P).toFixed(4)+'   (p divides '+(a-b)+' '+vp(Math.abs(a-b),P)+' times)';
+}
+pEl.oninput=()=>{P=+pEl.value;pv.textContent=P;draw()};
+document.getElementById('rand').onclick=draw;
+draw();
+</script></body></html>
