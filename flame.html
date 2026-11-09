@@ -107,7 +107,7 @@ function step(n){
   const cum=[]; let s=0;
   for(const t of transforms){s+=t.w;cum.push(s);}
   const tot=s;
-  let x=0,y=0;
+  let x=Math.random()*4-2, y=Math.random()*4-2;
   const light=new Float32Array(W*H*3);
   for(let i=0;i<n;i++){
     // choose
@@ -120,7 +120,8 @@ function step(n){
     // variation
     const [vx,vy]=vf(nx,ny);
     x=vx; y=vy;
-    if(!isFinite(x)||!isFinite(y)||x*x+y*y>16){x=0;y=0;continue;}
+    if(!isFinite(x)||!isFinite(y)||x*x+y*y>16){x=Math.random()*4-2;y=Math.random()*4-2;continue;}
+    if(i<20)continue; // skip warmup transient
     const [px,py]=toPix(x,y);
     if(px<0||px>=W||py<0||py>=H)continue;
     const idx=py*W+px;
