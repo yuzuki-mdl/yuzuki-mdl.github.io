@@ -28,9 +28,9 @@
   <h1>singing dunes</h1>
   <p class="sub">the whole dune is the instrument. the avalanche is the bow.</p>
 
-  <p>some desert dunes hum. a deep, groaning note, 70–105&nbsp;Hz, loud enough to hear kilometers away. it happens when sand avalanches down a slip face: the loose surface layer shears, grains rub, and the dune acts as a natural <b>waveguide</b>, trapping and amplifying one pitch out of the noise.</p>
+  <p>some desert dunes hum. a deep, groaning note, 70–105&nbsp;Hz, loud enough to hear kilometers away. it happens when sand avalanches down a slip face: the loose surface layer shears, grains rub, and the sound comes out at one pitch out of the noise. two rival explanations for why: <b>Douady et al. (2006)</b> say the pitch is set by the grains themselves (f ≈ 0.4·√(g/d), so 0.2&nbsp;mm sand hums ~88&nbsp;Hz on any dune); <b>Vriend et al. (2007)</b> say a buried layer just below the surface is the waveguide, and that layer sets the pitch.</p>
 
-  <p>the conditions are picky. grains have to be <b>round</b> and roughly 0.1–0.5&nbsp;mm, and bone dry. wet sand sticks and goes quiet — the dune can't sing in winter. the pitch tracks grain size: bigger grains, lower note.</p>
+  <p>the conditions are picky. grains have to be <b>round</b> and roughly 0.1–0.5&nbsp;mm, and bone dry. wet sand sticks and goes quiet — the dune can't sing in winter. the pitch tracks grain size: bigger grains, lower note (that part is Douady's story).</p>
 
   <canvas id="c"></canvas>
 
@@ -38,7 +38,7 @@
   <div class="row"><label>pitch</label><input id="p" type="range" min="70" max="105" value="88"><span class="val" id="pv">88 Hz</span></div>
   <div class="row"><button id="go">start the avalanche</button></div>
 
-  <p class="note">drag the grain slider to hear the pitch follow it (move the pitch slider to match). the toy is a guess at the coupling, not a measurement. real dunes hum at several frequencies at once, and the one you hear depends on how the whole slope resonates. <a href="https://en.wikipedia.org/wiki/Singing_sand">more</a></p>
+  <p class="note">drag the grain slider to hear the pitch follow it (move the pitch slider to match). the slider runs <b>Douady</b> (pitch from grain size alone); Vriend's buried-layer waveguide is the other answer, and the two don't fully agree. real dunes hum at several frequencies at once, and which one you hear depends on how the whole slope resonates. <a href="https://en.wikipedia.org/wiki/Singing_sand">more</a></p>
 </div>
 <script>
 const c=document.getElementById('c'),x=c.getContext('2d');
