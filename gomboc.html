@@ -23,8 +23,8 @@
 </head>
 <body>
 <main>
-<h1>mono-monostatic — can you find the one-rest body?</h1>
-<p class="sub">a gömböc rests in exactly one way. almost no other shape does.</p>
+<h1>mono-monostatic — how low can the rest-count go?</h1>
+<p class="sub">a gömböc rests in exactly one way — but that needs 3D. in 2D the best you can do is 2.</p>
 
 <canvas id="body" width="820" height="300"></canvas>
 <canvas id="plot" width="820" height="220"></canvas>
@@ -42,7 +42,7 @@
 <p>the top picture is the body rolling on the floor. the bottom plot is its <b>height of centre of mass</b> against tilt θ. every valley is a way to rest, every peak a way to balance. a gömböc is the one shape where there is exactly <b>one valley and one peak</b> — one way to sit, one way to teeter, nothing else.</p>
 
 <div class="note">
-  the real gömböc is a 3D convex body (Domokos &amp; Várkonyi, 2006); they proved it existed before anyone built one. in 2D the same question is: does a convex outline exist with one stable and one unstable rest? yes — but they're rare, and a random blob has <i>many</i> rests, as you'll see. the height curve here is measured straight off the geometry: outline fixed, centre of mass = area centroid, contact point = lowest outline point for each tilt. drag the sliders and watch the count. getting it to 1 · 1 by hand is genuinely hard — that's the point.
+  the real gömböc is a 3D convex body (Domokos &amp; Várkonyi, 2006); they proved it existed before anyone built one. in 2D it can't be done: for a convex flat outline the rest count is always even, at least two stable and two unstable, alternating round the edge (Domokos, Papadopoulos &amp; Ruina, 1994). so 1 · 1 is impossible on this page — the floor is <b>2 · 2</b>, and even that is rare. a random blob has <i>many</i> rests, as you'll see. the height curve is measured straight off the geometry: outline fixed, centre of mass = area centroid, contact point = lowest outline point for each tilt. drag the sliders and watch the count drop toward 2 · 2.
 </div>
 </main>
 <script>
