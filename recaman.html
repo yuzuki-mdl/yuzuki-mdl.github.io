@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>recamán's sequence</title>
+<style>
+  :root{--bg:#0d0f14;--fg:#e8e6e3;--dim:#8a8f98;--accent:#7fd1c8;--accent2:#e8a06a;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,Menlo,monospace;padding:24px;max-width:900px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  .sub{color:var(--dim);margin:0 0 20px;font-size:13px}
+  canvas{width:100%;height:auto;display:block;background:#11141b;border-radius:8px;border:1px solid #1e232e}
+  .controls{display:flex;gap:16px;align-items:center;margin:16px 0;flex-wrap:wrap}
+  label{color:var(--dim);font-size:13px}
+  input[type=range]{width:180px;accent-color:var(--accent)}
+  .val{color:var(--accent);font-variant-numeric:tabular-nums}
+  button{background:#1a1f2a;border:1px solid #2a3242;color:var(--fg);padding:6px 12px;border-radius:6px;cursor:pointer;font:inherit;font-size:13px}
+  button:hover{border-color:var(--accent)}
+  .info{color:var(--dim);font-size:13px;margin-top:12px}
+  .info b{color:var(--accent2);font-weight:600}
+</style>
+</head>
+<body>
+<h1>recamán's sequence</h1>
+<p class="sub">a(0)=0. step back n if the result is positive and unseen, else step forward n. self-avoiding, and nobody knows if it's bounded.</p>
+<canvas id="c" width="1600" height="500"></canvas>
+<div class="controls">
+  <label>terms <input id="n" type="range" min="10" max="300" value="120"></label>
+  <span class="val" id="nv">120</span>
+  <button id="reset">reset</button>
+</div>
+<div class="info" id="info"></div>
+
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const nIn=document.getElementById('n'),nv=document.getElementById('nv'),info=document.getElementById('info');
+let seq=[];
+
+function gen(N){
+  seq=[0];const seen=new Set([0]);
+  for(let i=1;i<N;i++){
+    let prev=seq[i-1];
+    let back=prev-i;
+    if(back>=0&&!seen.has(back)){seq.push(back);seen.add(back);}
+    else{seq.push(prev+i);seen.add(prev+i);}
+  }
+}
+
+function draw(N){
+  const max=Math.max(...seq.slice(0,N),1);
+  const W=c.width,H=c.height,pad=40;
+  const sx=(W-2*pad)/max;
+  const cy=H/2,amp=H/2-pad;
+  ctx.clearRect(0,0,W,H);
+  // baseline
+  ctx.strokeStyle='#1e232e';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(pad,cy);ctx.lineTo(W-pad,cy);ctx.stroke();
+  // arcs
+  for(let i=1;i<N;i++){
+    const a=seq[i-1],b=seq[i];
+    const x1=pad+a*sx,x2=pad+b*sx;
+    const up=i%2===1;
+    const r=Math.abs(x2-x1)/2;
+    const cx=(x1+x2)/2;
+    const cyy=up?cy-r:cy+r;
+    const hue=180+ (i/N)*120;
+    ctx.strokeStyle=`hsla(${hue},60%,65%,0.55)`;
+    ctx.lineWidth=1.2;
+    ctx.beginPath();
+    ctx.arc(cx,cyy,r, up?Math.PI:0, up?0:Math.PI, up?false:true);
+    ctx.stroke();
+  }
+  // dots
+  ctx.fillStyle='#e8e6e3';
+  for(let i=0;i<N;i++){
+    const x=pad+seq[i]*sx;
+    ctx.beginPath();ctx.arc(x,cy,1.6,0,7);ctx.fill();
+  }
+  info.innerHTML=`<b>${N}</b> terms · max value <b>${max}</b> · a(${N-1}) = <b>${seq[N-1]}</b>`;
+}
+
+function update(){const N=+nIn.value;nv.textContent=N;gen(N);draw(N);}
+nIn.addEventListener('input',update);
+document.getElementById('reset').addEventListener('click',()=>{nIn.value=120;update();});
+update();
+</script>
+</body>
+</html>
