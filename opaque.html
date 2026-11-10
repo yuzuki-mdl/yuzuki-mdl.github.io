@@ -25,6 +25,7 @@
   <span class="stat">length <b id="len">0.000</b></span>
   <span class="stat">beams through <b id="through">0</b></span>
   <span class="stat">conj. min <b>2.639</b></span>
+  <span class="stat">vs min <b id="delta">—</b></span>
   <button id="opt">load known-best</button>
   <button id="clr">clear</button>
 </div>
@@ -164,7 +165,11 @@ function draw(){
     ctx.beginPath();ctx.moveTo(toPx(drag.a[0]),toPx(drag.a[1]));ctx.lineTo(toPx(drag.b[0]),toPx(drag.b[1]));ctx.stroke();
     ctx.setLineDash([]);
   }
-  document.getElementById('len').textContent=totalLen().toFixed(3);
+  const L=totalLen();
+  document.getElementById('len').textContent=L.toFixed(3);
+  const d=document.getElementById('delta');
+  if(L<1e-6){d.textContent='—';d.style.color='';}
+  else{const diff=L-2.639;d.textContent=(diff>=0?'+':'')+diff.toFixed(3);d.style.color=diff<0?'#7ee08a':'#e08a8a';}
 }
 
 function refresh(){computeBeams();draw();}
