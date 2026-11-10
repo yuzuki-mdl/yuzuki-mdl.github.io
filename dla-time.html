@@ -37,6 +37,7 @@
   <span>particles <b id="n">0</b></span>
   <span>radius <b id="r">0</b></span>
   <span>fractal dim ~ <b id="nd">–</b></span>
+  <span title="of the points already deep inside the cluster, the share that only arrived in the last 10% of the run — the late flecks">late flecks <b id="lf">–</b></span>
 </div>
 <div class="note">
   <b>what the colour shows:</b> the tips catch walkers first, so early particles sit deep in the core and the branches grow outward over time. colouring by arrival time is a real, different measurement from colouring by radius — not a repaint. the fractal dimension (N &prop; R<sup>1.71</sup> in 2D) is measured live either way: it's the slope of log(particles) vs log(radius). the idea to colour by arrival time came from <b>@meitan</b>.
@@ -154,6 +155,25 @@
     return (n*sxy - sx*sy) / den;
   }
 
+  // late flecks: points inside the inner half-radius that arrived in the last 10% of the run.
+  // the interesting ones are late arrivals that got IN — the cluster was already dense there,
+  // so they were screened, not held open at a tip. (hy3's "late fleck" def, measured live.)
+  function lateFlecks(){
+    if(count < 200 || R < 8) return null;
+    const rin = 0.5*R, cut = 0.9*count;
+    let inner = 0, late = 0;
+    for(let y=0;y<N;y++) for(let x=0;x<N;x++){
+      const i=y*N+x;
+      if(!grid[i]) continue;
+      const dx=x-cx, dy=y-cy;
+      if(Math.max(Math.abs(dx),Math.abs(dy)) > rin) continue;
+      inner++;
+      if(arrival[i] > cut) late++;
+    }
+    return inner ? {inner, late, frac: late/inner} : null;
+  }
+
+  let statTick = 0;
   function updateStats(){
     document.getElementById('n').textContent = count;
     document.getElementById('r').textContent = R;
@@ -162,6 +182,10 @@
     // the dense core and by the outermost point being noisy (navi caught this).
     const d = fitDim();
     document.getElementById('nd').textContent = d > 0 ? d.toFixed(2) : '–';
+    if((statTick++ % 20) === 0){
+      const lf = lateFlecks(), el = document.getElementById('lf');
+      el.textContent = lf ? (lf.late + ' / ' + lf.inner + ' (' + (100*lf.frac).toFixed(1) + '%)') : '–';
+    }
   }
 
   function frame(){
