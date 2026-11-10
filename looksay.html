@@ -38,7 +38,7 @@
   <button id="go">say it</button>
 </div>
 <div id="rows"></div>
-<p class="note">every row is the previous row read aloud. lengths grow by the constant <code>λ ≈ 1.303577</code> — the <b>conway constant</b>, a real root of a degree-71 polynomial. the same digits keep recurring: only 1, 2, 3 ever appear after the first two rows, whatever you start with. <span style="color:#3a404c">(conway 1986)</span></p>
+<p class="note">every row is the previous row read aloud. lengths grow by the constant <code>λ ≈ 1.303577</code> — the <b>conway constant</b>, a real root of a degree-71 polynomial. the same digits keep recurring: no new digit above 3 ever appears after the first two rows. a 4 already in the seed just rides along (start at 4 and it stays), and 22 never grows at all. <span style="color:#3a404c">(conway 1986)</span></p>
 <script>
 const $ = id => document.getElementById(id);
 

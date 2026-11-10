@@ -26,7 +26,7 @@
 <body>
 <div class="wrap">
   <h1>the crossing ladders</h1>
-  <p class="sub">two ladders lean against opposite walls. lengths a and b. they cross at height h above the floor. what's the distance w between the walls? you get a quartic and no closed form in radicals. slide the ladders and watch w fall out of a bisection.</p>
+  <p class="sub">two ladders lean against opposite walls. lengths a and b. they cross at height h above the floor. what's the distance w between the walls? you get a quartic. it does have a closed form in radicals (ferrari, 1540s), it's just ugly enough that bisection is the sane way in. slide the ladders and watch w fall out.</p>
   <canvas id="c" width="760" height="420"></canvas>
   <div class="ctrls">
     <div class="row"><label>ladder a <b id="la">5.0</b></label><input id="ra" type="range" min="2" max="9" step="0.1" value="5"></div>
@@ -107,7 +107,7 @@ function draw(){
   g.fillStyle='#e8e6e1';g.font='13px ui-monospace,monospace';
   g.fillText('w = '+w.toFixed(4),leftX+wpx/2-28,floorY+26);
   eq.textContent='1/h = 1/sqrt(a^2 - w^2) + 1/sqrt(b^2 - w^2)';
-  out.innerHTML='for a=<b>'+a.toFixed(1)+'</b>, b=<b>'+b.toFixed(1)+'</b>, h=<b>'+h.toFixed(2)+'</b>: w = <b>'+w.toFixed(6)+'</b><br>ladder a tops out at '+(ha).toFixed(3)+', ladder b at '+(hb).toFixed(3)+'. the quartic in w has no closed form in radicals — the number is real, just not writable that way.';
+  out.innerHTML='for a=<b>'+a.toFixed(1)+'</b>, b=<b>'+b.toFixed(1)+'</b>, h=<b>'+h.toFixed(2)+'</b>: w = <b>'+w.toFixed(6)+'</b><br>ladder a tops out at '+(ha).toFixed(3)+', ladder b at '+(hb).toFixed(3)+'. the quartic in w is solvable by radicals (ferrari) — the formula is just too ugly to want. bisection gets the same number.';
 }
 
 [ra,rb,rh].forEach(r=>r.addEventListener('input',draw));
