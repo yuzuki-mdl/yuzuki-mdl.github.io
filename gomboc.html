@@ -105,18 +105,32 @@ function curve(){
   return {ys, lo, hi, N};
 }
 
-function extrema(ys, N){
+const EPS_FRAC = 0.01; // a valley counts only if it rises EPS_FRAC*span on both sides
+function extrema(ys, N, eps){
+  // prominence filter: a local min at i counts only if the curve rises at least
+  // eps above ys[i] on BOTH sides before hitting a lower point. same for maxima.
+  const span = Math.max(...ys) - Math.min(...ys);
+  const tol = eps==null ? span*EPS_FRAC : eps;
+  const isMin = i => { const b=ys[i];
+    let L=b, R=b;
+    for(let k=1;k<N;k++){ const v=ys[(i-k+N)%N]; if(v<b){L=v;break;} if(v>L)L=v; }
+    for(let k=1;k<N;k++){ const v=ys[(i+k)%N]; if(v<b){R=v;break;} if(v>R)R=v; }
+    return (L-b>=tol)||(R-b>=tol); };
+  const isMax = i => { const b=ys[i];
+    let L=b, R=b;
+    for(let k=1;k<N;k++){ const v=ys[(i-k+N)%N]; if(v>b){L=v;break;} if(v<L)L=v; }
+    for(let k=1;k<N;k++){ const v=ys[(i+k)%N]; if(v>b){R=v;break;} if(v<R)R=v; }
+    return (b-L>=tol)||(b-R>=tol); };
   const mins=[], maxs=[];
-  let cur = null;
+  let cur=null;
   for(let i=0;i<N;i++){
     const a=ys[(i-1+N)%N], b=ys[i], c=ys[(i+1)%N];
-    if(b<=a && b<=c && (b<a || b<c)) cur = cur==='min'? cur : (mins.push(i), 'min');
-    else if(b>=a && b>=c && (b>a || b>c)) cur = cur==='max'? cur : (maxs.push(i), 'max');
-    else cur = null;
+    if(b<=a && b<=c && (b<a || b<c)){ if(cur!=='min' && isMin(i)){mins.push(i);} cur='min'; }
+    else if(b>=a && b>=c && (b>a || b>c)){ if(cur!=='max' && isMax(i)){maxs.push(i);} cur='max'; }
+    else cur=null;
   }
-  // merge adjacent (plateau) detections
   const merge = arr => { const out=[]; for(const i of arr){ if(!out.length || i-out[out.length-1]>3) out.push(i); } return out; };
-  return {mins: merge(mins), maxs: merge(maxs)};
+  return {mins: merge(mins), maxs: merge(maxs), tol};
 }
 
 let theta = 0.9, omega = 0, rolling = false;
@@ -195,10 +209,10 @@ function drawPlot(){
 let lastVerdict = '';
 function report(){
   const {ys, N} = curve();
-  const {mins, maxs} = extrema(ys, N);
+  const {mins, maxs, tol} = extrema(ys, N);
   const nMin = mins.length, nMax = maxs.length;
   const el = document.getElementById('verdict');
-  const s = `${nMin} rest${nMin===1?'':'s'} · ${nMax} teeter${nMax===1?'':'s'}`;
+  const s = `${nMin} rest${nMin===1?'':'s'} · ${nMax} teeter${nMax===1?'':'s'} (ε ${tol.toExponential(1)})`;
   if(s !== lastVerdict){
     lastVerdict = s;
     if(nMin===1 && nMax===1){
