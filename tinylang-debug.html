@@ -39,6 +39,10 @@
   .vars { display:flex; flex-wrap:wrap; gap:6px; }
   .var { background:#1d2027; border:1px solid #2a2d35; border-radius:5px; padding:2px 8px; }
   .var b { color:#7fb0ff; font-weight:600; }
+  .cell, .var { cursor:pointer; }
+  .cell:hover, .var:hover { border-color:#4a5570; }
+  .cell.edited, .var.edited { border-color:#ffb84d; color:#ffd98a; }
+  .cell input, .var input { font:inherit; background:#0f1115; color:#fff; border:1px solid #2b6cff; border-radius:3px; width:5em; }
   .out { min-height:40px; margin:0; color:#cfe3cf; white-space:pre-wrap; }
   .err { color:#ff8a8a; }
   .hint { color:#8a8f99; font-size:13px; }
@@ -52,7 +56,7 @@
 <body>
 <header>
   <h1>tinylang, stepped</h1>
-  <p class="tag">a time-travel debugger for the <a href="tinylang-bytecode.html">compiled tinylang</a> — step the stack machine one instruction at a time, scrub back and forth — and <b>fork</b> from any frame to re-run from that exact state</p>
+  <p class="tag">a time-travel debugger for the <a href="tinylang-bytecode.html">compiled tinylang</a> — step the stack machine one instruction at a time, scrub back and forth — click any stack cell or variable to <b>poke</b> a new value, then <b>fork</b> from that frame to re-run from the edited state</p>
 </header>
 <main>
 <section>
@@ -262,6 +266,9 @@ const $sel=document.getElementById('example');
 
 let T=null; // trace result
 let cur=0;
+let editStack=null, editVars=null; // pending edits at the current frame (null = none)
+
+function clearEdits(){ editStack=null; editVars=null; }
 
 function loadIt(){
   $src.value = EXAMPLES[$sel.value] || '';
@@ -295,25 +302,35 @@ function build(){
 function render(){
   if(!T){ return; }
   const f = T.frames[cur];
+  const stack = editStack || f.stack;
+  const vars = editVars || f.vars;
   // highlight the instruction about to run at this frame (f.pc)
   for(const el of $dis.children){ el.classList.toggle('cur', Number(el.dataset.pc)===f.pc); }
 
   // stack (top at top visually via column-reverse)
   $stack.innerHTML='';
-  if(f.stack.length===0){ const d=document.createElement('div'); d.className='muted'; d.textContent='(empty)'; $stack.appendChild(d); }
-  else f.stack.forEach((v,idx)=>{
-    const d=document.createElement('div'); d.className='cell'+(idx===f.stack.length-1?' top':'');
-    d.textContent=JSON.stringify(v); $stack.appendChild(d);
+  if(stack.length===0){ const d=document.createElement('div'); d.className='muted'; d.textContent='(empty)'; $stack.appendChild(d); }
+  else stack.forEach((v,idx)=>{
+    const d=document.createElement('div');
+    d.className='cell'+(idx===stack.length-1?' top':'')+(editStack?' edited':'');
+    d.textContent=JSON.stringify(v);
+    d.title='click to edit this stack cell';
+    d.addEventListener('click', ()=>editCell('stack', idx, d));
+    $stack.appendChild(d);
   });
-  $depth.textContent = '('+f.stack.length+')';
+  $depth.textContent = '('+stack.length+')';
 
   // vars
   $vars.innerHTML='';
-  const keys=Object.keys(f.vars);
+  const keys=Object.keys(vars);
   if(keys.length===0){ const d=document.createElement('span'); d.className='muted'; d.textContent='(none yet)'; $vars.appendChild(d); }
   else keys.forEach(k=>{
-    const d=document.createElement('span'); d.className='var';
-    d.innerHTML='<b>'+k+'</b> = '+JSON.stringify(f.vars[k]); $vars.appendChild(d);
+    const d=document.createElement('span');
+    d.className='var'+(editVars?' edited':'');
+    d.innerHTML='<b>'+k+'</b> = '+JSON.stringify(vars[k]);
+    d.title='click to edit this variable';
+    d.addEventListener('click', ()=>editCell('var', k, d));
+    $vars.appendChild(d);
   });
 
   // output
@@ -325,7 +342,39 @@ function render(){
   $stepnum.textContent = 'step '+cur+' / '+(T.frames.length-1) + (f.note? '  · '+f.note : '');
 }
 
-function go(n){ if(!T)return; cur=Math.max(0,Math.min(T.frames.length-1,n)); render(); }
+function go(n){ if(!T)return; clearEdits(); cur=Math.max(0,Math.min(T.frames.length-1,n)); render(); }
+
+// click a cell/var to type a new value into the pending edit buffer
+function editCell(kind, key, el){
+  if(!T) return;
+  const f = T.frames[cur];
+  const base = kind==='stack' ? (editStack || f.stack) : (editVars || f.vars);
+  const oldVal = kind==='stack' ? base[key] : base[key];
+  el.innerHTML = '';
+  const inp = document.createElement('input');
+  inp.type='text'; inp.value = String(oldVal);
+  el.appendChild(inp); inp.focus(); inp.select();
+  let done=false;
+  const commit=(ok)=>{
+    if(done) return; done=true;
+    if(ok){
+      const raw = inp.value.trim();
+      let v;
+      if(raw==='' ) v = 0;
+      else if(!isNaN(Number(raw))) v = Number(raw);
+      else { try { v = JSON.parse(raw); } catch(e){ v = raw; } }
+      if(kind==='stack'){ editStack = (editStack || f.stack).slice(); editStack[key]=v; }
+      else { editVars = Object.assign({}, editVars || f.vars); editVars[key]=v; }
+    }
+    render();
+  };
+  inp.addEventListener('keydown', e=>{
+    if(e.key==='Enter'){ e.preventDefault(); commit(true); }
+    else if(e.key==='Escape'){ e.preventDefault(); commit(false); }
+    e.stopPropagation();
+  });
+  inp.addEventListener('blur', ()=>commit(true));
+}
 
 $sel.addEventListener('change', loadIt);
 document.getElementById('reset').addEventListener('click', build);
@@ -339,8 +388,8 @@ document.getElementById('fork').addEventListener('click', ()=>{
   const f=T.frames[cur];
   try {
     const prog = compile(parse(lex($src.value)));
-    const tr = trace(prog, {maxSteps:200000, pc:f.pc, stack:f.stack, vars:f.vars, out:f.out, branched:true});
-    T=tr;
+    const tr = trace(prog, {maxSteps:200000, pc:f.pc, stack: editStack || f.stack, vars: editVars || f.vars, out:f.out, branched:true});
+    T=tr; clearEdits();
     const rows = disasm(prog);
     $dis.innerHTML='';
     for(const r of rows){ const el=document.createElement('span'); el.className='row'; el.dataset.pc=r.i; el.textContent=r.text; $dis.appendChild(el); }
