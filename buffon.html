@@ -1,0 +1,102 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>buffon's needle</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  html,body{margin:0;background:#0e0f13;color:#d8d8de;font:14px/1.5 ui-monospace,monospace}
+  #wrap{max-width:820px;margin:0 auto;padding:18px}
+  h1{font-size:16px;font-weight:600;letter-spacing:.04em;margin:0 0 4px}
+  p{color:#8d8f9a;margin:6px 0}
+  canvas{width:100%;height:auto;display:block;background:#12141a;border:1px solid #23262f;border-radius:6px;margin:12px 0}
+  .row{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:10px 0}
+  label{color:#8d8f9a}
+  input[type=range]{width:150px;vertical-align:middle}
+  button{background:#1c1f27;color:#d8d8de;border:1px solid #2c303c;border-radius:5px;padding:5px 10px;font:inherit;cursor:pointer}
+  button:hover{background:#252a35}
+  .big{font-size:22px;color:#e8e8ee;font-variant-numeric:tabular-nums}
+  .acc{color:#7fb2ff}
+</style></head><body><div id="wrap">
+<h1>buffon's needle</h1>
+<p>drop a needle of length L onto a floor of parallel lines spaced L apart. it crosses a line with probability 2/pi. throw enough needles and pi falls out of the crossings.</p>
+<canvas id="c" width="760" height="420"></canvas>
+<div class="row">
+  <button id="one">throw 1</button>
+  <button id="hundred">throw 100</button>
+  <button id="many">throw 10k</button>
+  <button id="reset">reset</button>
+</div>
+<div class="row">
+  <label>needle / spacing <input id="ratio" type="range" min="20" max="100" value="100"> <span id="rv">1.00</span></label>
+</div>
+<p>thrown <span id="n" class="big">0</span> &nbsp; crossed <span id="k" class="big">0</span></p>
+<p>estimate of pi: <span id="pi" class="big acc">—</span></p>
+<p style="font-size:12px">estimate = 2·L·N / (d·K) where N needles, K crossings, d spacing. exact at ratio 1: 2N/K.</p>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+const W=c.width,H=c.height;
+let N=0,K=0,needles=[],ratio=1.0;
+const lines=8;
+const sp=H/lines;
+
+function drawFloor(){
+  x.fillStyle='#12141a';x.fillRect(0,0,W,H);
+  x.strokeStyle='#2a2f3c';x.lineWidth=1;
+  for(let i=1;i<lines;i++){x.beginPath();x.moveTo(0,i*sp);x.lineTo(W,i*sp);x.stroke();}
+}
+
+function drawNeedles(){
+  x.strokeStyle='#6f7480';x.lineWidth=1.4;
+  for(const nd of needles){
+    x.beginPath();
+    x.moveTo(nd.x-nd.dx,nd.y-nd.dy);
+    x.lineTo(nd.x+nd.dx,nd.y+nd.dy);
+    x.strokeStyle=nd.cross?'#7fb2ff':'#5d6270';
+    x.stroke();
+  }
+}
+
+function stats(){
+  document.getElementById('n').textContent=N;
+  document.getElementById('k').textContent=K;
+  const pi=document.getElementById('pi');
+  if(K>0){const est=2*ratio*N/(1*K); pi.textContent=est.toFixed(6);}
+  else pi.textContent='—';
+}
+
+function throwOne(){
+  const L=ratio*sp;
+  const cx=Math.random()*W, cy=Math.random()*H;
+  const th=Math.random()*Math.PI;
+  const dx=Math.cos(th)*L/2, dy=Math.sin(th)*L/2;
+  // distance from centre to nearest line on an infinite floor, periodic in sp
+  const yy=((cy%sp)+sp)%sp;
+  const dist=Math.min(yy, sp-yy);
+  const cross=dist <= Math.abs(dy);
+  return {x:cx,y:cy,dx,dy,cross};
+}
+
+function throwN(n){
+  // batch: count crossings, only keep drawn needles limited
+  for(let i=0;i<n;i++){
+    const nd=throwOne();
+    N++;
+    if(nd.cross)K++;
+    if(needles.length<3000) needles.push(nd);
+  }
+  if(needles.length>3000) needles=needles.slice(-3000);
+  render();stats();
+}
+
+function render(){drawFloor();drawNeedles();}
+
+function reset(){N=0;K=0;needles=[];render();stats();}
+
+document.getElementById('one').onclick=()=>throwN(1);
+document.getElementById('hundred').onclick=()=>throwN(100);
+document.getElementById('many').onclick=()=>throwN(10000);
+document.getElementById('reset').onclick=reset;
+const r=document.getElementById('ratio');
+r.oninput=()=>{ratio=r.value/100;document.getElementById('rv').textContent=ratio.toFixed(2);render();stats();};
+
+render();stats();
+</script>
+</div></body></html>
