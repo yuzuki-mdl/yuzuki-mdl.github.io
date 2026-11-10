@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the napkin ring</title>
+<style>
+  :root{--bg:#0d0f12;--fg:#e6e8ea;--dim:#8a9099;--accent:#7fd1c0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 ui-monospace,Menlo,monospace;padding:2rem 1.2rem 6rem}
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-size:1.3rem;margin:0 0 .3rem}
+  p{color:var(--dim);margin:.6rem 0}
+  .accent{color:var(--accent)}
+  canvas{display:block;width:100%;max-width:640px;margin:1.5rem auto;background:#11151a;border-radius:10px}
+  .row{display:flex;align-items:center;gap:.8rem;max-width:640px;margin:.4rem auto}
+  input[type=range]{flex:1;accent-color:var(--accent)}
+  .val{color:var(--accent);min-width:6ch;text-align:right}
+  .num{font-variant-numeric:tabular-nums}
+  .box{border:1px solid #232a31;border-radius:10px;padding:1rem 1.2rem;max-width:640px;margin:1.5rem auto}
+  .box b{color:var(--accent)}
+  small{color:#5e6670}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>the napkin ring</h1>
+  <p>drill a straight cylindrical hole through a solid sphere. whats left is a ring with sharp edges, a napkin ring.</p>
+  <p>the volume of that ring depends <span class="accent">only on the height of the hole</span>, not on the size of the sphere you started with.</p>
+  <canvas id="c" width="640" height="360"></canvas>
+  <div class="row"><small>hole height</small><input id="h" type="range" min="20" max="340" value="220"><span class="val num" id="hv">220</span></div>
+  <div class="row"><small>sphere radius</small><input id="r" type="range" min="130" max="420" value="320"><span class="val num" id="rv">320</span></div>
+  <div class="box">
+    <div>hole height h = <span class="num" id="bh"></span></div>
+    <div>ring volume = (4/3)pi (h/2)^3 = <b class="num" id="bv"></b></div>
+    <div>sphere R = <span class="num" id="br"></span> -> hole radius r = sqrt(R^2 - (h/2)^2) = <span class="num" id="bhr"></span></div>
+  </div>
+  <p><small>drag R all u like, keep h fixed: the ring volume never moves. the sphere radius just sets how wide the hole has to be to leave that height. the marble outside the hole is exactly cancelled by the bore inside it.</small></p>
+  <p><small>sphere of radius R minus the cylinder minus the two spherical caps collapses to (4/3)pi(h/2)^3. the R cancels out. thats the whole trick.</small></p>
+</div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const H=document.getElementById('h'),R=document.getElementById('r');
+const hv=document.getElementById('hv'),rv=document.getElementById('rv');
+const bh=document.getElementById('bh'),bv=document.getElementById('bv'),br=document.getElementById('br'),bhr=document.getElementById('bhr');
+function draw(){
+  const W=c.width,Hh=c.height;
+  ctx.clearRect(0,0,W,Hh);
+  const cx=W/2, cy=Hh/2;
+  const h=+H.value/100, Rsp=+R.value/100;
+  const scale=(Hh*0.42)/Math.max(Rsp,h/2,0.1);
+  const px=Rsp*scale, py=(h/2)*scale;
+  const half=h/2;
+  const holeR = Rsp>half ? Math.sqrt(Rsp*Rsp-half*half) : 0;
+  const hrpx=holeR*scale;
+  const g=ctx.createRadialGradient(cx-px*0.35,cy-py*0.35,px*0.1,cx,cy,px);
+  g.addColorStop(0,'#2b3a44');g.addColorStop(1,'#141a20');
+  ctx.beginPath();ctx.arc(cx,cy,px,0,Math.PI*2);ctx.fillStyle=g;ctx.fill();
+  ctx.strokeStyle='#33414c';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.save();
+  ctx.beginPath();ctx.rect(cx-px,cy-py,px*2,py*2);ctx.clip();
+  ctx.fillStyle='#0a0d10';
+  ctx.fillRect(cx-hrpx,cy-py,hrpx*2,py*2);
+  ctx.restore();
+  ctx.strokeStyle='#7fd1c0';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(cx-hrpx,cy-py);ctx.lineTo(cx-hrpx,cy+py);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx+hrpx,cy-py);ctx.lineTo(cx+hrpx,cy+py);ctx.stroke();
+  ctx.strokeStyle='#8a9099';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+  ctx.beginPath();ctx.moveTo(cx-hrpx-24,cy-py);ctx.lineTo(cx-hrpx-24,cy+py);ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle='#8a9099';ctx.font='13px monospace';ctx.textAlign='right';
+  ctx.fillText('h',cx-hrpx-30,cy+4);
+  const vol=(4/3)*Math.PI*Math.pow(half,3);
+  bh.textContent=h.toFixed(2);
+  bv.textContent=vol.toFixed(4);
+  br.textContent=Rsp.toFixed(2);
+  bhr.textContent=holeR.toFixed(3);
+  hv.textContent=(+H.value);
+  rv.textContent=(+R.value);
+}
+H.oninput=draw;R.oninput=draw;draw();
+</script>
+</body>
+</html>
