@@ -1,0 +1,182 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>two envelopes</title>
+<style>
+  :root { --bg:#0a0a10; --ink:#cdd3cd; --dim:#5f6b5f; --a:#4dff8a; --b:#ffcf4d; --you:#7db4ff; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; min-height:100%; background:var(--bg); color:var(--ink);
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  body { display:flex; flex-direction:column; align-items:center; gap:18px; padding:28px 16px 60px; }
+  h1 { font-size:15px; font-weight:400; letter-spacing:.3em; text-transform:uppercase; color:var(--dim); margin:0; }
+  .sub { max-width:620px; font-size:12.5px; line-height:1.7; color:#93a093; text-align:center; }
+  .sub b { color:var(--a); font-weight:400; }
+  .sub i { color:var(--b); font-style:normal; }
+  .row { display:flex; gap:16px; align-items:stretch; flex-wrap:wrap; justify-content:center; }
+  .env { width:150px; height:110px; border:1px solid #26322a; border-radius:6px; display:flex;
+    flex-direction:column; align-items:center; justify-content:center; gap:6px; cursor:pointer;
+    background:#101510; transition:.15s; position:relative; }
+  .env:hover { border-color:#3f5540; }
+  .env .lbl { font-size:11px; letter-spacing:.2em; color:var(--dim); text-transform:uppercase; }
+  .env .amt { font-size:22px; }
+  .env.picked { border-color:var(--you); box-shadow:0 0 18px rgba(125,180,255,.25); }
+  .env.other { border-color:var(--b); }
+  .env .hidden { color:#2a352c; font-size:26px; }
+  #msg { font-size:13px; color:#aeb8ae; min-height:20px; text-align:center; }
+  #msg b { color:var(--you); font-weight:400; }
+  #msg i { color:var(--b); font-style:normal; }
+  button { background:#141a14; color:#8fa08f; border:1px solid #263226; padding:8px 16px; font-family:inherit;
+    font-size:12px; letter-spacing:.12em; cursor:pointer; border-radius:3px; }
+  button:hover { color:#cfd6cf; border-color:#3a4a3a; }
+  button:disabled { opacity:.35; cursor:default; }
+  #stats { display:flex; gap:26px; font-size:12px; color:var(--dim); letter-spacing:.05em; flex-wrap:wrap; justify-content:center; }
+  #stats .v { color:var(--ink); font-size:14px; }
+  #stats .pos { color:var(--a); } #stats .neg { color:#ff7a7a; } #stats .neu { color:var(--dim); }
+  #batch { display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center; }
+  .note { max-width:620px; font-size:11.5px; line-height:1.7; color:#6f7a6f; text-align:center; }
+  .note b { color:#9fae9f; font-weight:400; }
+</style>
+</head>
+<body>
+<h1>two envelopes</h1>
+<div class="sub">
+two envelopes hold money, one exactly <b>twice</b> the other. u pick one at random and open it.
+should u swap? naive argument: if mine holds <i>X</i>, the other holds <i>X/2</i> or <i>2X</i> with equal odds,
+so swapping gains <i>+X/4</i> on average &mdash; every time. that can't be right, and it isn't.
+play it, then let the machine play it a million times.
+</div>
+
+<div class="row">
+  <div class="env" id="envA"><div class="lbl">envelope 1</div><div class="amt" id="amtA">&nbsp;</div></div>
+  <div class="env" id="envB"><div class="lbl">envelope 2</div><div class="amt" id="amtB"><div class="hidden">?</div></div></div>
+</div>
+
+<div id="msg">click an envelope to pick it</div>
+<div class="row">
+  <button id="swap" disabled>swap</button>
+  <button id="keep" disabled>keep</button>
+  <button id="next" disabled>new round</button>
+</div>
+
+<div id="stats">
+  <div>rounds <span class="v" id="sRounds">0</span></div>
+  <div>total if <b class="pos">keep</b> <span class="v" id="sKeep">0</span></div>
+  <div>total if <b class="neg">swap</b> <span class="v" id="sSwap">0</span></div>
+</div>
+
+<div id="batch">
+  <button id="sim1k">auto-play 10,000 rounds</button>
+  <button id="reset">reset totals</button>
+</div>
+<div class="note" id="simnote"></div>
+
+<div class="note">
+why it breaks: the <i>X</i> in the naive argument secretly depends on which envelope u hold, so the two
+&ldquo;cases&rdquo; aren't equally likely once u condition on what u see. pick a real prior for the amounts
+(here: the smaller sum is drawn log-uniform up to a cap) and the expected gain from swapping is <b>zero</b>.
+the paradox lives in the missing prior, not in the money.
+</div>
+
+<script>
+// The honest model: a smaller amount S drawn from a fixed distribution,
+// the other envelope holds 2S. Put {S, 2S} into the two envelopes at random.
+// Log-uniform S in [1, 4096], rounded to integers -> a real, finite prior.
+const MIN=1, MAX=4096, CAP=MAX*2;
+function drawSmaller(){
+  // log-uniform between MIN and MAX, then round
+  const r = Math.random();
+  const v = Math.exp(Math.log(MIN) + r*(Math.log(MAX)-Math.log(MIN)));
+  return Math.max(MIN, Math.round(v));
+}
+
+let round = null;   // {S, a, b, picked:null|'A'|'B'}
+let acc = { rounds:0, keep:0, swap:0 };
+
+const $ = id => document.getElementById(id);
+const fmt = n => n.toLocaleString();
+
+function newRound(){
+  const S = drawSmaller();
+  const vals = [S, 2*S];
+  if (Math.random() < 0.5) vals.reverse();
+  round = { a: vals[0], b: vals[1], picked:null, resolved:false };
+  $('amtA').textContent = '\u00a0';
+  $('amtB').innerHTML = '<div class="hidden">?</div>';
+  $('envA').className = 'env'; $('envB').className = 'env';
+  $('msg').textContent = 'click an envelope to pick it';
+  $('swap').disabled = true; $('keep').disabled = true; $('next').disabled = true;
+}
+
+function pick(which){
+  if (!round || round.picked || round.resolved) return;
+  round.picked = which;
+  const mine = which==='A' ? round.a : round.b;
+  const other = which==='A' ? round.b : round.a;
+  // reveal only the picked one
+  if (which==='A'){ $('amtA').textContent = fmt(mine); $('envA').classList.add('picked'); }
+  else { $('amtB').textContent = fmt(mine); $('envB').classList.add('picked'); }
+  $('msg').innerHTML = 'u hold <b>'+fmt(mine)+'</b>. the other envelope holds either half or double. swap? (it does not matter &mdash; but try)'; 
+  $('swap').disabled = false; $('keep').disabled = false;
+}
+
+function resolve(doSwap){
+  if (!round || !round.picked || round.resolved) return;
+  round.resolved = true;
+  const mine = round.picked==='A' ? round.a : round.b;
+  const other = round.picked==='A' ? round.b : round.a;
+  const kept = mine, swapped = other;
+  // reveal other
+  if (round.picked==='A'){ $('amtB').textContent = fmt(round.b); $('envB').classList.add('other'); }
+  else { $('amtA').textContent = fmt(round.a); $('envA').classList.add('other'); }
+  const got = doSwap ? swapped : kept;
+  const diff = got - kept;
+  const sign = diff>0 ? '<i>+' : (diff<0 ? '<i>' : '<i>') + fmt(diff) + '</i>';
+  $('msg').innerHTML = 'u '+(doSwap?'swapped':'kept')+' &rarr; <b>'+fmt(got)+'</b>. '
+    + 'keeping would give '+fmt(kept)+', swapping would give '+fmt(swapped)+'. '
+    + 'this round: '+sign+' vs keeping.';
+  acc.rounds++; acc.keep += kept; acc.swap += swapped;
+  updateStats();
+  $('swap').disabled = true; $('keep').disabled = true; $('next').disabled = false;
+}
+
+function updateStats(){
+  $('sRounds').textContent = fmt(acc.rounds);
+  $('sKeep').textContent = fmt(acc.keep);
+  $('sSwap').textContent = fmt(acc.swap);
+}
+
+$('envA').onclick = () => pick('A');
+$('envB').onclick = () => pick('B');
+$('swap').onclick = () => resolve(true);
+$('keep').onclick = () => resolve(false);
+$('next').onclick = newRound;
+
+// batch: simulate N rounds, compare always-keep vs always-swap vs pick-then-swap-strategy.
+// The honest point: keep and swap have the same expected total. Show it.
+$('sim1k').onclick = () => {
+  const N = 10000;
+  let keep=0, swap=0;
+  for (let i=0;i<N;i++){
+    const S = drawSmaller();
+    const vals = Math.random()<0.5 ? [S,2*S] : [2*S,S];
+    // strategy A: always keep the first envelope picked (envelope A)
+    // strategy B: always swap (so take envelope B)
+    keep += vals[0];
+    swap += vals[1];
+  }
+  const dk = keep/N, ds = swap/N;
+  const rel = (ds-dk)/dk*100;
+  const sign = rel>0?'+':'';
+  $('simnote').innerHTML = 'over <b>'+fmt(N)+'</b> rounds: always-keep avg <b>'+dk.toFixed(2)+
+    '</b>, always-swap avg <b>'+ds.toFixed(2)+'</b>. difference '+sign+rel.toFixed(2)+
+    '% &mdash; noise, not an edge. swapping is a coin flip, as it must be.';
+};
+
+$('reset').onclick = () => { acc={rounds:0,keep:0,swap:0}; updateStats(); $('simnote').textContent=''; };
+
+newRound();
+</script>
+</body>
+</html>
