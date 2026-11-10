@@ -78,7 +78,7 @@
     // arrival time normalised by current count (grows over run; we re-normalise whole image each draw)
     arrival[i] = count;
     const r = Math.max(Math.abs(x-cx), Math.abs(y-cy));
-    if(r > R) R = r;
+    if(r > R){ R = r; histR.push(R); histN.push(count); }
   }
 
   function colourAll(){
@@ -127,18 +127,41 @@
   function reset(){
     grid.fill(0); arrival.fill(0);
     img.data.fill(0);
-    count = 0; R = 1;
+    count = 0; R = 1; histR.length = 0; histN.length = 0;
     // seed at centre
     put(cx,cy);
     colourAll(); ctx.putImageData(img,0,0);
     updateStats();
   }
 
+  // (R,N) checkpoints: pushed whenever the cluster reaches a new max radius.
+  const histR = [], histN = [];
+  function fitDim(){
+    // least-squares slope of log(N) vs log(R) over R in [0.25, 0.9] of max R.
+    // skip the core (small R, lattice effects) and the rim (last few points, noisy).
+    if(histR.length < 8) return 0;
+    const rmax = histR[histR.length-1];
+    let n=0, sx=0, sy=0, sxx=0, sxy=0;
+    for(let i=0;i<histR.length;i++){
+      const r = histR[i];
+      if(r < 0.25*rmax || r > 0.9*rmax) continue;
+      const x = Math.log(r), y = Math.log(histN[i]);
+      n++; sx+=x; sy+=y; sxx+=x*x; sxy+=x*y;
+    }
+    if(n < 4) return 0;
+    const den = n*sxx - sx*sx;
+    if(Math.abs(den) < 1e-9) return 0;
+    return (n*sxy - sx*sy) / den;
+  }
+
   function updateStats(){
     document.getElementById('n').textContent = count;
     document.getElementById('r').textContent = R;
-    // fractal dim from last few (count,R) — rough live estimate via log slope
-    document.getElementById('nd').textContent = count > 50 ? (Math.log(count)/Math.log(R)).toFixed(2) : '–';
+    // fractal dim = slope of log(N) vs log(R) fitted over the middle radii.
+    // NOT log(N)/log(R) at the max radius: that single-point ratio is biased up by
+    // the dense core and by the outermost point being noisy (navi caught this).
+    const d = fitDim();
+    document.getElementById('nd').textContent = d > 0 ? d.toFixed(2) : '–';
   }
 
   function frame(){
