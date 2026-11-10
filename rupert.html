@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rupert's cube — can a cube pass through itself?</title>
+<style>
+  :root{--bg:#0d0f14;--fg:#e8e6e1;--dim:#7d8590;--acc:#ffb454;--acc2:#7cc7ff}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,Menlo,Consolas,monospace}
+  body{padding:22px;max-width:820px;margin:0 auto}
+  h1{font-size:20px;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--dim);margin:0 0 18px;font-size:13px}
+  canvas{display:block;width:100%;height:auto;background:#11141b;border:1px solid #232a35;border-radius:10px;touch-action:none;cursor:grab}
+  canvas:active{cursor:grabbing}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0}
+  button{background:#1a2029;color:var(--fg);border:1px solid #2c3542;border-radius:8px;padding:7px 12px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc)}
+  button.on{background:#2a2010;border-color:var(--acc);color:var(--acc)}
+  label{color:var(--dim);font-size:13px}
+  input[type=range]{vertical-align:middle;width:150px}
+  .readout{margin-left:auto;color:var(--acc);font-size:13px}
+  p{color:#b8bec8;font-size:14px}
+  .k{color:var(--acc2)}
+  .note{color:var(--dim);font-size:13px;border-left:2px solid #2c3542;padding-left:12px;margin:18px 0}
+  a{color:var(--acc2)}
+</style>
+</head>
+<body>
+<h1>rupert's cube</h1>
+<p class="sub">a cube can pass through a straight hole cut in an identical cube — the hole's square is ~6% wider than the cube itself</p>
+
+<canvas id="c" width="760" height="480"></canvas>
+
+<div class="controls">
+  <button id="spin" class="on">spin</button>
+  <label>cube side <input id="side" type="range" min="0.80" max="1.12" step="0.005" value="1.06"></label>
+  <span class="readout" id="ro"></span>
+</div>
+
+<p>prince rupert's problem (1690s): can a unit cube be pushed through a hole carved in another unit cube, without breaking either? <span class="k">yes</span> — but only if the hole is cut at an oblique angle. john wallis found a way (side ≈ 1.035). pieter nieuwland found the best one: an oblique square of side <span class="k">(3√2)/4 ≈ 1.0607</span>, ~6% larger than the cube it slides through.</p>
+<p>the square's four corners sit <span class="k">3/4 of the way along four cube edges</span>, two on adjacent edges at a shared vertex, two mirrored on the opposite face. no face-parallel (axis-aligned) hole can do it — a straight hole is bounded by the faces, so it caps at 1×1.</p>
+<div class="note">for 350 years people assumed every convex solid has this trick ("rupert's property"). in 2025 steininger &amp; yurkevich found the first that doesn't — the <b>noperthedron</b>, a 90-vertex, 152-face solid, after ~18 million orientation tests. the cube can pass through itself; this thing can't. (<a href="https://arxiv.org/abs/2508.18475">arxiv 2508.18475</a>)</div>
+
+<script>
+'use strict';
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+// --- tiny 3d: rotate, project ---
+let rx = 0.5, ry = 0.7, dragging = false, lastx = 0, lasty = 0, spin = true;
+
+function rot(p){
+  let [x,y,z] = p;
+  // rotate about x
+  let cx = Math.cos(rx), sx = Math.sin(rx);
+  let y1 = y*cx - z*sx, z1 = y*sx + z*cx;
+  // rotate about y
+  let cy = Math.cos(ry), sy = Math.sin(ry);
+  let x2 = x*cy + z1*sy, z2 = -x*sy + z1*cy;
+  return [x2, y1, z2];
+}
+const FOV = 3.2, SCALE = 150, CZ = 4;
+function proj(p){
+  const r = rot(p);
+  const z = r[2] + CZ;
+  const f = (FOV*SCALE)/z;
+  return [W/2 + r[0]*f, H/2 - r[1]*f, z];
+}
+
+// unit cube centered at origin, corners at +-0.5
+const h = 0.5;
+const V = [
+  [-h,-h,-h],[h,-h,-h],[h,h,-h],[-h,h,-h],
+  [-h,-h,h],[h,-h,h],[h,h,h],[-h,h,h]
+];
+const E = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
+
+// --- the rupert hole square ---
+// Nieuwland's square: vertices 3/4 along four edges. In cube coords (±0.5).
+// Two points on adjacent edges from shared vertex (-0.5,-0.5,-0.5):
+//   P1 = edge to (+0.5,-0.5,-0.5), at 3/4:  (-0.5 + 0.75*1, -0.5, -0.5) = (0.25,-0.5,-0.5)
+//   P2 = edge to (-0.5,+0.5,-0.5), at 3/4:  (-0.5, 0.25, -0.5)
+// Mirrored on opposite face (z=+0.5):
+//   P3 = (0.25, 0.5, 0.5)?? -- need the correct symmetric placement.
+// Standard construction: the square passes obliquely; its 4 vertices lie on 4 edges of the cube.
+// Use the known coordinates (side = 3/4*sqrt2):
+let sq = [
+  [ 0.25,-0.5,-0.5],
+  [-0.5 , 0.25,-0.5],
+  [-0.25, 0.5 , 0.5],
+  [ 0.5 ,-0.25, 0.5]
+];
+
+function drawCube(cubeScale, color, alpha){
+  const s = cubeScale;
+  const verts = V.map(p=>[p[0]*s,p[1]*s,p[2]*s]);
+  const pr = verts.map(proj);
+  ctx.lineWidth = 1.5; ctx.strokeStyle = color; ctx.globalAlpha = alpha;
+  for(const [a,b] of E){
+    ctx.beginPath(); ctx.moveTo(pr[a][0],pr[a][1]); ctx.lineTo(pr[b][0],pr[b][1]); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawHoleSquare(){
+  const pr = sq.map(proj);
+  ctx.beginPath();
+  ctx.moveTo(pr[0][0],pr[0][1]);
+  for(let i=1;i<4;i++) ctx.lineTo(pr[i][0],pr[i][1]);
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(255,180,84,0.14)';
+  ctx.fill();
+  ctx.strokeStyle = 'var(--acc)'; ctx.strokeStyle = '#ffb454'; ctx.lineWidth = 2;
+  ctx.stroke();
+  for(const p of pr){ ctx.beginPath(); ctx.arc(p[0],p[1],3.5,0,7); ctx.fillStyle='#ffb454'; ctx.fill(); }
+}
+
+let sideVal = 1.06;
+function frame(){
+  if(spin && !dragging) ry += 0.006;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#11141b'; ctx.fillRect(0,0,W,H);
+
+  // the "host" unit cube with the hole square
+  drawHoleSquare();
+  drawCube(1.0, '#5a6472', 1);
+
+  // the passing cube, drawn a bit larger, offset along +x to suggest sliding through
+  ctx.save();
+  // offset the bigger cube so it pokes through
+  const off = [0.15, 0, 0];
+  const saveProj = proj;
+  // draw bigger cube manually with offset
+  const s = sideVal;
+  const verts = V.map(p=>[p[0]*s+off[0],p[1]*s+off[1],p[2]*s+off[2]]);
+  const pr = verts.map(proj);
+  ctx.lineWidth = 1.5; ctx.strokeStyle = '#7cc7ff'; ctx.globalAlpha = 0.9;
+  for(const [a,b] of E){
+    ctx.beginPath(); ctx.moveTo(pr[a][0],pr[a][1]); ctx.lineTo(pr[b][0],pr[b][1]); ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+  ctx.restore();
+
+  // labels
+  ctx.fillStyle = '#5a6472'; ctx.font = '12px ui-monospace,monospace';
+  ctx.fillText('unit cube + oblique hole', 14, 20);
+  ctx.fillStyle = '#7cc7ff';
+  ctx.fillText('passing cube, side ' + sideVal.toFixed(3), 14, 38);
+
+  requestAnimationFrame(frame);
+}
+
+// interaction
+cv.addEventListener('pointerdown', e=>{ dragging=true; lastx=e.clientX; lasty=e.clientY; });
+window.addEventListener('pointerup', ()=> dragging=false);
+window.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  ry += (e.clientX-lastx)*0.01; rx += (e.clientY-lasty)*0.01;
+  lastx=e.clientX; lasty=e.clientY;
+});
+
+document.getElementById('spin').onclick = function(){ spin = !spin; this.classList.toggle('on', spin); };
+const sideEl = document.getElementById('side'), ro = document.getElementById('ro');
+function upd(){ sideVal = parseFloat(sideEl.value); ro.textContent = 'side = ' + sideVal.toFixed(3) + (sideVal>1.0001?'  (fits the hole)':'  (too small)'); }
+sideEl.oninput = upd; upd();
+
+frame();
+</script>
+</body>
+</html>
