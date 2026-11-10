@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lockpick — a pin tumbler you can feel</title>
+<style>
+  :root{ --bg:#0e0f12; --ink:#e8e6df; --dim:#7a7d86; --brass:#c9a24b; --set:#5fd08a; --bind:#e0603a; }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--ink);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:24px 16px}
+  h1{font-size:16px;font-weight:600;letter-spacing:.02em;margin:0 0 4px}
+  p.sub{color:var(--dim);margin:0 0 22px;font-size:13px;text-align:center;max-width:44ch}
+  #lock{position:relative;width:min(560px,92vw);height:300px;border:1px solid #2a2d34;border-radius:10px;background:linear-gradient(#15171c,#101116);padding:18px 16px 12px;display:flex;flex-direction:column;justify-content:space-between}
+  #plug{position:relative;height:170px;display:flex;gap:10px;justify-content:center;align-items:flex-end}
+  .pin{position:relative;width:44px;height:150px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;cursor:pointer;user-select:none}
+  .shell{position:absolute;top:0;left:50%;transform:translateX(-50%);width:14px;height:100%;background:#0b0c0f;border-radius:3px;box-shadow:inset 0 0 6px #000}
+  .driver{position:absolute;left:50%;transform:translateX(-50%);width:12px;background:#3a3d45;border-radius:2px;transition:top .04s linear}
+  .keypin{position:absolute;left:50%;transform:translateX(-50%);width:12px;background:var(--brass);border-radius:2px;transition:top .04s linear}
+  .spring{position:absolute;left:50%;transform:translateX(-50%);width:10px;background:repeating-linear-gradient(#555 0 2px,transparent 2px 5px);transition:top .04s linear}
+  .shear{position:absolute;left:0;right:0;top:60px;height:2px;background:#444;opacity:.7}
+  .pin .cap{position:absolute;bottom:-2px;width:30px;height:8px;background:#22252b;border-radius:2px}
+  #hud{display:flex;gap:18px;align-items:center;justify-content:center;margin-top:14px;font-size:13px;flex-wrap:wrap}
+  .stat{color:var(--dim)}
+  .stat b{color:var(--ink);font-weight:600}
+  button{font:inherit;background:#1b1e24;color:var(--ink);border:1px solid #2c3038;border-radius:7px;padding:8px 14px;cursor:pointer}
+  button:hover{border-color:#3d424c}
+  #tension{user-select:none}
+  #tension.on{background:var(--brass);color:#111;border-color:var(--brass)}
+  #msg{height:20px;margin-top:10px;color:var(--set);font-size:13px;text-align:center}
+  .legend{display:flex;gap:16px;justify-content:center;margin-top:6px;font-size:12px;color:var(--dim);flex-wrap:wrap}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+</style>
+</head>
+<body>
+  <h1>lockpick</h1>
+  <p class="sub">hold tension, then click a pin to lift it. the one that's <em>bound</em> is the one to lift — set it exactly at the shear line. overshoot and it springs back.</p>
+
+  <div id="lock">
+    <div class="shear"></div>
+    <div id="plug"></div>
+  </div>
+
+  <div id="hud">
+    <button id="tension">tension wrench</button>
+    <span class="stat">set <b id="setcount">0</b>/<b>5</b></span>
+    <button id="reset">new lock</button>
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--bind)"></span>bound (lift this)</span>
+    <span><span class="dot" style="background:var(--set)"></span>set</span>
+  </div>
+  <div id="msg"></div>
+
+<script>
+const NPINS = 5;
+const SHEAR_Y = 60;      // px from top of pin column to shear line
+const PIN_TOP = 0, PIN_BOT = 150;
+let lock, tensing=false, holding=null, holdStart=0, raf=null;
+
+function newLock(){
+  lock = { pins: [], bindingOrder: shuffle([0,1,2,3,4]), open:false };
+  for(let i=0;i<NPINS;i++){
+    // key pin length random; the height it must be lifted so its TOP hits shear line
+    const keyLen = 26 + Math.round(Math.random()*28);   // 26..54
+    lock.pins.push({
+      id:i, keyLen, lift:0, set:false, overshot:false,
+      // how far the top of keypin is below the shear line at rest
+      target: (PIN_BOT - keyLen) - SHEAR_Y
+    });
+  }
+  render();
+  document.getElementById('msg').textContent='';
+  document.getElementById('setcount').textContent='0';
+}
+
+function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+function boundPin(){
+  if(!tensing) return -1;
+  for(const i of lock.bindingOrder){
+    if(!lock.pins[i].set) return i;
+  }
+  return -1;
+}
+
+function render(){
+  const plug = document.getElementById('plug');
+  plug.innerHTML='';
+  const bound = boundPin();
+  for(const p of lock.pins){
+    const col = document.createElement('div');
+    col.className='pin'; col.dataset.id=p.id;
+
+    const shell=document.createElement('div'); shell.className='shell';
+    const spring=document.createElement('div'); spring.className='spring';
+    const driver=document.createElement('div'); driver.className='driver';
+    const keypin=document.createElement('div'); keypin.className='keypin';
+    const cap=document.createElement('div'); cap.className='cap';
+
+    // keypin: rest position = bottom of column minus its length, lifted by p.lift
+    const kpTop = (PIN_BOT - p.keyLen) - p.lift;
+    keypin.style.top = kpTop+'px';
+    keypin.style.height = p.keyLen+'px';
+    if(p.set){ keypin.style.background='var(--set)'; }
+    else if(p.id===bound){ keypin.style.background='var(--bind)'; }
+
+    // driver sits above keypin, its bottom at keypin top
+    const drvTop = kpTop - 30;
+    driver.style.top = Math.max(-30, drvTop)+'px';
+    driver.style.height = '30px';
+
+    spring.style.top = Math.max(-28, drvTop-26)+'px';
+    spring.style.height='26px';
+
+    col.appendChild(shell); col.appendChild(spring); col.appendChild(driver); col.appendChild(keypin); col.appendChild(cap);
+    col.addEventListener('mousedown', ()=>startLift(p));
+    col.addEventListener('touchstart', (e)=>{e.preventDefault(); startLift(p);},{passive:false});
+    plug.appendChild(col);
+  }
+}
+
+function startLift(p){
+  if(lock.open) return;
+  if(p.set){ return; }
+  if(!tensing){ document.getElementById('msg').textContent='no tension — pins just fall back. hold the wrench first.'; return; }
+  const b = boundPin();
+  if(p.id !== b){ document.getElementById('msg').textContent='that pin isnt bound yet. lift the red one.'; return; }
+  holding = p; holdStart = performance.now();
+  document.getElementById('msg').textContent='';
+  if(!raf) raf = requestAnimationFrame(tick);
+}
+
+function tick(now){
+  raf=null;
+  if(holding){
+    const dt = (now - holdStart)/1000;
+    holding.lift = Math.min(80, dt*90);   // lift speed px/s
+    // set check: lift so keypin top reaches shear line exactly
+    if(Math.abs(holding.lift - holding.target) < 1.6){
+      holding.set = true; holding.lift = holding.target; holding=null;
+      document.getElementById('setcount').textContent = lock.pins.filter(p=>p.set).length;
+      document.getElementById('msg').textContent='set.';
+      if(lock.pins.every(p=>p.set)){ lock.open=true; document.getElementById('msg').textContent='open. click new lock.'; }
+      render(); return;
+    }
+    if(holding.lift > holding.target + 6){
+      // overshot: springs back, not set
+      holding.lift = 0; holding=null;
+      document.getElementById('msg').textContent='overshot — it sprang back. try a lighter touch.';
+      render(); return;
+    }
+    render();
+    raf = requestAnimationFrame(tick);
+  }
+}
+
+function releaseLift(){
+  if(holding){
+    holding.lift = 0; holding=null;
+    render();
+  }
+}
+
+window.addEventListener('mouseup', releaseLift);
+window.addEventListener('touchend', releaseLift);
+
+// tension is a hold: while held, the bound pin is the one binding
+const tbtn = document.getElementById('tension');
+function setTension(on){
+  tensing = on; tbtn.classList.toggle('on', on);
+  render();
+}
+tbtn.addEventListener('mousedown', ()=>setTension(true));
+tbtn.addEventListener('mouseup', ()=>setTension(false));
+tbtn.addEventListener('mouseleave', ()=>{ if(tensing) setTension(false); });
+tbtn.addEventListener('touchstart',(e)=>{e.preventDefault();setTension(true);},{passive:false});
+tbtn.addEventListener('touchend',(e)=>{e.preventDefault();setTension(false);},{passive:false});
+
+// keyboard: hold space = tension; 1-5 = lift pin
+document.addEventListener('keydown', e=>{
+  if(e.code==='Space'){ e.preventDefault(); if(!tensing) setTension(true); }
+  const n = parseInt(e.key,10);
+  if(n>=1 && n<=5) startLift(lock.pins[n-1]);
+});
+document.addEventListener('keyup', e=>{
+  if(e.code==='Space'){ setTension(false); }
+  const n = parseInt(e.key,10);
+  if(n>=1 && n<=5) releaseLift();
+});
+
+document.getElementById('reset').addEventListener('click', newLock);
+
+newLock();
+</script>
+</body>
+</html>
