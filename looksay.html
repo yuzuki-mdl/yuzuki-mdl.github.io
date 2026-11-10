@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>look-and-say</title>
+<style>
+  :root{--bg:#0d0f14;--fg:#e8e6e3;--dim:#5a6270;--accent:#7fd1ae;--accent2:#e8a04f}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,'SF Mono',Menlo,Consolas,monospace}
+  body{padding:28px 22px 60px;max-width:900px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px;letter-spacing:.5px}
+  .sub{color:var(--dim);font-size:13px;margin:0 0 22px;line-height:1.5}
+  .sub b{color:var(--accent);font-weight:600}
+  .controls{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:22px;font-size:13px}
+  .controls label{color:var(--dim)}
+  input{background:#171a22;border:1px solid #262b36;color:var(--fg);font:inherit;font-size:13px;padding:5px 9px;border-radius:5px;width:70px}
+  input:focus{outline:none;border-color:var(--accent)}
+  button{background:#1c212b;border:1px solid #2c3340;color:var(--fg);font:inherit;font-size:13px;padding:5px 12px;border-radius:5px;cursor:pointer}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  #rows{display:flex;flex-direction:column;gap:9px}
+  .row{display:flex;align-items:baseline;gap:12px;font-size:15px;line-height:1.6}
+  .idx{color:var(--dim);font-size:12px;min-width:22px;text-align:right;flex-shrink:0}
+  .digits{word-break:break-all;letter-spacing:2px}
+  .digits .pair{color:var(--accent)}
+  .digits .cnt{color:var(--accent2)}
+  .len{color:var(--dim);font-size:11px;margin-left:auto;flex-shrink:0;padding-left:10px}
+  .note{color:var(--dim);font-size:12px;margin-top:26px;line-height:1.6;border-top:1px solid #1c2029;padding-top:16px}
+  .note code{color:var(--accent)}
+</style>
+</head>
+<body>
+<h1>look-and-say</h1>
+<p class="sub">read a row out loud: <b>three 1s, two 2s, one 1</b> → <b>312211</b>. it never stops. no one knows if the digits are random.</p>
+<div class="controls">
+  <label>start <input id="seed" value="1" maxlength="40"></label>
+  <label>rows <input id="nrows" type="number" value="14" min="1" max="40"></label>
+  <button id="go">say it</button>
+</div>
+<div id="rows"></div>
+<p class="note">every row is the previous row read aloud. lengths grow by the constant <code>λ ≈ 1.303577</code> — the <b>conway constant</b>, a real root of a degree-71 polynomial. the same digits keep recurring: only 1, 2, 3 ever appear after the first two rows, whatever you start with. <span style="color:#3a404c">(conway 1986)</span></p>
+<script>
+const $ = id => document.getElementById(id);
+
+function next(s){
+  let out = '';
+  let i = 0;
+  while(i < s.length){
+    let c = s[i], j = i;
+    while(j < s.length && s[j] === c) j++;
+    out += (j - i) + c;
+    i = j;
+  }
+  return out;
+}
+
+function render(seed, n){
+  const box = $('rows');
+  box.innerHTML = '';
+  let s = String(seed || '1').replace(/[^0-9]/g,'') || '1';
+  for(let r = 0; r < n; r++){
+    const row = document.createElement('div');
+    row.className = 'row';
+    const idx = document.createElement('span');
+    idx.className = 'idx'; idx.textContent = r;
+    const dig = document.createElement('span');
+    dig.className = 'digits';
+    // colour alternate count/value for readability
+    let html = '';
+    for(let k = 0; k < s.length; k++){
+      const cls = (k % 2 === 0) ? 'cnt' : 'pair';
+      html += `<span class="${cls}">${s[k]}</span>`;
+    }
+    dig.innerHTML = html;
+    const len = document.createElement('span');
+    len.className = 'len'; len.textContent = s.length;
+    row.appendChild(idx); row.appendChild(dig); row.appendChild(len);
+    box.appendChild(row);
+    if(s.length > 4000) break;
+    s = next(s);
+  }
+}
+
+$('go').addEventListener('click', () => render($('seed').value, +$('nrows').value || 14));
+$('seed').addEventListener('keydown', e => { if(e.key === 'Enter') $('go').click(); });
+render('1', 14);
+</script>
+</body>
+</html>
