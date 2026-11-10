@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the potato paradox</title>
+<style>
+  :root { --bg:#0e0f13; --fg:#e8e6e0; --dim:#7b7f8a; --acc:#c9a227; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+    font: 16px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 2rem 1.2rem 4rem; }
+  main { max-width: 680px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 .2rem; }
+  .sub { color: var(--dim); margin: 0 0 2rem; }
+  canvas { width:100%; height:auto; display:block; border-radius:8px;
+    background:#15171d; margin: 1.2rem 0; }
+  .row { display:flex; align-items:center; gap:1rem; margin:.6rem 0; }
+  label { min-width: 8.5rem; color: var(--dim); }
+  input[type=range] { flex:1; accent-color: var(--acc); }
+  .val { min-width: 5rem; text-align:right; font-variant-numeric: tabular-nums; }
+  .big { font-size: 1.35rem; color: var(--acc); font-variant-numeric: tabular-nums; }
+  .note { color: var(--dim); font-size:.9rem; margin-top:1.5rem; border-top:1px solid #23252d; padding-top:1rem; }
+  b { color: var(--fg); }
+</style>
+</head>
+<body>
+<main>
+  <h1>the potato paradox</h1>
+  <p class="sub">100 kg of potatoes are 99% water. you dry them until they're 98% water. how much do they weigh now?</p>
+
+  <canvas id="c" width="640" height="300"></canvas>
+
+  <div class="row">
+    <label>water content</label>
+    <input id="w" type="range" min="50" max="99" step="0.5" value="99">
+    <span class="val" id="wv">99%</span>
+  </div>
+
+  <p>total mass: <span class="big" id="mass">100.0 kg</span></p>
+  <p>dry matter: <span class="big" id="dry">1.0 kg</span> &nbsp; <span style="color:var(--dim)">(this never changes)</span></p>
+
+  <p class="note">
+    the dry matter is fixed at <b>1 kg</b> no matter what. at 99% water the 1 kg of solid is 1% of the total,
+    so total = 100 kg. at 98% water the same 1 kg is now 2% of the total, so total = <b>50 kg</b>.
+    drying from 99% to 98% water halves the weight. the water you removed (50 kg) is way more than
+    the water that's left (49 kg). feels wrong, is right.
+  </p>
+</main>
+<script>
+const c = document.getElementById('c');
+const g = c.getContext('2d');
+const wEl = document.getElementById('w');
+const wv = document.getElementById('wv');
+const massEl = document.getElementById('mass');
+const dryEl = document.getElementById('dry');
+
+const DRY = 1.0; // kg of solid, fixed
+
+function draw(pct) {
+  const frac = (100 - pct) / 100;      // dry fraction
+  const total = DRY / frac;
+  const water = total - DRY;
+
+  wv.textContent = pct.toFixed(1).replace(/\.0$/, '') + '%';
+  massEl.textContent = total.toFixed(1) + ' kg';
+  dryEl.textContent = DRY.toFixed(1) + ' kg';
+
+  const W = c.width, H = c.height;
+  g.clearRect(0, 0, W, H);
+  const pad = 30;
+  const maxMass = 100;
+  const barH = H - 2*pad;
+  const scale = barH / maxMass;
+
+  function drawBar(x, waterKg, dryKg, label) {
+    const bW = 110;
+    const totalKg = waterKg + dryKg;
+    const h = totalKg * scale;
+    const y0 = H - pad;
+    const wh = waterKg * scale;
+    g.fillStyle = '#3a6ea5';
+    g.fillRect(x, y0 - h, bW, wh);
+    g.fillStyle = '#c9a227';
+    g.fillRect(x, y0 - h + wh, bW, dryKg * scale);
+    g.strokeStyle = '#2a2d38';
+    g.lineWidth = 1;
+    g.strokeRect(x, y0 - h, bW, h);
+    g.fillStyle = '#e8e6e0';
+    g.font = '13px ui-monospace, monospace';
+    g.textAlign = 'center';
+    g.fillText(label, x + bW/2, y0 + 18);
+    g.fillText(totalKg.toFixed(1) + ' kg', x + bW/2, y0 - h - 8);
+  }
+
+  drawBar(pad + 20, water, DRY, 'now');
+  drawBar(W - pad - 130, 99, DRY, 'start');
+}
+
+wEl.addEventListener('input', () => draw(parseFloat(wEl.value)));
+draw(99);
+</script>
+</body>
+</html>
