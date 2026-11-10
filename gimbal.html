@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>gimbal lock — yūzuki</title>
+<style>
+  :root{--bg:#0c0e12;--fg:#e8e6e0;--dim:#7a8088;--accent:#8fd6c0;--ring:#e8e6e0;--ring2:#8fd6c0;--ring3:#e0a08f}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:24px;max-width:1100px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  p.sub{color:var(--dim);margin:0 0 20px}
+  .wrap{display:flex;gap:24px;flex-wrap:wrap}
+  .panel{flex:1;min-width:300px}
+  canvas{width:100%;aspect-ratio:1;background:#11141a;border-radius:8px;display:block}
+  .label{color:var(--dim);font-size:13px;margin:8px 0 4px}
+  .slider{display:flex;align-items:center;gap:10px;margin:6px 0}
+  .slider label{width:60px;color:var(--dim)}
+  .slider input{flex:1}
+  .slider span{width:56px;text-align:right;color:var(--accent);font-variant-numeric:tabular-nums}
+  .note{color:var(--dim);font-size:13px;margin-top:16px;max-width:640px}
+  .warn{color:var(--ring3)}
+  button{background:#1a1f28;color:var(--fg);border:1px solid #2a303a;border-radius:6px;padding:6px 12px;font:inherit;cursor:pointer;margin-top:8px}
+  button:hover{border-color:var(--accent)}
+</style>
+</head>
+<body>
+<h1>gimbal lock</h1>
+<p class="sub">three euler angles vs one quaternion. drag the pitch toward 90° and watch two of the axes collapse.</p>
+<div class="wrap">
+  <div class="panel">
+    <div class="label">euler (yaw · pitch · roll) — nested rings</div>
+    <canvas id="c1"></canvas>
+    <div class="slider"><label>yaw</label><input id="yaw" type="range" min="-180" max="180" value="30"><span id="yawv">30°</span></div>
+    <div class="slider"><label>pitch</label><input id="pitch" type="range" min="-90" max="90" value="0"><span id="pitchv">0°</span></div>
+    <div class="slider"><label>roll</label><input id="roll" type="range" min="-180" max="180" value="0"><span id="rollv">0°</span></div>
+    <button id="lock">snap to lock (pitch 90°)</button>
+  </div>
+  <div class="panel">
+    <div class="label">quaternion — one rotation, no preferred axes</div>
+    <canvas id="c2"></canvas>
+    <div class="label" id="qinfo" style="margin-top:12px"></div>
+    <div class="note" id="qnote"></div>
+  </div>
+</div>
+<p class="note">euler angles apply three rotations in sequence, each about an axis carried by the previous one. at pitch ±90° the yaw and roll axes line up — <span class="warn">one degree of freedom vanishes</span>. a quaternion stores an axis and an angle directly, so it never loses a direction. this is why flight software and every game engine use quaternions, not euler angles, for orientation.</p>
+<script>
+const D=Math.PI/180;
+function rotX(a){const c=Math.cos(a),s=Math.sin(a);return[[1,0,0],[0,c,-s],[0,s,c]]}
+function rotY(a){const c=Math.cos(a),s=Math.sin(a);return[[c,0,s],[0,1,0],[-s,0,c]]}
+function rotZ(a){const c=Math.cos(a),s=Math.sin(a);return[[c,-s,0],[s,c,0],[0,0,1]]}
+function mul(A,B){const R=[[0,0,0],[0,0,0],[0,0,0]];for(let i=0;i<3;i++)for(let j=0;j<3;j++)for(let k=0;k<3;k++)R[i][j]+=A[i][k]*B[k][j];return R}
+function apply(M,v){return[M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2],M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2],M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2]]}
+
+// euler matrix: yaw(Z) then pitch(X) then roll(Y), extrinsic-ish order
+function eulerMat(y,p,r){return mul(mul(rotZ(y),rotX(p)),rotY(r))}
+
+// quaternion from axis-angle
+function quatAxis(ax,ang){const h=ang/2,s=Math.sin(h);return[ax[0]*s,ax[1]*s,ax[2]*s,Math.cos(h)]}
+function quatMul(a,b){return[a[3]*b[0]+a[0]*b[3]+a[1]*b[2]-a[2]*b[1],a[3]*b[1]-a[0]*b[2]+a[1]*b[3]+a[2]*b[0],a[3]*b[2]+a[0]*b[1]-a[1]*b[0]+a[2]*b[3],a[3]*b[3]-a[0]*b[0]-a[1]*b[1]-a[2]*b[2]]}
+function quatToMat(q){const[x,y,z,w]=q;return[[1-2*(y*y+z*z),2*(x*y-z*w),2*(x*z+y*w)],[2*(x*y+z*w),1-2*(x*x+z*z),2*(y*z-x*w)],[2*(x*z-y*w),2*(y*z+x*w),1-2*(x*x+y*y)]]}
+
+function drawRing(ctx,cx,cy,rad,M,color,width){
+  ctx.beginPath();
+  const N=64;
+  for(let i=0;i<=N;i++){
+    const t=i/N*2*Math.PI;
+    const v=apply(M,[Math.cos(t)*rad,Math.sin(t)*rad,0]);
+    // simple orthographic-ish projection with slight tilt
+    const px=cx+v[0]+v[2]*0.35, py=cy+v[1]-v[2]*0.15;
+    if(i===0)ctx.moveTo(px,py);else ctx.lineTo(px,py);
+  }
+  ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();
+}
+function drawAxis(ctx,cx,cy,rad,M,color){
+  ctx.beginPath();
+  const a=apply(M,[rad,0,0]),b=apply(M,[-rad,0,0]);
+  ctx.moveTo(cx+a[0]+a[2]*0.35,cy+a[1]-a[2]*0.15);
+  ctx.lineTo(cx+b[0]+b[2]*0.35,cy+b[1]-b[2]*0.15);
+  ctx.strokeStyle=color;ctx.lineWidth=2;ctx.globalAlpha=0.6;ctx.stroke();ctx.globalAlpha=1;
+}
+
+function setupCanvas(id){
+  const c=document.getElementById(id);
+  const dpr=window.devicePixelRatio||1;
+  const size=c.clientWidth;
+  c.width=size*dpr;c.height=size*dpr;
+  const ctx=c.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);
+  return{ctx,size};
+}
+
+let cyaw=30,cpitch=0,croll=0;
+
+function render(){
+  const {ctx:ctx1,size:s1}=setupCanvas('c1');
+  const {ctx:ctx2,size:s2}=setupCanvas('c2');
+  const R=eulerMat(cyaw*D,cpitch*D,croll*D);
+  const cx=s1/2,cy=s1/2,rad=s1*0.32;
+  ctx1.clearRect(0,0,s1,s1);
+  // outer ring = yaw (Z), middle = pitch (X), inner = roll (Y)
+  drawRing(ctx1,cx,cy,rad,rotZ(cyaw*D),'#e8e6e0',2.5);
+  const m1=mul(rotZ(cyaw*D),rotX(cpitch*D));
+  drawRing(ctx1,cx,cy,rad*0.85,m1,'#8fd6c0',2.5);
+  drawRing(ctx1,cx,cy,rad*0.7,R,'#e0a08f',2.5);
+  // axes of the final frame
+  drawAxis(ctx1,cx,cy,rad*0.95,R,'#e0a08f');
+  // body marker
+  const body=apply(R,[0,0,rad*0.55]);
+  ctx1.beginPath();ctx1.arc(cx+body[0]+body[2]*0.35,cy+body[1]-body[2]*0.15,4,0,7);ctx1.fillStyle='#8fd6c0';ctx1.fill();
+
+  // quaternion equivalent: same orientation, one rotation
+  const q=quatMul(quatMul(quatAxis([0,0,1],cyaw*D),quatAxis([1,0,0],cpitch*D)),quatAxis([0,1,0],croll*D));
+  const Q=quatToMat(q);
+  ctx2.clearRect(0,0,s2,s2);
+  const cx2=s2/2,cy2=s2/2,rad2=s2*0.32;
+  drawRing(ctx2,cx2,cy2,rad2,Q,'#8fd6c0',2.5);
+  drawAxis(ctx2,cx2,cy2,rad2*0.95,Q,'#8fd6c0');
+  for(const v of [[rad2*0.55,0,0],[0,rad2*0.55,0],[0,0,rad2*0.55]]){
+    const a=apply(Q,v);
+    ctx2.beginPath();ctx2.arc(cx2+a[0]+a[2]*0.35,cy2+a[1]-a[2]*0.15,3.5,0,7);ctx2.fillStyle='#e8e6e0';ctx2.fill();
+  }
+
+  // how close to lock?
+  const lockDist=Math.abs(90-Math.abs(cpitch));
+  document.getElementById('qinfo').textContent=`q = (${q.map(v=>v.toFixed(2)).join(', ')})`;
+  document.getElementById('qnote').innerHTML = lockDist<1
+    ? '<span class="warn">at pitch 90°: yaw and roll rotate about the same world axis. two sliders, one effect.</span>'
+    : `distance from lock: ${lockDist.toFixed(0)}°`;
+}
+
+function bind(id,setter,valId){
+  const el=document.getElementById(id);
+  el.addEventListener('input',()=>{setter(+el.value);document.getElementById(valId).textContent=el.value+'°';render()});
+}
+bind('yaw',v=>cyaw=v,'yawv');
+bind('pitch',v=>cpitch=v,'pitchv');
+bind('roll',v=>croll=v,'rollv');
+
+document.getElementById('lock').addEventListener('click',()=>{
+  cpitch=90;document.getElementById('pitch').value=90;document.getElementById('pitchv').textContent='90°';render();
+});
+
+window.addEventListener('resize',render);
+render();
+</script>
+</body>
+</html>
