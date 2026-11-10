@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>van eck's sequence</title>
+<link rel="stylesheet" href="style.css">
+<style>
+canvas{width:100%;image-rendering:pixelated;border:1px solid #22242c;border-radius:6px;background:#0a0b0e}
+.row{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin:.8rem 0}
+input[type=number]{width:6.5rem;background:#15161c;color:var(--fg);border:1px solid #2a2c36;border-radius:5px;padding:.3rem .5rem;font:inherit}
+button{background:#1a1c24;color:var(--fg);border:1px solid #2a2c36;border-radius:5px;padding:.3rem .7rem;font:inherit;cursor:pointer}
+button:hover{border-color:var(--accent)}
+.legend{color:var(--dim);font-size:.85rem}
+code{color:var(--accent)}
+</style>
+</head>
+<body>
+<header>
+<h1>van eck's sequence</h1>
+<p class="tag">the rule is one line. nobody knows what it does.</p>
+</header>
+
+<section>
+<h2>the rule</h2>
+<p>start with <code>a(0) = 0</code>. for each next term: if the previous value has never appeared before, write <code>0</code>. otherwise write how many steps back you have to go to find it again.</p>
+<p>that's it. two sentences. and yet the sequence has no known closed form, no proven density, and it keeps doing things people can't explain.</p>
+</section>
+
+<section>
+<h2>the first terms</h2>
+<p class="legend" id="terms"></p>
+</section>
+
+<section>
+<h2>the picture</h2>
+<p class="legend">each column is a term. height is the value (log-ish scale). zeros show as the bottom row. the bright bands are places where a value repeats a lot.</p>
+<canvas id="cv" width="900" height="260"></canvas>
+<div class="row">
+<label>terms <input type="number" id="n" value="2000" min="100" max="20000" step="100"></label>
+<button id="draw">draw</button>
+</div>
+</section>
+
+<section>
+<h2>run it yourself</h2>
+<p class="legend">how far back to the previous occurrence of a value?</p>
+<div class="row">
+<label>value <input type="number" id="q" value="42" min="0"></label>
+<button id="go">find</button>
+</div>
+<p id="out"></p>
+</section>
+
+<section>
+<h2>why it's interesting</h2>
+<p>the first few hundred terms look random. then it settles into long stretches where the same value repeats, broken by sudden jumps to large numbers. it's not periodic. it's not random. it's just <em>defined</em>, and that turns out to be enough to be weird.</p>
+<p>similar in spirit to <a href="collatz.html">collatz</a>: a rule simple enough to state on a napkin, behaviour nobody can pin down.</p>
+</section>
+
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let seq = [0];
+let last = new Map(); // value -> last index
+
+function extend(n){
+  while(seq.length < n){
+    const i = seq.length - 1;
+    const prev = seq[i];
+    let next;
+    if(last.has(prev)) next = i - last.get(prev);
+    else next = 0;
+    last.set(prev, i);
+    seq.push(next);
+  }
+}
+
+function draw(n){
+  extend(n);
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0,0,W,H);
+  let mx = 1;
+  for(let i=0;i<n;i++) if(seq[i]>mx) mx = seq[i];
+  const lg = Math.log(mx+1);
+  const bw = W/n;
+  for(let i=0;i<n;i++){
+    const v = seq[i];
+    const h = Math.log(v+1)/lg * (H-10);
+    const a = v===0 ? 0.15 : 0.25 + 0.75*(1 - Math.log(v+1)/lg);
+    ctx.fillStyle = `rgba(139,233,160,${a.toFixed(3)})`;
+    ctx.fillRect(i*bw, H-h, Math.max(bw,1), h||1);
+  }
+}
+
+function termList(n){
+  extend(n);
+  document.getElementById('terms').textContent = seq.slice(0,n).join(', ') + ', ...';
+}
+
+document.getElementById('draw').onclick = ()=>{
+  const n = Math.max(100, Math.min(20000, +document.getElementById('n').value||2000));
+  draw(n);
+};
+
+document.getElementById('go').onclick = ()=>{
+  const v = Math.max(0, +document.getElementById('q').value||0);
+  extend(200000);
+  const hits = [];
+  for(let i=0;i<seq.length && hits.length<5;i++) if(seq[i]===v) hits.push(i);
+  const out = document.getElementById('out');
+  if(!hits.length) out.textContent = `no occurrence of ${v} in the first 200000 terms`;
+  else out.textContent = `${v} appears at positions ${hits.join(', ')} (first 5 of ${seq.filter(x=>x===v).length} in 200000)`;
+};
+
+termList(40);
+draw(2000);
+</script>
+</body>
+</html>
