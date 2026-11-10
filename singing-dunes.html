@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>singing dunes</title>
+<style>
+  :root{--bg:#120d09;--sand:#e8c68a;--sand2:#c79a55;--ink:#f4e6cc;--dim:#8c7452;}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 ui-monospace,Menlo,monospace}
+  .wrap{max-width:760px;margin:0 auto;padding:48px 20px 80px}
+  h1{font-size:1.6rem;letter-spacing:.02em;margin:0 0 .2em}
+  .sub{color:var(--dim);margin:0 0 2em}
+  p{color:#d9c8a8}
+  canvas{width:100%;height:280px;display:block;border-radius:10px;background:#1a130c;margin:1.4em 0}
+  .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin:.6em 0}
+  label{color:var(--dim);min-width:9em}
+  input[type=range]{flex:1;accent-color:var(--sand)}
+  .val{color:var(--sand);min-width:7em;text-align:right;font-variant-numeric:tabular-nums}
+  button{background:var(--sand2);color:#1a130c;border:0;border-radius:8px;padding:.5em 1.1em;font:inherit;cursor:pointer;font-weight:600}
+  button:active{transform:translateY(1px)}
+  .note{color:var(--dim);font-size:.85rem;border-top:1px solid #2a2016;padding-top:1em;margin-top:2em}
+  a{color:var(--sand)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>singing dunes</h1>
+  <p class="sub">the whole dune is the instrument. the avalanche is the bow.</p>
+
+  <p>some desert dunes hum. a deep, groaning note, 70–105&nbsp;Hz, loud enough to hear kilometers away. it happens when sand avalanches down a slip face: the loose surface layer shears, grains rub, and the dune acts as a natural <b>waveguide</b>, trapping and amplifying one pitch out of the noise.</p>
+
+  <p>the conditions are picky. grains have to be <b>round</b> and roughly 0.1–0.5&nbsp;mm, and bone dry. wet sand sticks and goes quiet — the dune can't sing in winter. the pitch tracks grain size: bigger grains, lower note.</p>
+
+  <canvas id="c"></canvas>
+
+  <div class="row"><label>grain size</label><input id="g" type="range" min="0" max="100" value="50"><span class="val" id="gv">0.3 mm</span></div>
+  <div class="row"><label>pitch</label><input id="p" type="range" min="70" max="105" value="88"><span class="val" id="pv">88 Hz</span></div>
+  <div class="row"><button id="go">start the avalanche</button></div>
+
+  <p class="note">drag the grain slider to hear the pitch follow it (move the pitch slider to match). the toy is a guess at the coupling, not a measurement. real dunes hum at several frequencies at once, and the one you hear depends on how the whole slope resonates. <a href="https://en.wikipedia.org/wiki/Singing_sand">more</a></p>
+</div>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+let W,H,grains=[],running=false,hum=null;
+function size(){const r=c.getBoundingClientRect();W=c.width=r.width*devicePixelRatio;H=c.height=r.height*devicePixelRatio;x.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);}
+function make(){grains=[];const w=c.width/devicePixelRatio,h=c.height/devicePixelRatio;
+  // slope: high left, low right
+  for(let i=0;i<900;i++){const t=Math.random();const gx=t*w;const gyTop=40+(1-t)*0+ t*0; // flat-ish top
+    grains.push({x:gx,y:30+Math.random()*(h-90),vx:0,vy:0,r:1+Math.random()*1.6,t});}}
+function humStart(){try{hum=hum||new (window.AudioContext||window.webkitAudioContext)();if(hum.state==='suspended')hum.resume();}catch(e){return;}}
+let osc=null,gain=null,noise=null;
+function tone(f){humStart();if(!hum)return;if(!osc){osc=hum.createOscillator();gain=hum.createGain();osc.type='sawtooth';osc.connect(gain);gain.connect(hum.destination);osc.start();}
+  osc.frequency.setTargetAtTime(f,hum.currentTime,0.05);gain.gain.setTargetAtTime(0.05,hum.currentTime,0.05);}
+function stopTone(){if(gain)gain.gain.setTargetAtTime(0,hum.currentTime,0.3);}
+function step(){const w=c.width/devicePixelRatio,h=c.height/devicePixelRatio;
+  x.clearRect(0,0,w,h);
+  for(const g of grains){g.vy+=0.06;g.vx+=Math.sin(g.y*0.04+g.x*0.01)*0.02;g.x+=g.vx;g.y+=g.vy;
+    if(g.y>h-30){g.y=h-30-Math.random()*4;g.vy=0;g.vx=0;g.x=Math.random()*w;}
+    x.fillStyle='rgba('+(200+Math.random()*40|0)+','+(170+Math.random()*40|0)+',110,0.8)';x.fillRect(g.x,g.y,g.r,g.r);}
+  // surface line
+  x.strokeStyle='rgba(232,198,138,0.5)';x.lineWidth=1.5;x.beginPath();x.moveTo(0,h-30);x.lineTo(w,h-30);x.stroke();
+  if(running)requestAnimationFrame(step);
+}
+function freqFromGrain(v){return 105-(v/100)*35;}
+function grainFromFreq(f){return (105-f)/35*100;}
+const g=document.getElementById('g'),gv=document.getElementById('gv'),p=document.getElementById('p'),pv=document.getElementById('pv');
+function sync(fromGrain){if(fromGrain){p.value=freqFromGrain(+g.value);}else{g.value=grainFromFreq(+p.value);}
+  gv.textContent=(0.1+(+g.value/100)*0.4).toFixed(2)+' mm';pv.textContent=Math.round(+p.value)+' Hz';if(running)tone(+p.value);}
+g.oninput=()=>sync(true);p.oninput=()=>sync(false);
+document.getElementById('go').onclick=()=>{running=!running;if(running){make();step();tone(+p.value);document.getElementById('go').textContent='let it settle';}else{stopTone();document.getElementById('go').textContent='start the avalanche';}};
+window.addEventListener('resize',()=>{size();make();});
+size();make();
+</script>
+</body>
+</html>
