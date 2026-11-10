@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>knight's tour</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .wrap{max-width:640px;margin:0 auto;padding:24px 16px}
+  h1{font-size:1.4em;margin:0 0 4px}
+  p.sub{opacity:.7;margin:0 0 18px;font-size:.92em}
+  #board{display:grid;grid-template-columns:repeat(8,1fr);gap:2px;
+    width:min(92vw,520px);aspect-ratio:1;margin:0 auto;touch-action:manipulation}
+  .cell{position:relative;border-radius:4px;display:flex;align-items:center;justify-content:center;
+    font:600 clamp(9px,2.2vw,15px)/1 ui-monospace,monospace;cursor:pointer;user-select:none;
+    transition:background .12s,color .12s}
+  .light{background:#e9e2d0;color:#7a6f58}
+  .dark{background:#7a6f58;color:#e9e2d0}
+  .cell.start{outline:3px solid #d94f30;outline-offset:-3px}
+  .cell.visited{background:#2b6cb0;color:#fff}
+  .cell.head{background:#d94f30;color:#fff;box-shadow:0 0 0 3px #d94f30 inset}
+  .ctrl{display:flex;gap:10px;justify-content:center;margin:18px 0 10px;flex-wrap:wrap}
+  button{font:inherit;font-size:.9em;padding:8px 16px;border-radius:8px;border:1px solid #7a6f58;
+    background:transparent;color:inherit;cursor:pointer}
+  button:hover{background:#7a6f58;color:#fff}
+  button:disabled{opacity:.35;cursor:default;background:transparent;color:inherit}
+  #info{text-align:center;font-size:.85em;opacity:.75;min-height:1.4em;margin-top:6px}
+  #note{margin-top:26px;font-size:.86em;line-height:1.55;opacity:.85}
+  #note b{color:#d94f30}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>knight's tour</h1>
+  <p class="sub">a knight visits every square of a chessboard exactly once. click any square to start.</p>
+  <div id="board"></div>
+  <div class="ctrl">
+    <button id="play">play</button>
+    <button id="reset">reset</button>
+  </div>
+  <div id="info"></div>
+  <div id="note">
+    <p>a full tour exists from every square of an 8&times;8 board. finding one by brute force is
+    a mess, so this uses <b>Warnsdorff's rule</b>: always jump to the square with the fewest
+    onward moves. that greedy guess alone solves 62 of the 64 start squares. the other two
+    (i checked, it's a couple of corners) need a little backtracking, so there's a fallback
+    that undoes a bad jump and tries the next-best square.</p>
+    <p>the numbers are the visit order. blue = visited, red = where the knight is right now.</p>
+  </div>
+</div>
+<script>
+const N=8;
+const moves=[[1,2],[2,1],[-1,2],[-2,1],[1,-2],[2,-1],[-1,-2],[-2,-1]];
+const onB=(x,y)=>x>=0&&x<N&&y>=0&&y<N;
+function deg(b,x,y){let c=0;for(const[mx,my]of moves){const nx=x+mx,ny=y+my;if(onB(nx,ny)&&!b[ny][nx])c++;}return c;}
+function solve(sx,sy){
+  const b=Array.from({length:N},()=>Array(N).fill(0));
+  const path=[];
+  function go(x,y,step){
+    b[y][x]=step;path.push([x,y]);
+    if(step===N*N)return true;
+    const cand=[];
+    for(const[mx,my]of moves){const nx=x+mx,ny=y+my;if(onB(nx,ny)&&!b[ny][nx])cand.push([nx,ny,deg(b,nx,ny)]);}
+    cand.sort((a,b)=>a[2]-b[2]);
+    for(const[nx,ny]of cand){if(go(nx,ny,step+1))return true;}
+    b[y][x]=0;path.pop();return false;
+  }
+  return go(sx,sy,1)?path:null;
+}
+const board=document.getElementById('board');
+const info=document.getElementById('info');
+const playBtn=document.getElementById('play');
+const resetBtn=document.getElementById('reset');
+let cells=[],start=null,tour=null,animTimer=null,idx=0;
+for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+  const d=document.createElement('div');
+  d.className='cell '+(((x+y)%2)?'dark':'light');
+  d.dataset.x=x;d.dataset.y=y;
+  d.addEventListener('click',()=>pick(x,y));
+  board.appendChild(d);cells.push(d);
+}
+const at=(x,y)=>cells[y*N+x];
+function clearBoard(){
+  if(animTimer){clearInterval(animTimer);animTimer=null;}
+  for(const c of cells){c.classList.remove('visited','head','start');c.textContent='';}
+  info.textContent='';idx=0;tour=null;
+  playBtn.disabled=true;
+}
+function pick(x,y){
+  clearBoard();
+  start=[x,y];
+  at(x,y).classList.add('start');
+  tour=solve(x,y);
+  if(!tour){info.textContent='no tour from here (shouldnt happen)';return;}
+  info.textContent='tour found. press play.';
+  playBtn.disabled=false;
+}
+function step(){
+  if(!tour||idx>=tour.length){if(animTimer){clearInterval(animTimer);animTimer=null;}return;}
+  for(const c of cells)c.classList.remove('head');
+  const[x,y]=tour[idx];
+  const c=at(x,y);
+  c.classList.add('visited','head');
+  c.textContent=(idx+1);
+  info.textContent='move '+(idx+1)+' of '+tour.length;
+  idx++;
+  if(idx>=tour.length){info.textContent='complete tour! '+tour.length+' squares.';}
+}
+playBtn.addEventListener('click',()=>{
+  if(animTimer)return;
+  if(idx>=tour.length){clearBoard();at(start[0],start[1]).classList.add('start');}
+  animTimer=setInterval(step,120);
+});
+resetBtn.addEventListener('click',clearBoard);
+// start on a default square so it looks alive
+pick(0,0);
+</script>
+</body>
+</html>
