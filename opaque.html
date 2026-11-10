@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>opaque set</title>
+<style>
+  body{margin:0;background:#0d0f13;color:#cfd6e0;font:15px/1.5 ui-monospace,monospace;display:flex;flex-direction:column;align-items:center;padding:18px}
+  h1{font-size:16px;font-weight:600;letter-spacing:.08em;color:#8fa3bd;margin:0 0 4px}
+  p.sub{max-width:640px;color:#7b8798;font-size:13px;margin:0 0 14px;text-align:center}
+  canvas{background:#11151c;border-radius:8px;touch-action:none;cursor:crosshair}
+  .bar{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;margin-top:12px;font-size:13px;max-width:640px}
+  .stat{color:#9fb0c4}
+  .stat b{color:#e6edf6}
+  button{background:#1b2230;color:#cfd6e0;border:1px solid #2a3444;border-radius:6px;padding:5px 10px;font:inherit;cursor:pointer}
+  button:hover{background:#232c3c}
+  .hint{color:#5d6b7d;font-size:12px;margin-top:10px;text-align:center;max-width:640px}
+</style>
+</head>
+<body>
+<h1>opaque set</h1>
+<p class="sub">a beam of light crosses the unit square at every angle. block <em>all</em> of them with the shortest set of line segments. nobody knows the true minimum for the square — 2.639 is conjectured, unproven. drag to draw a segment; click a segment to remove it.</p>
+<canvas id="cv" width="520" height="520"></canvas>
+<div class="bar">
+  <span class="stat">length <b id="len">0.000</b></span>
+  <span class="stat">beams through <b id="through">0</b></span>
+  <span class="stat">conj. min <b>2.639</b></span>
+  <button id="opt">load known-best</button>
+  <button id="clr">clear</button>
+</div>
+<div class="hint">known-best = steiner tree of three corners + a segment from the fourth corner to the centre (2 + √6/2 ≈ 2.639). it blocks everything. nobody can prove nothing shorter works.</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=cv.width, M=60, side=W-2*M; // square drawn from (M,M) to (M+side,M+side), side px = 1 unit
+const toPx=x=>M+x*side, toUnit=p=>(p-M)/side;
+let segs=[]; // each {a:[x,y], b:[x,y]} in unit coords
+let drag=null;
+
+// known best: steiner tree of 3 corners + center stem
+// corners (0,0),(1,0),(1,1) steiner tree w/ 4th corner (0,1)
+// steiner point near each: for triangle (0,0),(1,0),(1,1) the fermat point is (1/2, 1/2 - 1/(2√3))? compute properly
+function knownBest(){
+  // steiner tree of three corners A(0,0) B(1,0) C(1,1): one fermat point F (all angles 120).
+  // F = (0.7887, 0.2113), tree length = sqrt(2+sqrt(3)) = 1.9319.
+  // plus a stem from the fourth corner D(0,1) to the centre (0.5,0.5), length 0.5.
+  // total = 2.639, blocks every beam. conjectured optimal, unproven beyond 2 components.
+  const F=[0.7886751345945715, 0.2113248654053234];
+  segs=[
+    {a:[0,0],b:F},{a:[1,0],b:F},{a:[1,1],b:F},
+    {a:[0,1],b:[0.5,0.5]}
+  ];
+}
+
+function segLen(s){const dx=s.b[0]-s.a[0],dy=s.b[1]-s.a[1];return Math.hypot(dx,dy);}
+function totalLen(){return segs.reduce((t,s)=>t+segLen(s),0);}
+
+// does segment s block the infinite line through point p with direction d?
+function blocks(s,p,d){
+  // segment as p1 + t*(p2-p1), line as p + u*d. solve for intersection, check both params in range
+  const x1=s.a[0],y1=s.a[1],x2=s.b[0],y2=s.b[1];
+  const rx=x2-x1, ry=y2-y1;
+  const denom = d[0]*ry - d[1]*rx;
+  if(Math.abs(denom)<1e-9) return false;
+  const t = ((x1-p[0])*ry - (y1-p[1])*rx)/denom; // param along line
+  const u = ((x1-p[0])*d[1] - (y1-p[1])*d[0])/denom; // param along segment... sign check
+  // recompute u cleanly: p + t d = s.a + u (b-a)
+  const uu = ((p[0]+t*d[0]-x1)*rx + (p[1]+t*d[1]-y1)*ry)/(rx*rx+ry*ry);
+  return uu>=-1e-9 && uu<=1+1e-9;
+}
+
+// a beam = a line crossing the square. sample many lines by (angle, offset).
+// for a line to 'cross the square' it must intersect the interior.
+// We test: does this line hit any segment before/at the square? We want EVERY line that enters the square to be blocked.
+function beamEscapes(angle, offset){
+  // line direction d, normal n. line: points where dot(p,n)=offset. p0 = offset*n
+  const d=[Math.cos(angle),Math.sin(angle)];
+  const n=[-Math.sin(angle),Math.cos(angle)];
+  // does line intersect square [0,1]^2 interior? clip against box
+  // param p = p0 + t*d, find t-range inside box
+  let tmin=-1e9,tmax=1e9;
+  const p0=[offset*n[0], offset*n[1]];
+  for(let i=0;i<2;i++){
+    if(Math.abs(d[i])<1e-9){ if(p0[i]<0||p0[i]>1) return null; }
+    else{
+      let t1=(0-p0[i])/d[i], t2=(1-p0[i])/d[i];
+      if(t1>t2){const tmp=t1;t1=t2;t2=tmp;}
+      tmin=Math.max(tmin,t1); tmax=Math.min(tmax,t2);
+    }
+  }
+  if(tmax-tmin<1e-6) return null; // misses square
+  // sample points along the chord, check if any segment is hit
+  // a segment blocks the whole line if it intersects anywhere on the chord (line segment inside square)
+  // actually we need the segment to intersect the chord (the part of the line inside the square)
+  for(const s of segs){
+    if(segBlocksChord(s,p0,d,tmin,tmax)) return false; // blocked
+  }
+  return true; // escapes
+}
+
+function segBlocksChord(s,p0,d,tmin,tmax){
+  const x1=s.a[0],y1=s.a[1],x2=s.b[0],y2=s.b[1];
+  const rx=x2-x1, ry=y2-y1;
+  const denom = d[0]*ry - d[1]*rx;
+  if(Math.abs(denom)<1e-12) return false;
+  const t = ((x1-p0[0])*ry - (y1-p0[1])*rx)/denom;
+  const u = ((x1-p0[0])*d[1] - (y1-p0[1])*d[0])/denom;
+  return u>=-1e-9 && u<=1+1e-9 && t>=tmin-1e-9 && t<=tmax+1e-9;
+}
+
+let escapes=[];
+function computeBeams(){
+  escapes=[];
+  const A=64, O=90; // angle samples, offset samples
+  for(let ai=0;ai<A;ai++){
+    const angle=Math.PI*ai/A;
+    for(let oi=0;oi<O;oi++){
+      const offset=-1.5+3*oi/(O-1);
+      const esc=beamEscapes(angle,offset);
+      if(esc===true) escapes.push({angle,offset});
+    }
+  }
+  document.getElementById('through').textContent=escapes.length;
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,W);
+  const x0=toPx(0),x1=toPx(1);
+  // square
+  ctx.strokeStyle='#2b3646';ctx.lineWidth=1.5;
+  ctx.strokeRect(x0,x0,side,side);
+  // escaping beams (red)
+  ctx.strokeStyle='rgba(220,70,70,0.35)';ctx.lineWidth=1;
+  for(const e of escapes){
+    const d=[Math.cos(e.angle),Math.sin(e.angle)];
+    const n=[-Math.sin(e.angle),Math.cos(e.angle)];
+    const p0=[e.offset*n[0], e.offset*n[1]];
+    // clip to square
+    let tmin=-1e9,tmax=1e9;
+    for(let i=0;i<2;i++){
+      if(Math.abs(d[i])<1e-9) continue;
+      let t1=(0-p0[i])/d[i],t2=(1-p0[i])/d[i];
+      if(t1>t2){const tmp=t1;t1=t2;t2=tmp;}
+      tmin=Math.max(tmin,t1);tmax=Math.min(tmax,t2);
+    }
+    ctx.beginPath();
+    ctx.moveTo(toPx(p0[0]+tmin*d[0]),toPx(p0[1]+tmin*d[1]));
+    ctx.lineTo(toPx(p0[0]+tmax*d[0]),toPx(p0[1]+tmax*d[1]));
+    ctx.stroke();
+  }
+  // segments
+  ctx.strokeStyle='#5ad0a0';ctx.lineWidth=3;ctx.lineCap='round';
+  for(const s of segs){
+    ctx.beginPath();
+    ctx.moveTo(toPx(s.a[0]),toPx(s.a[1]));
+    ctx.lineTo(toPx(s.b[0]),toPx(s.b[1]));
+    ctx.stroke();
+  }
+  // endpoints
+  ctx.fillStyle='#5ad0a0';
+  for(const s of segs){for(const p of [s.a,s.b]){ctx.beginPath();ctx.arc(toPx(p[0]),toPx(p[1]),3,0,7);ctx.fill();}}
+  // drag line
+  if(drag){
+    ctx.strokeStyle='#8fa3bd';ctx.lineWidth=2;ctx.setLineDash([4,4]);
+    ctx.beginPath();ctx.moveTo(toPx(drag.a[0]),toPx(drag.a[1]));ctx.lineTo(toPx(drag.b[0]),toPx(drag.b[1]));ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  document.getElementById('len').textContent=totalLen().toFixed(3);
+}
+
+function refresh(){computeBeams();draw();}
+
+function clamp(p){
+  return [Math.max(0,Math.min(1,p[0])),Math.max(0,Math.min(1,p[1]))];
+}
+
+cv.addEventListener('pointerdown',e=>{
+  const r=cv.getBoundingClientRect();
+  const px=(e.clientX-r.left)*cv.width/r.width, py=(e.clientY-r.top)*cv.height/r.height;
+  const u=clamp([toUnit(px),toUnit(py)]);
+  // click on existing segment? remove
+  for(let i=0;i<segs.length;i++){
+    if(distToSeg(u,segs[i])<0.03){segs.splice(i,1);refresh();return;}
+  }
+  drag={a:u,b:u};
+  cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  const r=cv.getBoundingClientRect();
+  const px=(e.clientX-r.left)*cv.width/r.width, py=(e.clientY-r.top)*cv.height/r.height;
+  drag.b=clamp([toUnit(px),toUnit(py)]);
+  draw();
+});
+cv.addEventListener('pointerup',e=>{
+  if(!drag) return;
+  if(segLen(drag)>0.05){segs.push({a:drag.a,b:drag.b});}
+  drag=null;refresh();
+});
+
+function distToSeg(p,s){
+  const ax=s.a[0],ay=s.a[1],bx=s.b[0],by=s.b[1];
+  const dx=bx-ax,dy=by-ay;const L=dx*dx+dy*dy||1;
+  let t=((p[0]-ax)*dx+(p[1]-ay)*dy)/L;t=Math.max(0,Math.min(1,t));
+  return Math.hypot(p[0]-(ax+t*dx),p[1]-(ay+t*dy));
+}
+
+document.getElementById('opt').onclick=()=>{knownBest();refresh();};
+document.getElementById('clr').onclick=()=>{segs=[];refresh();};
+
+refresh();
+</script>
+</body>
+</html>
