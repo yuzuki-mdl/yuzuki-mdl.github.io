@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>diffusion-limited aggregation</title>
+<style>
+  :root{--bg:#0c0d12;--fg:#e8e6e0;--dim:#767c88;--acc:#6fd3c7;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:24px;max-width:820px;margin:0 auto}
+  h1{font-size:19px;font-weight:600;margin:0 0 4px}
+  p.sub{color:var(--dim);margin:0 0 16px;font-size:13px;max-width:64ch}
+  canvas{image-rendering:pixelated;border:1px solid #1c1f28;border-radius:6px;display:block;width:100%;max-width:560px;aspect-ratio:1/1;background:#05060a}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0}
+  button{background:#171a22;color:var(--fg);border:1px solid #2a2e3a;border-radius:6px;padding:8px 12px;font:inherit;cursor:pointer}
+  button:hover{background:#20242f;border-color:#3a3f4d}
+  button.acc{border-color:var(--acc);color:var(--acc)}
+  label{color:var(--dim);font-size:13px}
+  input[type=range]{width:120px;vertical-align:middle}
+  output{color:var(--acc);font-variant-numeric:tabular-nums}
+  .stats{display:flex;gap:20px;flex-wrap:wrap;color:var(--dim);font-size:13px;margin-top:10px}
+  .stats b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+  .note{color:var(--dim);font-size:13px;margin-top:20px;border-top:1px solid #1c1f28;padding-top:14px;max-width:66ch}
+  .note b{color:var(--fg)}
+</style>
+</head>
+<body>
+<h1>diffusion-limited aggregation</h1>
+<p class="sub">fire random walkers from the edges. when a walker bumps into the growing cluster it sticks. that's it. do it thousands of times and you get a fractal coral — a shape with no characteristic scale, equally branchy at every zoom.</p>
+<canvas id="c" width="400" height="400"></canvas>
+<div class="row">
+  <button id="toggle" class="acc">pause</button>
+  <button id="reset">reset</button>
+  <label>walkers/frame <input id="speed" type="range" min="1" max="80" value="12"><output id="speedv">12</output></label>
+  <label>stickiness <input id="stick" type="range" min="1" max="10" value="1"><output id="stickv">1.0</output></label>
+</div>
+<div class="stats">
+  <span>particles <b id="np">0</b></span>
+  <span>radius <b id="nr">0</b></span>
+  <span>fractal dim ~ <b id="nd">–</b></span>
+</div>
+<div class="note">
+  <b>the fractal dimension:</b> for DLA in 2D the cluster grows with roughly <b>N ∝ R<sup>1.71</sup></b> — denser than a line (1) but far emptier than a disc (2). that number is measured here live: it's the slope of log(particles) vs log(radius). the tips of the branches catch walkers first, so growth is unstable and pointy — the same reason lightning forks and frost grows feathers.
+</div>
+<script>
+(() => {
+  const N = 400, C = document.getElementById('c'), ctx = C.getContext('2d');
+  const img = ctx.createImageData(N, N);
+  const grid = new Uint8Array(N * N);
+  const cx = N>>1, cy = N>>1;
+  let count = 0, running = true, R = 1, raf = null;
+  let stickP = 1.0;
+
+  const COL = [111,211,199]; // teal
+  function put(x,y){
+    const i = y*N+x;
+    if(grid[i]) return;
+    grid[i] = 1; count++;
+    const p = i*4, d = img.data;
+    // colour by distance from centre for a bit of depth
+    const dx = x-cx, dy = y-cy;
+    const t = Math.min(1, Math.sqrt(dx*dx+dy*dy)/ (N*0.5));
+    d[p]   = COL[0]*(0.55+0.45*t);
+    d[p+1] = COL[1]*(0.55+0.45*t);
+    d[p+2] = COL[2]*(0.55+0.45*t);
+    d[p+3] = 255;
+    const r = Math.max(Math.abs(dx), Math.abs(dy));
+    if(r > R) R = r;
+  }
+
+  function neighbours(x,y){
+    return grid[(y)*N+x-1] || grid[(y)*N+x+1] || grid[(y-1)*N+x] || grid[(y+1)*N+x];
+  }
+
+  // launch one walker from a circle just outside the cluster radius, walk until it sticks or escapes
+  function walker(){
+    const launch = R + 4;
+    const ang = Math.random()*Math.PI*2;
+    let x = Math.round(cx + Math.cos(ang)*launch);
+    let y = Math.round(cy + Math.sin(ang)*launch);
+    const kill = (R + 40); // escape radius
+    let steps = 0;
+    const maxSteps = 400000;
+    while(steps++ < maxSteps){
+      // random step
+      const r = Math.random();
+      if(r < 0.25) x++; else if(r < 0.5) x--; else if(r < 0.75) y++; else y--;
+      // off grid or escaped too far -> discard
+      if(x<=0||x>=N-1||y<=0||y>=N-1) return;
+      const dx = x-cx, dy = y-cy;
+      if(dx*dx+dy*dy > kill*kill) return;
+      // stick?
+      if(neighbours(x,y) && Math.random() < stickP){ put(x,y); return; }
+    }
+  }
+
+  function drawFull(){
+    ctx.putImageData(img, 0, 0);
+  }
+
+  function updateStats(){
+    document.getElementById('np').textContent = count.toLocaleString();
+    document.getElementById('nr').textContent = R;
+    // fractal dim estimate: log(N)/log(R) once there's enough
+    if(count > 60 && R > 6){
+      const d = Math.log(count) / Math.log(R);
+      document.getElementById('nd').textContent = d.toFixed(2);
+    }
+  }
+
+  function frame(){
+    if(!running) return;
+    const per = +document.getElementById('speed').value;
+    for(let k=0;k<per;k++) walker();
+    drawFull();
+    updateStats();
+    raf = requestAnimationFrame(frame);
+  }
+
+  function reset(){
+    grid.fill(0); img.data.fill(0); count = 0; R = 1;
+    for(let i=0;i<img.data.length;i+=4) img.data[i+3]=255;
+    put(cx, cy);
+    drawFull(); updateStats();
+  }
+
+  document.getElementById('toggle').onclick = e=>{
+    running = !running;
+    e.target.textContent = running ? 'pause' : 'run';
+    if(running) raf = requestAnimationFrame(frame);
+    else if(raf) cancelAnimationFrame(raf);
+  };
+  document.getElementById('reset').onclick = ()=>{ reset(); if(!running){ running=true; document.getElementById('toggle').textContent='pause'; raf=requestAnimationFrame(frame);} };
+  document.getElementById('speed').oninput = e=>{ document.getElementById('speedv').textContent = e.target.value; };
+  document.getElementById('stick').oninput = e=>{ stickP = e.target.value/10; document.getElementById('stickv').textContent = stickP.toFixed(1); };
+
+  reset();
+  raf = requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
