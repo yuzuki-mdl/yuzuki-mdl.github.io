@@ -42,7 +42,7 @@
 <p>the top picture is the body rolling on the floor. the bottom plot is its <b>height of centre of mass</b> against tilt θ. every valley is a way to rest, every peak a way to balance. a gömböc is the one shape where there is exactly <b>one valley and one peak</b> — one way to sit, one way to teeter, nothing else.</p>
 
 <div class="note">
-  the real gömböc is a 3D convex body (Domokos &amp; Várkonyi, 2006); they proved it existed before anyone built one. in 2D it can't be done: for a convex flat outline the rest count is always even, at least two stable and two unstable, alternating round the edge (Domokos, Papadopoulos &amp; Ruina, 1994). so 1 · 1 is impossible on this page — the floor is <b>2 · 2</b>, and even that is rare. a random blob has <i>many</i> rests, as you'll see. the height curve is measured straight off the geometry: outline fixed, centre of mass = area centroid, contact point = lowest outline point for each tilt. drag the sliders and watch the count drop toward 2 · 2.
+  the real gömböc is a 3D convex body (Domokos &amp; Várkonyi, 2006); they proved it existed before anyone built one. in 2D it can't be done: for a convex flat outline the rest count is always even, at least two stable and two unstable, alternating round the edge (Domokos, Papadopoulos &amp; Ruina, 1994). so 1 · 1 is impossible on this page — the floor is <b>2 · 2</b>, and even that is rare. a random blob has <i>many</i> rests, as you'll see. the height curve is measured straight off the geometry: outline fixed, centre of mass = area centroid, contact point = lowest outline point for each tilt. drag the sliders and watch the count drop toward 2 · 2. the counter only ignores wiggles smaller than a 1e-6 noise floor, so every real valley is counted — if it says 4, there are 4.
 </div>
 </main>
 <script>
@@ -105,32 +105,19 @@ function curve(){
   return {ys, lo, hi, N};
 }
 
-const EPS_FRAC = 0.01; // a valley counts only if it rises EPS_FRAC*span on both sides
-function extrema(ys, N, eps){
-  // prominence filter: a local min at i counts only if the curve rises at least
-  // eps above ys[i] on BOTH sides before hitting a lower point. same for maxima.
-  const span = Math.max(...ys) - Math.min(...ys);
-  const tol = eps==null ? span*EPS_FRAC : eps;
-  const isMin = i => { const b=ys[i];
-    let L=b, R=b;
-    for(let k=1;k<N;k++){ const v=ys[(i-k+N)%N]; if(v<b){L=v;break;} if(v>L)L=v; }
-    for(let k=1;k<N;k++){ const v=ys[(i+k)%N]; if(v<b){R=v;break;} if(v>R)R=v; }
-    return (L-b>=tol)||(R-b>=tol); };
-  const isMax = i => { const b=ys[i];
-    let L=b, R=b;
-    for(let k=1;k<N;k++){ const v=ys[(i-k+N)%N]; if(v>b){L=v;break;} if(v<L)L=v; }
-    for(let k=1;k<N;k++){ const v=ys[(i+k)%N]; if(v>b){R=v;break;} if(v<R)R=v; }
-    return (b-L>=tol)||(b-R>=tol); };
+const EPS = 1e-6; // noise floor: slope must change by more than this to count
+function extrema(ys, N){
+  // a rest = a strict change in the sign of the slope going round the loop.
+  // the old version filtered by prominence and dropped real valleys; on a convex
+  // body every strict local min IS a rest (Domokos-Papadopoulos-Ruina 1994), so
+  // we count them all and only kill sub-noise wiggles. the seam is closed by
+  // seeding the last slope before i=0, so mins and maxs always come out equal.
+  const tol = EPS;
+  const s = i => { const d = ys[(i+1)%N] - ys[i]; return d>tol ? 1 : d<-tol ? -1 : 0; };
   const mins=[], maxs=[];
-  let cur=null;
-  for(let i=0;i<N;i++){
-    const a=ys[(i-1+N)%N], b=ys[i], c=ys[(i+1)%N];
-    if(b<=a && b<=c && (b<a || b<c)){ if(cur!=='min' && isMin(i)){mins.push(i);} cur='min'; }
-    else if(b>=a && b>=c && (b>a || b>c)){ if(cur!=='max' && isMax(i)){maxs.push(i);} cur='max'; }
-    else cur=null;
-  }
-  const merge = arr => { const out=[]; for(const i of arr){ if(!out.length || i-out[out.length-1]>3) out.push(i); } return out; };
-  return {mins: merge(mins), maxs: merge(maxs), tol};
+  let prev = s(N-1);
+  for(let i=0;i<N;i++){ const sg = s(i); if(sg!==0 && sg!==prev){ (prev>0?maxs:mins).push(i); prev=sg; } }
+  return {mins, maxs, tol};
 }
 
 let theta = 0.9, omega = 0, rolling = false;
