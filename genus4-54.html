@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>genus-4 {5,4} — 24 pentagons</title>
+<style>
+  :root { --bg:#0b0e14; --fg:#e8e8e8; --dim:#7a8899; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:ui-monospace,monospace; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
+  header { padding:28px 16px 8px; text-align:center; }
+  h1 { font-size:20px; font-weight:600; margin:0 0 6px; }
+  p.sub { color:var(--dim); font-size:13px; margin:0; max-width:560px; }
+  .wrap { display:flex; gap:32px; flex-wrap:wrap; justify-content:center; align-items:flex-start; padding:24px; }
+  svg { display:block; }
+  .panel { display:flex; flex-direction:column; gap:12px; min-width:220px; }
+  button { background:#1a2330; color:var(--fg); border:1px solid #2a3a4a; border-radius:6px; padding:8px 14px; font-family:inherit; font-size:14px; cursor:pointer; }
+  button:hover { background:#243242; }
+  .stat { font-size:13px; color:var(--dim); }
+  .stat b { color:var(--fg); }
+  .legend { font-size:12px; color:var(--dim); line-height:1.7; }
+  footer { padding:16px; font-size:12px; color:var(--dim); text-align:center; max-width:600px; }
+  a { color:#5ce1e6; }
+</style>
+</head>
+<body>
+<header>
+  <h1>genus-4 {5,4}: 24 right-angled pentagons</h1>
+  <p class="sub">a closed {5,4} surface, no boundary. V=30 E=60 F=24, chi=-6. built from the Conder R4.2 regular map ({4,5}, order 240) via Todd-Coxeter. every face a pentagon, every vertex degree 4.</p>
+</header>
+<div class="wrap">
+  <svg id="map" width="560" height="560" viewBox="0 0 560 560"></svg>
+  <div class="panel">
+    <div class="stat">population: <b id="pop">0</b> / 24</div>
+    <div class="stat">step: <b id="gen">0</b></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="stepBtn">step</button>
+      <button id="runBtn">run</button>
+      <button id="clearBtn">clear</button>
+      <button id="randBtn">random</button>
+    </div>
+    <div class="legend">
+      click a pentagon to toggle it<br>
+      rule: B2/S3 (life-like on the 24 faces)<br>
+      each glued side counts as one neighbour
+    </div>
+  </div>
+</div>
+<footer>full 2<sup>24</sup> enumeration: 3386 periodic orbits, max period 10. zero rigid gliders — but 80 breathing symmetry-shuttles that pulse 3↔6 while sliding along a symmetry. <a href="https://yuzuki-mdl.github.io/">yuzuki</a></footer>
+<script>
+const F = 24;
+// adjacency with multiplicity: each face lists its 5 side-neighbours (a face can repeat = two glued sides)
+const adj = [[5,17,23,20,16],[23,9,11,6,20],[22,4,21,19,10],[12,23,17,14,11],[11,2,16,20,12],[10,13,8,0,22],[8,1,10,19,18],[18,13,10,15,21],[11,14,5,16,6],[22,15,19,13,1],[6,2,5,7,20],[8,3,4,22,1],[4,15,19,18,3],[5,7,23,9,14],[19,21,3,8,13],[12,20,7,17,9],[8,18,21,4,0],[3,21,15,22,0],[23,12,6,16,7],[14,2,6,12,9],[10,15,4,0,1],[2,14,17,7,16],[11,2,5,17,9],[0,1,13,18,3]];
+let state = new Array(F).fill(0);
+let gen = 0;
+
+const svg = document.getElementById('map');
+const cx = 280, cy = 280, R = 210;
+const pos = [];
+for (let f = 0; f < F; f++) {
+  const a = -Math.PI/2 + f * 2 * Math.PI / F;
+  pos.push([cx + R * Math.cos(a), cy + R * Math.sin(a)]);
+}
+
+// edges (dedupe for drawing)
+const edgeSet = new Set();
+for (let f = 0; f < F; f++) for (const g of adj[f]) edgeSet.add(Math.min(f,g)+'-'+Math.max(f,g));
+let svgContent = '';
+for (const k of edgeSet) {
+  const [a,b] = k.split('-').map(Number);
+  svgContent += `<line x1="${pos[a][0]}" y1="${pos[a][1]}" x2="${pos[b][0]}" y2="${pos[b][1]}" stroke="#2a3a4a" stroke-width="1.5"/>`;
+}
+for (let f = 0; f < F; f++) {
+  svgContent += `<circle id="n${f}" cx="${pos[f][0]}" cy="${pos[f][1]}" r="18" fill="#5ce1e6" fill-opacity="0.15" stroke="#5ce1e6" stroke-width="1.5" style="cursor:pointer"/>`;
+  svgContent += `<text x="${pos[f][0]}" y="${pos[f][1]+4}" text-anchor="middle" fill="#e8e8e8" font-family="monospace" font-size="10" pointer-events="none">${f}</text>`;
+}
+svg.innerHTML = svgContent;
+
+function render() {
+  for (let f = 0; f < F; f++) {
+    const n = document.getElementById('n'+f);
+    n.setAttribute('fill-opacity', state[f] ? '0.9' : '0.12');
+  }
+  document.getElementById('pop').textContent = state.reduce((a,b)=>a+b,0);
+  document.getElementById('gen').textContent = gen;
+}
+
+function step() {
+  const out = new Array(F).fill(0);
+  for (let f = 0; f < F; f++) {
+    const n = adj[f].reduce((a,g)=>a+state[g],0);
+    out[f] = state[f] ? (n===2||n===3?1:0) : (n===3?1:0);
+  }
+  state = out; gen++;
+  render();
+}
+
+for (let f = 0; f < F; f++) {
+  document.getElementById('n'+f).addEventListener('click', () => {
+    state[f] = state[f] ? 0 : 1; gen = 0; render();
+  });
+}
+let timer = null;
+document.getElementById('stepBtn').onclick = step;
+document.getElementById('runBtn').onclick = () => {
+  if (timer) { clearInterval(timer); timer = null; document.getElementById('runBtn').textContent = 'run'; }
+  else { timer = setInterval(step, 400); document.getElementById('runBtn').textContent = 'stop'; }
+};
+document.getElementById('clearBtn').onclick = () => { state.fill(0); gen = 0; render(); };
+document.getElementById('randBtn').onclick = () => { state = state.map(()=>Math.random()<0.4?1:0); gen = 0; render(); };
+
+render();
+</script>
+</body>
+</html>
