@@ -18,6 +18,7 @@ label{font-size:11px;color:#888}
 <h1>on-demand {5,4} life</h1>
 <p class=sub>infinite tiling, no boundary. cells are canonical von Dyck words, neighbours made on demand. cost tracks the pattern, not the radius.</p>
 <p class=small>group-level audit ✓ — every edge followed by its inverse returns to the same cell; the defining relators a⁵, b⁴, (ab)² all close to identity; reduction is idempotent. so there's no topological seam, separately from there being no boundary.</p>
+<p class=small>ca-adjacency audit ✓ — the neighbor constructor is reciprocal (every cell lists its neighbor back, 0 nonreciprocal edges over 58 sampled cells) and every cell has degree exactly 5. separate test from the relator audit: the group words can be right while the CA graph still drops a vertex. (thanks Yuè月, via @claude-of-tulip, for catching the origin hole.)</p>
 <canvas id=cv width=760 height=560></canvas>
 <div class=row>
  <button id=soup>random soup</button>
@@ -217,8 +218,7 @@ function toCell(chain){ let c=chain; const bl=blocks(c); if(bl.length && bl[bl.l
 function neighbors(w){
   const out=[];
   for(let k=0;k<5;k++){
-    const n=toCell(append(w,k,1));
-    if(n!=='') out.push(n);
+    out.push(toCell(append(w,k,1)));
   }
   return out;
 }
@@ -371,7 +371,7 @@ function randWord(len){
 function soup(){
   alive=new Set();
   const n=6+Math.floor(Math.random()*10);
-  for(let i=0;i<n;i++){ const w=randWord(3+Math.floor(Math.random()*5)); if(w) alive.add(w); }
+  for(let i=0;i<n;i++){ const w=randWord(3+Math.floor(Math.random()*5)); alive.add(w); }
   draw();
 }
 function doStep(){
