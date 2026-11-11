@@ -1,0 +1,120 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>{5,4} hyperbolic life</title>
+<style>
+body{margin:0;background:#0b0d12;color:#cdd6f4;font-family:ui-monospace,monospace;overflow:hidden}
+#ui{position:fixed;top:8px;left:8px;background:#161a24cc;padding:8px 10px;border-radius:8px;font-size:13px;line-height:1.7;z-index:10}
+#ui input{width:60px;background:#0b0d12;color:#cdd6f4;border:1px solid #3b4261;border-radius:4px}
+#ui button{background:#313244;color:#cdd6f4;border:1px solid #45475a;border-radius:4px;padding:2px 8px;cursor:pointer;font-family:inherit}
+#ui button:hover{background:#45475a}
+svg{display:block;width:100vw;height:100vh;cursor:crosshair}
+.poly{fill:#13161f;stroke:#5a6180;stroke-width:0.006}
+.poly.live{fill:#89b4fa;stroke:#b4befe}
+.poly:hover{stroke:#f5c2e7;stroke-width:1.4}
+#hint{position:fixed;bottom:8px;left:8px;font-size:12px;color:#585b70}
+</style></head><body>
+<div id=ui>
+<b>{5,4} hyperbolic life</b><br>
+B <input id=B value="2"> S <input id=S value="3">
+<button id=step>step</button><button id=run>run</button><button id=clear>clear</button><button id=demo>demo</button><button id=reset>reset view</button>
+<div id=stat style="font-size:12px;color:#9399b2"></div>
+</div>
+<div id=hint>click a pentagon to toggle a cell</div>
+<svg id=svg viewBox="-1 -1 2 2"><g id=g></g></svg>
+<script>
+// ---- von Dyck rewrite (rules baked from knuthBendix(5,4,2)) ----
+const RULES={"aaBaa":"AAbAA","ABaBA":"bAAb","bb":"BB","bAB":"BBa","aaa":"AA","AAA":"aa","ab":"BA","aBB":"BAb","ba":"AB","Bb":"","bB":"","Aa":"","aA":"","BBB":"b","BAB":"a","ABA":"b","aaBA":"AAb","ABaa":"bAA","aaBaBA":"AAbAAb","bAAbAA":"ABaBaa"};
+const LENS=[...new Set(Object.keys(RULES).map(k=>k.length))].sort((a,b)=>a-b);
+function rewrite(s){
+  let xs=s.split('').reverse(), out='';
+  while(xs.length){ out+=xs.pop(); let again=true;
+    while(again){ again=false;
+      for(const len of LENS){ if(out.length<len)continue; const suf=out.slice(out.length-len); const rw=RULES[suf];
+        if(rw!==undefined){ out=out.slice(0,out.length-len); for(let i=rw.length-1;i>=0;i--)xs.push(rw[i]); again=true; break; } } } }
+  return out;
+}
+function blocks(s){const o=[];for(const ch of s){const l=ch.toLowerCase(),p=(ch===l)?1:-1;if(o.length&&o[o.length-1][0]===l)o[o.length-1][1]+=p;else o.push([l,p]);}const r=[];for(const [l,p] of o){if(p===0)continue;if(r.length&&r[r.length-1][0]===l)r[r.length-1][1]+=p;else r.push([l,p]);}return r;}
+function bs(bl){return bl.map(([l,p])=>{const ch=(p>0)?l:l.toUpperCase();return ch.repeat(Math.abs(p));}).join('');}
+function revLess(a,b){const x=blocks(a),y=blocks(b);if(x.length!==y.length)return x.length<y.length;for(let i=x.length-1;i>=0;i--){if(x[i][0]!==y[i][0])return x[i][0]<y[i][0];if(x[i][1]!==y[i][1])return x[i][1]<y[i][1];}return false;}
+function append(chain,pa,pb){let s=chain;if(pa)s+=(pa>0?'a'.repeat(pa):'A'.repeat(-pa));if(pb)s+=(pb>0?'b'.repeat(pb):'B'.repeat(-pb));return rewrite(s);}
+function toCell(chain){let c=chain;const bl=blocks(c);if(bl.length&&bl[bl.length-1][0]==='a'){bl.pop();c=bs(bl);}if(c==='')return '';let best=c;for(let i=1;i<5;i++){const cand=append(c,i,0);if(revLess(cand,best))best=cand;}return best;}
+function neighbors(w){const o=[];for(let k=0;k<5;k++){const n=toCell(append(w,k,1));if(n!=='')o.push(n);}return o;}
+
+// ---- Mobius geometry ----
+const n=5,m=4;
+const Rv=0.39797542678479014; // solved so pentagon interior angle = pi/2 (regular {5,4})
+const C=(re,im=0)=>({re,im});
+const add=(x,y)=>C(x.re+y.re,x.im+y.im),sub=(x,y)=>C(x.re-y.re,x.im-y.im);
+const mul=(x,y)=>C(x.re*y.re-x.im*y.im,x.re*y.im+x.im*y.re),conj=x=>C(x.re,-x.im);
+const div=(x,y)=>{const d=y.re*y.re+y.im*y.im;return C((x.re*y.re+x.im*y.im)/d,(x.im*y.re-x.re*y.im)/d);};
+const abs=x=>Math.hypot(x.re,x.im);
+const mob=(A,B,Cc,D)=>({A,B,C:Cc,D});
+const ap=(f,z)=>div(add(mul(f.A,z),f.B),add(mul(f.C,z),f.D));
+const comp=(f,g)=>mob(add(mul(f.A,g.A),mul(f.B,g.C)),add(mul(f.A,g.B),mul(f.B,g.D)),add(mul(f.C,g.A),mul(f.D,g.C)),add(mul(f.C,g.B),mul(f.D,g.D)));
+const ID=mob(C(1),C(0),C(0),C(1));
+const ea=C(Math.cos(2*Math.PI/5),Math.sin(2*Math.PI/5));
+const A=mob(ea,C(0),C(0),C(1));
+const p=C(Rv,0),phi=Math.PI/2,ephi=C(Math.cos(phi),Math.sin(phi));
+const Tp=mob(C(1),mul(C(-1),p),mul(C(-1),conj(p)),C(1));
+const Rot=mob(ephi,C(0),C(0),C(1));
+const Tpi=mob(C(1),p,conj(p),C(1));
+const B=comp(Tpi,comp(Rot,Tp));
+function pow(f,k){let g=ID;for(let i=0;i<k;i++)g=comp(f,g);return g;}
+const Am=pow(A,4),Bm=pow(B,3);
+function letterMob(ch){return ch==='a'?A:ch==='A'?Am:ch==='b'?B:Bm;}
+function wordMob(w){let g=ID;for(const ch of w)g=comp(g,letterMob(ch));return g;}
+const baseVerts=[];for(let k=0;k<5;k++){const a=2*Math.PI*k/5;baseVerts.push(C(Rv*Math.cos(a),Rv*Math.sin(a)));}
+
+// ---- build the visible tiling (faces by BFS over group words) ----
+const CUT=0.97, DEPTH=16;
+const faces=new Map(); // cellword -> {verts:[[x,y]..], cx,cy}
+function addFace(word){
+  const cw=toCell(word); if(faces.has(cw))return;
+  const g=wordMob(word);
+  const ctr=ap(g,C(0)); if(abs(ctr)>CUT)return false;
+  const vs=baseVerts.map(v=>ap(g,v)).map(z=>[z.re,z.im]);
+  faces.set(cw,{verts:vs,cx:ctr.re,cy:ctr.im});
+  return true;
+}
+(function grow(){
+  const seen=new Set(['']); const q=[''];
+  while(q.length){ const w=q.shift(); if(!addFace(w)) continue;
+    for(const nb of neighbors(w)){ if(!seen.has(nb)){ seen.add(nb); q.push(nb); } } }
+})();
+
+// ---- render ----
+const svg=document.getElementById('svg'),g=document.getElementById('g');
+const NS='http://www.w3.org/2000/svg';
+const paths=new Map();
+for(const [cw,f] of faces){
+  const el=document.createElementNS(NS,'polygon');
+  el.setAttribute('points',f.verts.map(v=>v[0].toFixed(5)+','+v[1].toFixed(5)).join(' '));
+  el.setAttribute('class','poly');
+  el.dataset.cw=cw;
+  el.addEventListener('click',()=>toggle(cw));
+  g.appendChild(el); paths.set(cw,el);
+}
+
+let live=new Set();
+function toggle(cw){ if(live.has(cw))live.delete(cw); else live.add(cw); paint(); }
+function paint(){
+  for(const [cw,el] of paths) el.classList.toggle('live',live.has(cw));
+  document.getElementById('stat').textContent='cells: '+live.size+'  faces drawn: '+faces.size;
+}
+function readSet(id){return new Set(document.getElementById(id).value.split(/[^0-9]/).filter(Boolean).map(Number));}
+function doStep(){
+  const Bs=readSet('B'),Ss=readSet('S');
+  const cand=new Set();
+  for(const w of live){cand.add(w);for(const n of neighbors(w))cand.add(n);}
+  const next=new Set();
+  for(const w of cand){let c=0;for(const nb of neighbors(w))if(live.has(nb))c++;
+    if(live.has(w)?Ss.has(c):Bs.has(c))next.add(w);}
+  live=next; paint();
+}
+document.getElementById('step').onclick=doStep;
+document.getElementById('clear').onclick=()=>{live=new Set();paint();};
+document.getElementById('demo').onclick=()=>{live=new Set(['']);for(const nb of neighbors(''))live.add(nb);paint();};
+document.getElementById('reset').onclick=()=>{location.reload();};
+let timer=null;
+document.getElementById('run').onclick=e=>{ if(timer){clearInterval(timer);timer=null;e.target.textContent='run';} else {timer=setInterval(doStep,180);e.target.textContent='stop';} };
+paint();
+</script></body></html>
