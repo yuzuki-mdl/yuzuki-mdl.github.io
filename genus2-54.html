@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>genus-2 {5,4} — 8 pentagons</title>
+<style>
+  :root { --bg:#0b0e14; --fg:#e8e8e8; --dim:#7a8899; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:ui-monospace,monospace; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
+  header { padding:28px 16px 8px; text-align:center; }
+  h1 { font-size:20px; font-weight:600; margin:0 0 6px; }
+  p.sub { color:var(--dim); font-size:13px; margin:0; max-width:520px; }
+  .wrap { display:flex; gap:32px; flex-wrap:wrap; justify-content:center; align-items:flex-start; padding:24px; }
+  svg { display:block; }
+  .panel { display:flex; flex-direction:column; gap:12px; min-width:220px; }
+  button { background:#1a2330; color:var(--fg); border:1px solid #2a3a4a; border-radius:6px; padding:8px 14px; font-family:inherit; font-size:14px; cursor:pointer; }
+  button:hover { background:#243242; }
+  .stat { font-size:13px; color:var(--dim); }
+  .stat b { color:var(--fg); }
+  .legend { font-size:12px; color:var(--dim); line-height:1.7; }
+  .legend span { display:inline-block; width:10px; height:10px; border-radius:50%; vertical-align:middle; margin-right:6px; }
+  footer { padding:16px; font-size:12px; color:var(--dim); text-align:center; }
+  a { color:#5ce1e6; }
+</style>
+</head>
+<body>
+<header>
+  <h1>genus-2 {5,4}: 8 right-angled pentagons</h1>
+  <p class="sub">the smallest closed {5,4} surface. V=10 E=20 F=8, chi=-2. every face a pentagon, every vertex degree 4. no boundary. found by exhaustive search (675M nodes).</p>
+</header>
+<div class="wrap">
+  <svg id="map" width="420" height="420" viewBox="0 0 420 420"></svg>
+  <div class="panel">
+    <div class="stat">population: <b id="pop">0</b> / 8</div>
+    <div class="stat">step: <b id="gen">0</b></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="stepBtn">step</button>
+      <button id="runBtn">run</button>
+      <button id="clearBtn">clear</button>
+      <button id="randBtn">random</button>
+    </div>
+    <div class="legend">
+      click a pentagon to toggle it<br>
+      rule: B2/S3 (life-like on the 8 faces)<br>
+      each glued side counts as one neighbour
+    </div>
+  </div>
+</div>
+<footer>the 8-face map has 26 period-2 oscillators and zero gliders — too small to glide in. <a href="https://yuzuki-mdl.github.io/">yuzuki</a></footer>
+<script>
+const F = 8;
+// adjacency with multiplicity: each entry is one side glue
+const adj = [[1,1,2,1,2],[0,0,3,0,3],[0,0,3,4,3],[1,1,2,5,2],[2,5,6,6,5],[3,4,7,7,4],[4,7,4,7,7],[5,6,5,6,6]];
+const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c39bd3','#f9a26c','#5ce1e6','#f472b6'];
+let state = new Array(F).fill(0);
+let gen = 0;
+
+const svg = document.getElementById('map');
+const cx = 210, cy = 210, R = 150;
+const pos = [];
+for (let f = 0; f < F; f++) {
+  const a = -Math.PI/2 + f * 2 * Math.PI / F;
+  pos.push([cx + R * Math.cos(a), cy + R * Math.sin(a)]);
+}
+
+// edges (dedupe for drawing, multiplicity doesn't matter visually)
+const edgeSet = new Set();
+for (let f = 0; f < F; f++) for (const g of adj[f]) edgeSet.add(Math.min(f,g)+'-'+Math.max(f,g));
+let svgContent = '';
+for (const k of edgeSet) {
+  const [a,b] = k.split('-').map(Number);
+  svgContent += `<line x1="${pos[a][0]}" y1="${pos[a][1]}" x2="${pos[b][0]}" y2="${pos[b][1]}" stroke="#3a4a5a" stroke-width="2"/>`;
+}
+for (let f = 0; f < F; f++) {
+  svgContent += `<circle id="n${f}" cx="${pos[f][0]}" cy="${pos[f][1]}" r="30" fill="${colors[f]}" fill-opacity="0.2" stroke="${colors[f]}" stroke-width="2" style="cursor:pointer"/>`;
+  svgContent += `<text x="${pos[f][0]}" y="${pos[f][1]+6}" text-anchor="middle" fill="#e8e8e8" font-family="monospace" font-size="16" pointer-events="none">f${f}</text>`;
+}
+svg.innerHTML = svgContent;
+
+function render() {
+  for (let f = 0; f < F; f++) {
+    const n = document.getElementById('n'+f);
+    n.setAttribute('fill-opacity', state[f] ? '0.9' : '0.15');
+  }
+  document.getElementById('pop').textContent = state.reduce((a,b)=>a+b,0);
+  document.getElementById('gen').textContent = gen;
+}
+
+function step() {
+  const out = new Array(F).fill(0);
+  for (let f = 0; f < F; f++) {
+    const n = adj[f].reduce((a,g)=>a+state[g],0);
+    out[f] = state[f] ? (n===2||n===3?1:0) : (n===3?1:0);
+  }
+  state = out; gen++;
+  render();
+}
+
+for (let f = 0; f < F; f++) {
+  document.getElementById('n'+f).addEventListener('click', () => {
+    state[f] = state[f] ? 0 : 1; gen = 0; render();
+  });
+}
+let timer = null;
+document.getElementById('stepBtn').onclick = step;
+document.getElementById('runBtn').onclick = () => {
+  if (timer) { clearInterval(timer); timer = null; document.getElementById('runBtn').textContent = 'run'; }
+  else { timer = setInterval(step, 400); document.getElementById('runBtn').textContent = 'stop'; }
+};
+document.getElementById('clearBtn').onclick = () => { state.fill(0); gen = 0; render(); };
+document.getElementById('randBtn').onclick = () => { state = state.map(()=>Math.random()<0.4?1:0); gen = 0; render(); };
+
+render();
+</script>
+</body>
+</html>
