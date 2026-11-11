@@ -1,0 +1,401 @@
+<!doctype html>
+<html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'>
+<title>on-demand {5,4} life</title>
+<style>
+body{background:#0d0d12;color:#d8d8e0;font-family:ui-monospace,Menlo,monospace;margin:0;padding:16px}
+h1{font-size:15px;font-weight:600;color:#9a9ac0;margin:0 0 4px}
+p.sub{font-size:11px;color:#666;margin:0 0 14px;line-height:1.5}
+canvas{background:#08080c;border:1px solid #222;border-radius:8px;display:block;max-width:100%}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0}
+button{background:#1a1a26;color:#c8c8e0;border:1px solid #333;border-radius:6px;padding:6px 12px;font:inherit;font-size:12px;cursor:pointer}
+button:hover{background:#25253a;border-color:#555}
+button.on{background:#2a2a44;border-color:#7a7aff;color:#aaf}
+input[type=text]{background:#15151e;color:#c8c8e0;border:1px solid #333;border-radius:6px;padding:5px 8px;font:inherit;font-size:12px;width:120px}
+label{font-size:11px;color:#888}
+#stat{font-size:11px;color:#666;margin-top:8px}
+.small{font-size:10px;color:#555}
+</style></head><body>
+<h1>on-demand {5,4} life</h1>
+<p class=sub>infinite tiling, no boundary. cells are canonical von Dyck words, neighbours made on demand. cost tracks the pattern, not the radius.</p>
+<canvas id=cv width=760 height=560></canvas>
+<div class=row>
+ <button id=soup>random soup</button>
+ <button id=step>step</button>
+ <button id=run>run</button>
+ <button id=clear>clear</button>
+</div>
+<div class=row>
+ <label>B</label><input type=text id=B value='2'>
+ <label>S</label><input type=text id=S value='3'>
+ <label>speed</label><input type=text id=sp value='8' style=width:40px>
+</div>
+<div id=stat></div>
+<script>
+// ported from dmishin/hyperbolic-ca-simulator (MIT) — von Dyck group via Knuth-Bendix
+// words over alphabet a,A,b,B where A=a^-1, B=b^-1
+'use strict';
+
+function shortLex(s1, s2){
+  if (s1.length > s2.length) return false;
+  if (s1.length < s2.length) return true;
+  return s1 <= s2;
+}
+
+class RewriteRuleset {
+  constructor(rules){ this.rules = rules || {}; }
+  copy(){ return new RewriteRuleset(JSON.parse(JSON.stringify(this.rules))); }
+  items(){ return Object.entries(this.rules); }
+  suffices(){ return Object.keys(this.rules); }
+  size(){ return Object.keys(this.rules).length; }
+  equals(other){
+    for (const [k,v] of this.items()) if (other.rules[k] !== v) return false;
+    for (const [k,v] of other.items()) if (this.rules[k] !== v) return false;
+    return true;
+  }
+  add(v,w){ this.rules[v]=w; }
+  remove(v){ delete this.rules[v]; }
+  has(k){ return Object.prototype.hasOwnProperty.call(this.rules,k); }
+  _ruleLengths(){
+    const set=new Set();
+    for (const k of Object.keys(this.rules)) set.add(k.length);
+    return [...set].sort((a,b)=>a-b);
+  }
+  normalize(le){
+    const SS={};
+    for (const [v0,w0] of this.items()){
+      let [v,w] = sortPairReverse(v0,w0,le);
+      if (!(v in SS)) SS[v]=w;
+      else SS[v]=sortPairReverse(w,SS[v],le)[1];
+    }
+    return new RewriteRuleset(SS);
+  }
+  appendRewrite(s, xs_){
+    if (xs_.length===0) return s;
+    const rules=this.rules;
+    const xs = xs_.split('').reverse();
+    const lengths=this._ruleLengths();
+    while (xs.length>0){
+      s = s + xs.pop();
+      let again=true;
+      while(again){
+        again=false;
+        for (const len of lengths){
+          if (s.length < len) continue;
+          const suffix = s.substring(s.length-len);
+          const rw = rules[suffix];
+          if (rw !== undefined){
+            s = s.substring(0, s.length-len);
+            for (let i=rw.length-1;i>=0;i--) xs.push(rw[i]);
+            again=true;
+            break;
+          }
+        }
+      }
+    }
+    return s;
+  }
+  rewrite(s){ return this.appendRewrite('', s); }
+}
+
+function sortPairReverse(a,b,le){ return le(a,b) ? [b,a] : [a,b]; }
+
+function overlap(s1,s2){
+  if (s2.length===0) return [s1,'',s2];
+  const s2_0=s2[0];
+  const istart=Math.max(0, s1.length-s2.length);
+  for (let i=istart;i<s1.length;i++){
+    if (s1[i]===s2_0){
+      if (s1.substring(i+1) === s2.substring(1, s1.length-i)){
+        return [s1.substring(0,i), s1.substring(i), s2.substring(s1.length-i)];
+      }
+    }
+  }
+  return [s1,'',s2];
+}
+
+function splitBy(s1,s2){
+  for (let i=0;i<=s1.length-s2.length;i++){
+    if (s1.substring(i,i+s2.length)===s2) return [true, s1.substring(0,i), s1.substring(i+s2.length)];
+  }
+  return [false,null,null];
+}
+
+function findOverlap(v1,w1,v2,w2){
+  const [x,y,z]=overlap(v1,v2);
+  if (y) return [true, x+w2, w1+z];
+  const [has,x2,z2]=splitBy(v1,v2);
+  if (has) return [true, w1, x2+w2+z2];
+  return [false,null,null];
+}
+
+function knuthBendixCompletion(S, le){
+  const SS=S.copy();
+  for (const [v1,w1] of S.items())
+    for (const [v2,w2] of S.items()){
+      const [has,s1,s2]=findOverlap(v1,w1,v2,w2);
+      if (has){
+        const t1=S.rewrite(s1), t2=S.rewrite(s2);
+        if (t1!==t2){
+          const [a,b]=sortPairReverse(t1,t2,le);
+          SS.add(a,b);
+        }
+      }
+    }
+  return SS;
+}
+
+function simplifyRules(S_, le){
+  const S=S_.copy();
+  const Slist=S_.items();
+  while (Slist.length>0){
+    const vw=Slist.pop();
+    const [v,w]=vw;
+    S.remove(v);
+    const vv=S.rewrite(vw[0]);
+    const ww=S.rewrite(vw[1]);
+    let addBack=true;
+    if (vv===ww) addBack=false;
+    else {
+      const vw1=sortPairReverse(vv,ww,le);
+      if (vw1[0]!==vw[0] && vw1[1]!==vw[1]){
+        S.add(vw1[0],vw1[1]);
+        Slist.push(vw1);
+        addBack=false;
+      }
+    }
+    if (addBack) S.add(v,w);
+  }
+  return S;
+}
+
+function knuthBendix(S0, le=shortLex, maxIters=2000, maxSize=3000){
+  let S=S0.normalize(le);
+  for (let i=0;i<maxIters;i++){
+    if (S.size()>maxSize) throw new Error('ruleset too big: '+S.size());
+    const SS=simplifyRules(S,le);
+    const SSS=knuthBendixCompletion(SS,le);
+    if (SSS.equals(S)) return SSS;
+    S=SSS;
+  }
+  throw new Error('iterations exceeded, last size '+S.size());
+}
+
+function repeat(pat,count){
+  let r='';let p=pat;let c=count;
+  while(c>0){ if(c&1) r+=p; c>>=1; if(c) p+=p; }
+  return r;
+}
+
+function vdRule(n,m,k=2){
+  const r={ 'aA':'', 'Aa':'', 'bB':'', 'Bb':'' };
+  r[repeat('BA',k)]='';
+  r[repeat('ab',k)]='';
+  r[repeat('A',n)]='';
+  r[repeat('a',n)]='';
+  r[repeat('B',m)]='';
+  r[repeat('b',m)]='';
+  return new RewriteRuleset(r);
+}
+
+
+
+'use strict';
+const S = knuthBendix(vdRule(5,4,2));
+const red = w => S.rewrite(w);
+function blocks(s){ const out=[]; for(const ch of s){ const low=ch.toLowerCase(); const p=(ch===low)?1:-1; if(out.length && out[out.length-1][0]===low) out[out.length-1][1]+=p; else out.push([low,p]); } const res=[]; for(const [l,p] of out){ if(p===0) continue; if(res.length && res[res.length-1][0]===l) res[res.length-1][1]+=p; else res.push([l,p]); } return res; }
+function blocksToString(bl){ return bl.map(([l,p])=>{ const ch=(p>0)?l:l.toUpperCase(); return ch.repeat(Math.abs(p)); }).join(''); }
+function revShortlexLess(s1,s2){ const b1=blocks(s1), b2=blocks(s2); if(b1.length!==b2.length) return b1.length<b2.length; for(let i=b1.length-1;i>=0;i--){ const l1=b1[i][0],p1=b1[i][1],l2=b2[i][0],p2=b2[i][1]; if(l1!==l2) return l1<l2; if(p1!==p2) return p1<p2; } return false; }
+function append(chain,pa,pb){ let s=chain; if(pa) s+=(pa>0?'a'.repeat(pa):'A'.repeat(-pa)); if(pb) s+=(pb>0?'b'.repeat(pb):'B'.repeat(-pb)); return red(s); }
+function toCell(chain){ let c=chain; const bl=blocks(c); if(bl.length && bl[bl.length-1][0]==='a'){ bl.pop(); c=blocksToString(bl); } if(c==='') return ''; let best=c; for(let i=1;i<5;i++){ const cand=append(c,i,0); if(revShortlexLess(cand,best)) best=cand; } return best; }
+
+'use strict';
+// On-demand sparse {5,4} von Dyck CA. No patch, no boundary.
+// Live cells = Set of canonical words. Neighbors materialized on demand.
+// Cost tracks pattern size, not tiling radius. Exact forever.
+
+function neighbors(w){
+  const out=[];
+  for(let k=0;k<5;k++){
+    const n=toCell(append(w,k,1));
+    if(n!=='') out.push(n);
+  }
+  return out;
+}
+
+function step(alive,B,S){
+  // candidate cells = live cells + their neighbors
+  const cand=new Set();
+  for(const w of alive){ cand.add(w); for(const n of neighbors(w)) cand.add(n); }
+  const next=new Set();
+  for(const w of cand){
+    let c=0;
+    for(const n of neighbors(w)) if(alive.has(n)) c++;
+    if(alive.has(w)?S.has(c):B.has(c)) next.add(w);
+  }
+  return next;
+}
+
+// translation detection: find infinite-order g with g.S == T, S,T live sets of equal size
+function inv(w){ let r=''; for(let i=w.length-1;i>=0;i--){ const c=w[i]; r+=(c===c.toLowerCase())?c.toUpperCase():c.toLowerCase(); } return r; }
+function translate(gw,w){ return toCell(red(gw+w)); }
+function orderOf(gw){ let cur=''; for(let k=1;k<=120;k++){ cur=red(cur+gw); if(cur==='') return k; } return Infinity; }
+function findTranslation(Sset,Tset){
+  if(Sset.size!==Tset.size||Sset.size===0) return null;
+  const sArr=[...Sset], tArr=[...Tset];
+  const w0=sArr[0], iw0=inv(w0);
+  for(const ti of tArr){
+    const gw=toCell(red(ti+iw0));
+    if(gw==='') continue;
+    let ok=true; const mapped=new Set();
+    for(const si of sArr){ const w=translate(gw,si); if(!Tset.has(w)){ok=false;break;} mapped.add(w); }
+    if(!ok||mapped.size!==Tset.size) continue;
+    if(orderOf(gw)!==Infinity) continue;
+    return gw;
+  }
+  return null;
+}
+
+function sig(s){ return [...s].sort().join(','); }
+
+// run one seed, look for glider up to Tmax, periods 1..Pmax, RUN confirm steps
+function hunt(seedWords,B,S,Tmax,Pmax,RUN){
+  let alive=new Set(seedWords.map(w=>toCell(red(w))));
+  const hist=[];
+  const CAP=40; // abandon exploding seeds; a glider stays small
+  for(let t=0;t<=Tmax;t++){
+    if(alive.size===0) return null;
+    if(alive.size>CAP) return null;
+    hist.push(alive);
+    alive=step(alive,B,S);
+  }
+  for(let p=1;p<=Pmax;p++){
+    for(let t=0;t+p+RUN<hist.length;t++){
+      if(hist[t].size<2||hist[t+p].size!==hist[t].size) continue;
+      const gw=findTranslation(hist[t],hist[t+p]);
+      if(!gw) continue;
+      // confirm same g over RUN steps
+      let ok=true;
+      for(let k=1;k<=RUN;k++){
+        if(hist[t+k].size!==hist[t+k+p].size){ok=false;break;}
+        const gk=findTranslation(hist[t+k],hist[t+k+p]);
+        if(gk!==gw){ok=false;break;}
+      }
+      if(ok) return {t,p,g:gw,size:hist[t].size,seed:seedWords};
+    }
+  }
+  return null;
+}
+
+
+
+
+// ---- UI / rendering ----
+// project canonical words to 2D via the {5,4} embedding: track each cell's position
+// by walking the word from origin using pentagon vertex geometry.
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+let alive=new Set();
+let Bset=new Set([2]), Sset=new Set([3]);
+let running=false, timer=null;
+
+// --- geometry: build position of each canonical cell by BFS from origin over the word graph ---
+// pentagon side length; interior angle 90 deg (4 pentagons at a vertex).
+// Use the {5,4} vertex figure: place cells by expanding. Simpler: use a Poincare-ish flat
+// projection via cumulative rotation. We'll compute an approximate embedding by BFS.
+const pos={ '' : {x:0,y:0,ang:0} }; // ang = orientation of the 'a' side direction
+function cellPos(w){
+  if(pos[w]) return pos[w];
+  // find a neighbor parent already placed
+  const par=w.slice(0,-1);
+  const k=w[w.length-1];
+  // fallback: BFS fill
+  return null;
+}
+
+// Better: precompute embedding lazily via BFS from ''. Each edge k (0..4) has a fixed
+// turn. In {5,4}, going around a vertex 4 cells -> 90 deg. We approximate by placing
+// neighbors on a pentagon ring. This is a *visual* aid, not exact tiling coords.
+// We'll just do a spring-free BFS layout: place unplaced neighbors around parent.
+const layout={};
+layout['']={x:0,y:0,ang:0};
+const seenQ={'':1};
+const MAXN=800; const MAXLEN=14;
+function layoutAll(){
+  const q=['']; let head=0;
+  while(head<q.length && Object.keys(layout).length<MAXN){
+    const c=q[head++];
+    const ns=neighbors(c);
+    for(let idx=0;idx<ns.length;idx++){
+      const n=ns[idx];
+      if(!layout[n]){
+        if(Object.keys(layout).length>=MAXN) break;
+        const ang=layout[c].ang + (idx/ns.length)*Math.PI*2;
+        const R=22;
+        layout[n]={x:layout[c].x+Math.cos(ang)*R, y:layout[c].y+Math.sin(ang)*R, ang:ang};
+      }
+      if(!seenQ[n] && n.length<=MAXLEN){ seenQ[n]=1; q.push(n); }
+    }
+  }
+}
+function project(){
+  const pts=[];
+  for(const w of alive){ if(layout[w]) pts.push(layout[w]); }
+  if(pts.length===0) return {scale:1,ox:cv.width/2,oy:cv.height/2};
+  let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+  for(const p of pts){minx=Math.min(minx,p.x);maxx=Math.max(maxx,p.x);miny=Math.min(miny,p.y);maxy=Math.max(maxy,p.y);}
+  const cx=(minx+maxx)/2, cy=(miny+maxy)/2;
+  const w=Math.max(maxx-minx,60), h=Math.max(maxy-miny,60);
+  const scale=Math.min(cv.width/w, cv.height/h, 6);
+  return {scale, ox:cv.width/2-cx*scale, oy:cv.height/2-cy*scale};
+}
+function draw(){
+  layoutAll();
+  ctx.clearRect(0,0,cv.width,cv.height);
+  const {scale,ox,oy}=project();
+  let drawn=0;
+  for(const w of alive){
+    const p=layout[w]; if(!p) continue;
+    const x=p.x*scale+ox, y=p.y*scale+oy;
+    ctx.fillStyle='#7a7aff';
+    ctx.beginPath(); ctx.arc(x,y,Math.max(2,3*scale),0,7); ctx.fill();
+    drawn++;
+  }
+  document.getElementById('stat').textContent='cells: '+alive.size+' (drawn '+drawn+')';
+}
+
+function randWord(len){
+  let w=''; const alpha='aAbB';
+  for(let i=0;i<len;i++) w+=alpha[Math.floor(Math.random()*4)];
+  return toCell(red(w));
+}
+function soup(){
+  alive=new Set();
+  const n=6+Math.floor(Math.random()*10);
+  for(let i=0;i<n;i++){ const w=randWord(3+Math.floor(Math.random()*5)); if(w) alive.add(w); }
+  draw();
+}
+function doStep(){
+  alive=step(alive,Bset,Sset);
+  draw();
+}
+function parseSet(s){ return new Set(s.split('').map(c=>parseInt(c)).filter(x=>!isNaN(x))); }
+function syncRules(){ Bset=parseSet(document.getElementById("B").value); Sset=parseSet(document.getElementById("S").value); }
+
+// place all live cells' local neighborhoods in layout before draw
+document.getElementById('soup').onclick=()=>{syncRules();soup();};
+document.getElementById('step').onclick=()=>{syncRules();doStep();};
+document.getElementById('clear').onclick=()=>{alive=new Set();draw();};
+document.getElementById('run').onclick=()=>{
+  syncRules();
+  running=!running;
+  document.getElementById('run').classList.toggle('on',running);
+  if(running){
+    const sp=parseInt(document.getElementById('sp').value)||8;
+    timer=setInterval(()=>{ if(alive.size>2000||alive.size===0){running=false;clearInterval(timer);document.getElementById('run').classList.remove('on');return;} doStep(); }, 1000/sp);
+  } else clearInterval(timer);
+};
+['B','S'].forEach(id=>document.getElementById(id).oninput=syncRules);
+
+// seed
+try{ syncRules(); soup(); }catch(e){ document.getElementById('stat').textContent='ERR: '+e.message; console.error(e); }
+</script>
+</body></html>
