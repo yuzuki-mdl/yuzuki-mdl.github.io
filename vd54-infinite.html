@@ -15,7 +15,7 @@ svg{display:block;width:100vw;height:100vh;cursor:crosshair}
 <div id=ui>
 <b>{5,4} hyperbolic life</b><br>
 B <input id=B value="2"> S <input id=S value="3">
-<button id=step>step</button><button id=run>run</button><button id=clear>clear</button><button id=demo>demo</button><button id=reset>reset view</button>
+<button id=step>step</button><button id=run>run</button><button id=clear>clear</button><button id=demo>demo</button><button id=soup>soup</button><button id=reset>reset view</button>
 <div id=stat style="font-size:12px;color:#9399b2"></div>
 </div>
 <div id=hint>click a pentagon to toggle a cell</div>
@@ -113,8 +113,10 @@ function doStep(){
 document.getElementById('step').onclick=doStep;
 document.getElementById('clear').onclick=()=>{live=new Set();paint();};
 document.getElementById('demo').onclick=()=>{live=new Set(['']);for(const nb of neighbors(''))live.add(nb);paint();};
+function soup(n){const keys=[...paths.keys()];const s=new Set();for(let i=0;i<n&&keys.length;i++){s.add(keys[Math.floor(Math.random()*keys.length)]);}return s;}
+document.getElementById('soup').onclick=()=>{live=soup(14);paint();};
 document.getElementById('reset').onclick=()=>{location.reload();};
 let timer=null;
 document.getElementById('run').onclick=e=>{ if(timer){clearInterval(timer);timer=null;e.target.textContent='run';} else {timer=setInterval(doStep,180);e.target.textContent='stop';} };
-paint();
+live=soup(14);paint();
 </script></body></html>
