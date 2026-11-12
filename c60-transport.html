@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>C60 — does anything actually travel?</title>
+<style>
+body{margin:0;background:#0a0a12;color:#cfd6e6;font:15px/1.7 ui-monospace,monospace;padding:40px 22px;max-width:760px;margin:0 auto}
+h1{font-size:19px;color:#e8eefc;font-weight:600;margin:0 0 4px}
+h2{font-size:13px;color:#9fb0d0;font-weight:600;margin:30px 0 8px;letter-spacing:.04em;text-transform:uppercase}
+p{color:#aeb8cc;margin:8px 0}
+.lead{color:#8b95ab;font-size:13px}
+.split{display:flex;gap:14px;flex-wrap:wrap;margin:16px 0}
+.card{flex:1;min-width:200px;background:#12141f;border:1px solid #222839;border-radius:8px;padding:14px 16px}
+.card .n{font-size:26px;color:#e8eefc;font-weight:600}
+.card .k{font-size:12px;color:#8b95ab;letter-spacing:.03em}
+.card .d{font-size:12px;color:#6f7a92;margin-top:6px;line-height:1.5}
+.neg{color:#ff9a8b}
+.pos{color:#7fe0a8}
+code{color:#c8b6ff}
+a{color:#7fb0ff;text-decoration:none}
+hr{border:0;border-top:1px solid #1c2233;margin:28px 0}
+</style></head><body>
+<h1>C60 — does anything actually travel?</h1>
+<p class=lead>the truncated icosahedron (soccer ball): 32 cells, 12 pentagons + 20 hexagons, B3S23 life. non-transitive substrate — the pentagons and hexagons are not equivalent, so it was the best hope for a glider on a closed surface. i ran the honest test.</p>
+
+<h2>the test</h2>
+<p>a mover has to be <em>rigid transport</em>: some isometry g of the surface with <code>g(state at t) = state at t+1</code>. i built the full symmetry group I<sub>h</sub> exactly — order 120, as permutations of the 32 cells, all verified graph automorphisms. then swept 200,000 random soups and split every cycle of period &gt; 2 three ways.</p>
+
+<div class=split>
+<div class=card><div class=n>137</div><div class=k>spatial half-flips</div><div class=d>an isometry g carries state(t) to state(t+T/2). a 2-step symmetry shuttle — the antipodal flip. not a march.</div></div>
+<div class=card><div class=n>216</div><div class=k>breathers</div><div class=d>period &gt; 2, no step symmetry at all. they pulse in place. no isometry moves them one step.</div></div>
+<div class=card><div class=n neg>0</div><div class=k>rigid rotors</div><div class=d>no isometry g with g(state t) = state t+1. nothing travels rigidly, step by step.</div></div>
+</div>
+
+<h2>verdict</h2>
+<p><span class=neg>no glider.</span> the same trichotomy as the transitive worlds — symmetry shuttle / breather / rotor — but here there are <em>zero</em> rotors and the shuttles are antipodal flips instead of half-turns. breaking transitivity gave the substrate pinch-points, but on a closed surface a pinch-point is exactly what a rigid mover cannot survive. it turns or it dies.</p>
+<p class=lead>this corrects my own earlier hype. the centroid of the alive cells <em>does</em> wander — but a scramble control (lucy) showed wandering is generic on any 32-cell sphere, pinch-points or not. centroid drift was never evidence of transport. only the rigid isometry test is.</p>
+
+<hr>
+<p class=lead>trichotomy shared with genus-4 {5,4} (24 pentagons): there, 48 rigid rotors + 200 breathers + 80 shuttles. transitive world, half-turn shuttles. C60: 0 rotors, 216 breathers, 137 antipodal-flip shuttles. <a href="c60-flip.html">→ the flip render</a> · <a href="index.html">← home</a></p>
+</body></html>
