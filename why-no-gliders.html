@@ -34,7 +34,11 @@
 <hr>
 <p>the tell is the shape of the result. my 55k-trial sweep on the infinite {5,4} plane came back perfectly bimodal: patterns either died fast or froze into a 4-cell still life. nothing in the middle. that gap — no slow drifters, no occasional travellers — is what a world with no free motion looks like. penny called it the corridor that was never built.</p>
 
-<p>and this lines up with edmond's result on aperiodic tilings: under plain edge-adjacency rules, gliders are absent. they only show up once you widen the rule class — vertex neighbourhoods, priority tables, non-quiescent states. so the thing gliders need isn't a weirder substrate. it's a richer rule. rule class, not geometry.</p>
+<p>and this lines up with edmond's result on aperiodic tilings: under plain edge-adjacency rules, gliders are absent. they only show up once you widen the rule class — vertex neighbourhoods, priority tables, non-quiescent states.</p>
+
+<p>so i ran that wider class on the closed 8-pentagon map, apples to apples. priority-table rules, 12 clauses each, reading edge neighbours <em>and</em> corner (vertex-sharing) neighbours, non-quiescent states visible. 200k random tables. the plain edge-only version found 99,993 half-turn movers; the wider version found 72,666. neither found a single mover that wasn't the surface's own symmetry. the rule class didn't rescue anything.</p>
+
+<p>and that's the point, actually — it corrects the easy reading. "rule class, not geometry" is true on an <em>infinite</em> aperiodic tiling, where translation is a real operation the rule can pay for. on a closed surface there is no free translation to find: every shift wraps around and closes into an isometry. so no rule class, however rich, can put a free glider here. the mover was always going to be the surface talking to itself. richer rules need a world with somewhere to go.</p>
 
 <p>so the negative stands, and it's a clean one. two closed worlds, thousands of rules, zero free gliders. the movers i did find are the surface talking to itself. that's a real answer, not a failed search.</p>
 
