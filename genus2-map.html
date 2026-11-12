@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>genus-2 {5,4} — edge pairing explorer</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0e1116; color: #dfe8f2; font-family: ui-monospace, 'SF Mono', Menlo, monospace; line-height: 1.55; }
+  main { max-width: 760px; margin: 0 auto; padding: 40px 22px 80px; }
+  h1 { font-size: 24px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .sub { color: #8b96a5; font-size: 14px; margin-bottom: 22px; }
+  svg { width: 100%; height: auto; display: block; background: #0b0e12; border: 1px solid #1e2630; border-radius: 12px; touch-action: manipulation; }
+  .face { cursor: pointer; }
+  .face circle { transition: r .12s, fill-opacity .12s; }
+  .face:hover circle { r: 15; }
+  .lbl { font-family: ui-monospace, monospace; font-size: 15px; fill: #dfe8f2; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .edge { stroke: #2a3542; stroke-width: 1.5; }
+  .edge.hot { stroke-width: 3; }
+  .sidelbl { font-size: 10px; fill: #6f7b8a; text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+  .sidelbl.hot { fill: #dfe8f2; }
+  .info { margin-top: 18px; font-size: 13.5px; color: #aab6c4; min-height: 96px; }
+  .info b { color: #dfe8f2; }
+  .info .pair { display: inline-block; margin: 2px 6px 2px 0; padding: 2px 8px; border-radius: 6px; background: #141b24; border: 1px solid #1e2630; }
+  a { color: #9fd0ff; }
+  p { font-size: 14px; color: #b8c2cf; max-width: 640px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>genus-2 {5,4} — edge pairing explorer</h1>
+  <div class="sub">tap a pentagon to see how all 5 of its edges glue to neighbours</div>
+
+  <svg id="net" viewBox="0 0 900 900" role="img" aria-label="8 pentagons and their edge pairings">
+    <g id="edges"></g>
+    <g id="sidelbls"></g>
+    <g id="faces"></g>
+  </svg>
+
+  <div class="info" id="info">click any pentagon. every side maps to exactly one other side — that's what makes it closed.</div>
+
+  <p>8 pentagons, V=10 E=20, chi=&minus;2, genus 2. each side of each pentagon is glued to exactly one other side, so there's no edge left dangling and no outside. the lines below show the gluing graph; the numbers on the lines are which side (0&ndash;4) of the source face meets which side of the target.</p>
+
+  <p style="margin-top:28px"><a href="genus2-net.html">&larr; the net view</a> &nbsp;·&nbsp; <a href="index.html">back</a></p>
+</main>
+<script>
+const faceAdj = [[{side:0,to:1,toSide:0},{side:1,to:1,toSide:1},{side:2,to:2,toSide:0},{side:3,to:1,toSide:3},{side:4,to:2,toSide:1}],[{side:0,to:0,toSide:0},{side:1,to:0,toSide:1},{side:2,to:3,toSide:0},{side:3,to:0,toSide:3},{side:4,to:3,toSide:1}],[{side:0,to:0,toSide:2},{side:1,to:0,toSide:4},{side:2,to:3,toSide:4},{side:3,to:4,toSide:0},{side:4,to:3,toSide:2}],[{side:0,to:1,toSide:2},{side:1,to:1,toSide:4},{side:2,to:2,toSide:4},{side:3,to:5,toSide:0},{side:4,to:2,toSide:2}],[{side:0,to:2,toSide:3},{side:1,to:5,toSide:4},{side:2,to:6,toSide:0},{side:3,to:6,toSide:2},{side:4,to:5,toSide:1}],[{side:0,to:3,toSide:3},{side:1,to:4,toSide:4},{side:2,to:7,toSide:0},{side:3,to:7,toSide:2},{side:4,to:4,toSide:1}],[{side:0,to:4,toSide:2},{side:1,to:7,toSide:1},{side:2,to:4,toSide:3},{side:3,to:7,toSide:3},{side:4,to:7,toSide:4}],[{side:0,to:5,toSide:2},{side:1,to:6,toSide:1},{side:2,to:5,toSide:3},{side:3,to:6,toSide:3},{side:4,to:6,toSide:4}]];
+const colors = ['#5ec8e5','#f2a65a','#b48ef0','#7ddc8a','#f06e8c','#e9d65c','#6fb3f2','#f28fb4'];
+// face centres laid out on a circle (a readable graph, not the cut net)
+const cx=450, cy=440, R=300;
+const pos = [];
+for (let i=0;i<8;i++){ const a=-Math.PI/2 + i*2*Math.PI/8; pos.push([cx+R*Math.cos(a), cy+R*Math.sin(a)]); }
+
+const svgNS='http://www.w3.org/2000/svg';
+const gEdges=document.getElementById('edges');
+const gSide=document.getElementById('sidelbls');
+const gFaces=document.getElementById('faces');
+
+// draw one edge per unordered {face,side}<->{face,side} pair (dedupe)
+const seen=new Set();
+const edgeEls=[];
+for (let f=0; f<8; f++){
+  for (const a of faceAdj[f]){
+    const key = f<a.to ? `${f}.${a.side}-${a.to}.${a.toSide}` : `${a.to}.${a.toSide}-${f}.${a.side}`;
+    if (seen.has(key)) continue; seen.add(key);
+    const [x1,y1]=pos[f], [x2,y2]=pos[a.to];
+    const ln=document.createElementNS(svgNS,'line');
+    ln.setAttribute('x1',x1); ln.setAttribute('y1',y1); ln.setAttribute('x2',x2); ln.setAttribute('y2',y2);
+    ln.setAttribute('class','edge'); ln.dataset.f=f; ln.dataset.t=a.to;
+    gEdges.appendChild(ln); edgeEls.push(ln);
+  }
+}
+
+// face nodes
+const faceEls=[];
+for (let f=0; f<8; f++){
+  const [x,y]=pos[f];
+  const g=document.createElementNS(svgNS,'g'); g.setAttribute('class','face');
+  const c=document.createElementNS(svgNS,'circle');
+  c.setAttribute('cx',x); c.setAttribute('cy',y); c.setAttribute('r',22);
+  c.setAttribute('fill',colors[f]); c.setAttribute('fill-opacity','0.22');
+  c.setAttribute('stroke',colors[f]); c.setAttribute('stroke-width','2');
+  const t=document.createElementNS(svgNS,'text');
+  t.setAttribute('x',x); t.setAttribute('y',y); t.setAttribute('class','lbl'); t.textContent=f;
+  g.appendChild(c); g.appendChild(t);
+  g.addEventListener('click',()=>select(f));
+  gFaces.appendChild(g); faceEls.push(g);
+}
+
+function clear(){
+  for (const e of edgeEls){ e.setAttribute('class','edge'); e.removeAttribute('stroke'); }
+  for (const f of faceEls){ f.querySelector('circle').setAttribute('fill-opacity','0.22'); f.querySelector('circle').setAttribute('stroke-width','2'); }
+  gSide.innerHTML='';
+}
+
+function select(f){
+  clear();
+  faceEls[f].querySelector('circle').setAttribute('fill-opacity','0.55');
+  faceEls[f].querySelector('circle').setAttribute('stroke-width','3.5');
+  const info=document.getElementById('info');
+  let html=`<b>face ${f}</b> — its 5 sides glue to:<br>`;
+  for (const a of faceAdj[f]){
+    const col=colors[a.to];
+    // highlight edges touching f and a.to
+    for (const e of edgeEls){
+      const s=e.dataset.f, t=e.dataset.t;
+      if ((+s===f && +t===a.to) || (+t===f && +s===a.to)){ e.setAttribute('class','edge hot'); e.setAttribute('stroke',col); }
+    }
+    faceEls[a.to].querySelector('circle').setAttribute('fill-opacity','0.42');
+    // side label near midpoint
+    const [x1,y1]=pos[f], [x2,y2]=pos[a.to];
+    const mx=(x1+x2)/2, my=(y1+y2)/2;
+    const lb=document.createElementNS(svgNS,'text');
+    lb.setAttribute('x',mx); lb.setAttribute('y',my); lb.setAttribute('class','sidelbl hot');
+    lb.textContent=`${a.side}→${a.toSide}`;
+    gSide.appendChild(lb);
+    html+=`<span class="pair" style="border-color:${col}">side ${a.side} → face ${a.to} side ${a.toSide}</span>`;
+  }
+  info.innerHTML=html;
+}
+</script>
+</body>
+</html>
