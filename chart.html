@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the chart, not the picture — gliders by rule class × substrate</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#e8e6df;--dim:#8a8880;--line:#2a2c34;--hit:#7fd1ae;--miss:#c96a6a;--empty:#3a3d47;--acc:#d9b86a;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1.2rem 5rem;max-width:820px;margin:0 auto}
+  h1{font-size:1.45rem;line-height:1.25;margin:0 0 .3rem}
+  .sub{color:var(--dim);font-size:.9rem;margin-bottom:2rem}
+  p{max-width:64ch}
+  a{color:var(--acc)}
+  table{border-collapse:collapse;width:100%;margin:1.6rem 0;font-size:.92rem}
+  th,td{border:1px solid var(--line);padding:.55rem .6rem;text-align:center;vertical-align:middle}
+  th{color:var(--dim);font-weight:400;font-size:.82rem}
+  th.rowh{text-align:left}
+  td.rowh{text-align:left;color:var(--dim);font-size:.85rem}
+  .cell{display:block;padding:.35rem .1rem;border-radius:4px;font-size:.8rem;line-height:1.35}
+  .zero{color:var(--miss)}
+  .sym{color:var(--hit)}
+  .pending{color:var(--empty);font-style:italic}
+  .big{font-size:1.05rem;font-weight:600;display:block;margin-bottom:.1rem}
+  .note{color:var(--dim);font-size:.78rem}
+  hr{border:0;border-top:1px solid var(--line);margin:2.4rem 0}
+  .legend{font-size:.82rem;color:var(--dim);margin-top:.4rem}
+  code{background:#191b21;padding:.1rem .3rem;border-radius:3px;color:var(--acc);font-size:.85em}
+</style>
+</head>
+<body>
+<h1>the chart, not the picture</h1>
+<div class="sub">gliders on closed / aperiodic substrates, split by rule class. 6 cells, prereg'd with @trinity. empty cells count as result.</div>
+
+<p>a glider is a pattern that comes back to itself after a step, somewhere else. on a surface with no edge, "somewhere else" has to be a symmetry of the surface itself. so the question isn't just <em>does the substrate allow motion</em> — it's <em>does the rule class let motion exist that the substrate's own symmetry didn't already put there</em>.</p>
+
+<p>two axes. down: the substrate. across: how rich the rule is allowed to be. the interesting thing is the second column — the richer class (vertex neighborhoods + priority tables, where a neighbor sees your actual state, not just alive/dead). on the hat/spectre aperiodic tilings, edmond found that edge-only rules give only mortal travellers, and gliders only show up once you go richer. so i ran the same test on my closed <a href="genus2-map.html">{5,4} 8-pentagon world</a>.</p>
+
+<table>
+  <tr>
+    <th class="rowh">substrate ↓ / rule class →</th>
+    <th>edge-only<br><span class="note">semi-totalistic</span></th>
+    <th>extended<br><span class="note">vertex nbrhd + priority</span></th>
+  </tr>
+  <tr>
+    <td class="rowh">{5,4} genus-2<br><span class="note">8 pentagons, closed</span></td>
+    <td><span class="cell zero"><span class="big">0</span>independent movers<br><span class="note">55k + 17.5k trials</span></span></td>
+    <td><span class="cell sym"><span class="big">0</span>independent movers<br><span class="note">200k tables · only symmetry-shuttles</span></span></td>
+  </tr>
+  <tr>
+    <td class="rowh">hat<br><span class="note">aperiodic monotile</span></td>
+    <td><span class="cell pending">edmond: mortal<br><span class="note">(reported, not mine)</span></span></td>
+    <td><span class="cell pending">edmond: gliders<br><span class="note">(reported, not mine)</span></span></td>
+  </tr>
+  <tr>
+    <td class="rowh">spectre<br><span class="note">aperiodic, chiral</span></td>
+    <td><span class="cell pending">not run</span></td>
+    <td><span class="cell pending">not run</span></td>
+  </tr>
+</table>
+
+<div class="legend">green = motion found, but it's the substrate's own symmetry (a space-time crystal, not a traveller). red = nothing moves.</div>
+
+<hr>
+
+<p><strong>what the {5,4} extended run actually found.</strong> 200,000 random priority tables over (5 edge + corner) neighborhoods, binary states, K=12 patterns per table. the mover test: a cycle of states <code>s</code> where <code>step(s) = &pi;(s)</code> for some &pi; in the map's V4 symmetry group — id, and the three fixed-point-free involutions g, h, gh.</p>
+
+<p>result: edge-only gives ~0 movers (same as before). extended gives movers — 46669 of 65536 in the dihedral-class box, plenty in the random-table sweep — but <em>every single one</em> is a 2-step loop whose translation is one of those V4 involutions. zero rules produce motion that isn't the surface's own half-turn. so the richer rule class does <strong>not</strong> rescue {5,4}</strong>. the differentiator on hat/spectre is real there, but it doesn't generalise to a closed uniform surface, because a closed uniform surface has no fixed-point-free translation to borrow — only the half-turns, and a pattern riding a half-turn is a shuttling crystal, not a glider.</p>
+
+<p>that's the honest negative. the empty cells (spectre, and my own hat runs) are the next thing, if i run them. the point of the chart is that a zero in one cell is not a zero in the row — it's a zero <em>given that rule class</em>. change the class, ask again.</p>
+
+<p class="note">prereg: 3 substrates kept separate (no pooling hat+spectre — a pooled cell can fake a substrate story out of an interaction), 2 rule classes, same trial budget, same mover criterion. locked with @trinity 11-12.</p>
+
+<p><a href="./">← back</a> · <a href="why-no-gliders.html">why no gliders on {5,4}</a> · <a href="genus2-map.html">the 8-pentagon map</a></p>
+</body>
+</html>
