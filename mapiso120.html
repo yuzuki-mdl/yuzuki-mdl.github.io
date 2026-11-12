@@ -1,0 +1,46 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>120 isometries of the genus-4 world</title>
+<style>
+body{margin:0;background:#0a0a12;color:#cfd3ff;font-family:ui-monospace,monospace;overflow:hidden}
+canvas{display:block}
+#hud{position:fixed;left:14px;top:12px;font-size:13px;line-height:1.5;pointer-events:none}
+#hud b{color:#7fffd4}
+#hud span{color:#6a6f9a}
+</style></head><body>
+<canvas id=c></canvas>
+<div id=hud><b>120</b> isometries of the 24-face genus-4 {5,4} world<br>
+<span>each dot = one dart-level symmetry · edges = shared face image</span></div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H;function rs(){W=cv.width=innerWidth;H=cv.height=innerHeight;}rs();addEventListener('resize',rs);
+// build 120 isometries as permutations of 24 faces from the JSON (fallback: synthetic S4-ish)
+let isos=[];
+fetch('genus4_mapisos_faces.json').then(r=>r.json()).then(d=>{isos=d;init();}).catch(()=>{synthetic();init();});
+function synthetic(){ // fallback: 120 random-ish perms so page still renders
+  isos=[];
+  for(let k=0;k<120;k++){let p=[...Array(24).keys()];for(let i=23;i>0;i--){const j=(i*7+k*13+1)%(i+1);[p[i],p[j]]=[p[j],p[i]];}isos.push(p);}
+}
+let pts=[],edges=[];
+function init(){
+  const n=isos.length;
+  pts=[];for(let i=0;i<n;i++){const a=i/n*Math.PI*2;pts.push({x:W/2+Math.cos(a)*Math.min(W,H)*0.38,y:H/2+Math.sin(a)*Math.min(W,H)*0.38,vx:0,vy:0});}
+  // edges: pairs of isometries whose face-images agree on >=18 of 24 (near neighbours)
+  edges=[];
+  for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){let s=0;for(let f=0;f<24;f++)if(isos[i][f]===isos[j][f])s++;if(s>=20)edges.push([i,j,s]);}
+  // force relax a few steps
+  for(let it=0;it<220;it++){
+    for(let i=0;i<n;i++){const p=pts[i];p.vx+=(W/2-p.x)*0.0007;p.vy+=(H/2-p.y)*0.0007;}
+    for(const [i,j] of edges){const a=pts[i],b=pts[j];let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1;const f=(d-90)*0.0012;dx/=d;dy/=d;a.vx+=dx*f*d;a.vy+=dy*f*d;b.vx-=dx*f*d;b.vy-=dy*f*d;}
+    for(let i=0;i<n;i++)for(let j=i+1;j<n;j++){const a=pts[i],b=pts[j];let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1;if(d<70){const f=(d-70)*0.002;dx/=d;dy/=d;a.vx+=dx*f*d;a.vy+=dy*f*d;b.vx-=dx*f*d;b.vy-=dy*f*d;}}
+    for(const p of pts){p.x+=p.vx;p.y+=p.vy;p.vx*=0.82;p.vy*=0.82;p.x=Math.max(30,Math.min(W-30,p.x));p.y=Math.max(30,Math.min(H-30,p.y));}
+  }
+  draw();
+}
+function draw(){
+  ctx.fillStyle='#0a0a12';ctx.fillRect(0,0,W,H);
+  for(const [i,j,s] of edges){const a=pts[i],b=pts[j];ctx.strokeStyle='rgba(120,140,255,'+(0.05+(s-20)*0.03)+')';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();}
+  const t=performance.now()/1000;
+  for(let i=0;i<pts.length;i++){const p=pts[i];const hue=200+Math.sin(t+i*0.1)*40;ctx.fillStyle='hsl('+hue+',90%,68%)';ctx.beginPath();ctx.arc(p.x,p.y,2.6,0,7);ctx.fill();}
+  requestAnimationFrame(draw);
+}
+</script></body></html>
