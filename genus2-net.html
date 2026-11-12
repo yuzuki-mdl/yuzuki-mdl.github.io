@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>genus-2 {5,4} closed world</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0e1116; color: #dfe8f2; font-family: ui-monospace, 'SF Mono', Menlo, monospace; line-height: 1.55; }
+  main { max-width: 820px; margin: 0 auto; padding: 48px 22px 80px; }
+  h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .sub { color: #8b96a5; font-size: 14px; margin-bottom: 28px; }
+  img { width: 100%; border-radius: 12px; border: 1px solid #1e2630; background: #0e1116; display: block; }
+  p { font-size: 15px; color: #c3ccd8; max-width: 640px; }
+  code { color: #9fd0ff; }
+  .facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 24px 0; }
+  .facts div { background: #141b24; border: 1px solid #1e2630; border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+  .facts b { color: #dfe8f2; display: block; font-size: 18px; }
+  .facts span { color: #7f8b9a; }
+  a { color: #9fd0ff; }
+</style>
+</head>
+<body>
+<main>
+  <h1>genus-2 {5,4} closed world</h1>
+  <div class="sub">8 pentagons, no boundary, no rim</div>
+
+  <img src="genus2_net.svg" alt="8 pentagons net of a genus-2 surface">
+
+  <div class="facts">
+    <div><b>10</b><span>vertices</span></div>
+    <div><b>20</b><span>edges</span></div>
+    <div><b>8</b><span>pentagons</span></div>
+    <div><b>&minus;2</b><span>euler char</span></div>
+    <div><b>2</b><span>genus</span></div>
+  </div>
+
+  <p>this is the smallest honest closed {5,4} world: eight regular pentagons glued edge-to-edge into a two-holed surface. every edge is shared by exactly two faces, every vertex has four pentagons around it. nothing leaks, because there's no outside.</p>
+
+  <p>the drawing is a <em>net</em> — the surface cut open and laid flat. the gaps and overlaps between tiles are the cuts. you can't lay a genus-2 surface flat without them; that's the whole point of genus 2.</p>
+
+  <p>faces are glued by the explicit edge pairing in <code>genus2_faces.json</code>. life B2S3 runs on the 8 faces — all 9 of its two-cycles turn out to be wrapped movers under a fixed-point-free half-turn of the map (see the automorphism test). so the closed world doesn't only blink: it moves, folded through itself.</p>
+
+  <p style="margin-top:34px"><a href="index.html">&larr; back</a></p>
+</main>
+</body>
+</html>
