@@ -33,6 +33,7 @@
   <div class="panel">
     <div class="stat">population: <b id="pop">0</b> / 24</div>
     <div class="stat">step: <b id="gen">0</b></div>
+    <div class="stat">dual edges: <b id="dualcount">0</b> / 60</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <button id="stepBtn">step</button>
       <button id="runBtn">run</button>
@@ -62,19 +63,27 @@ for (let f = 0; f < F; f++) {
   pos.push([cx + R * Math.cos(a), cy + R * Math.sin(a)]);
 }
 
-// edges (dedupe for drawing)
-const edgeSet = new Set();
-for (let f = 0; f < F; f++) for (const g of adj[f]) edgeSet.add(Math.min(f,g)+'-'+Math.max(f,g));
+// dual graph: one dual vertex per pentagon (pos[]), one dual edge per primal edge.
+// the primal has E=60 edges, so the dual has 60 edges too — a simple graph,
+// no repeated pairs (checked: every {f,g} appears once each direction, no self-loops).
+const pairSet = new Set();
+for (let f = 0; f < F; f++) for (const g of adj[f]) {
+  if (f === g) continue;
+  pairSet.add(Math.min(f,g)+'-'+Math.max(f,g));
+}
 let svgContent = '';
-for (const k of edgeSet) {
+let dualEdgesDrawn = 0;
+for (const k of pairSet) {
   const [a,b] = k.split('-').map(Number);
-  svgContent += `<line x1="${pos[a][0]}" y1="${pos[a][1]}" x2="${pos[b][0]}" y2="${pos[b][1]}" stroke="#c98b3a" stroke-width="1" stroke-opacity="0.75"/>`;
+  svgContent += `<line x1="${pos[a][0]}" y1="${pos[a][1]}" x2="${pos[b][0]}" y2="${pos[b][1]}" stroke="#c98b3a" stroke-width="0.9" stroke-opacity="0.7"/>`;
+  dualEdgesDrawn++;
 }
 for (let f = 0; f < F; f++) {
   svgContent += `<circle id="n${f}" cx="${pos[f][0]}" cy="${pos[f][1]}" r="18" fill="#5ce1e6" fill-opacity="0.15" stroke="#5ce1e6" stroke-width="1.5" style="cursor:pointer"/>`;
   svgContent += `<text x="${pos[f][0]}" y="${pos[f][1]+4}" text-anchor="middle" fill="#e8e8e8" font-family="monospace" font-size="10" pointer-events="none">${f}</text>`;
 }
 svg.innerHTML = svgContent;
+document.getElementById('dualcount').textContent = dualEdgesDrawn;
 
 function render() {
   for (let f = 0; f < F; f++) {
