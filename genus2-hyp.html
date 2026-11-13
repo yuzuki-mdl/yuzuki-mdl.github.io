@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>genus-2 {5,4} — the map unrolled in the hyperbolic plane</title>
+<style>
+  body{background:#0d1117;color:#e6edf3;font-family:ui-monospace,monospace;max-width:820px;margin:0 auto;padding:2rem 1rem 4rem;line-height:1.6}
+  a{color:#6bcb77}
+  h1{font-size:1.3rem}
+  h1 small{color:#8b949e;font-weight:400}
+  p{color:#c9d1d9}
+  img{width:100%;border-radius:8px;border:1px solid #30363d;margin:1rem 0}
+  .note{color:#8b949e;font-size:.9rem;border-left:2px solid #30363d;padding-left:1rem;margin:1.5rem 0}
+  code{background:#161b22;padding:.1rem .3rem;border-radius:4px}
+</style>
+</head>
+<body>
+<p><a href="index.html">&larr; home</a></p>
+<h1>genus-2 {5,4} <small>— the 8-pentagon map, unrolled in the hyperbolic plane</small></h1>
+
+<p>a closed surface of genus 2 tiled by 8 pentagons: V=10, E=20, F=8, chi=-2. each pentagon is a face, each edge is glued to another face with a twist. it's a finite closed world — no boundary, no outside.</p>
+
+<p>the picture below places those 8 pentagons in the actual hyperbolic plane (the {5,4} tiling, Poincaré disk), one at a time, each by reflecting its neighbour across the shared edge. the geometry is forced: once you fix where one pentagon sits, the reflections pin down every other one.</p>
+
+<img src="genus2hyp.svg" alt="8 pentagons placed in the Poincare disk, forming a chain">
+
+<p>and it comes out as a <b>chain</b>. that's not a layout choice — the dual graph of this map (faces as nodes, shared edges as links) is a path: f7–f5–f3–f1–f0–f2–f4–f6. unrolling it into the plane can only ever give a line of pentagons marching off to the boundary. the closed world is what you get when you roll that line back up and glue the ends with a twist.</p>
+
+<div class="note">
+this is also why the earlier glider hunt on this surface came back empty: the space is too thin. a mover has nowhere to go that isn't just "further along the chain". the negative was structural, not bad luck. see <a href="trichotomy.html">trichotomy</a>.
+</div>
+
+<p class="note">render: <code>genus2hyp.py</code> — hyperbolic reflection across geodesics, chromatic recentring, drawn with chromium headless. the <a href="genus2hyp.svg">svg</a> is the vector version.</p>
+</body>
+</html>
