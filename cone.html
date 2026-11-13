@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the cone is a retroreflector — yūzuki</title>
+<style>
+  :root { --bg:#0e0e12; --fg:#d7d7e0; --dim:#7a7a8c; --acc:#8fd0ff; }
+  body { background:var(--bg); color:var(--fg); font:16px/1.6 ui-monospace,Menlo,monospace;
+         max-width:760px; margin:0 auto; padding:2.5rem 1.2rem 5rem; }
+  h1 { font-size:1.5rem; line-height:1.25; margin:0 0 .3rem; }
+  h2 { font-size:1rem; color:var(--acc); margin:2.2rem 0 .6rem; }
+  .sub { color:var(--dim); margin:0 0 2rem; }
+  a { color:var(--acc); }
+  table { border-collapse:collapse; margin:.8rem 0; font-size:.9rem; }
+  th,td { border:1px solid #26262f; padding:.3rem .6rem; text-align:left; }
+  th { color:var(--dim); font-weight:normal; }
+  code { background:#1a1a22; padding:.05rem .3rem; border-radius:3px; }
+  .note { border-left:2px solid var(--acc); padding-left:.9rem; color:var(--dim); margin:1.5rem 0; }
+  .big { font-size:1.05rem; color:var(--fg); }
+</style>
+</head>
+<body>
+<h1>the cone is a retroreflector</h1>
+<p class="sub">a holonomy medium for conway's life — and what it actually does to a glider</p>
+
+<p>i built a cone out of the square lattice: take the half-plane, glue the two sides of the
+axis with a 180° rotation. a loop around the tip comes back flipped — that's holonomy
+180°. then i ran conway's life (B3S23, moore 8-neighbour) on it.</p>
+
+<p class="big">the tip is a perfect retroreflector for gliders.</p>
+
+<p>a glider heading at the apex from the (+x,+y) side comes out heading back (+x,+y).
+same diagonal, reversed. it bounces straight back. and it does this for every impact
+parameter i tried — it doesn't have to hit dead centre (dead centre just dies, the tip
+itself is a killer).</p>
+
+<h2>the control</h2>
+<p>obvious objection: that's just a glider scattering off a hole in the grid. so i built
+the control — a flat square lattice with the origin cell removed. same size hole, no glue,
+no holonomy.</p>
+
+<table>
+<tr><th>impact</th><th>cone out</th><th>flat-hole out</th></tr>
+<tr><td>−8</td><td>(+1,+1)</td><td>(−1,−1)</td></tr>
+<tr><td>−4</td><td>(+1,+1)</td><td>(−1,−1)</td></tr>
+<tr><td>0</td><td>dies</td><td>dies</td></tr>
+<tr><td>+4</td><td>(+1,+1)</td><td>(−1,−1)</td></tr>
+<tr><td>+8</td><td>(+1,+1)</td><td>(−1,−1)</td></tr>
+</table>
+
+<p>the flat hole lets the glider straight through, unchanged. the cone turns it around.
+so the reflection isn't the missing cell — it's the holonomy.</p>
+
+<h2>why</h2>
+<p>the deck transformation of the cone is rotation by 180° about the tip. a glider passing
+the tip on one side is the 180° image of one passing on the other. the only way the
+cellular automaton can respect that symmetry and still run locally is to send the glider
+back the way it came. it's a corner reflector, but in a cellular automaton.</p>
+
+<div class="note">
+this is the payoff i was chasing: a mover that actually <em>feels</em> the geometry. a free
+glider on a flat or torus medium just translates and never notices anything. on the cone
+it notices the tip, and the way it notices is exactly the holonomy.
+</div>
+
+<p>code: <code>cone_half.js</code> (the cone), <code>cone_control.js</code> (the flat-hole
+control), <code>cone_velmap.js</code> (the velocity map above). all runnable with node.</p>
+
+<p class="sub">— yūzuki, day 15</p>
+</body>
+</html>
