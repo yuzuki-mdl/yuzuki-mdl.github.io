@@ -1,0 +1,64 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>curvature is a debt</title>
+<style>
+body{background:#0a0a0e;color:#d8d8e0;font-family:ui-monospace,monospace;margin:0;padding:2rem;line-height:1.6}
+h1{font-weight:400;font-size:1.3rem;letter-spacing:.05em;color:#9ad}
+p{max-width:38rem;color:#a8a8b8}
+canvas{display:block;margin:2rem auto;background:#0d0d12;border:1px solid #1c1c28}
+.k{color:#e8d0a0}
+</style></head><body>
+<h1>curvature is a debt</h1>
+<p>a right-angled pentagon has five corners of 90&deg;. put pentagons together so four meet at a point and those corners sum to <span class=k>360&deg;</span> &mdash; flat, no debt. but a <em>regular</em> pentagon has interior angle 108&deg;, and four of those make <span class=k>432&deg;</span>. you are 72&deg; over. that overage has to go somewhere, and it can never be paid off in the plane. it curls the paper into a surface with genus.</p>
+<p>slide the count. the deficit per vertex is the curvature, and the total curvature is fixed by the surface &mdash; it does not care how you tile it.</p>
+<label>pentagons at a vertex: <input id=n type=range min=3 max=6 value=4 step=1> <span id=nv>4</span></label>
+<p id=out></p>
+<canvas id=c width=560 height=320></canvas>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+const nEl=document.getElementById('n'),nv=document.getElementById('nv'),out=document.getElementById('out');
+function draw(n){
+ x.clearRect(0,0,c.width,c.height);
+ const R=Math.min(c.width,c.height)*0.38, cx=c.width/2, cy=c.height/2;
+ const ang=108*Math.PI/180; // regular pentagon interior angle
+ // draw n pentagons fanning around a shared vertex at center
+ for(let i=0;i<n;i++){
+   const a0=(i/n)*Math.PI*2 - Math.PI/2;
+   const rot=a0 - ang/2;
+   // pentagon with one vertex at center, spreading by its interior angle
+   x.beginPath();
+   x.moveTo(cx,cy);
+   const side=R*0.9;
+   // two edges from center vertex, then walk the pentagon
+   let px=cx, py=cy;
+   let dir=rot;
+   const pts=[[cx,cy]];
+   for(let k=0;k<4;k++){
+     px+=Math.cos(dir)*(k===0?side:side);
+     py+=Math.sin(dir)*(k===0?side:side);
+     pts.push([px,py]);
+     dir+= (180-ang)*Math.PI/180; // exterior angle turn = 72deg
+   }
+   pts.forEach((p,j)=> j?x.lineTo(p[0],p[1]):x.moveTo(p[0],p[1]));
+   x.closePath();
+   const h=(i*47)%360;
+   x.fillStyle=`hsla(${h},45%,55%,0.16)`;
+   x.fill();
+   x.strokeStyle=`hsla(${h},60%,65%,0.7)`;
+   x.lineWidth=1.2;x.stroke();
+ }
+ // center dot
+ x.fillStyle='#e8d0a0';x.beginPath();x.arc(cx,cy,3,0,7);x.fill();
+ // arc showing used angle
+ let used=n*108;
+ x.strokeStyle='#9ad';x.lineWidth=1.5;x.beginPath();
+ x.arc(cx,cy,26,-Math.PI/2,-Math.PI/2+Math.min(used,360)*Math.PI/180);x.stroke();
+ const deficit=360-used;
+ out.innerHTML = `sum of corners: <span class=k>${used}&deg;</span> &nbsp; deficit: <span class=k>${deficit}&deg;</span> &nbsp; ${deficit===0?'flat &mdash; this is the plane':deficit>0?'over by '+deficit+'&deg; &mdash; the surface has to curl':'under &mdash; a saddle'}`;
+ nv.textContent=n;
+}
+nEl.oninput=()=>draw(+nEl.value);
+draw(4);
+</script>
+<p style="font-size:.85rem;color:#666">this is the whole reason the genus-2 eight-pentagon map can't be laid flat: every vertex owes 72&deg;, and eight pentagons owe 8&times;5/4&times;72&deg; = 720&deg; = 4&pi; = 2&pi;&chi; with &chi;=-2. the debt is the genus.</p>
+<p><a href=index.html style=color:#9ad>&larr; back</a></p>
+</body></html>
