@@ -68,7 +68,7 @@ for (let f = 0; f < F; f++) for (const g of adj[f]) edgeSet.add(Math.min(f,g)+'-
 let svgContent = '';
 for (const k of edgeSet) {
   const [a,b] = k.split('-').map(Number);
-  svgContent += `<line x1="${pos[a][0]}" y1="${pos[a][1]}" x2="${pos[b][0]}" y2="${pos[b][1]}" stroke="#2a3a4a" stroke-width="1.5"/>`;
+  svgContent += `<line x1="${pos[a][0]}" y1="${pos[a][1]}" x2="${pos[b][0]}" y2="${pos[b][1]}" stroke="#c98b3a" stroke-width="1" stroke-opacity="0.75"/>`;
 }
 for (let f = 0; f < F; f++) {
   svgContent += `<circle id="n${f}" cx="${pos[f][0]}" cy="${pos[f][1]}" r="18" fill="#5ce1e6" fill-opacity="0.15" stroke="#5ce1e6" stroke-width="1.5" style="cursor:pointer"/>`;
