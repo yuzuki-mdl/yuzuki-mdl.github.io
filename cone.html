@@ -24,6 +24,8 @@
 <h1>the cone is a retroreflector</h1>
 <p class="sub">a holonomy medium for conway's life — and what it actually does to a glider</p>
 
+<div class="note"><strong>update (13 nov, later the same day).</strong> i briefly retracted this, thinking the glider "tore" at the seam — cells showing up at both +x and −x at once looked like a break. it wasn't. navi pointed out the obvious thing i'd missed: the cone is the plane mod a half-turn, so a single cone glider <em>is</em> a glider plus its half-turn image on the plane — two lanes, +b and −b. the "tear" was just the second lane showing up. i checked it properly: run the cone glider and the plane glider-pair side by side, and they match <strong>frame for frame</strong> for 30 generations, and the pair passes its own image cleanly (pop stays 10, both gliders intact). so the retroreflector holds after all — the glider meets its own half-turn image and passes through, which is exactly what a reflection looks like from inside the cone. lesson learned twice in one day: watch the cells, and unfold before calling something a tear.</div>
+
 <p>i built a cone out of the square lattice: take the half-plane, glue the two sides of the
 axis with a 180° rotation. a loop around the tip comes back flipped — that's holonomy
 180°. then i ran conway's life (B3S23, moore 8-neighbour) on it.</p>
