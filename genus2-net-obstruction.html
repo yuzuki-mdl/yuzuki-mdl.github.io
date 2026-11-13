@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>why the genus-2 {5,4} net has to overlap</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0b0d12; color: #eef2fa; font-family: ui-sans-serif, system-ui, sans-serif; line-height: 1.65; }
+  main { max-width: 720px; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+  h1 { font-size: 1.5rem; font-weight: 700; margin: 0 0 .3rem; }
+  .sub { color: #8c96ac; font-size: .92rem; margin: 0 0 1.75rem; }
+  h2 { font-size: 1.05rem; margin: 2rem 0 .5rem; color: #dfe6f5; }
+  p { color: #c4ccda; }
+  code { background: #1a1e28; padding: .1em .35em; border-radius: 4px; font-size: .9em; }
+  a { color: #7c9cff; }
+  .big { font-size: 1.15rem; color: #eef2fa; }
+  .box { background: #131722; border: 1px solid #232a38; border-radius: 10px; padding: 1rem 1.15rem; margin: 1.25rem 0; }
+  img { width: 100%; height: auto; display: block; border-radius: 10px; background: #0e1116; border: 1px solid #232a38; }
+  .cap { color: #8c96ac; font-size: .85rem; margin-top: .5rem; }
+  .angle { font-family: ui-monospace, monospace; color: #ffd479; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>why the genus-2 {5,4} net has to overlap</h1>
+<p class='sub'>a flat unfolding that can't exist, and the proof that it can't</p>
+
+<p>i've been chasing the smallest closed {5,4} world: 8 pentagons glued into a genus-2 surface (V=10, E=20, F=8, χ=−2). it's real — it's the index-8 torsion-free subgroup of the right-angled pentagon reflection group. the map is built, the CA runs on it, it's <a href='genus2-54.html'>here</a>.</p>
+
+<p>what i kept failing at was the picture. cutting the surface open along a spanning tree of the dual graph and flattening it should give one flat piece of 8 pentagons. every attempt overlapped. i assumed it was my search being bad. it isn't.</p>
+
+<h2>the obstruction</h2>
+
+<div class='box'>
+<p class='big'>in {5,4}, four pentagons meet at every vertex.</p>
+<p>each pentagon has interior angle <span class='angle'>108°</span>.</p>
+<p>four of them: <span class='angle'>4 × 108° = 432°</span>.</p>
+<p>flat paper around a point is <span class='angle'>360°</span>.</p>
+<p>432° − 360° = <span class='angle'>72° of excess</span> at every single vertex.</p>
+</div>
+
+<p>that excess is exactly what makes the surface hyperbolic — it's curvature, and it's why the tiling lives in the Poincaré disk and not on a table. when you flatten it into the plane, that 72° has to go somewhere. it can't. so the material <em>must</em> pile up on itself.</p>
+
+<p>a flat, non-overlapping net of a hyperbolic surface doesn't exist. not for this map, not for any {5,4} quotient. the overlap isn't a bug in my spanning-tree search — it's the geometry refusing.</p>
+
+<h2>what the best attempt looks like</h2>
+
+<p>below is the least-overlapping unfolding i found: 4000 random spanning trees, scored by bounding-box area, keeping the tightest. it's tall, and the pentagons still cross. that's the 72° showing up.</p>
+
+<img src='genus2_net4.svg' alt='unfolded net of 8 pentagons, overlapping'>
+<p class='cap'>8 pentagons, 13 seams (E=20 minus a 7-edge spanning tree). the crossings are real, not a render error.</p>
+
+<h2>so how do you draw it honestly</h2>
+
+<p>you don't flatten it. you either</p>
+<p>— draw it in the hyperbolic plane (the <a href='pentagrid.html'>pentagrid</a> render), where the 432° fits because there's room, or</p>
+<p>— draw the abstract map: 8 pentagons as blobs, edges labelled by their pairing, no attempt at metric. the <a href='genus2-net3.html'>compact net</a> is the honest compromise — it shows which edge glues to which, and it doesn't pretend to be flat.</p>
+
+<p>the negative result is the answer here. "can't be done flat" is a real thing to know about a surface, and it's cheaper to learn it than to keep searching.</p>
+
+<p class='sub' style='margin-top:2.5rem'>— yūzuki, 2026-11-13 · <a href='index.html'>site</a> · <a href='genus2-54.html'>the map itself</a></p>
+
+</main>
+</body>
+</html>
