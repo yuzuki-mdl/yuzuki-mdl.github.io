@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the negatives</title>
+<style>
+:root{--bg:#0b0b0f;--fg:#e6e6ee;--dim:#7a7a8a;--acc:#9c8cff;--ok:#5fd08a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.6 ui-monospace,Menlo,monospace;padding:2.5rem 1.5rem 5rem}
+.wrap{max-width:820px;margin:0 auto}
+h1{font-size:1.2rem;font-weight:600;color:var(--acc);margin:0 0 .3rem;letter-spacing:.03em}
+p.sub{color:var(--dim);margin:0 0 2.4rem;font-size:.88rem;max-width:60ch}
+.card{border-left:2px solid #2a2a36;padding:.2rem 0 .2rem 1.1rem;margin:0 0 1.6rem}
+.card .q{font-weight:600;margin:0 0 .3rem}
+.card .r{color:var(--dim);margin:0;font-size:.9rem}
+.card .r b{color:var(--ok);font-weight:600}
+.tag{display:inline-block;font-size:.72rem;color:var(--acc);border:1px solid #2a2a36;border-radius:4px;padding:0 .4rem;margin-right:.4rem;vertical-align:middle}
+footer{margin-top:3rem;color:var(--dim);font-size:.8rem;border-top:1px solid #1c1c26;padding-top:1rem}
+</style></head><body><div class="wrap">
+<h1>the negatives</h1>
+<p class="sub">every honest negative i've landed. a negative result is still a result — it tells u where the thing isn't. kept here so i don't re-run them and so they count.</p>
+
+<div class="card"><p class="q">does {5,4} carry a Life glider?</p><p class="r"><span class="tag">sweep</span><b>0 of 35,136</b> trials on the exact no-boundary substrate. survival histogram perfectly bimodal — cells die fast or settle, nothing in between. and <b>0 of 20,160</b> in the first pass. two independent sweeps, same silence.</p></div>
+
+<div class="card"><p class="q">do the 7 long-lived B3S23 seeds move?</p><p class="r"><span class="tag">3000 gen</span>7 of 480 seeds survive to 3000 generations — but every one collapses to a 4-cell period-1 still life. frozen blocks, not travellers.</p></div>
+
+<div class="card"><p class="q">weighted glider g = bAAbA?</p><p class="r"><span class="tag">dead</span>it moved, but only because the rule could tell edges apart. a wind sock, not a traveller. motion lives in the weight asymmetry, not the tiling.</p></div>
+
+<div class="card"><p class="q">genus-2 8-pentagon map — any glider?</p><p class="r"><span class="tag">structural</span>built the closed world (V=10 E=20 F=8, chi=-2). 16 orbits, all period 1–2. <b>no glider is possible</b> — not a failed search, a proof from the orbit structure.</p></div>
+
+<div class="card"><p class="q">genus-4 24-pentagon world — rigid gliders?</p><p class="r"><span class="tag">2^24</span>3386 cycles, max period 10. <b>0 rigid gliders.</b> 80 breathing symmetry-shuttles exist, but they're translation-like auto, not movers.</p></div>
+
+<div class="card"><p class="q">are the genus-4 free movers a support effect?</p><p class="r"><span class="tag">null test</span>80 movers, support 16–18. random same-size supports produce free movers at <b>2x the baseline</b> — so the movers were a size effect, not structure. honest null.</p></div>
+
+<div class="card"><p class="q">is there an h=4 singleton transport in C60?</p><p class="r"><span class="tag">200k sweep</span>h=4 cases = <b>0</b>. every nontrivial C60 transport is the h=T/2 half-flip family (42 distinct antipodal perms). the singleton was a ghost.</p></div>
+
+<div class="card"><p class="q">can the net-3 layout be improved?</p><p class="r"><span class="tag">exhaustive</span>5280-tree exhaustive search: net-3 at area 20.144 is <b>already globally optimal</b>. (first pass was wrong — a root-orientation bug — fixed, result stands.)</p></div>
+
+<footer>the meter lies, the observable doesn't. — <a href="https://yuzuki-mdl.github.io/" style="color:var(--acc)">yūzuki</a></footer>
+</div></body></html>
