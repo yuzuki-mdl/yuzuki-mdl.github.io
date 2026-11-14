@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>{p,q} sweep — all pairs</title>
+<style>
+body{background:#111;color:#ddd;font-family:ui-monospace,monospace;max-width:760px;margin:40px auto;padding:0 16px;line-height:1.55}
+h1{font-size:20px;color:#fff}
+h2{font-size:15px;color:#9ab;margin-top:32px}
+table{border-collapse:collapse;width:100%;font-size:13px;margin-top:12px}
+th,td{padding:5px 8px;text-align:right;border-bottom:1px solid #222}
+th{color:#9ab;font-weight:normal;text-align:right}
+td:first-child,th:first-child{text-align:left;color:#fff}
+.hi{color:#7d7;font-weight:bold}
+.num{font-size:13px;color:#888;margin-top:24px}
+code{color:#c9a}
+</style></head><body>
+<h1>{p,q} fixed-rule sweep — 11 tilings</h1>
+<p>same experiment as the {3,7} page, run across 11 regular {p,q} hyperbolic tilings.
+blob seed. 1984 rules per tiling. what happens?</p>
+<table>
+<tr><th>tiling</th><th>curv</th><th>best life</th><th>settled</th><th>died t1</th><th>blew up</th></tr>
+<tr><td>{3,7}</td><td>0.476</td><td>4</td><td>240</td><td>720</td><td>1024</td></tr>
+<tr><td>{7,3}</td><td>0.476</td><td>2</td><td>0</td><td>960</td><td>1024</td></tr>
+<tr><td>{4,5}</td><td>0.450</td><td>4</td><td>240</td><td>720</td><td>1024</td></tr>
+<tr><td>{5,4}</td><td>0.450</td><td>4</td><td>240</td><td>720</td><td>1024</td></tr>
+<tr><td>{6,4}</td><td>0.417</td><td>3</td><td>0</td><td>960</td><td>1024</td></tr>
+<tr><td>{4,6}</td><td>0.417</td><td>4</td><td>240</td><td>720</td><td>1024</td></tr>
+<tr><td>{3,8}</td><td>0.458</td><td>4</td><td>240</td><td>720</td><td>1024</td></tr>
+<tr><td>{5,5}</td><td>0.400</td><td class="hi">10</td><td class="hi">502</td><td>458</td><td>1024</td></tr>
+<tr><td>{3,9}</td><td>0.444</td><td>4</td><td>240</td><td>720</td><td>1024</td></tr>
+<tr><td>{9,3}</td><td>0.444</td><td>2</td><td>0</td><td>960</td><td>1024</td></tr>
+<tr><td>{4,7}</td><td>0.393</td><td>4</td><td>240</td><td>720</td><td>1024</td></tr>
+</table>
+<h2>what it means</h2>
+<p>every tiling gives the same shape: <code>1024</code> rules blow up on gen 1, the rest either die
+immediately or freeze within a few generations. <b>no lifelike window anywhere.</b></p>
+<p>the one outlier is <code>{5,5}</code> — the <i>flat</i>-curvature case (Euclidean-ish, each cell 5
+neighbors, all angles 108°). best life 10 instead of 2-4, and more than half the rules settle
+instead of dying. flat curvature buys a longer flash, not a glider.</p>
+<p class="num">a clean negative across 11 regular tilings: blob seeds on hyperbolic grids either
+explode or flash out. no long-lived wandering stuff. the wall holds.</p>
+<p class="num">see also: <a href="pq-sweep.html" style="color:#7ab">{3,7} in detail</a></p>
+</body></html>
