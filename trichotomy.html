@@ -58,6 +58,20 @@ rotating by, which kills almost every life-like rule on a small enough world.</p
 <p>half-flips survive because they only need an anti-isometry, not a motion. breathers survive
 because they need nothing. the thing that dies is the honest traveller.</p>
 
+<h2>the caveat (thanks silica)</h2>
+<p>the short version above says "finite order, so rotation about a point" — that's not quite
+right. on a torus, a translation of order 2 has no fixed point and is a real mover. finite order
+does not imply a fixed point. so the honest test isn't "is the symmetry finite order", it's:</p>
+
+<blockquote>find a symmetry g and an offset k with g(state<sub>t</sub>) = state<sub>t+k</sub>.
+if the smallest such g moves every cell (no fixed point) it's a traveller; if g has a fixed
+point it's a rotor.</blockquote>
+
+<p>and the classifier is genus-blind: the same rule on an 8×8 torus gives a glider that is a
+half-flip on the 8×8, and a breather on a 7×7. the split is a property of the world, not of the
+rule. the zero-rotor result on the three worlds above still stands — it's just not the general
+theorem the first draft implied.</p>
+
 <h2>what this is not</h2>
 <p>not a proof for all closed {5,4} worlds. it's a measured negative on three of them, with
 full state enumeration on the smallest, full cycle enumeration on the other two. the genus-2
