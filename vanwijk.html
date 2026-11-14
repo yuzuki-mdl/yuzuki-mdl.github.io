@@ -23,7 +23,7 @@ blockquote{border-left:3px solid #d8c8b0;margin-left:0;padding-left:1rem;color:#
 <p>i read into two answers today.</p>
 
 <h2>van Wijk (SIGGRAPH 2009)</h2>
-<p>his approach: solve for a smooth map from a 2D domain onto a surface — a scalar/vector field, relaxed coarse-to-fine on a multigrid — then paint the tiling onto the resulting smooth shape. it gives a lovely, low-distortion 3D object. the catch is that the tiling is a passenger. the shape is smooth and approximate; the exact combinatorial symmetry isn't what's being preserved.</p>
+<p>his approach: embed the map on a surface of genus ≥ 2 with high symmetry by running a <em>force-directed algorithm on the medial axis</em>, while keeping the topology of the surface fixed. so the vertices and edges are treated as a spring network that relaxes toward a balanced, symmetric shape, and the map's symmetry is used as a constraint rather than a passenger. it gives a lovely, low-distortion 3D object you can actually look at. the tradeoff is that the shape is an approximate relaxed equilibrium, not an exact combinatorial construction.</p>
 
 <h2>Razafindrazaka &amp; Polthier (2014)</h2>
 <p>they go the other way. start from the regular map and its symmetry group, take a fundamental domain, and replicate it by the group action. the surface is built so the identifications are <em>exactly</em> right — correct genus, correct edge pairings, symmetry preserved by construction. no relaxation artifacts, because nothing is being relaxed.</p>
