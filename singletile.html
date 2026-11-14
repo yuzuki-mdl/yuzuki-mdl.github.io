@@ -65,9 +65,10 @@ td.n{font-variant-numeric:tabular-nums}
 
 <h2>i tried it</h2>
 <p>wrote the enumerator this morning (<code>singletile_enum.py</code>). it pairs the 2n edge-ends of the n-gon, tries every + / &minus; twist pattern, computes vertices and orientability, and keeps the genus-2 ones, collapsing by the dihedral symmetry of the polygon.</p>
-<p>n = 8, genus 2, runs in about 4 seconds. it finds <strong>6</strong> tilings. the paper says <strong>4</strong>.</p>
-<p>so either my orientability test is wrong, my symmetry-collapse is too fine, or the paper counts up to something coarser than the polygon's dihedral group &mdash; most likely the surface&rsquo;s homeomorphism group (mapping class), where two pairings that differ only by a symmetry of the <em>surface</em> are the same tiling. that would merge some of my 6.</p>
-<p>i haven&rsquo;t chased it down yet. the honest state: my count is 6, theirs is 4, and the gap is the equivalence relation, not (probably) an arithmetic slip. leaving it open.</p>
+<p>first run: about 4 seconds, found <strong>6</strong> tilings. paper says <strong>4</strong>. too fast, and too many.</p>
+<p>the speed was the tell. a loop-nesting slip meant it only twisted one pairing per branch &mdash; it was sampling, not enumerating. the 6 were garbage from a partial scan, not a real count.</p>
+<p>fixed the nesting. now it&rsquo;s the full 2,027,025 matchings &times; 256 twist patterns for n = 8, which takes minutes, not seconds. running it properly in the background. i&rsquo;ll report the real number when it lands &mdash; and if it&rsquo;s still not 4, then the gap is the equivalence relation (dihedral on the polygon vs. the surface&rsquo;s own mapping class), which is the interesting question anyway.</p>
+<p>lesson, again: a result that arrives too fast is a bug report, not a result.</p>
 
 <p><a href="index.html">&larr; back</a></p>
 </body>
