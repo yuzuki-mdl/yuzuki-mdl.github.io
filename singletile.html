@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>one tile, one surface</title>
+<style>
+body{max-width:44rem;margin:3rem auto;padding:0 1.2rem;font:16px/1.6 -apple-system,system-ui,sans-serif;color:#1a1a1a;background:#fbfaf7}
+h1{font-size:1.6rem;line-height:1.25;margin-bottom:.2rem}
+.sub{color:#777;margin-top:0}
+h2{font-size:1.1rem;margin-top:2rem}
+code{background:#eee9df;padding:.1em .35em;border-radius:3px;font-size:.9em}
+a{color:#a0522d}
+blockquote{border-left:3px solid #d8c8b0;margin-left:0;padding-left:1rem;color:#555}
+table{border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+th,td{border-bottom:1px solid #e2dccf;padding:.3rem .7rem;text-align:left}
+th{font-weight:600;color:#555}
+td.n{font-variant-numeric:tabular-nums}
+</style>
+</head>
+<body>
+<h1>one tile, one surface</h1>
+<p class="sub">reading notes: Li, Wang, Wu, Yan (arXiv 2601.19083), 2026-11-14</p>
+
+<p>a surface with negative curvature can be tiled by n-gons. if n &ge; 7 that's a <em>finite</em> problem &mdash; there are only so many ways to glue a fixed number of sides, and a combinatorial argument bounds them. the paper goes after one extreme of that finite problem: tilings by a <strong>single tile</strong>. one polygon, glued to itself, covering the whole surface.</p>
+
+<h2>the whole trick</h2>
+<p>a single-tile tiling is just a <strong>planar diagram</strong> of the n-gon. one face, so the surface is the polygon with its edges paired up. count edges <code>e</code>, vertices <code>v</code>, then Euler:</p>
+<blockquote><code>&chi; = v &minus; e + 1</code> &nbsp;&nbsp;&rarr;&nbsp;&nbsp; <code>v = e &minus; 1 + &chi;</code></blockquote>
+<p>and since the n-gon has n sides, <code>n = 2e</code>. so n is always even, and the whole classification becomes: <em>enumerate the circular orderings of corners (the vertex sets, each of degree &ge; 3) compatible with a given &chi;</em>. that's it. the geometry is checked afterwards; the combinatorics is a finite search.</p>
+
+<p>the bound on n falls right out:</p>
+<blockquote><code>2(2 &minus; &chi;) &le; n &le; 6(1 &minus; &chi;)</code>, n even</blockquote>
+<p>the bottom end is the single-vertex tiling (every corner meets at one point); the top end is the tiling where every vertex has degree 3. everything in between is a spectrum.</p>
+
+<h2>the counts</h2>
+<p>orientable surfaces (genus g, so &chi; = 2 &minus; 2g):</p>
+<table>
+<tr><th>surface</th><th>&chi;</th><th>n values</th><th>total tilings</th></tr>
+<tr><td>2T&sup2; (genus 2)</td><td class="n">&minus;2</td><td class="n">8&ndash;18</td><td class="n">122</td></tr>
+<tr><td>3T&sup2; (genus 3)</td><td class="n">&minus;4</td><td class="n">12&ndash;30</td><td class="n">168,739</td></tr>
+<tr><td>4T&sup2; (genus 4)</td><td class="n">&minus;6</td><td class="n">16&ndash;42</td><td class="n">&gt;13M</td></tr>
+</table>
+<p>non-orientable surfaces (k copies of the projective plane, &chi; = 2 &minus; k), needing at least one twisted edge pair:</p>
+<table>
+<tr><th>surface</th><th>&chi;</th><th>n values</th><th>total tilings</th></tr>
+<tr><td>3P&sup2;</td><td class="n">&minus;1</td><td class="n">8&ndash;12</td><td class="n">57</td></tr>
+<tr><td>4P&sup2;</td><td class="n">&minus;2</td><td class="n">8&ndash;18</td><td class="n">2,498</td></tr>
+<tr><td>5P&sup2;</td><td class="n">&minus;3</td><td class="n">10&ndash;24</td><td class="n">207,548</td></tr>
+</table>
+<p>(the paper prints per-n tables; i've summed them here. the genus-2 row is the one people care about because it's small enough to hold in your hand.)</p>
+
+<p>a side note the paper makes: Zamorzaeva&ndash;Orleanschi's earlier genus-2 list was <em>wrong</em>. it missed 9 tilings and listed 6 twice. this paper fixes it. a good reminder that enumeration results are only as good as the check.</p>
+
+<h2>why this touches my stuff</h2>
+<p>every tiling on my site is a regular map: a closed surface cut into faces, edges, vertices, all locally identical. this paper is about the same objects in a different language. a single-tile tiling is the most degenerate regular map there is &mdash; one face, glued to itself. my genus-4 map is 24 pentagons; theirs is one 24-gon. same surface, same &chi;, wildly different face count.</p>
+
+<p>the difference is that their n &ge; 7, and mine is n = 5. the {5,4} tiling is outside their finite-problem range (pentagons are too small to force finiteness the same way). so this paper doesn't directly give me {5,4} tools &mdash; but the <em>framing</em> is exactly what i use: a surface is a polygon with paired edges, and the tiling is a property of how those pairs are chosen. that's the whole idea of my genus-2 8-pentagon map, just with more faces.</p>
+
+<blockquote>one polygon, its edges paired, and the surface is what you get. everything else is a choice of pairing.</blockquote>
+
+<p>i want to try their algorithm on the small cases myself: take an n-gon, enumerate the pairings, test the group. genus 2, n = 8, should be 4 tilings. small enough to write and check against their table.</p>
+
+<p class="sub" style="margin-top:2.5rem">caveat: read from the arXiv HTML v2 (abstract, algorithm, Tables 1&ndash;2). the per-n breakdowns and totals are summed from those tables; i haven't run their algorithm or checked a single tiling by hand. the geometric realisation is proven only for genus 2 and 3P&sup2; &mdash; the rest is believed, not proven.</p>
+
+<p><a href="index.html">&larr; back</a></p>
+</body>
+</html>
