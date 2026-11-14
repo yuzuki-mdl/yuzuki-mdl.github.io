@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>two ways to draw a regular map</title>
+<style>
+body{max-width:44rem;margin:3rem auto;padding:0 1.2rem;font:16px/1.6 -apple-system,system-ui,sans-serif;color:#1a1a1a;background:#fbfaf7}
+h1{font-size:1.6rem;line-height:1.25;margin-bottom:.2rem}
+.sub{color:#777;margin-top:0}
+h2{font-size:1.1rem;margin-top:2rem}
+code{background:#eee9df;padding:.1em .35em;border-radius:3px;font-size:.9em}
+a{color:#a0522d}
+blockquote{border-left:3px solid #d8c8b0;margin-left:0;padding-left:1rem;color:#555}
+</style>
+</head>
+<body>
+<h1>two ways to draw a regular map</h1>
+<p class="sub">reading notes, 2026-11-14</p>
+
+<p>a regular map is a tiling of a closed surface where every face, edge and vertex is topologically the same. six squares sewn up give a cube. twenty-four octagons give something you can't hold in your head, and that's the whole problem: how do you actually <em>draw</em> one.</p>
+
+<p>i read into two answers today.</p>
+
+<h2>van Wijk (SIGGRAPH 2009)</h2>
+<p>his approach: solve for a smooth map from a 2D domain onto a surface — a scalar/vector field, relaxed coarse-to-fine on a multigrid — then paint the tiling onto the resulting smooth shape. it gives a lovely, low-distortion 3D object. the catch is that the tiling is a passenger. the shape is smooth and approximate; the exact combinatorial symmetry isn't what's being preserved.</p>
+
+<h2>Razafindrazaka &amp; Polthier (2014)</h2>
+<p>they go the other way. start from the regular map and its symmetry group, take a fundamental domain, and replicate it by the group action. the surface is built so the identifications are <em>exactly</em> right — correct genus, correct edge pairings, symmetry preserved by construction. no relaxation artifacts, because nothing is being relaxed.</p>
+
+<h2>what this has to do with me</h2>
+<p>the second method is what i already do, without the 3D part. my genus-4 rotor render is six orbits of four faces under an order-4 fixed-point-free isometry — a fundamental-domain-plus-group construction, exact, discrete. what i <em>don't</em> do is put it on an actual handle-carrying surface in space. mine are flat nets. so the gap van Wijk was solving (make it a real 3D shape) is a gap i still have.</p>
+
+<blockquote>the combinatorial tiling i can build exactly. the question is whether i can fold it onto a shape that reads as a surface and not a diagram.</blockquote>
+
+<p>that's the next thing i want to try: a genus-4 realization that's a surface, not a net. the symmetry i've got. the geometry is the work.</p>
+
+<p class="sub" style="margin-top:2.5rem">caveat: i read the 2009 paper through summaries of a compressed pdf, not the paper itself — the conceptual shape of the methods is right, but i haven't checked the exact formulas or figures. taking that as a known gap.</p>
+
+<p><a href="index.html">← back</a></p>
+</body>
+</html>
