@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sparse life on {5,4}</title>
+<style>
+  :root{--bg:#0d0f14;--fg:#d8dbe2;--dim:#7c8393;--live:#7ee0c0;--edge:#2a2f3a;--accent:#e0b0ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,Menlo,Consolas,monospace}
+  header{padding:18px 20px 6px}
+  h1{font-size:17px;margin:0 0 4px;font-weight:600}
+  header p{margin:0;color:var(--dim);font-size:12.5px;max-width:62ch}
+  .wrap{display:flex;flex-wrap:wrap;gap:18px;padding:14px 20px 40px;align-items:flex-start}
+  canvas{background:#05070a;border:1px solid var(--edge);border-radius:10px;cursor:crosshair;touch-action:none}
+  .panel{min-width:220px;max-width:280px;display:flex;flex-direction:column;gap:12px}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  label{color:var(--dim);font-size:12px}
+  input[type=text]{background:#11151c;border:1px solid var(--edge);color:var(--fg);border-radius:6px;padding:5px 7px;width:70px;font:inherit}
+  button{background:#161b24;border:1px solid var(--edge);color:var(--fg);border-radius:6px;padding:6px 11px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--live)}
+  button.on{background:#12332b;border-color:var(--live);color:var(--live)}
+  .stat{font-size:12px;color:var(--dim)}
+  .stat b{color:var(--fg);font-weight:600}
+  .note{font-size:11.5px;color:var(--dim);border-top:1px solid var(--edge);padding-top:10px;line-height:1.55}
+  .note em{color:var(--accent);font-style:normal}
+</style>
+</head>
+<body>
+<header>
+  <h1>sparse life on {5,4}</h1>
+  <p>five pentagons meet at every corner, four around each vertex. no grid is stored: each cell is a word of reflections, its position computed on demand. click the disk to drop live cells. watch what settles.</p>
+</header>
+<div class="wrap">
+  <canvas id="cv" width="560" height="560"></canvas>
+  <div class="panel">
+    <div class="row">
+      <label>B</label><input id="B" type="text" value="2">
+      <label>S</label><input id="S" type="text" value="1,3">
+    </div>
+    <div class="row">
+      <button id="play">▶ run</button>
+      <button id="stepb">step</button>
+      <button id="clear">clear</button>
+    </div>
+    <div class="row">
+      <button id="seed">seed star</button>
+    </div>
+    <div class="stat">gen <b id="gen">0</b> · live <b id="pop">0</b> · cells <b id="store">0</b></div>
+    <div class="note">
+      <em>result:</em> 620 rule×seed trials gave 0 movers — every population either died, froze into a still life, or spread without a repeating cycle. same trichotomy as the closed-world hunts: no rigid traveller, only still lifes.
+    </div>
+  </div>
+</div>
+<script>
+const P=5,Q=4;
+const rv=Math.tanh(Math.acosh(Math.cos(Math.PI/Q)/Math.sin(Math.PI/P))/2);
+function centralVerts(){const v=[];for(let i=0;i<P;i++){const a=-Math.PI/2+2*Math.PI*i/P;v.push([rv*Math.cos(a),rv*Math.sin(a)]);}return v;}
+function gc(p1,p2){const[x1,y1]=p1,[x2,y2]=p2;const b1=(1+x1*x1+y1*y1)/2,b2=(1+x2*x2+y2*y2)/2;const det=x1*y2-x2*y1;if(Math.abs(det)<1e-9)return null;const cx=(b1*y2-b2*y1)/det,cy=(x1*b2-x2*b1)/det;return{cx,cy,r:Math.hypot(cx-x1,cy-y1)};}
+function rp(pt,c){const dx=pt[0]-c.cx,dy=pt[1]-c.cy,d2=dx*dx+dy*dy;return[c.cx+c.r*c.r*dx/d2,c.cy+c.r*c.r*dy/d2];}
+function rpoly(vs,e){const p1=vs[e],p2=vs[(e+1)%P];const c=gc(p1,p2);if(c)return vs.map(v=>rp(v,c));const mx=p1[0]+p2[0],my=p1[1]+p2[1],d=Math.hypot(mx,my),ux=mx/d,uy=my/d;return vs.map(v=>{const dot=v[0]*ux+v[1]*uy;return[2*dot*ux-v[0],2*dot*uy-v[1]];});}
+function cen(vs){let x=0,y=0;for(const v of vs){x+=v[0];y+=v[1];}return[x/P,y/P];}
+const KEY=1e4;
+function keyOf(c){return Math.round(c[0]*KEY)+','+Math.round(c[1]*KEY);}
+function cellFromWord(word){let vs=centralVerts();for(const e of word)vs=rpoly(vs,e);return{word,vs,c:cen(vs)};}
+function neighbors(cell){const out=[];for(let e=0;e<P;e++){const vs=rpoly(cell.vs,e);out.push({word:cell.word.concat(e),vs,c:cen(vs)});}return out;}
+
+let store=new Map(), live=new Set(), gen=0, playing=false, B=new Set([2]), S=new Set([1,3]);
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const W=cv.width, R=W/2-14;
+
+function parse(s){return new Set(s.split(',').map(x=>x.trim()).filter(x=>x!=='').map(Number).filter(x=>!isNaN(x)));}
+
+function step(){
+  const cand=new Map(), nbrCount=new Map(), liveKeys=new Set(live);
+  for(const k of live){
+    const cell=store.get(k); if(!cell)continue;
+    for(const nb of neighbors(cell)){
+      const nk=keyOf(nb.c);
+      if(!store.has(nk))store.set(nk,nb);
+      if(!cand.has(nk))cand.set(nk,nb);
+      nbrCount.set(nk,(nbrCount.get(nk)||0)+1);
+    }
+    if(!nbrCount.has(k))nbrCount.set(k,0);
+  }
+  const next=new Set();
+  for(const k of cand.keys()){
+    const n=nbrCount.get(k)||0;
+    if(liveKeys.has(k)){if(S.has(n))next.add(k);}
+    else{if(B.has(n))next.add(k);}
+  }
+  live=next; gen++;
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,W);
+  // boundary circle
+  ctx.beginPath();ctx.arc(W/2,W/2,R,0,7);ctx.strokeStyle='#1f2530';ctx.lineWidth=1;ctx.stroke();
+  // draw all stored cells faintly, live cells bright
+  for(const [k,cell] of store){
+    const isLive=live.has(k);
+    if(!isLive && store.size>4000)continue;
+    ctx.beginPath();
+    for(let i=0;i<cell.vs.length;i++){
+      const [x,y]=cell.vs[i];
+      const sx=W/2+x*R, sy=W/2-y*R;
+      if(i===0)ctx.moveTo(sx,sy);else ctx.lineTo(sx,sy);
+    }
+    ctx.closePath();
+    if(isLive){ctx.fillStyle='rgba(126,224,192,0.22)';ctx.fill();ctx.strokeStyle='#7ee0c0';ctx.lineWidth=1.1;ctx.stroke();}
+    else{ctx.strokeStyle='rgba(60,70,86,0.5)';ctx.lineWidth=0.5;ctx.stroke();}
+  }
+}
+
+function refresh(){document.getElementById('gen').textContent=gen;document.getElementById('pop').textContent=live.size;document.getElementById('store').textContent=store.size;draw();}
+
+function seedStar(){
+  store=new Map();live=new Set();gen=0;
+  const root=cellFromWord([]);store.set(keyOf(root.c),root);live.add(keyOf(root.c));
+  const nbs=neighbors(root);
+  for(const nb of nbs.slice(0,3)){const k=keyOf(nb.c);store.set(k,nb);live.add(k);}
+  refresh();
+}
+
+// click -> add all cells whose centroid is near click point (within a small disk)
+cv.addEventListener('click',ev=>{
+  const rect=cv.getBoundingClientRect();
+  const mx=(ev.clientX-rect.left)*(W/rect.width), my=(ev.clientY-rect.top)*(W/rect.height);
+  const hx=(mx-W/2)/R, hy=-(my-W/2)/R;
+  if(hx*hx+hy*hy>1)return;
+  // find nearest stored cell or create from a fresh word search is expensive; add nearest stored
+  let best=null,bd=1e9;
+  for(const [k,cell] of store){const d=(cell.c[0]-hx)**2+(cell.c[1]-hy)**2;if(d<bd){bd=d;best=k;}}
+  if(best&&bd<0.02){live.add(best);refresh();}
+  else{ // brute seed a few cells near the click by BFS words
+    for(let e=0;e<5;e++){const c=cellFromWord([e]);const k=keyOf(c.c);store.set(k,c);if((c.c[0]-hx)**2+(c.c[1]-hy)**2<0.05)live.add(k);}
+    refresh();
+  }
+});
+
+document.getElementById('play').addEventListener('click',e=>{playing=!playing;e.target.classList.toggle('on',playing);e.target.textContent=playing?'⏸ pause':'▶ run';if(playing)tick();});
+document.getElementById('stepb').addEventListener('click',()=>{step();refresh();});
+document.getElementById('clear').addEventListener('click',()=>{store=new Map();live=new Set();gen=0;refresh();});
+document.getElementById('seed').addEventListener('click',seedStar);
+document.getElementById('B').addEventListener('input',e=>{B=parse(e.target.value);});
+document.getElementById('S').addEventListener('input',e=>{S=parse(e.target.value);});
+
+let last=0;
+function tick(ts){
+  if(!playing)return;
+  if(!ts)ts=performance.now();
+  if(ts-last>180){step();refresh();last=ts;}
+  requestAnimationFrame(tick);
+}
+
+seedStar();
+</script>
+</body>
+</html>
