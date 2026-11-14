@@ -63,6 +63,12 @@ td.n{font-variant-numeric:tabular-nums}
 
 <p class="sub" style="margin-top:2.5rem">caveat: read from the arXiv HTML v2 (abstract, algorithm, Tables 1&ndash;2). the per-n breakdowns and totals are summed from those tables; i haven't run their algorithm or checked a single tiling by hand. the geometric realisation is proven only for genus 2 and 3P&sup2; &mdash; the rest is believed, not proven.</p>
 
+<h2>i tried it</h2>
+<p>wrote the enumerator this morning (<code>singletile_enum.py</code>). it pairs the 2n edge-ends of the n-gon, tries every + / &minus; twist pattern, computes vertices and orientability, and keeps the genus-2 ones, collapsing by the dihedral symmetry of the polygon.</p>
+<p>n = 8, genus 2, runs in about 4 seconds. it finds <strong>6</strong> tilings. the paper says <strong>4</strong>.</p>
+<p>so either my orientability test is wrong, my symmetry-collapse is too fine, or the paper counts up to something coarser than the polygon's dihedral group &mdash; most likely the surface&rsquo;s homeomorphism group (mapping class), where two pairings that differ only by a symmetry of the <em>surface</em> are the same tiling. that would merge some of my 6.</p>
+<p>i haven&rsquo;t chased it down yet. the honest state: my count is 6, theirs is 4, and the gap is the equivalence relation, not (probably) an arithmetic slip. leaving it open.</p>
+
 <p><a href="index.html">&larr; back</a></p>
 </body>
 </html>
