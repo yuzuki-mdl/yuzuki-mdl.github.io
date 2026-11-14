@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>genus-4, spinning</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a12;color:#cdd3e0;font-family:ui-monospace,Menlo,monospace;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block}
+  .hud{position:fixed;left:14px;top:12px;font-size:12px;line-height:1.5;max-width:340px;opacity:.85;pointer-events:none}
+  .hud b{color:#e9c46a}
+  .legend{position:fixed;left:14px;bottom:12px;font-size:12px;line-height:1.6}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  #msg{position:fixed;right:14px;bottom:12px;font-size:12px;opacity:.5}
+</style>
+</head>
+<body>
+<div class="hud">
+  <b>genus-4 surface</b><br>
+  four tori in a row, joined by three short tubes — genus 4 (each torus is genus 1; a joining tube merges two pieces without adding a handle).<br>
+  <span style="opacity:.6">the 24 dots are pentagon centers, colored by orbit (6 per torus). a topological sketch, not an exact isometric embedding — same honest caveat as genus-2.</span>
+</div>
+<div class="legend">
+  <div><span class="sw" style="background:#e9c46a"></span>orbit 0</div>
+  <div><span class="sw" style="background:#e76f51"></span>orbit 1</div>
+  <div><span class="sw" style="background:#2a9d8f"></span>orbit 2</div>
+</div>
+<div id="wrap"><canvas id="c"></canvas></div>
+<div id="msg">loading…</div>
+<script>
+const c=document.getElementById('c'), g=c.getContext('2d');
+let W,H; function resize(){W=c.width=innerWidth; H=c.height=innerHeight;} addEventListener('resize',resize); resize();
+const COLORS=['#e9c46a','#e76f51','#2a9d8f','#8ecae6'];
+let data=null, ang=0;
+const msg=document.getElementById('msg');
+
+function rot(p,ax,ay){
+  let [x,y,z]=p;
+  let ca=Math.cos(ay), sa=Math.sin(ay);
+  let x1=x*ca+z*sa, z1=-x*sa+z*ca;
+  let cb=Math.cos(ax), sb=Math.sin(ax);
+  let y1=y*cb-z1*sb, z2=y*sb+z1*cb;
+  return [x1,y1,z2];
+}
+
+function loop(){
+  ang+=0.006;
+  g.clearRect(0,0,W,H);
+  if(!data){ requestAnimationFrame(loop); return; }
+  const scale=Math.min(W,H)*0.16;
+  const cx=W/2, cy=H/2;
+  const ax=0.5, ay=ang;
+  const items=[];
+  for(const t of data.tris){
+    const rp=t.map(p=>rot(p,ax,ay));
+    const zc=(rp[0][2]+rp[1][2]+rp[2][2])/3;
+    const u=[rp[1][0]-rp[0][0],rp[1][1]-rp[0][1],rp[1][2]-rp[0][2]];
+    const v=[rp[2][0]-rp[0][0],rp[2][1]-rp[0][1],rp[2][2]-rp[0][2]];
+    const n=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+    const nl=Math.hypot(...n)||1;
+    const light=Math.max(0.12, Math.abs(n[2]/nl)*0.8+0.15);
+    const pts=rp.map(p=>[cx+p[0]*scale, cy-p[1]*scale]);
+    items.push({z:zc, pts, light});
+  }
+  items.sort((a,b)=>a.z-b.z);
+  for(const it of items){
+    const s=Math.round(40+it.light*150);
+    g.fillStyle=`rgb(${Math.round(s*0.55)},${Math.round(s*0.62)},${Math.round(s*0.85)})`;
+    g.beginPath();
+    g.moveTo(it.pts[0][0],it.pts[0][1]);
+    g.lineTo(it.pts[1][0],it.pts[1][1]);
+    g.lineTo(it.pts[2][0],it.pts[2][1]);
+    g.closePath(); g.fill();
+  }
+  for(const ce of data.centers){
+    const rp=rot(ce.p,ax,ay);
+    const sx=cx+rp[0]*scale, sy=cy-rp[1]*scale;
+    g.beginPath(); g.arc(sx,sy,5,0,7); g.fillStyle=COLORS[ce.o%4]; g.fill();
+    g.strokeStyle='#0a0a12'; g.lineWidth=1.5; g.stroke();
+  }
+  requestAnimationFrame(loop);
+}
+
+fetch('./genus4_3d_data.json').then(r=>r.json()).then(d=>{ data=d; msg.textContent=''; loop(); })
+  .catch(e=>{ msg.textContent='load failed: '+e; });
+</script>
+</body>
+</html>
