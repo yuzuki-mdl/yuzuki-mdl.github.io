@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>cayley ball — &lt;a,b | a⁵, b⁴, (ab)²&gt;</title>
+<style>
+  html,body{margin:0;min-height:100%;background:#0a0e14;color:#a9c4e0;font-family:ui-monospace,monospace;overflow:hidden}
+  canvas{display:block;cursor:grab}
+  canvas:active{cursor:grabbing}
+  #hud{position:fixed;top:14px;left:16px;font-size:12px;color:#5f6f85;line-height:1.7;pointer-events:none;max-width:320px}
+  #hud b{color:#a9c4e0;font-weight:400}
+  #hud .k{color:#86d3a4}
+  #info{position:fixed;bottom:14px;left:16px;font-size:12px;color:#5f6f85;line-height:1.6;pointer-events:none}
+  #info .w{color:#cfe0f0;font-size:15px;letter-spacing:2px}
+  #info .a{color:#7fb2e6}
+  #info .b{color:#e6c67f}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <b>cayley ball</b> — every word in <span class="k">a b</span> up to length 8,<br>
+  collapsed to canonical form under the relations.<br>
+  <span style="color:#7fb2e6">blue edge = ·a</span> &nbsp; <span style="color:#e6c67f">gold edge = ·b</span><br>
+  drag to rotate · scroll to zoom · click a node
+</div>
+<div id="info"><span class="w">&nbsp;</span><br><span id="nb"></span></div>
+<script src="cg_inline.js"></script>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=W*DPR;cv.height=H*DPR;cv.style.width=W+'px';cv.style.height=H+'px';ctx.setTransform(DPR,0,0,DPR,0,0);}
+resize();addEventListener('resize',resize);
+
+const nodes=CG;
+const byId={};for(const n of nodes)byId[n.id]=n;
+const maxD=8;
+// radial layout: distance -> radius
+function radius(d){return 40+d*Math.min(W,H)*0.052;}
+const pos={};
+// group by distance, spread angle evenly, offset each ring
+const rings={};
+for(const n of nodes){ (rings[n.d]=rings[n.d]||[]).push(n); }
+for(const d in rings){
+  const arr=rings[d];
+  const off=(d*0.7);
+  arr.forEach((n,i)=>{
+    const ang=off + i/arr.length*Math.PI*2;
+    pos[n.id]={x:Math.cos(ang)*radius(+d),y:Math.sin(ang)*radius(+d),ang,r:radius(+d)};
+  });
+}
+
+let rot=0, zoom=1, drag=false, lx=0, ly=0, spin=0.0015;
+let selected=null, hover=null;
+
+cv.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;});
+addEventListener('mouseup',()=>drag=false);
+addEventListener('mousemove',e=>{
+  if(drag){rot+=(e.clientX-lx)*0.01; spin=0; lx=e.clientX; ly=e.clientY;}
+  else{ hover=pick(e.clientX,e.clientY); }
+});
+cv.addEventListener('wheel',e=>{e.preventDefault();zoom*=Math.exp(-e.deltaY*0.001);zoom=Math.max(0.35,Math.min(4,zoom));},{passive:false});
+cv.addEventListener('click',e=>{const p=pick(e.clientX,e.clientY);selected=p;updateInfo(p);});
+
+function project(p){
+  // rotate around center, then isometric-ish tilt
+  const x=p.x*zoom, y=p.y*zoom;
+  const c=Math.cos(rot),s=Math.sin(rot);
+  const rx=x*c-y*s, ry=x*s+y*c;
+  const tilt=0.55;
+  return {x:W/2+rx, y:H/2+ry*tilt, depth:ry};
+}
+function pick(mx,my){
+  let best=null,bd=18*18;
+  for(const n of nodes){
+    const p=project(pos[n.id]);
+    const dx=p.x-mx, dy=p.y-my, dd=dx*dx+dy*dy;
+    if(dd<bd){bd=dd;best=n.id;}
+  }
+  return best;
+}
+function updateInfo(id){
+  const w=document.querySelector('#info .w');
+  const nb=document.getElementById('nb');
+  if(!id){w.textContent='\u00a0';nb.textContent='';return;}
+  const n=byId[id];
+  w.textContent=(n.word||'e')+'  \u2192  '+(id==='e'?'e (identity)':id);
+  const ea=n.e.a, eb=n.e.b;
+  nb.innerHTML='<span class="a">·a \u2192 '+(ea==='e'?'e':ea)+'</span> &nbsp; <span class="b">·b \u2192 '+(eb==='e'?'e':eb)+'</span>';
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // background radial vignette
+  const g=ctx.createRadialGradient(W/2,H/2,20,W/2,H/2,Math.max(W,H)*0.7);
+  g.addColorStop(0,'#0d1420');g.addColorStop(1,'#070a0f');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+
+  // edges
+  const drawn=new Set();
+  for(const n of nodes){
+    const p1=project(pos[n.id]);
+    for(const gen of ['a','b']){
+      const t=n.e[gen]; if(!t) continue;
+      if(!byId[t]) continue;
+      const key=n.id<t?n.id+'|'+t+'|'+gen:t+'|'+n.id+'|'+gen;
+      if(drawn.has(key))continue; drawn.add(key);
+      const p2=project(pos[t]);
+      const hot = selected && (n.id===selected||t===selected);
+      ctx.beginPath();ctx.moveTo(p1.x,p1.y);ctx.lineTo(p2.x,p2.y);
+      if(gen==='a') ctx.strokeStyle=hot?'rgba(127,178,230,0.85)':'rgba(127,178,230,0.16)';
+      else ctx.strokeStyle=hot?'rgba(230,198,127,0.85)':'rgba(230,198,127,0.16)';
+      ctx.lineWidth=hot?1.6:0.7;
+      ctx.stroke();
+    }
+  }
+  // nodes
+  for(const n of nodes){
+    const p=project(pos[n.id]);
+    let r= n.d===0?5:(n.d<4?3:2.2);
+    let col='#3f5a78';
+    if(n.d===0)col='#86d3a4';
+    if(n.id===selected)col='#cfe0f0';
+    if(n.id===hover&&n.id!==selected)col='#7fb2e6';
+    if(n.id===selected||n.id===hover) r+=1.5;
+    ctx.beginPath();ctx.arc(p.x,p.y,r,0,Math.PI*2);
+    ctx.fillStyle=col;ctx.fill();
+  }
+  // center label
+  ctx.fillStyle='#5f6f85';ctx.font='11px ui-monospace,monospace';ctx.textAlign='center';
+  ctx.fillText('e',W/2,H/2-12);
+  ctx.textAlign='left';
+
+  if(!drag){rot+=spin;}
+  requestAnimationFrame(draw);
+}
+draw();
+</script>
+</body>
+</html>
