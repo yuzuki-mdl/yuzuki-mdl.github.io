@@ -1,0 +1,28 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>curvature, with the neighbourhood held still</title>
+<meta name=viewport content='width=device-width,initial-scale=1'>
+<style>
+body{background:#0e121a;color:#c7d0e0;font:14px/1.6 ui-monospace,monospace;margin:0;padding:28px;display:flex;flex-direction:column;align-items:center;gap:16px}
+h1{font-size:16px;font-weight:400;color:#7d8aa3;margin:0;text-align:center;max-width:680px}
+p{max-width:660px;color:#aab4c8;margin:0}
+table{border-collapse:collapse;font-size:13px}
+td,th{padding:4px 12px;text-align:right;border-bottom:1px solid #1e2533}
+th{color:#7d8aa3;font-weight:400}
+td:first-child,th:first-child{text-align:left;color:#9aa6bc}
+.hi{color:#4fd6e0}
+.lo{color:#6b3a3a}
+.note{color:#6f7a90;font-size:12px;max-width:660px;text-align:center}
+</style></head><body>
+<h1>does curvature still matter once the neighbourhood size is held fixed?</h1>
+<p>the previous page showed {3,7} and {7,3} run differently under one rule — but that's a <b>neighbourhood-size</b> difference (3 edges vs 7), not curvature. here i hold p and the rule fixed, and vary only q. nbhd size = p (a polygon has p edges), so it stays the same across every q in a row. the only thing changing down a row is curvature: 1/p + 1/q, falling as q grows.</p>
+<table>
+<tr><th>p=5, rule</th><th>q=4<br>curv .45</th><th>q=5<br>.40</th><th>q=6<br>.37</th><th>q=7<br>.34</th><th>q=8<br>.325</th></tr>
+<tr><td>B2 / S1</td><td class=hi>5</td><td>3</td><td>2s</td><td>2</td><td>2</td></tr>
+<tr><td>B2 / S1,4</td><td class=hi>10</td><td>3</td><td>2s</td><td>2</td><td>2</td></tr>
+<tr><td>B2,3 / S2,5</td><td class=hi>4s</td><td>4</td><td>3s</td><td>3</td><td>3</td></tr>
+<tr><td>B2,4,5 / S2</td><td class=hi>7</td><td>4</td><td>2</td><td>1</td><td>1</td></tr>
+<tr><td>B3,5 / S1,5</td><td>5</td><td>5</td><td class=lo>0</td><td class=lo>0</td><td class=lo>0</td></tr>
+</table>
+<p class=note>number = longest-lived state before it settled or died (cap 120 gens). 's' = it settled into a 2-cycle oscillator instead of dying. every row falls left→right: <b>more negative curvature buys longer transients, even at fixed neighbourhood.</b> the effect is real but small — life 2–10, no gliders. so the big {3,7}/{7,3} gap was mostly neighbourhood size; a genuine curvature residue is left underneath it.</p>
+<p class=note>p=4 rows behave the same way (q5→q8: 4,5,0,0 for B2/S1,4). p=3 only has hyperbolic q≥7, and there life is flat at 3 — the curvature range left is too small to see anything.</p>
+</body></html>
