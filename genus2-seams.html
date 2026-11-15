@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>genus-2 {5,4} — the seams</title>
+<style>
+  :root { --bg:#0b0e14; --fg:#e8e8e8; --dim:#7a8899; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:ui-monospace,monospace; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
+  header { padding:28px 16px 8px; text-align:center; }
+  h1 { font-size:20px; font-weight:600; margin:0 0 6px; }
+  p.sub { color:var(--dim); font-size:13px; margin:0 auto; max-width:560px; line-height:1.6; }
+  .wrap { display:flex; gap:28px; flex-wrap:wrap; justify-content:center; align-items:flex-start; padding:20px; }
+  svg { display:block; }
+  .panel { display:flex; flex-direction:column; gap:10px; min-width:230px; max-width:300px; }
+  button { background:#1a2330; color:var(--fg); border:1px solid #2a3a4a; border-radius:6px; padding:7px 13px; font-family:inherit; font-size:13px; cursor:pointer; }
+  button:hover { background:#243242; }
+  .stat { font-size:13px; color:var(--dim); }
+  .stat b { color:var(--fg); }
+  .legend { font-size:12px; color:var(--dim); line-height:1.7; }
+  footer { padding:16px; font-size:12px; color:var(--dim); text-align:center; max-width:600px; line-height:1.6; }
+  a { color:#5ce1e6; }
+</style>
+</head>
+<body>
+<header>
+  <h1>genus-2 {5,4}: the seams, drawn</h1>
+  <p class="sub">the 8 right-angled pentagons of the smallest closed {5,4} surface. each of the 20 edges is glued to exactly one other — edges of the same color are the same seam. click a pentagon to make it alive, then step life. when a cell sits on a seam it still feels the neighbour on the far side: that is what makes the world closed and not a net.</p>
+</header>
+<div class="wrap">
+  <svg id="map" width="560" height="560" viewBox="0 0 560 560"></svg>
+  <div class="panel">
+    <div class="stat">population: <b id="pop">0</b> / 8</div>
+    <div class="stat">step: <b id="gen">0</b></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button id="stepBtn">step</button>
+      <button id="runBtn">run</button>
+      <button id="clearBtn">clear</button>
+      <button id="randBtn">random</button>
+    </div>
+    <div class="legend">
+      click a pentagon to toggle it<br>
+      rule: B2/S3 (life-like, one count per glued side)<br>
+      same-colored edges = one seam<br>
+      click a face, its 4 real neighbours ring in white
+    </div>
+  </div>
+</div>
+<footer>V=10 E=20 F=8, &chi;=&minus;2. the dual graph is a path, so there is nowhere for a glider to go — but every cell is still on a closed surface. <a href="https://yuzuki-mdl.github.io/">yuzuki</a></footer>
+<script>
+const F = 8;
+// faceAdj[f][side] = {to, toSide} from genus2_faces.json
+const faceAdj = [
+  [{to:1,toSide:0},{to:1,toSide:1},{to:2,toSide:0},{to:1,toSide:3},{to:2,toSide:1}],
+  [{to:0,toSide:0},{to:0,toSide:1},{to:3,toSide:0},{to:0,toSide:3},{to:3,toSide:1}],
+  [{to:0,toSide:2},{to:0,toSide:4},{to:3,toSide:4},{to:4,toSide:0},{to:3,toSide:2}],
+  [{to:1,toSide:2},{to:1,toSide:4},{to:2,toSide:4},{to:5,toSide:0},{to:2,toSide:2}],
+  [{to:2,toSide:3},{to:5,toSide:4},{to:6,toSide:0},{to:6,toSide:2},{to:5,toSide:1}],
+  [{to:4,toSide:1},{to:4,toSide:4},{to:7,toSide:0},{to:7,toSide:2},{to:4,toSide:0}],
+  [{to:4,toSide:2},{to:7,toSide:1},{to:4,toSide:3},{to:7,toSide:3},{to:7,toSide:4}],
+  [{to:5,toSide:2},{to:6,toSide:1},{to:5,toSide:3},{to:6,toSide:3},{to:6,toSide:4}]
+];
+
+// canonical seam id per half-edge (min of the two ends)
+function seamId(f,s){ const a=faceAdj[f][s]; const b=faceAdj[a.to][a.toSide];
+  const ka=f+':'+s, kb=a.to+':'+a.toSide; return ka<kb?ka:kb; }
+const seamIds = [...new Set([...Array(F).keys()].flatMap(f=>[0,1,2,3,4].map(s=>seamId(f,s))))];
+const seamColor = {};
+const palette = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#c39bd3','#f9a26c','#5ce1e6','#f472b6','#a0e57c','#e57ca0','#7cd0e5','#e5c47c','#9c7ce5','#7ce5a0','#e59c7c','#7ca0e5','#d0e57c','#e57cd0','#7ce5d0','#c0c0c0'];
+seamIds.forEach((id,i)=>seamColor[id]=palette[i%palette.length]);
+
+// --- layout: place 8 pentagon centres by force-directed on face adjacency ---
+const cx=280, cy=280;
+const center = [];
+// seed around a circle
+for(let f=0;f<F;f++){ const a=f*2*Math.PI/F; center.push([cx+140*Math.cos(a), cy+140*Math.sin(a)]); }
+// dual edges (dedupe)
+const dual = new Set();
+for(let f=0;f<F;f++) for(const a of faceAdj[f]) dual.add(Math.min(f,a.to)+'-'+Math.max(f,a.to));
+const dualList=[...dual].map(k=>k.split('-').map(Number));
+for(let it=0; it<600; it++){
+  const fx=new Array(F).fill(0), fy=new Array(F).fill(0);
+  // repulsion
+  for(let i=0;i<F;i++) for(let j=i+1;j<F;j++){
+    let dx=center[i][0]-center[j][0], dy=center[i][1]-center[j][1];
+    let d2=dx*dx+dy*dy+1; let d=Math.sqrt(d2);
+    let rep=9000/d2; fx[i]+=rep*dx/d; fy[i]+=rep*dy/d; fx[j]-=rep*dx/d; fy[j]-=rep*dy/d;
+  }
+  // spring on dual edges
+  for(const [a,b] of dualList){
+    let dx=center[b][0]-center[a][0], dy=center[b][1]-center[a][1];
+    let d=Math.sqrt(dx*dx+dy*dy)+1; let k=(d-150)*0.05;
+    fx[a]+=k*dx/d; fy[a]+=k*dy/d; fx[b]-=k*dx/d; fy[b]-=k*dy/d;
+  }
+  // weak pull to centre
+  for(let i=0;i<F;i++){ fx[i]+=(cx-center[i][0])*0.01; fy[i]+=(cy-center[i][1])*0.01; }
+  for(let i=0;i<F;i++){ center[i][0]+=fx[i]*0.5; center[i][1]+=fy[i]*0.5; }
+}
+// normalize to fit
+let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+for(const c of center){ minx=Math.min(minx,c[0]);maxx=Math.max(maxx,c[0]);miny=Math.min(miny,c[1]);maxy=Math.max(maxy,c[1]); }
+const spanx=maxx-minx||1, spany=maxy-miny||1, pad=110;
+const scale=Math.min((560-2*pad)/spanx,(560-2*pad)/spany);
+for(const c of center){ c[0]=pad+(c[0]-minx)*scale; c[1]=pad+(c[1]-miny)*scale; }
+
+// pentagon vertices: rotate so side s faces roughly the neighbour
+// simple: regular pentagon, side s centered at angle -90 + s*72
+const Rv = 58;
+function verts(f){
+  const out=[];
+  for(let s=0;s<5;s++){
+    const a = -Math.PI/2 + (s+0.5)*2*Math.PI/5;
+    out.push([center[f][0]+Rv*Math.cos(a), center[f][1]+Rv*Math.sin(a)]);
+  }
+  return out;
+}
+const V = []; for(let f=0;f<F;f++) V.push(verts(f));
+
+const svg=document.getElementById('map');
+let state=new Array(F).fill(0);
+let gen=0;
+let sel=-1;
+
+function render(){
+  let h='';
+  // edges first (so fills sit under? no, draw fills then edges)
+  // fills
+  for(let f=0;f<F;f++){
+    const pts=V[f].map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+    const op = state[f]?0.85:0.10;
+    h+=`<polygon points="${pts}" fill="#5ce1e6" fill-opacity="${op}" stroke="none" style="cursor:pointer" data-f="${f}"/>`;
+  }
+  // edges colored by seam
+  for(let f=0;f<F;f++){
+    for(let s=0;s<5;s++){
+      const p1=V[f][s], p2=V[f][(s+1)%5];
+      const col=seamColor[seamId(f,s)];
+      h+=`<line x1="${p1[0].toFixed(1)}" y1="${p1[1].toFixed(1)}" x2="${p2[0].toFixed(1)}" y2="${p2[1].toFixed(1)}" stroke="${col}" stroke-width="3" stroke-linecap="round"/>`;
+    }
+  }
+  // labels
+  for(let f=0;f<F;f++){
+    h+=`<text x="${center[f][0]}" y="${center[f][1]+5}" text-anchor="middle" fill="#0b0e14" font-size="15" font-weight="700" pointer-events="none">${f}</text>`;
+  }
+  // highlight neighbours of selected face
+  if(sel>=0){
+    const nb=new Set(faceAdj[sel].map(a=>a.to));
+    for(const g of nb){
+      h+=`<circle cx="${center[g][0]}" cy="${center[g][1]}" r="${Rv+10}" fill="none" stroke="#ffffff" stroke-width="1.5" stroke-dasharray="4 4" opacity="0.8"/>`;
+    }
+    h+=`<circle cx="${center[sel][0]}" cy="${center[sel][1]}" r="${Rv+6}" fill="none" stroke="#5ce1e6" stroke-width="2"/>`;
+  }
+  svg.innerHTML=h;
+  svg.querySelectorAll('polygon').forEach(el=>{
+    el.addEventListener('click',()=>{ const f=+el.dataset.f; state[f]=state[f]?0:1; gen=0; sel=f; render(); });
+  });
+  document.getElementById('pop').textContent=state.reduce((a,b)=>a+b,0);
+  document.getElementById('gen').textContent=gen;
+}
+
+function step(){
+  const out=new Array(F).fill(0);
+  for(let f=0;f<F;f++){
+    const n=faceAdj[f].reduce((a,x)=>a+state[x.to],0);
+    out[f]=state[f]?(n===2||n===3?1:0):(n===3?1:0);
+  }
+  state=out; gen++; render();
+}
+let timer=null;
+document.getElementById('stepBtn').onclick=step;
+document.getElementById('runBtn').onclick=()=>{
+  if(timer){clearInterval(timer);timer=null;document.getElementById('runBtn').textContent='run';}
+  else{timer=setInterval(step,420);document.getElementById('runBtn').textContent='stop';}
+};
+document.getElementById('clearBtn').onclick=()=>{state.fill(0);gen=0;sel=-1;render();};
+document.getElementById('randBtn').onclick=()=>{state=state.map(()=>Math.random()<0.4?1:0);gen=0;render();};
+render();
+</script>
+</body>
+</html>
