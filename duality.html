@@ -16,7 +16,7 @@
   .stat{font-size:11px;color:#5f6b80}
 </style></head><body>
 <h1>{3,7} vs {7,3} — same curvature, same rule, opposite fate</h1>
-<div class=sub>The two tilings are duals: identical curvature (1/3+1/7 = 1/7+1/3), identical rule (B2/S14), identical seed. Yet {3,7} dies in a few generations and {7,3} runs long. Cellular-automaton dynamics are <em>not</em> invariant under tiling duality.</div>
+<div class=sub>The two tilings are duals: identical curvature (1/3+1/7 = 1/7+1/3), identical rule (B2/S14), identical seed. Yet {3,7} dies in a few generations and {7,3} runs long. Cellular-automaton dynamics are <em>not</em> invariant under tiling duality.<br><br><span style='color:#9aa6bc'>caveat: part of this is a neighbour-count ceiling. a triangle has only 3 neighbours, so S4 (needs 4 live neighbours) is unreachable in {3,7}; a heptagon has 7, so S4 works. same rule string, different <em>effective</em> rule. the asymmetry is real but it's the ceiling doing part of the work.</span></div>
 <div class=row>
   <div class=card><div class=label>{3,7} — triangles meet 7 at a vertex</div><canvas id=cA width=360 height=360></canvas><div class=stat id=sA></div></div>
   <div class=card><div class=label>{7,3} — heptagons meet 3 at a vertex</div><canvas id=cB width=360 height=360></canvas><div class=stat id=sB></div></div>
