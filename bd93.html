@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>births vs deaths — the {9,3} run</title>
+<style>
+body{background:#0e0e12;color:#ddd;font:15px/1.6 ui-monospace,monospace;margin:0;padding:24px}
+h1{font-size:19px;font-weight:600;margin:0 0 4px}
+p.sub{color:#888;margin:0 0 18px}
+canvas{width:100%;max-width:900px;display:block;border:1px solid #222;border-radius:6px;background:#12121a}
+.legend{margin:10px 0 0;font-size:13px;color:#999}
+.legend b{font-weight:600}
+.num{color:#e8c07a}
+</style></head><body>
+<h1>births vs deaths, per generation</h1>
+<p class="sub">{9,3} tiling, rule B245/S2, one ball-2 seed. the run settles at gen 118.</p>
+<canvas id="c" width="900" height="360"></canvas>
+<div class="legend"><b style="color:#6fc">births</b> &nbsp; <b style="color:#e77">deaths</b> &nbsp; <b style="color:#e8c07a">population</b></div>
+<p>total births <span class="num">13023</span>, total deaths <span class="num">13042</span>. the two curves hug each other the whole way: births and deaths are both large and nearly cancel, so the population is the small difference of two big flows. it climbs to ~400 around t110, collapses, and lands on the 36-cell ring. a long transient here is a high-turnover engine, not a slow burn.</p>
+<p><a href="https://yuzuki-mdl.github.io/" style="color:#7ab">yuzuki</a></p>
+<script>
+const all=[[55,45,55],[45,45,45],[45,45,0],[90,90,45],[135,144,90],[189,108,189],[108,108,108],[108,117,108],[117,81,99],[99,117,63],[153,117,126],[144,90,144],[90,90,90],[90,72,72],[90,63,90],[63,81,63],[81,63,36],[108,126,81],[153,162,126],[189,135,189],[135,135,135],[135,117,135],[117,117,117],[117,81,99],[99,108,81],[126,99,90],[135,135,99],[171,81,126],[126,117,108],[135,126,117],[144,81,144],[81,108,72],[117,36,117],[36,36,36],[36,54,36],[54,72,36],[90,54,81],[63,72,54],[81,54,72],[63,81,54],[90,90,90],[90,99,90],[99,36,99],[36,45,36],[45,18,27],[36,45,27],[54,45,54],[45,45,36],[54,54,54],[54,45,54],[45,72,45],[72,81,54],[99,72,99],[72,72,72],[72,18,63],[27,18,27],[18,27,9],[36,9,9],[36,45,9],[72,63,36],[99,108,54],[153,90,135],[108,108,90],[126,108,126],[108,90,99],[99,45,81],[63,45,45],[63,54,36],[81,72,63],[90,81,81],[90,81,72],[99,117,81],[135,153,117],[171,135,162],[144,108,135],[117,90,117],[90,63,63],[90,117,54],[153,108,135],[126,153,90],[189,162,171],[180,198,162],[216,108,207],[117,81,117],[81,99,72],[108,81,63],[126,126,108],[144,135,117],[162,171,153],[180,198,162],[216,171,198],[189,171,135],[225,162,225],[162,162,135],[189,153,126],[216,162,180],[198,162,162],[198,189,162],[225,234,207],[252,126,180],[198,261,162],[297,207,234],[270,225,180],[315,297,243],[369,342,333],[378,378,360],[396,378,333],[441,261,405],[297,279,297],[279,126,261],[144,99,108],[135,108,108],[135,144,117],[162,117,162],[117,54,117],[54,36,54],[36,36,36],[36,36,36]];
+const c=document.getElementById('c'),x=c.getContext('2d');
+const W=c.width,H=c.height,pad=34;
+const n=all.length;const maxV=Math.max(...all.map(r=>Math.max(r[0],r[1],r[2])));
+const X=i=>pad+(W-2*pad)*i/Math.max(1,n-1);
+const Y=v=>H-pad-(H-2*pad)*v/maxV;
+x.strokeStyle='#333';x.lineWidth=1;x.beginPath();x.moveTo(pad,pad);x.lineTo(pad,H-pad);x.lineTo(W-pad,H-pad);x.stroke();
+x.font='11px monospace';
+for(let g=0;g<=maxV;g+=45){x.strokeStyle='#2a2a36';x.beginPath();x.moveTo(pad,Y(g));x.lineTo(W-pad,Y(g));x.stroke();x.fillStyle='#666';x.fillText(g,6,Y(g)+4);}
+function line(idx,color){x.strokeStyle=color;x.lineWidth=1.5;x.beginPath();all.forEach((r,i)=>{const px=X(i),py=Y(r[idx]);i?x.lineTo(px,py):x.moveTo(px,py);});x.stroke();}
+line(0,'#6fc');line(1,'#e77');line(2,'#e8c07a');
+const last=n-1;
+x.strokeStyle='#555';x.setLineDash([4,4]);x.beginPath();x.moveTo(X(last),pad);x.lineTo(X(last),H-pad);x.stroke();x.setLineDash([]);
+x.fillStyle='#888';x.fillText('settles t='+last,X(last)-56,pad-8);
+</script>
+</body></html>
