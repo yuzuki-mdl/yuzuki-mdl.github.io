@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{p,q} tiling explorer</title>
+<style>
+html,body{margin:0;background:#0d0d12;color:#d8d8e0;font-family:ui-monospace,Menlo,monospace;overflow:hidden}
+canvas{display:block;cursor:grab}
+canvas:active{cursor:grabbing}
+#hud{position:fixed;left:14px;top:12px;font-size:13px;line-height:1.7;pointer-events:none;text-shadow:0 1px 3px #000}
+#hud b{color:#8fd0ff}
+#hud .dim{color:#6a6a80}
+#ctrl{position:fixed;right:14px;top:12px;font-size:13px;text-align:right;line-height:2}
+#ctrl button{background:#1c1c28;color:#d8d8e0;border:1px solid #33334a;border-radius:6px;padding:2px 9px;font:inherit;cursor:pointer}
+#ctrl button:hover{background:#2a2a3c}
+#note{position:fixed;left:14px;bottom:10px;font-size:11px;color:#5a5a70;max-width:60ch}
+</style></head><body>
+<canvas id=c></canvas>
+<div id=hud></div>
+<div id=ctrl>
+  <div><b id=pv>5</b>,<b id=qv>4</b></div>
+  <div><button data-p="-1">p−</button><button data-p="1">p+</button></div>
+  <div><button data-q="-1">q−</button><button data-q="1">q+</button></div>
+  <div><button id=reset>reset view</button></div>
+</div>
+<div id=note>hyperbolic {p,q}: q regular p-gons meet at each vertex. (p−2)(q−2)&gt;4 → infinite tiling in the disk. drag to pan, scroll to zoom.</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,cx,cy,R;
+let p=5,q=4, view={x:0,y:0,z:1};
+
+function resize(){W=cv.width=innerWidth;H=cv.height=innerHeight;cx=W/2;cy=H/2;R=Math.min(W,H)*0.42;draw();}
+addEventListener('resize',resize);
+
+// complex helpers
+const C=(re,im)=>({re,im});
+const add=(a,b)=>C(a.re+b.re,a.im+b.im);
+const sub=(a,b)=>C(a.re-b.re,a.im-b.im);
+const mul=(a,b)=>C(a.re*b.re-a.im*b.im,a.re*b.im+a.im*b.re);
+const conj=a=>C(a.re,-a.im);
+const abs2=a=>a.re*a.re+a.im*a.im;
+const scale=(a,s)=>C(a.re*s,a.im*s);
+const inv=a=>{const d=abs2(a);return C(a.re/d,-a.im/d);};
+
+// inversion in circle center c radius r: z' = c + r^2 / conj(z-c)
+function invertCircle(z,c,r){const d=sub(z,c);return add(c, scale(d, r*r/abs2(d)));}
+
+// geodesic through two disk points a,b: find circle orthogonal to unit circle
+// circle center on perpendicular bisector; formula: for |a|,|b|<1, circle center s solves |s|^2 = 1 + r^2 and |s-a|^2=r^2
+function geodesicCircle(a,b){
+  // solve for center (x,y) and radius r such that |center|^2 = r^2+1 and dist(center,a)=r
+  // |c|^2 - r^2 = 1 ; |c|^2 - 2 c·a + |a|^2 = r^2  => subtract: 2 c·a - |a|^2 = 1
+  // similarly 2 c·b - |b|^2 = 1. linear system in c.
+  const ax=a.re,ay=a.im,bx=b.re,by=b.im;
+  const det=4*(ax*by-ay*bx);
+  if(Math.abs(det)<1e-12) return null; // edge through center = diameter (straight line)
+  // 2ax*cx+2ay*cy = 1+|a|^2 ; 2bx*cx+2by*cy = 1+|b|^2
+  const r1=1+abs2(a), r2=1+abs2(b);
+  const ccx=(r1*2*by - r2*2*ay)/det;
+  const ccy=(2*ax*r2 - 2*bx*r1)/det;
+  const c=C(ccx,ccy);
+  const r=Math.sqrt(abs2(c)-1);
+  return {c,r};
+}
+
+function reflect(z,a,b){
+  const g=geodesicCircle(a,b);
+  if(!g){
+    // straight diameter: reflect across line through origin direction (b-a)
+    const d=sub(b,a);const ang=Math.atan2(d.im,d.re);
+    // reflection across line through origin at angle ang: z' = e^{2i ang} conj(z)
+    const e=C(Math.cos(2*ang),Math.sin(2*ang));
+    return mul(e,conj(z));
+  }
+  return invertCircle(z,g.c,g.r);
+}
+
+// build one regular p-gon centered at origin with circumradius rc (hyperbolic), euclidean vertices
+// euclidean radius for regular p-gon inscribed in hyperbolic circle of radius rc:
+// tanh(rc) maps? use: euclidean r_e = (cos(pi/p)... ) simpler: place vertices on euclidean circle radius rho, but angles must be hyperbolic-correct.
+// For a regular {p,q}, vertex angle = 2pi/q. In hyperbolic, the polygon with all right-ish angles: use circumradius via cosh(R) = cos(pi/q)/sin(pi/p)
+function initPolygon(){
+  const coshR=Math.cos(Math.PI/q)/Math.sin(Math.PI/p);
+  const Rh=Math.acosh(Math.max(1.0001,coshR)); // hyperbolic circumradius
+  const rho=Math.tanh(Rh/2); // euclidean radius of vertices (poincare disk: tanh(d/2))
+  const verts=[];
+  for(let k=0;k<p;k++){const th=2*Math.PI*k/p - Math.PI/2;verts.push(C(rho*Math.cos(th),rho*Math.sin(th)));}
+  return verts;
+}
+
+function centroid(vs){let s=C(0,0);for(const v of vs)s=add(s,v);return scale(s,1/vs.length);}
+
+function buildTiling(){
+  const base=initPolygon();
+  const polys=[];
+  const seen=[];
+  const EPS=1e-3;
+  const MAX=400;
+  const queue=[base];
+  while(queue.length && polys.length<MAX){
+    const poly=queue.shift();
+    // cull: if any vertex euclidean dist from origin > 0.999 skip processing children but still draw
+    const cen=centroid(poly);
+    let dup=false;
+    for(const s of seen){if(abs2(sub(cen,s))<EPS*EPS){dup=true;break;}}
+    if(dup) continue;
+    seen.push(cen);
+    polys.push(poly);
+    if(Math.sqrt(abs2(cen))>0.985) continue; // too close to boundary, don't expand
+    for(let i=0;i<p;i++){
+      const a=poly[i], b=poly[(i+1)%p];
+      const np=poly.map(v=>reflect(v,a,b));
+      queue.push(np);
+    }
+  }
+  return polys;
+}
+
+function toScreen(z){
+  const s=R*view.z;
+  return [cx + (z.re-view.x)*s, cy + (z.im-view.y)*s];
+}
+
+function draw(){
+  ctx.fillStyle='#0d0d12';ctx.fillRect(0,0,W,H);
+  // disk boundary
+  ctx.beginPath();ctx.arc(cx-view.x*R*view.z, cy-view.y*R*view.z, R*view.z,0,7);
+  ctx.strokeStyle='#2a2a3c';ctx.lineWidth=1.5;ctx.stroke();
+  const polys=buildTiling();
+  for(const poly of polys){
+    ctx.beginPath();
+    for(let i=0;i<p;i++){const [x,y]=toScreen(poly[i]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+    ctx.closePath();
+    const cen=centroid(poly);const rr=Math.sqrt(abs2(cen));
+    const hue=(rr*380)%360;
+    ctx.fillStyle=`hsla(${hue},55%,${28+rr*30}%,0.55)`;
+    ctx.fill();
+    ctx.strokeStyle='rgba(200,210,255,0.35)';ctx.lineWidth=0.8;ctx.stroke();
+  }
+  document.getElementById('hud').innerHTML=
+    `<b>{${p},${q}}</b> <span class=dim>curvature ${((p-2)*(q-2)-4>0)?'hyperbolic':((p-2)*(q-2)-4<0?'spherical':'euclidean')}</span><br>`+
+    `<span class=dim>${polys.length} polygons</span>`;
+}
+
+// controls
+let dragging=false,lastX,lastY;
+cv.addEventListener('mousedown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;});
+addEventListener('mouseup',()=>dragging=false);
+addEventListener('mousemove',e=>{
+  if(!dragging)return;
+  const s=R*view.z;
+  view.x-=(e.clientX-lastX)/s;view.y-=(e.clientY-lastY)/s;
+  lastX=e.clientX;lastY=e.clientY;draw();
+});
+cv.addEventListener('wheel',e=>{e.preventDefault();view.z*=e.deltaY<0?1.12:0.89;view.z=Math.max(0.3,Math.min(6,view.z));draw();},{passive:false});
+document.getElementById('reset').onclick=()=>{view={x:0,y:0,z:1};draw();};
+document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{p=Math.max(3,Math.min(12,p+ +b.dataset.p));document.getElementById('pv').textContent=p;draw();});
+document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{q=Math.max(3,Math.min(12,q+ +b.dataset.q));document.getElementById('qv').textContent=q;draw();});
+resize();
+</script></body></html>
