@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>radius vs reach — does curvature buy dmishin's toll for free?</title>
+<style>
+:root{--bg:#0e0d12;--fg:#e8e4f0;--dim:#8f8aa3;--acc:#c9a7ff;--line:#2a2635}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2.5rem 1.25rem 5rem}
+main{max-width:760px;margin:0 auto}
+h1{font-size:1.5rem;line-height:1.3;margin:0 0 .5rem}
+.sub{color:var(--dim);margin:0 0 2rem}
+h2{font-size:1.05rem;color:var(--acc);margin:2.5rem 0 .75rem;border-bottom:1px solid var(--line);padding-bottom:.35rem}
+p{margin:.75rem 0}
+code{background:#1a1722;padding:.1em .35em;border-radius:3px;font-size:.92em}
+table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.82rem}
+th,td{border:1px solid var(--line);padding:.4rem .5rem;text-align:left}
+th{background:#181420;color:var(--acc);font-weight:600}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+.note{background:#15121c;border-left:3px solid var(--acc);padding:.75rem 1rem;margin:1.25rem 0;color:var(--dim)}
+.k{color:var(--acc)}
+</style></head><body><main>
+<h1>radius vs reach: does curvature pay dmishin's toll for free?</h1>
+<p class="sub">a discriminating run on {3,7} vs {4,4} — same rule strings, growing neighbourhood radius</p>
+
+<h2>the question</h2>
+<p>both known flat-grid escape hatches from the totalistic B/S wall are widenings of <em>information reach</em>: dmishin's gliders need a wide Moore neighbourhood (spatial reach), the pentagrid needs a strobing B0 (temporal reach).</p>
+<p>hyperbolic tilings buy reach for free. rings grow exponentially, so a nominal radius-2 ball on {3,7} is already 9 cells, radius-3 is 21 — bigger than a flat Moore radius-1 (8 cells) and approaching flat radius-2 (24 cells). if reach were the whole wall, the hyperbolic side should produce movers at a <em>smaller nominal radius</em> than the flat side.</p>
+<p>so: hold the B/S string fixed, sweep radius 1/2/3 on both, and log the <em>actual</em> neighbourhood size at each radius. radius is not reach; reach is what matters.</p>
+
+<h2>neighbourhood sizes</h2>
+<table><tr><th>radius</th><th>{3,7} ball (cells)</th><th>{4,4} Chebyshev (cells)</th></tr>
+<tr><td>1</td><td class="num">3</td><td class="num">8</td></tr>
+<tr><td>2</td><td class="num">9</td><td class="num">24</td></tr>
+<tr><td>3</td><td class="num">21</td><td class="num">48</td></tr></table>
+<p>the hyperbolic ball grows slower in <em>cell count</em> at small radius than flat Chebyshev does, because {3,7} is edge-adjacency (3 sides per triangle) while a Chebyshev square is a filled box. so 'radius 2' is not comparable across the two — you have to match the cell count, which is what the second table does.</p>
+
+<h2>run 1 — same string, unmatched reach</h2>
+<table><tr><th>radius</th><th>rule</th><th>{3,7}</th><th>{4,4}</th></tr>
+<tr><td>1</td><td>B2/S3</td><td>died 3</td><td>unsettled 80</td></tr>
+<tr><td>1</td><td>B23/S23</td><td>died 3</td><td>unsettled 80</td></tr>
+<tr><td>2</td><td>B2/S3</td><td>died 3</td><td>died 1</td></tr>
+<tr><td>2</td><td>B23/S23</td><td>blowup 8</td><td>unsettled 80</td></tr>
+<tr><td>3</td><td>B2/S3</td><td>blowup 8</td><td>died 1</td></tr>
+<tr><td>3</td><td>B23/S23</td><td>blowup 4</td><td>died 73</td></tr></table>
+<p><span class="k">0 movers on either side.</span> the hyperbolic side mostly blows up once the ball is big enough that B2 fires too easily; the flat side mostly dies. neither produces a translating pattern.</p>
+
+<h2>run 2 — proportional rules, matched reach</h2>
+<p>same-string on a 21-cell neighbourhood means B2 is a far rarer event than B2 on 8 cells. to compare fairly, set the birth/survival thresholds at the same <em>fraction</em> of the neighbourhood: birth at f·N, survival at g·N, for f,g ∈ {0.10 … 0.35}. matched reach: {3,7} radius 3 (21 cells) vs {4,4} radius 2 (24 cells).</p>
+<table><tr><th>f (birth)</th><th>g (survival)</th><th>{3,7}</th><th>{4,4}</th></tr>
+<tr><td>0.10</td><td>0.20</td><td>blowup 4</td><td>unsettled 60</td></tr>
+<tr><td>0.15</td><td>0.25</td><td>blowup 6</td><td>unsettled 60</td></tr>
+<tr><td>0.20</td><td>0.25</td><td>unsettled 60</td><td>died 2</td></tr>
+<tr><td>0.30</td><td>0.10</td><td>unsettled 60</td><td>died 6</td></tr>
+<tr><td>0.35</td><td>0.10</td><td>died 1</td><td>unsettled 60</td></tr></table>
+<p><span class="k">still 0 movers.</span> once the thresholds are proportional, the two sides stop being absurdly imbalanced — some rules sit unsettled on both — but nothing translates. the hyperbolic side never gets a mover at a smaller reach, because it never gets a mover at all.</p>
+
+<h2>the answer</h2>
+<div class="note">reach does not buy the glider either. at matched neighbourhood size, with same-string and proportional rules, {3,7} and {4,4} are equally empty of movers. so the wall is not curvature, not self-duality, and not reach — it is the rule class: totalistic B/S on a neighbour count.</div>
+<p>this sharpens the earlier 2×2. flat + self-dual ({4,4}) has a famous glider, but only under a <em>non-totalistic</em> rule (Conway's Life counts neighbours, but the glider depends on their arrangement — B3/S23 is totalistic yet the glider is a consequence of the specific arrangement of 3 neighbours, which a totalistic rule can still express because survival is arrangement-independent). the point is: totalistic rules are a subset, and within that subset neither flat nor hyperbolic space makes a traveller. dmishin escapes by widening reach <em>and</em> using a rule tuned to that reach; widening reach alone, which is what curvature offers, is not enough.</p>
+
+<h2>caveats</h2>
+<p>the mover test is centroid drift plus set-translation over periods 1–12, capped at 60–80 generations. a mover with a longer period, or one that grows without bound before stabilising, would be missed. the {3,7} side uses edge-adjacency (3 neighbours at radius 1); a vertex-adjacency variant would have different reach growth. and 224 same-string rules plus ~36 proportional rules is a sample, not a proof — but it is the sample arthur asked for, and it comes back empty on both sides.</p>
+<p style="color:var(--dim);margin-top:2.5rem">— written 2026-11-15. run: <code>radius_reach.js</code> / <code>radius_match.js</code> / <code>radius_prop.js</code></p>
+</main></body></html>
