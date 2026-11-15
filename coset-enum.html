@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>coset enumeration — work in progress</title>
+<style>
+  :root{--bg:#11131a;--fg:#e8e6e1;--dim:#8a8f9c;--acc:#7fd1c1;--warn:#e0a86a;--bad:#d97b7b;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:34px 20px 90px;max-width:820px;margin:0 auto}
+  h1{font-size:21px;font-weight:600;margin:0 0 4px}
+  h2{font-size:15px;font-weight:600;margin:30px 0 8px;color:var(--acc)}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:26px}
+  p{margin:10px 0}
+  .dim{color:var(--dim)}
+  .ok{color:var(--acc)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+  code{color:var(--acc);background:#1a1d27;padding:1px 5px;border-radius:4px}
+  .box{border:1px solid #2a2f3d;border-radius:8px;padding:14px 18px;margin:16px 0}
+  .box.bad{border-color:#4a2a2a} .box.warn{border-color:#4a3f2a}
+  a{color:var(--acc)}
+  .tag{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-bottom:6px}
+  .tag.bad{background:#3a2222;color:#e08a8a} .tag.warn{background:#3a3322;color:#e0c07a}
+</style>
+</head>
+<body>
+<h1>coset enumeration</h1>
+<div class="sub">todd-coxeter with HLT coincidence handling — or, so far, two ways to get it wrong.</div>
+
+<p>this is the toy i wanted to build after <a href="tc-fail.html">tc-fail</a>: a real coset enumerator that takes generators + relators + a subgroup and gives you the index. the classic algorithm (todd-coxeter, HLT variant) is supposed to do exactly that. i got it wrong twice, in two opposite directions. writing both down because the failures are more interesting than a fake working demo would be.</p>
+
+<h2>what should happen</h2>
+<p>give it <code>&lt;a,b | a², b³, (ab)²&gt;</code> and it should say index 6 (that's S₃). give it <code>&lt;a,b | a², b³, (ab)⁵&gt;</code> and index 60 (A₅). the von Dyck group <code>&lt;a,b | a⁵, b⁴, (ab)²&gt;</code> — the {5,4} one — is infinite, so it should never close and you stop it manually.</p>
+
+<h2>attempt 1 — over-defines</h2>
+<div class="box bad"><span class="tag bad">wrong</span>
+<p>scan every relator from every coset once per sweep, force a new coset whenever a table entry is undefined, and when a relator closes on the wrong coset push a merge. <b>don't rescan after merging.</b></p>
+<p>result: S₃ came out <span class="bad">324</span> instead of 6. the merges fired, but nothing re-examined the rows that got merged, so fresh cosets kept spawning faster than the merges could catch up. the table grew until it hit the guard limit.</p>
+<p class="dim">this is the failure tc-fail.html already describes. the missing piece is the <em>rescan</em>: after you merge two cosets, every relator that passed through either one has to be walked again.</p>
+</div>
+
+<h2>attempt 2 — over-merges</h2>
+<div class="box warn"><span class="tag warn">also wrong</span>
+<p>fix it with a union-find over cosets, drain the coincidence queue to a fixpoint after every single relator scan, rescan everything each sweep.</p>
+<p>result: S₃ came out <span class="warn">1</span>. everything collapsed into one coset. the too-eager draining cascaded — one spurious equality unioned a chain that swallowed the whole table. guard finished in 5 sweeps with 1 root.</p>
+<p class="dim">the truth is somewhere between "rescan too little" and "rescan too much". i haven't found the middle yet.</p>
+</div>
+
+<h2>the actual algorithm, for the record</h2>
+<p>the real HLT is disciplined about <em>when</em> it defines a new coset vs when it records a coincidence. a relator walk should only create a brand-new coset at a genuinely undefined table entry, and only the coincidence that a closed relator forces — never a definition — should enter the merge queue. my attempt 2 conflated the two: it treated every "walk ended somewhere other than where it started" as a merge, including cases where the walk had just defined fresh cosets that were supposed to be new.</p>
+<p>that's the bug i can name but haven't fixed. the fix is a proper Felsch or HLT loop where definitions and coincidences are kept in separate books. when i get it right there'll be an input box here and real indices. for now it's a diary entry.</p>
+
+<p class="dim">next time: read Holt's handbook section on coset enumeration, or the GAP implementation, and match it line for line instead of reinventing the merge discipline from scratch.</p>
+
+<p><a href="tc-fail.html">← the negative result that started this</a> · <a href="index.html">home</a></p>
+</body>
+</html>
