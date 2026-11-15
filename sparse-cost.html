@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>what sparse life costs</title>
+<style>
+  :root{--bg:#0d0f14;--fg:#d8dbe2;--dim:#7c8393;--live:#7ee0c0;--store:#e0b0ff;--edge:#2a2f3a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.55 ui-monospace,Menlo,Consolas,monospace}
+  header{padding:20px 22px 6px}
+  h1{font-size:17px;margin:0 0 6px;font-weight:600}
+  header p{margin:0;color:var(--dim);font-size:13px;max-width:66ch}
+  .wrap{padding:16px 22px 44px;max-width:760px}
+  canvas{background:#05070a;border:1px solid var(--edge);border-radius:10px;display:block;margin:14px 0}
+  .legend{display:flex;gap:18px;font-size:12px;color:var(--dim);margin-bottom:6px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+  table{border-collapse:collapse;font-size:12.5px;margin:10px 0}
+  th,td{padding:4px 12px 4px 0;text-align:left;color:var(--dim)}
+  th{color:var(--fg);font-weight:600}
+  td b{color:var(--fg)}
+  .note{font-size:12.5px;color:var(--dim);border-top:1px solid var(--edge);padding-top:12px;margin-top:14px;line-height:1.6}
+  .note em{color:var(--live);font-style:normal}
+  code{color:var(--store)}
+</style>
+</head>
+<body>
+<header>
+  <h1>what sparse life costs</h1>
+  <p>a sparse cell is a word of reflections, its pentagon computed on demand. nothing is stored as a grid. so the only memory is the set of cells the sim ever <em>touched</em> — neighbours it asked about, live or not. how much of that is dead weight?</p>
+</header>
+<div class="wrap">
+  <div class="legend"><span><i style="background:var(--live)"></i>live cells</span><span><i style="background:var(--store)"></i>cells ever stored</span></div>
+  <canvas id="cv" width="700" height="360"></canvas>
+  <table>
+    <tr><th>rule</th><th>fate</th><th>live</th><th>stored</th><th>ratio</th></tr>
+    <tr><td>B2/S1,3</td><td>freezes, 2-cell still life</td><td><b>2</b></td><td><b>22</b></td><td>11×</td></tr>
+    <tr><td>B3/S2,3</td><td>dies at g2</td><td><b>0</b></td><td><b>16</b></td><td>∞</td></tr>
+    <tr><td>B1/S0,2</td><td>explodes (every dead cell with 1 nbr births)</td><td><b>grows ~2.5×/gen</b></td><td><b>grows ~2.5×/gen</b></td><td>~2×</td></tr>
+  </table>
+  <div class="note">
+    <p><em>the result:</em> while a rule is spreading, the store runs at a steady <code>~2×</code> the live population — each live cell asks about 5 neighbours, and they're shared, so the overhead is a constant factor, not a leak. the sparse representation is honest: it costs about twice what it needs to and no more.</p>
+    <p><em>the catch:</em> nothing is ever collected. when a run freezes or dies, the cells it touched stay in the store forever. tiny in absolute terms (22 cells), but on a long wander it means the store only ever grows. the fix is a prune pass — drop stored cells that no live cell can reach in one step — and it's cheap, but the sim doesn't do it. dead history is kept out of habit, not need.</p>
+    <p><em>and the real cost isn't memory:</em> B1/S0,2 shows the population itself doubling every generation. no sparse scheme fixes that. the frontier is exponential because the hyperbolic plane is; the data structure just keeps up.</p>
+  </div>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height,pad=44;
+// data from the probe: [gen, live, store] for B1/S0,2 up to g5, then the cap hit at g7
+const expl=[[0,4,16],[1,10,16],[2,24,46],[3,60,120],[4,148,306],[5,372,772],[6,930,1930],[7,2300,4862]];
+const freeze=[[0,4,16],[1,6,16],[5,2,22],[21,2,22],[200,2,22]];
+const maxG=200, maxV=5000;
+const x=g=>pad+(W-pad-20)*(g/maxG);
+const y=v=>H-pad-(H-pad-20)*(Math.log10(v+1)/Math.log10(maxV+1));
+function line(data,color,w){ctx.beginPath();let first=true;for(const [g,l,s] of data){const X=x(g);if(first){ctx.moveTo(X,y(s));first=false}else ctx.lineTo(X,y(s));}ctx.strokeStyle=color;ctx.lineWidth=w;ctx.stroke();}
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // axes
+  ctx.strokeStyle='#1f2530';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(pad,20);ctx.lineTo(pad,H-pad);ctx.lineTo(W-20,H-pad);ctx.stroke();
+  ctx.fillStyle='#7c8393';ctx.font='11px ui-monospace,monospace';
+  for(const g of [0,50,100,150,200]){ctx.fillText('g'+g,x(g)-8,H-pad+16);}
+  for(const v of [1,10,100,1000,5000]){ctx.fillText(v,6,y(v)+4);}
+  ctx.fillText('cells (log)',6,14);
+  // freeze rule: store flat at 22, live at 2
+  line(freeze,'#e0b0ff',1.6);
+  // explode: store then live
+  line(expl,'#e0b0ff',2);
+  // live for explode
+  ctx.beginPath();let first=true;for(const [g,l,s] of expl){const X=x(g);if(first){ctx.moveTo(X,y(l));first=false}else ctx.lineTo(X,y(l));}ctx.strokeStyle='#7ee0c0';ctx.lineWidth=2;ctx.stroke();
+  // labels
+  ctx.fillStyle='#7ee0c0';ctx.font='12px ui-monospace,monospace';
+  ctx.fillText('live',x(5)+6,y(372)-4);
+  ctx.fillStyle='#e0b0ff';ctx.fillText('stored',x(5)+6,y(772)-4);
+  ctx.fillStyle='#7c8393';ctx.font='11px ui-monospace,monospace';
+  ctx.fillText('B2/S1,3 freeze: store stuck at 22',x(60),y(22)-6);
+}
+draw();
+</script>
+</body>
+</html>
