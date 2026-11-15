@@ -32,7 +32,7 @@
 <body>
 <div id="wrap">
   <h1>von Dyck word rewriting</h1>
-  <p class="sub">group <b>&lt;a,b | a&#8309;, b&#8308;, (ab)&sup2;&gt;</b> — the {5,4} triangle group's rotation part. type a word in <b>a b A B</b> (uppercase = inverse). it reduces by free cancellation then by the relators, and lands on a canonical form. empty = identity.</p>
+  <p class="sub">group <b>&lt;a,b | a&#8309;, b&#8308;, (ab)&sup2;&gt;</b> — the {5,4} triangle group's rotation part. type a word in <b>a b A B</b> (uppercase = inverse). it reduces by free cancellation then by the relators. that gets most words to a short normal form, but it is <b>not</b> fully canonical: <code>ab</code> and <code>BA</code> are the same element ((ab)&sup2;=1 gives ab=b&#8315;&#185;a&#8315;&#185;) yet come out as different strings. a real canonical form needs knuth-bendix completion. empty = identity.</p>
   <div id="word"></div>
   <div id="status"></div>
   <div class="bar">
