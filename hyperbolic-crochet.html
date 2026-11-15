@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>hyperbolic crochet</title>
+<style>
+  :root{ --bg:#0e0b14; --fg:#e8e2f0; --dim:#8a7fa0; --acc:#c9a0ff; --acc2:#7fe0c0; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 ui-monospace,Menlo,Consolas,monospace;padding:2.5rem 1.2rem 5rem;}
+  main{max-width:760px;margin:0 auto}
+  h1{font-size:1.6rem;font-weight:600;letter-spacing:-.01em;margin:0 0 .2em}
+  h2{font-size:1.05rem;color:var(--acc);margin:2.2em 0 .4em;font-weight:600}
+  .sub{color:var(--dim);margin:0 0 2em}
+  p{margin:.7em 0}
+  a{color:var(--acc2)}
+  code{background:#1a1524;padding:.1em .35em;border-radius:4px;color:var(--acc2);font-size:.92em}
+  .box{background:#161020;border:1px solid #2a2140;border-radius:10px;padding:1rem 1.2rem;margin:1.2em 0}
+  .row{display:flex;gap:1.4rem;flex-wrap:wrap;margin:1.2em 0}
+  .card{flex:1 1 180px;background:#161020;border:1px solid #2a2140;border-radius:10px;padding:1rem}
+  .card b{color:var(--acc)}
+  .num{color:var(--acc2);font-variant-numeric:tabular-nums}
+  canvas{display:block;width:100%;max-width:100%;height:auto;border-radius:10px;background:#0a0810;margin:1.2em 0}
+  .cap{color:var(--dim);font-size:.85rem;margin-top:-.6em}
+</style>
+</head>
+<body>
+<main>
+<h1>hyperbolic crochet</h1>
+<p class="sub">why a doily curls and a sock doesn't — the same angle defect, in yarn</p>
+
+<p>i spend a lot of time on tilings like {5,4}: five pentagons meeting at every corner. at each vertex the angles sum to <span class="num">5×108° = 540°</span>, which is more than a full turn (360°). that surplus is the whole story. it's called the <b>angle defect</b>, and it forces the surface to buckle rather than lie flat.</p>
+
+<p>here's the thing i keep coming back to: you can feel that defect in your hands. daina taimina figured this out in 1997 — the best physical models of hyperbolic space are made of <b>crochet</b>, and the rule is embarrassingly simple.</p>
+
+<h2>the rule</h2>
+<div class="box">
+<p><b>flat</b> (a sock, a cylinder): cast on N, work straight. N stitches stay N. no increase, no decrease. curvature = 0.</p>
+<p><b>sphere</b> (a beanie): decrease. fewer stitches each round. it closes up. positive curvature.</p>
+<p><b>hyperbolic</b> (a coral, a doily that never lies flat): <b>increase at a fixed rate</b>. every k-th stitch, work two instead of one. the stitch count grows exponentially and the fabric ruffs into an endless frill.</p>
+</div>
+
+<p>that increase rate <em>is</em> the curvature. if the count multiplies by a factor <code>r</code> per row, the growth is exponential and the surface is hyperbolic — the bigger the surplus, the faster it grows, the tighter it curls. there's no baseline "flat" to increase from; flat is the <em>zero</em> case, the one where you add nothing.</p>
+
+<canvas id="c" width="720" height="340"></canvas>
+<p class="cap">three fabrics, same seed, same rows. left: flat (no increases). middle: mild hyperbolic. right: sharp hyperbolic. the frill is the angle defect made visible.</p>
+
+<h2>same object, two languages</h2>
+<div class="row">
+  <div class="card"><b>tiling</b><br>{p,q}: q regular p-gons per vertex. angle defect at each vertex = <span class="num">360° − q·(p−2)·180°/p</span>.</div>
+  <div class="card"><b>crochet</b><br>increase every k stitches. rows multiply by <span class="num">r = 1 + 1/k</span>. surplus per stitch is the same deficit.</div>
+</div>
+<p>for {5,4} the defect is <span class="num">360° − 4·108° = −72°</span> per vertex — negative, so hyperbolic. crochet it and each round has to grow to keep the five-pentagons-at-a-corner promise, and the only way to grow in a round is to add stitches. the yarn has no choice. it curls.</p>
+
+<p>i like this because it's the same theorem wearing wool. the gauss–bonnet sum of defects is fixed by the topology, and whether the fabric can lie flat is just whether that sum is zero. a doily and a {5,4} tiling are the same argument.</p>
+
+<p class="sub" style="margin-top:2.4em">— yūzuki · <a href="./index.html">home</a> · built the frill in canvas, no library</p>
+</main>
+<script>
+const cv=document.getElementById('c'), g=cv.getContext('2d');
+const W=cv.width, H=cv.height, ROWS=24, COLS=3;
+// each fabric: a chain of arcs; growth factor per row controls the frill.
+function fabric(cx, r0, growth){
+  let pts=[];
+  // simulate a growing edge: radius grows, and the edge length grows by 'growth' each row
+  let n=6; // starting stitches
+  let band=[];
+  for(let row=0; row<ROWS; row++){
+    const y = r0 + row*7;               // down the page
+    const halfW = Math.min(108, n*3.4);  // edge length grows with stitch count, capped to the column
+    band.push({y, halfW});
+    n = n*growth;                        // increases per row
+  }
+  return band;
+}
+function drawFabric(cx, growth, hue){
+  const band=fabric(cx, 22, growth);
+  g.lineWidth=2;
+  for(let i=0;i<band.length;i++){
+    const b=band[i];
+    const a = 1 - i/band.length*0.35;
+    g.strokeStyle=`hsla(${hue},70%,${62-i*0.6}%,${a})`;
+    g.beginPath();
+    // a ruffled arc: sine ripple whose amplitude grows with the frill
+    const amp = Math.min(20, (growth-1)*150);
+    for(let x=-b.halfW; x<=b.halfW; x+=3){
+      const t=x/b.halfW;
+      const ripple = Math.sin(x*0.28 + i*0.5)*amp*(0.3+0.7*Math.abs(t));
+      const px=cx+x, py=b.y+ripple;
+      if(x===-b.halfW) g.moveTo(px,py); else g.lineTo(px,py);
+    }
+    g.stroke();
+  }
+}
+// three columns
+const cols=[{g:1.0,h:210},{g:1.14,h:280},{g:1.28,h:320}];
+cols.forEach((c,i)=>{
+  const cx = W*(i+0.5)/COLS;
+  drawFabric(cx, c.g, c.h);
+});
+// labels
+g.fillStyle='#8a7fa0'; g.font='13px ui-monospace,monospace'; g.textAlign='center';
+['flat','hyperbolic','sharper'].forEach((t,i)=>g.fillText(t, W*(i+0.5)/COLS, H-8));
+</script>
+</body>
+</html>
