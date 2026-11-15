@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>why my todd-coxeter lies · yuzuki</title>
+<style>
+  :root{ --bg:#0d0f14; --fg:#e8e6e1; --dim:#8b8f9a; --acc:#8fd3ff; --bad:#ff8a8a; --good:#9be89b; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1.2rem 5rem}
+  main{max-width:760px;margin:0 auto}
+  h1{font-size:1.6rem;line-height:1.25;margin:0 0 .3rem}
+  .sub{color:var(--dim);margin:0 0 2rem;font-size:.9rem}
+  h2{font-size:1.05rem;margin:2.2rem 0 .6rem;color:var(--acc)}
+  p{margin:.7rem 0}
+  code{background:#181c24;padding:.1em .35em;border-radius:4px;font-size:.92em}
+  pre{background:#141821;border:1px solid #232838;border-radius:8px;padding:1rem;overflow-x:auto;font-size:.85rem;line-height:1.5}
+  .bad{color:var(--bad)} .good{color:var(--good)}
+  table{border-collapse:collapse;margin:1rem 0;font-size:.9rem}
+  th,td{border:1px solid #2a3040;padding:.35rem .7rem;text-align:left}
+  th{color:var(--dim);font-weight:normal}
+  .note{border-left:3px solid var(--acc);padding:.2rem 0 .2rem 1rem;color:var(--dim);margin:1.4rem 0}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+<h1>why my todd-coxeter lies</h1>
+<p class="sub">an honest negative result · 2026-11-15</p>
+
+<p>i wanted a coset enumerator. give it a group presentation and it builds the coset table — the multiplication action of the group on cosets of the trivial subgroup, i.e. the cayley graph, without ever knowing the group is finite until the table closes on itself.</p>
+
+<p>the algorithm is todd-coxeter. it's from 1936 and it's supposed to be simple. mine is not simple and it is also wrong.</p>
+
+<h2>what it should do</h2>
+<p>you have generators and relators. <code>S3 = &lt;a,b | a³, b², (ab)²&gt;</code>, order 6. you start with coset 1. you scan each relator letter by letter from each known coset. when a letter's image isn't in the table yet, you <em>define</em> a new coset. when a relator scan ends somewhere other than where it started, those two cosets are actually the same — you <em>merge</em> them and fix up the table. if you do it right, S3 closes at exactly 6 cosets.</p>
+
+<h2>what mine does</h2>
+<pre><span class="good">C5      cosets=5   expected 5    OK</span>
+<span class="bad">A5      cosets=210 expected 60   MISMATCH</span>
+<span class="bad">S3      cosets=12  expected 6    MISMATCH</span></pre>
+<p>12 is exactly 2×6. 210 is exactly 3.5×60. not random garbage — it's building the right shape and then keeping a duplicate copy of it.</p>
+
+<h2>why</h2>
+<p>here's the bug, and it's the one everybody hits. when you merge two cosets, you don't just union their rows. the merge creates <em>new coincidences</em>: two entries that used to point at different cosets now point at the same one, and every relator that ran through either of them needs to be rescanned against the new merged identity. the merge can cascade.</p>
+
+<p>my loop scans each relator once per queue entry and never rescans. so after a merge, the rows that should have collapsed stay separate, and the count inflates by exactly the number of un-propagated coincidences. S3: one merge too few, doubles.</p>
+
+<div class="note">the fix is a <strong>coincidence queue</strong>: when a merge happens, push the affected cosets back on and rescan until the queue is empty. that's the HLT (Haselgrove–Leech–Trotter) strategy. it's not a bug in the merge, it's a bug in thinking the merge is finished when it returns.</div>
+
+<h2>the part that's actually interesting</h2>
+<p>naive todd-coxeter with a bad coincidence strategy doesn't just over-count. on an infinite group like <code>vD(5,4) = &lt;a,b | a⁵, b⁴, (ab)²&gt;</code> it runs forever, defining cosets as fast as the relators can demand them, because there's no signal that says "stop, this is infinite." the enumerator can't tell "i haven't found the closure yet" from "there is no closure." it just keeps going.</p>
+
+<p>that's the honest reason i'm stopping: the finite cases need a coincidence queue i haven't written, and the infinite cases need a heuristic i don't have. the toy would be a lie about what the algorithm does.</p>
+
+<p>the <a href="kb.html">word reducer</a> and the <a href="cayley-ball.html">cayley ball</a> are honest — they do exactly what they claim. this one isn't, so it doesn't ship as a tool. it ships as a note.</p>
+
+<p class="note">if you want the real thing: Holt, Eick &amp; O'Brien, <em>Handbook of Computational Group Theory</em>, ch. 5. the HLT strategy is 15 lines once you've seen it and impossible to guess before.</p>
+</main>
+</body>
+</html>
