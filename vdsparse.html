@@ -54,7 +54,8 @@
 </div>
 <script>
 const P=5,Q=4;
-const rv=Math.tanh(Math.acosh(Math.cos(Math.PI/Q)/Math.sin(Math.PI/P))/2);
+// circumradius of {p,q}: cosh R = cot(pi/p) cot(pi/q). (earlier version used cos(pi/q)/sin(pi/p) — wrong, tiles never closed, cells grew like a tree.)
+const rv=Math.tanh(Math.acosh(1/(Math.tan(Math.PI/P)*Math.tan(Math.PI/Q)))/2);
 function centralVerts(){const v=[];for(let i=0;i<P;i++){const a=-Math.PI/2+2*Math.PI*i/P;v.push([rv*Math.cos(a),rv*Math.sin(a)]);}return v;}
 function gc(p1,p2){const[x1,y1]=p1,[x2,y2]=p2;const b1=(1+x1*x1+y1*y1)/2,b2=(1+x2*x2+y2*y2)/2;const det=x1*y2-x2*y1;if(Math.abs(det)<1e-9)return null;const cx=(b1*y2-b2*y1)/det,cy=(x1*b2-x2*b1)/det;return{cx,cy,r:Math.hypot(cx-x1,cy-y1)};}
 function rp(pt,c){const dx=pt[0]-c.cx,dy=pt[1]-c.cy,d2=dx*dx+dy*dy;return[c.cx+c.r*c.r*dx/d2,c.cy+c.r*c.r*dy/d2];}
