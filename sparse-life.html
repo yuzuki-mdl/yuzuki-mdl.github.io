@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>on-demand sparse life on {5,4}</title>
+<style>
+  :root{--bg:#0e1016;--fg:#e8e2d4;--dim:#7a7e8c;--live:#7ee0c0;--front:#3a4a66;--accent:#e0a0ff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,Menlo,monospace;overflow:hidden}
+  #c{display:block;width:100vw;height:100vh;cursor:grab}
+  #c.drag{cursor:grabbing}
+  #hud{position:fixed;top:12px;left:12px;background:#0e1016cc;border:1px solid #2a2e3a;border-radius:10px;padding:10px 12px;backdrop-filter:blur(6px);font-size:12px;line-height:1.7;max-width:290px}
+  #hud b{color:var(--accent);font-weight:600}
+  .row{display:flex;justify-content:space-between;gap:14px}
+  .k{color:var(--dim)}
+  .v{color:var(--fg)}
+  button{background:#1a1e2a;color:var(--fg);border:1px solid #2a2e3a;border-radius:7px;padding:5px 10px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{background:#232838}
+  button.on{border-color:var(--live);color:var(--live)}
+  #ctl{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:8px;background:#0e1016cc;border:1px solid #2a2e3a;border-radius:12px;padding:8px;backdrop-filter:blur(6px)}
+  #note{position:fixed;bottom:14px;right:14px;color:var(--dim);font-size:11px;max-width:220px;text-align:right;line-height:1.5}
+  .hint{color:var(--dim);font-size:11px;margin-top:6px}
+</style>
+</head>
+<body>
+<canvas id=c></canvas>
+<div id=hud>
+  <div class="row"><span class="k">rule</span><span class="v">B1 / S0,2</span></div>
+  <div class="row"><span class="k">generation</span><span class="v" id=gen>0</span></div>
+  <div class="row"><span class="k">alive</span><span class="v" id=alive style="color:var(--live)">0</span></div>
+  <div class="row"><span class="k">frontier</span><span class="v" id=front style="color:var(--front)">0</span></div>
+  <div class="row"><span class="k">materialised</span><span class="v" id=store>0</span></div>
+  <div class="row"><span class="k">store / alive</span><span class="v" id=ratio>—</span></div>
+  <div class="hint">only live cells + a 1-ring frontier are kept. everything past the frontier can never be born next gen, so it's dropped. the store stays a constant factor of the live set, however far the pattern spreads.</div>
+</div>
+<div id=ctl>
+  <button id=bplay class=on>pause</button>
+  <button id=bstep>step</button>
+  <button id=bseed>reseed</button>
+  <button id=bview>fit</button>
+</div>
+<div id=note>drag to pan · scroll to zoom</div>
+<script>
+const P=5,Q=4;
+const rv=Math.tanh(Math.acosh(1/(Math.tan(Math.PI/P)*Math.tan(Math.PI/Q)))/2);
+function centralVerts(){const v=[];for(let i=0;i<P;i++){const a=-Math.PI/2+2*Math.PI*i/P;v.push([rv*Math.cos(a),rv*Math.sin(a)]);}return v;}
+function gc(p1,p2){const[x1,y1]=p1,[x2,y2]=p2;const b1=(1+x1*x1+y1*y1)/2,b2=(1+x2*x2+y2*y2)/2;const det=x1*y2-x2*y1;if(Math.abs(det)<1e-9)return null;const cx=(b1*y2-b2*y1)/det,cy=(x1*b2-x2*b1)/det;return{cx,cy,r:Math.hypot(cx-x1,cy-y1)};}
+function rp(pt,c){const dx=pt[0]-c.cx,dy=pt[1]-c.cy,d2=dx*dx+dy*dy;return[c.cx+c.r*c.r*dx/d2,c.cy+c.r*c.r*dy/d2];}
+function rpoly(vs,e){const p1=vs[e],p2=vs[(e+1)%P];const c=gc(p1,p2);if(c)return vs.map(v=>rp(v,c));const mx=p1[0]+p2[0],my=p1[1]+p2[1],d=Math.hypot(mx,my),ux=mx/d,uy=my/d;return vs.map(v=>{const dot=v[0]*ux+v[1]*uy;return[2*dot*ux-v[0],2*dot*uy-v[1]];});}
+function cen(vs){let x=0,y=0;for(const v of vs){x+=v[0];y+=v[1];}return[x/P,y/P];}
+const KEY=1e6;
+function keyOf(c){return Math.round(c[0]*KEY)+','+Math.round(c[1]*KEY);}
+function cellFromWord(word){let vs=centralVerts();for(const e of word)vs=rpoly(vs,e);return{word,vs,c:cen(vs)};}
+function neighbors(cell){const out=[];for(let e=0;e<P;e++){const vs=rpoly(cell.vs,e);out.push({word:cell.word.concat(e),vs,c:cen(vs)});}return out;}
+
+// state: live = Set of keys; cells = Map key->cell for live ∪ frontier
+let live=new Set(), cells=new Map(), frontier=new Set();
+let gen=0, running=true, view={x:0,y:0,scale:1}, autoFit=true;
+
+function materialize(cell){const k=keyOf(cell.c);if(!cells.has(k)){cells.set(k,cell);}return k;}
+
+function rebuildFrontier(){
+  frontier=new Set();
+  for(const k of live){
+    const c=cells.get(k); if(!c) continue;
+    for(const nb of neighbors(c)){const nk=keyOf(nb.c);if(!live.has(nk)){if(!cells.has(nk))cells.set(nk,nb);frontier.add(nk);}}
+  }
+  // drop materialised cells that are neither live nor frontier
+  for(const k of cells.keys()){ if(!live.has(k)&&!frontier.has(k)) cells.delete(k); }
+}
+
+function seed(){
+  live=new Set();cells=new Map();frontier=new Set();gen=0;
+  const root=cellFromWord([]);
+  const rk=materialize(root);live.add(rk);
+  // a little 3-cell seed so it doesn't die instantly
+  const nbs=neighbors(root).slice(0,2);
+  for(const nb of nbs){live.add(materialize(nb));}
+  rebuildFrontier();
+}
+
+function step(){
+  const nbrCount=new Map();
+  const liveKeys=new Set(live);
+  for(const k of cells.keys()){
+    if(!live.has(k)) continue;
+    const c=cells.get(k);
+    for(const nb of neighbors(c)){const nk=keyOf(nb.c);if(!cells.has(nk))cells.set(nk,nb);nbrCount.set(nk,(nbrCount.get(nk)||0)+1);}
+  }
+  const next=new Set();
+  // survival: live cells with S count
+  for(const k of live){const n=nbrCount.get(k)||0;if(n===0||n===2)next.add(k);}
+  // birth: dead cells (frontier) with B count = 1
+  for(const k of frontier){const n=nbrCount.get(k)||0;if(n===1)next.add(k);}
+  live=next;gen++;
+  rebuildFrontier();
+  updateHud();
+  if(autoFit && gen%8===0) fit();
+  if(cells.size>12000){running=false;bplay.textContent='play';bplay.classList.remove('on');document.getElementById('note').innerHTML='<b style="color:#e0a0ff">escaped</b> — the store hit 12k cells. B1/S0,2 spreads without bound; pause here, or reseed. the point stands: store stayed a constant factor of live the whole way.';}
+}
+
+function updateHud(){
+  document.getElementById('gen').textContent=gen;
+  document.getElementById('alive').textContent=live.size;
+  document.getElementById('front').textContent=frontier.size;
+  document.getElementById('store').textContent=cells.size;
+  document.getElementById('ratio').textContent=live.size?((cells.size/live.size).toFixed(2)+'×'):'—';
+}
+
+// ---- render ----
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let DPR=Math.min(devicePixelRatio||1,2);
+function resize(){cv.width=innerWidth*DPR;cv.height=innerHeight*DPR;}
+addEventListener('resize',resize);resize();
+
+function fit(){
+  // frame live ∪ frontier
+  const all=[...live];for(const k of frontier)all.push(k);
+  if(!all.length)return;
+  let sx=0,sy=0,n=0;for(const k of all){const c=cells.get(k);if(c){sx+=c.c[0];sy+=c.c[1];n++;}}
+  const cx=sx/n,cy=sy/n;
+  let maxr=0.2;for(const k of all){const c=cells.get(k);if(c){maxr=Math.max(maxr,Math.hypot(c.c[0]-cx,c.c[1]-cy));}}
+  view.scale=Math.min(innerWidth,innerHeight)*0.42/maxr;
+  view.x=innerWidth/2-cx*view.scale;view.y=innerHeight/2-cy*view.scale;
+}
+
+function project(p){return[p[0]*view.scale+view.x, p[1]*view.scale+view.y];}
+
+function draw(){
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,innerWidth,innerHeight);
+  // frontier cells (dim)
+  ctx.lineWidth=1;
+  for(const k of frontier){const c=cells.get(k);if(!c)continue;drawPoly(c.vs,'#2a3346',null);}
+  // live cells
+  for(const k of live){const c=cells.get(k);if(!c)continue;drawPoly(c.vs,null,'#7ee0c0');}
+}
+function drawPoly(vs,stroke,fill){
+  ctx.beginPath();
+  for(let i=0;i<vs.length;i++){const[x,y]=project(vs[i]);if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);}
+  ctx.closePath();
+  if(fill){ctx.fillStyle=fill+'33';ctx.fill();ctx.strokeStyle=fill;ctx.stroke();}
+  else if(stroke){ctx.strokeStyle=stroke;ctx.stroke();}
+}
+
+// ---- controls ----
+const bplay=document.getElementById('bplay');
+bplay.onclick=()=>{running=!running;bplay.textContent=running?'pause':'play';bplay.classList.toggle('on',running);};
+document.getElementById('bstep').onclick=()=>{if(!running)step();else step();};
+document.getElementById('bseed').onclick=()=>{seed();autoFit=true;fit();updateHud();};
+document.getElementById('bview').onclick=()=>{autoFit=true;fit();};
+
+// pan/zoom
+let dragging=false,lastX=0,lastY=0,moved=false;
+cv.addEventListener('mousedown',e=>{dragging=true;moved=false;autoFit=false;lastX=e.clientX;lastY=e.clientY;cv.classList.add('drag');});
+addEventListener('mousemove',e=>{if(!dragging)return;const dx=e.clientX-lastX,dy=e.clientY-lastY;if(Math.abs(dx)+Math.abs(dy)>3)moved=true;view.x+=dx;view.y+=dy;lastX=e.clientX;lastY=e.clientY;});
+addEventListener('mouseup',()=>{dragging=false;cv.classList.remove('drag');});
+cv.addEventListener('wheel',e=>{e.preventDefault();const f=e.deltaY<0?1.1:0.9;const mx=e.clientX,my=e.clientY;view.x=mx+(view.x-mx)*f;view.y=my+(view.y-my)*f;view.scale*=f;},{passive:false});
+
+// ---- loop ----
+let last=0,acc=0;const INTERVAL=200;
+function loop(t){
+  if(!last)last=t;const dt=t-last;last=t;
+  if(running){acc+=dt;if(acc>=INTERVAL){acc=0;step();}}
+  draw();
+  requestAnimationFrame(loop);
+}
+
+seed();fit();updateHud();requestAnimationFrame(loop);
+</script>
+</body>
+</html>
