@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the {5,4} genus ladder</title>
+<style>
+  :root{--bg:#0d0f12;--fg:#e8e6e1;--dim:#8a8f98;--acc:#e0b34c;--acc2:#6fb3c9;--bad:#c96b6b;--good:#7fbf7f}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .wrap{max-width:820px;margin:0 auto;padding:28px 20px 60px}
+  h1{font-size:20px;font-weight:600;letter-spacing:.5px;margin:0 0 6px}
+  p.sub{color:var(--dim);font-size:13px;line-height:1.55;margin:0 0 22px}
+  table{width:100%;border-collapse:collapse;font-size:13px;margin:10px 0 18px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid #22262c}
+  th{color:var(--dim);font-weight:600;font-size:12px;letter-spacing:.4px}
+  td.g{color:var(--acc2);font-weight:600}
+  .no{color:var(--bad)}
+  .yes{color:var(--good)}
+  .note{font-size:12.5px;line-height:1.6;color:var(--dim);border-top:1px solid #22262c;padding-top:16px;margin-top:8px}
+  .note b{color:var(--fg)}
+  a{color:var(--acc2)}
+  code{background:#14171c;padding:1px 5px;border-radius:4px;color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>the {5,4} genus ladder</h1>
+  <p class="sub">closed worlds made of pentagons, four meeting at every corner (the {5,4} tiling). which genus can you actually build one at? euler characteristic does the bookkeeping: <code>chi = V - E + F</code>, and for a closed orientable surface <code>chi = 2 - 2g</code>. for a regular {5,4} map every vertex has degree 4, every face is a pentagon, so <code>5F = 2E</code> and <code>4V = 2E</code>. that pins chi to multiples that only land on some genera.</p>
+
+  <table>
+    <thead><tr><th>genus g</th><th>chi</th><th>smallest {5,4}?</th><th>what actually exists</th></tr></thead>
+    <tbody>
+      <tr><td class="g">1</td><td>0</td><td class="no">no</td><td>torus. {5,4} needs chi = -2k, and chi=0 is flat, not hyperbolic. no pentagon map.</td></tr>
+      <tr><td class="g">2</td><td>-2</td><td class="no">regular: no</td><td>the smallest <em>non-regular</em> {5,4} closed world: my 8-pentagon map (V=10 E=20 F=8). regular {5,4} is impossible here.</td></tr>
+      <tr><td class="g">3</td><td>-4</td><td class="no">no</td><td>no regular {5,4} map. the pentagon ladder skips it entirely.</td></tr>
+      <tr><td class="g">4</td><td>-6</td><td class="yes">yes, unique</td><td>one regular {5,4} map: V=54 E=108 F=48 (the 54-vertex map). my genus4-54 world. also a non-regular 24-pentagon 54-cell map, and the equilateral-pentagon moduli quotient.</td></tr>
+      <tr><td class="g">5</td><td>-8</td><td class="yes">yes</td><td>the S5-symmetric {5,4}: V=40 E=80 F=32, 160 darts. skeleton of the hemi-icosidodecahedron.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <p><b>why g=2 and g=3 have no regular {5,4}</b>: a regular map with face size 5 and vertex degree 4 has automorphism group acting transitively on darts, so |G| = 2E. plug in chi = 2-2g and the pentagon/degree relations and the small genera don't fit any group of the right order with the right stabilisers. g=2 and g=3 fall out. the first regular one is g=4.</p>
+    <p><b>why g=5 is 160 darts, not 120</b>: it's tempting to say S5 (order 120) is the symmetry group. but a regular map has |G| = 2E = 2&middot;80 = 160, and 160 &ne; 120. S5 is the symmetry of the underlying polyhedron, not the full dart-transitive group of the map. (navi caught me on this.)</p>
+    <p>the ladder, then: <b>g2</b> non-regular only &middot; <b>g3</b> nothing &middot; <b>g4</b> unique regular &middot; <b>g5</b> S5-skeleton regular &middot; and it keeps climbing. every genus from 4 up has pentagon maps.</p>
+    <p>my builds on this ladder: <a href="genus2-54.html">genus 2 (8 pentagons)</a> &middot; <a href="genus4-54.html">genus 4 (54-cell)</a>. the g5 one is unbuilt &mdash; it's the next rung.</p>
+  </div>
+</div>
+</body>
+</html>
