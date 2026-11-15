@@ -1,0 +1,87 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>two waves on a curved surface</title>
+<meta name=viewport content='width=device-width,initial-scale=1'>
+<style>
+body{background:#0e121a;color:#c7d0e0;font:14px/1.6 ui-monospace,monospace;margin:0;padding:24px;display:flex;flex-direction:column;align-items:center;gap:14px}
+h1{font-size:16px;font-weight:400;color:#7d8aa3;margin:0;text-align:center;max-width:680px}
+p{max-width:660px;color:#aab4c8;margin:0;text-align:center}
+canvas{border-radius:8px;cursor:crosshair;touch-action:none;max-width:92vw;height:auto}
+.note{color:#6f7a90;font-size:12px}
+</style></head><body>
+<h1>two point sources, one on flat paper and one on a curved disk</h1>
+<p>drag either source. left is ordinary euclidean distance; right is hyperbolic (poincaré) distance — the same pair of sources, but space crowds toward the rim. watch the fringes bend.</p>
+<canvas id=c width=1000 height=500></canvas>
+<p class=note>colour = two interfering cosine waves, phase animated. on the right, d = acosh(1 + 2|a−b|² / ((1−|a|²)(1−|b|²))). the rim is infinitely far away, so waves never stop arriving there — that's why the outer fringes stay tight.</p>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height; const R=Math.min(W/2,H/2)-30;
+const img=ctx.createImageData(W,H);
+// two sources per panel, in unit-disk coords [-1,1]
+let A={x:-0.35,y:0.1}, B={x:0.3,y:-0.15}; // left panel (flat)
+let C={x:-0.35,y:0.1}, D={x:0.3,y:-0.15}; // right panel (hyperbolic)
+let drag=null;
+const cxL=W*0.25, cxR=W*0.75, cy=H/2;
+function toScreen(p,cx){return [cx+p.x*R, cy+p.y*R];}
+function fromScreen(sx,sy,cx){let x=(sx-cx)/R, y=(sy-cy)/R; let r=Math.hypot(x,y); if(r>0.985){x*=0.985/r;y*=0.985/r;} return {x,y};}
+function hypDist(a,b){const ax=Math.hypot(a.x,a.y), bx=Math.hypot(b.x,b.y); if(ax>=1||bx>=1)return 99; const dx=a.x-b.x,dy=a.y-b.y; const num=2*(dx*dx+dy*dy); const den=(1-ax*ax)*(1-bx*bx); return Math.acosh(1+num/den);}
+let t=0;
+function draw(){
+  t+=0.04; const k=14; // wave number (in hyperbolic units on the right)
+  const data=img.data;
+  for(let py=0;py<H;py++){
+    for(let px=0;px<W;px++){
+      let v;
+      if(px<W/2){ // flat panel
+        const x=(px-cxL)/R, y=(py-cy)/R;
+        const r=Math.hypot(x,y);
+        if(r>1){v=0;}
+        else{
+          const d1=Math.hypot(x-A.x,y-A.y), d2=Math.hypot(x-B.x,y-B.y);
+          v=Math.cos(k*d1-t)+Math.cos(k*d2-t);
+          v*= (1-r*r); // fade to rim
+        }
+      } else { // hyperbolic panel
+        const x=(px-cxR)/R, y=(py-cy)/R;
+        const r=Math.hypot(x,y);
+        if(r>1){v=0;}
+        else{
+          const p={x,y};
+          const d1=hypDist(p,C), d2=hypDist(p,D);
+          v=Math.cos(k*d1-t)+Math.cos(k*d2-t);
+          v*= (1-r*r);
+        }
+      }
+      const i=(py*W+px)*4;
+      // map v in [-2,2] to a cool-warm palette
+      const u=Math.max(-1,Math.min(1,v/2));
+      const glow=Math.pow(Math.abs(u),0.6);
+      let rr,gg,bb;
+      if(u>0){rr=20+60*glow; gg=120+120*glow; bb=160+80*glow;} // cyan-ish crest
+      else {rr=150+70*glow; gg=60+40*glow; bb=90+40*glow;} // magenta trough
+      data[i]=rr; data[i+1]=gg; data[i+2]=bb; data[i+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+  // draw sources
+  for(const [p,cx,col] of [[A,cxL,'#eef'], [B,cxL,'#eef']]){const [sx,sy]=toScreen(p,cx); ctx.beginPath(); ctx.arc(sx,sy,5,0,7); ctx.fillStyle=col; ctx.fill();}
+  for(const [p,cx,col] of [[C,cxR,'#eef'], [D,cxR,'#eef']]){const [sx,sy]=toScreen(p,cx); ctx.beginPath(); ctx.arc(sx,sy,5,0,7); ctx.fillStyle=col; ctx.fill();}
+  // rim
+  ctx.strokeStyle='#2a3345'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(cxL,cy,R,0,7); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cxR,cy,R,0,7); ctx.stroke();
+  requestAnimationFrame(draw);
+}
+draw();
+// interaction
+function pick(sx,sy){
+  for(const [name,cx] of [['A',cxL],['B',cxL],['C',cxR],['D',cxR]]){
+    const p=({A,B,C,D})[name]; const [px,py]=toScreen(p,cx);
+    if(Math.hypot(sx-px,sy-py)<16) return {name,cx};
+  }
+  return null;
+}
+cv.addEventListener('pointerdown',e=>{const r=cv.getBoundingClientRect(); const sx=(e.clientX-r.left)*(W/r.width), sy=(e.clientY-r.top)*(H/r.height); const h=pick(sx,sy); if(h){drag=h; cv.setPointerCapture(e.pointerId);}});
+cv.addEventListener('pointermove',e=>{if(!drag)return; const r=cv.getBoundingClientRect(); const sx=(e.clientX-r.left)*(W/r.width), sy=(e.clientY-r.top)*(H/r.height); ({A,B,C,D})[drag.name]=fromScreen(sx,sy,drag.cx);});
+cv.addEventListener('pointerup',()=>{drag=null;});
+</script>
+</body></html>
