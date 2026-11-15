@@ -32,7 +32,7 @@
 <body>
 <div id="wrap">
   <h1>von Dyck word rewriting</h1>
-  <p class="sub">group <b>&lt;a,b | a&#8309;, b&#8308;, (ab)&sup2;&gt;</b> — the {5,4} triangle group's rotation part. type a word in <b>a b A B</b> (uppercase = inverse). it reduces by free cancellation then by the relators. that gets most words to a short normal form, but it is <b>not</b> fully canonical: <code>ab</code> and <code>BA</code> are the same element ((ab)&sup2;=1 gives ab=b&#8315;&#185;a&#8315;&#185;) yet come out as different strings. a real canonical form needs knuth-bendix completion. empty = identity.</p>
+  <p class="sub">group <b>&lt;a,b | a&#8309;, b&#8308;, (ab)&sup2;&gt;</b> — the {5,4} triangle group's rotation part. type a word in <b>a b A B</b> (uppercase = inverse). it's now a real canonical form: a bidirectional search applies the relators forwards <em>and</em> backwards, exploring the whole equivalence class up to a length cap, and keeps the shortest then lexicographically smallest word. so <code>ab</code> and <code>BA</code> now land on the same string (they're one element, (ab)&sup2;=1). the cost: it searches, so very long words hit the cap and say so. empty = identity.</p>
   <div id="word"></div>
   <div id="status"></div>
   <div class="bar">
@@ -127,41 +127,62 @@ function renderTrace(){
   traceEl.scrollTop=traceEl.scrollHeight;
 }
 
+// bidirectional relator search: neighbours of a word = apply any relator
+// (insert or delete) anywhere, then free-reduce. BFS the whole equivalence
+// class up to a length cap, keep the shortest then lexicographically smallest.
+function neighborsOf(w){
+  const out=new Set();
+  const s=w.join('');
+  for(const rel of RELATORS){
+    const r=rel.join('');
+    // delete: any occurrence of r
+    for(let i=0;i+r.length<=s.length;i++){
+      if(s.slice(i,i+r.length)===r) out.add(freeReduce([...s.slice(0,i)+s.slice(i+r.length)]).join(''));
+    }
+    // insert: r at any position
+    for(let i=0;i<=s.length;i++){
+      out.add(freeReduce([...s.slice(0,i)+r+s.slice(i)]).join(''));
+    }
+  }
+  return out;
+}
+
 function reduceWord(startWord){
   traceLines=[];
-  let w=Array.from(startWord).filter(c=>'aAbB'.includes(c));
+  let w=freeReduce(Array.from(startWord).filter(c=>'aAbB'.includes(c)));
   render(w,null);
   statusEl.textContent=''; statusEl.className='';
-  let pass=0, changed=true, total=0;
-  while(changed && pass<500){
-    pass++; changed=false;
-    // free cancellation
-    const fr=freeReduce(w);
-    if(fr.length!==w.length){
-      traceLines.push(`<span class="f">free cancel</span> ${w.join('')} &rarr; ${fr.join('')||'&epsilon;'}`);
-      w=fr; changed=true; total++;
-      render(w,null); renderTrace();
-      if(w.length===0) break;
+
+  const start=w.join('');
+  const cap=Math.min(9, start.length+5);
+  let best=start, bestLen=start.length;
+  const seen=new Set([start]);
+  let frontier=[start], explored=0, depth=0;
+
+  while(frontier.length && depth<10){
+    const nf=[];
+    for(const cur of frontier){
+      explored++;
+      if(cur.length<best.length || (cur.length===best.length && cur<best)){ best=cur; bestLen=cur.length; }
+      if(cur.length>=cap) continue; // don't grow past cap
+      for(const n of neighborsOf([...cur])){
+        if(n.length<=cap && !seen.has(n)){ seen.add(n); nf.push(n); }
+      }
     }
-    // relator application
-    const hit=findRelator(w);
-    if(hit){
-      const before=w.join('');
-      w=w.slice(0,hit.at).concat(w.slice(hit.at+hit.len));
-      traceLines.push(`<span class="r">relator</span> ${before} &rarr; ${w.join('')||'&epsilon;'} &nbsp;<span style="opacity:.6">(${hit.rel.join('')})</span>`);
-      render(w,hit); renderTrace(); changed=true; total++;
-      if(w.length===0) break;
-    }
+    frontier=nf; depth++;
   }
-  const reduced=freeReduce(w);
-  if(reduced.length!==w.length){ w=reduced; render(w,null); }
-  if(w.length===0){
+
+  traceLines.push(`<span class="f">search</span> explored ${explored} equivalent words up to length ${cap}`);
+  traceLines.push(`<span class="r">canonical</span> shortest + lexicographically smallest = ${best||'&epsilon;'}`);
+  renderTrace();
+
+  if(best.length===0){
     statusEl.textContent='= identity'; statusEl.className='';
+    render([],null);
   } else {
-    statusEl.textContent='canonical form: '+w.join('')+'  ('+w.length+' letters)'; statusEl.className='no';
+    statusEl.textContent='canonical form: '+best+'  ('+best.length+' letters)'; statusEl.className='no';
+    render([...best], null);
   }
-  if(total===0){ traceLines.push('<span style="opacity:.6">already reduced</span>'); renderTrace(); }
-  render(w,null);
 }
 
 goBtn.addEventListener('click',()=>reduceWord(inp.value));
