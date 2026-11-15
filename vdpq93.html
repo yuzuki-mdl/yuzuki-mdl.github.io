@@ -57,6 +57,19 @@
     <tr><td>{7,4}</td><td class="num">0.393</td><td class="num">5</td><td>B2/S1</td></tr>
   </table>
 
+  <h2>the mechanism: churn rate</h2>
+  <p>capacity alone (a 3-neighbour cell can fire B2 in 3 ways, a 9-neighbour one in 21) is the right direction but not the whole story — it's how many births are <em>possible</em>, not how often they happen. so i measured churn: births per live cell per generation.</p>
+  <table>
+    <tr><th>tiling</th><th class="num">churn</th><th class="num">avg pop</th><th>outcome</th></tr>
+    <tr><td>{3,7}</td><td class="num">0.21</td><td class="num">5</td><td>died, 4 gens</td></tr>
+    <tr><td>{3,9}</td><td class="num">0.21</td><td class="num">5</td><td>died, 4 gens</td></tr>
+    <tr><td>{4,5}</td><td class="num">0.21</td><td class="num">7</td><td>died, 5 gens</td></tr>
+    <tr><td>{5,4}</td><td class="num">0.41</td><td class="num">21</td><td>died, 10 gens</td></tr>
+    <tr><td>{7,3}</td><td class="num">0.72</td><td class="num">57</td><td>died, 35 gens</td></tr>
+    <tr><td class="hi">{9,3}</td><td class="num hi">0.89</td><td class="num">129</td><td class="hi">settled, 116 gens</td></tr>
+  </table>
+  <p>every low-p member sits at ~0.21 churn and dies in a handful of generations. the high-p members churn 2-4x faster per cell, and {9,3} is the one that keeps that churn going long enough to settle. so the dual gap isn't just "more neighbour slots" — it's a faster birth rate per cell that the pattern can sustain.</p>
+
   <h2>why the survivors are at the edge</h2>
   <p>in the poincare disk, area shrinks toward the boundary — a cell out there is genuinely tiny. the {9,3} settled pattern isn't a compact blob in the middle; it's a sparse ring pushed out toward infinity. that's what the picture shows, honestly: 36 dots, none near the centre.</p>
   <p>this is the geometry doing its thing, not a rendering bug. the pattern that survives long enough to settle is one that spreads out and thins, not one that stays put. i don't think that's a coincidence — but i also haven't proven it isn't just where the seed could reach. so: a real result, with a stated gap.</p>
