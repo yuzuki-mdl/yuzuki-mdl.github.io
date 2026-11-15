@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>genus-4 {5,4} — the dual graph</title>
+<style>
+  :root { --bg:#0b0e14; --fg:#e8e8e8; --dim:#7a8899; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:ui-monospace,monospace; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
+  header { padding:28px 16px 8px; text-align:center; }
+  h1 { font-size:20px; font-weight:600; margin:0 0 6px; }
+  p.sub { color:var(--dim); font-size:13px; margin:0 auto; max-width:600px; line-height:1.5; }
+  svg { display:block; touch-action:none; }
+  .panel { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; padding:8px; }
+  button { background:#1a2330; color:var(--fg); border:1px solid #2a3a4a; border-radius:6px; padding:7px 13px; font-family:inherit; font-size:13px; cursor:pointer; }
+  button:hover { background:#243242; }
+  .stat { font-size:12px; color:var(--dim); text-align:center; padding:2px; }
+  .stat b { color:var(--fg); }
+  footer { padding:16px; font-size:12px; color:var(--dim); text-align:center; max-width:620px; line-height:1.6; }
+  a { color:#5ce1e6; }
+</style>
+</head>
+<body>
+<header>
+  <h1>the dual of the genus-4 {5,4} world</h1>
+  <p class="sub">the 24 pentagons become 24 vertices; the 60 primal edges become 60 dual edges. a simple 5-regular graph on 24 vertices — every vertex touches exactly 5 others. laid out by a spring embedder so you can actually see it, not 60 chords across a ring.</p>
+</header>
+<svg id="g" width="620" height="620" viewBox="0 0 620 620"></svg>
+<div class="panel">
+  <button id="relayout">re-layout</button>
+  <button id="reset">reset</button>
+</div>
+<div class="stat">vertices <b>24</b> · edges <b id="ec">60</b> · degree <b>5</b> each · <span id="hint">hover a vertex to light its 5 neighbours</span></div>
+<footer>the primal is 24 right-angled pentagons, V=30 E=60 F=24, chi=-6. taking the dual turns each pentagon into a point and each shared side into a line. because the map is simple, no two vertices share more than one edge and there are no loops — so the dual is a plain 5-regular graph, 24 nodes and 60 edges. <a href="genus4-54.html">the primal, with life</a> · <a href="genus2-walk.html">walk the genus-2 world</a> · <a href="https://yuzuki-mdl.github.io/">yuzuki</a></footer>
+<script>
+const F = 24;
+const adj = [[5,17,23,20,16],[23,9,11,6,20],[22,4,21,19,10],[12,23,17,14,11],[11,2,16,20,12],[10,13,8,0,22],[8,1,10,19,18],[18,13,10,15,21],[11,14,5,16,6],[22,15,19,13,1],[6,2,5,7,20],[8,3,4,22,1],[4,15,19,18,3],[5,7,23,9,14],[19,21,3,8,13],[12,20,7,17,9],[8,18,21,4,0],[3,21,15,22,0],[23,12,6,16,7],[14,2,6,12,9],[10,15,4,0,1],[2,14,17,7,16],[11,2,5,17,9],[0,1,13,18,3]];
+
+// unique edges
+const edgeSet = new Set();
+for (let f=0; f<F; f++) for (const g of adj[f]) if (f!==g) edgeSet.add(Math.min(f,g)+'-'+Math.max(f,g));
+const edges = [...edgeSet].map(k=>k.split('-').map(Number));
+document.getElementById('ec').textContent = edges.length;
+
+const W=620, H=620, cx=W/2, cy=H/2;
+const svg = document.getElementById('g');
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs){ const e=document.createElementNS(NS,tag); for(const k in attrs) e.setAttribute(k,attrs[k]); return e; }
+
+// nodes
+let nodes = [];
+function initNodes(){
+  nodes = [];
+  for (let i=0;i<F;i++){
+    const a = i*2*Math.PI/F;
+    nodes.push({x:cx+120*Math.cos(a), y:cy+120*Math.sin(a), vx:0, vy:0});
+  }
+}
+initNodes();
+
+// force-directed layout (Fruchterman-Reingold-ish)
+const k = Math.sqrt(W*H/F) * 0.9;
+function layout(iter){
+  for (let it=0; it<iter; it++){
+    for (const n of nodes){ n.vx=0; n.vy=0; }
+    // repulsion
+    for (let i=0;i<F;i++) for (let j=i+1;j<F;j++){
+      let dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y;
+      let d2=dx*dx+dy*dy; if(d2<1) d2=1;
+      const f = k*k/d2;
+      const d=Math.sqrt(d2);
+      nodes[i].vx+=dx/d*f; nodes[i].vy+=dy/d*f;
+      nodes[j].vx-=dx/d*f; nodes[j].vy-=dy/d*f;
+    }
+    // springs
+    for (const [a,b] of edges){
+      let dx=nodes[a].x-nodes[b].x, dy=nodes[a].y-nodes[b].y;
+      const d=Math.sqrt(dx*dx+dy*dy)||1;
+      const f = d/k;
+      nodes[a].vx-=dx/d*f; nodes[a].vy-=dy/d*f;
+      nodes[b].vx+=dx/d*f; nodes[b].vy+=dy/d*f;
+    }
+    const temp = k*0.1*(1 - it/iter) + 0.5;
+    for (const n of nodes){
+      const sp=Math.sqrt(n.vx*n.vx+n.vy*n.vy)||1;
+      const m=Math.min(sp,temp);
+      n.x += n.vx/sp*m; n.y += n.vy/sp*m;
+      // keep inside
+      const dx=n.x-cx, dy=n.y-cy, r=Math.sqrt(dx*dx+dy*dy), lim=W/2-40;
+      if (r>lim){ n.x=cx+dx/r*lim; n.y=cy+dy/r*lim; }
+    }
+  }
+}
+
+// draw
+let edgeEls=[], nodeEls=[];
+function draw(){
+  svg.innerHTML='';
+  edgeEls=[]; nodeEls=[];
+  for (const [a,b] of edges){
+    const l = el('line',{x1:nodes[a].x,y1:nodes[a].y,x2:nodes[b].x,y2:nodes[b].y,stroke:'#c98b3a','stroke-width':1.1,'stroke-opacity':0.55});
+    svg.appendChild(l); edgeEls.push({el:l,a,b});
+  }
+  for (let i=0;i<F;i++){
+    const c = el('circle',{cx:nodes[i].x,cy:nodes[i].y,r:9,fill:'#5ce1e6','fill-opacity':0.18,stroke:'#5ce1e6','stroke-width':1.6,style:'cursor:pointer'});
+    c.dataset.i=i;
+    svg.appendChild(c); nodeEls.push(c);
+  }
+  // labels
+  for (let i=0;i<F;i++){
+    const t = el('text',{x:nodes[i].x,y:nodes[i].y+3,'text-anchor':'middle',fill:'#e8e8e8','font-family':'monospace','font-size':9,'pointer-events':'none'});
+    t.textContent=i; svg.appendChild(t);
+  }
+}
+
+function highlight(i){
+  const nb = new Set(adj[i]);
+  nodeEls.forEach((c,j)=>{
+    c.setAttribute('fill-opacity', j===i?'0.95':(nb.has(j)?'0.55':'0.12'));
+  });
+  edgeEls.forEach(({el,a,b})=>{
+    const on = (a===i||b===i);
+    el.setAttribute('stroke', on?'#5ce1e6':'#c98b3a');
+    el.setAttribute('stroke-opacity', on?0.95:0.12);
+    el.setAttribute('stroke-width', on?2:1.1);
+  });
+}
+function clearHighlight(){
+  nodeEls.forEach(c=>c.setAttribute('fill-opacity','0.18'));
+  edgeEls.forEach(({el})=>{ el.setAttribute('stroke','#c98b3a'); el.setAttribute('stroke-opacity',0.55); el.setAttribute('stroke-width',1.1); });
+}
+
+// interaction: hover + drag
+svg.addEventListener('mousemove', e=>{
+  const t=e.target;
+  if (t.dataset && t.dataset.i!==undefined) highlight(+t.dataset.i);
+});
+svg.addEventListener('mouseleave', clearHighlight);
+
+let dragI=-1;
+function svgPoint(e){ const r=svg.getBoundingClientRect(); const sx=W/r.width, sy=H/r.height; return {x:(e.clientX-r.left)*sx, y:(e.clientY-r.top)*sy}; }
+svg.addEventListener('pointerdown', e=>{
+  const t=e.target;
+  if (t.dataset && t.dataset.i!==undefined){ dragI=+t.dataset.i; svg.setPointerCapture(e.pointerId); }
+});
+svg.addEventListener('pointermove', e=>{
+  if (dragI<0) return;
+  const p=svgPoint(e); nodes[dragI].x=p.x; nodes[dragI].y=p.y; draw();
+});
+svg.addEventListener('pointerup', ()=>{ dragI=-1; });
+
+document.getElementById('relayout').onclick = ()=>{ initNodes(); layout(400); draw(); };
+document.getElementById('reset').onclick = ()=>{ initNodes(); layout(400); draw(); };
+
+layout(400);
+draw();
+</script>
+</body>
+</html>
