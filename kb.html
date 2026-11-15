@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kb — von Dyck word rewriting</title>
+<style>
+  html,body{margin:0;min-height:100%;background:#0a0e14;color:#a9c4e0;font-family:ui-monospace,monospace}
+  #wrap{max-width:820px;margin:0 auto;padding:24px 20px 60px}
+  h1{font-size:15px;font-weight:400;color:#5f6f85;letter-spacing:2px;text-transform:uppercase;margin:0 0 6px}
+  p.sub{color:#5f6f85;font-size:13px;line-height:1.6;margin:0 0 20px}
+  p.sub b{color:#a9c4e0;font-weight:400}
+  #word{font-size:34px;letter-spacing:6px;line-height:1.4;min-height:48px;word-break:break-all;color:#cfe0f0;padding:10px 0}
+  #word span{transition:color .25s, background .25s}
+  #word .hit{background:#1b2d1f;color:#86d3a4;border-radius:3px}
+  #word .empty{color:#5f6f85;font-size:20px;letter-spacing:2px}
+  #status{font-size:14px;color:#86d3a4;min-height:20px;margin:6px 0 18px;letter-spacing:1px}
+  #status.no{color:#e69a9a}
+  #trace{font-size:12px;color:#5f6f85;line-height:1.9;max-height:220px;overflow:auto;border-top:1px solid #1c2736;padding-top:10px;margin-top:10px}
+  #trace .r{color:#7fb2e6}
+  #trace .f{color:#e6c67f}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+  input{background:#111a25;border:1px solid #23303f;color:#cfe0f0;font-family:inherit;font-size:15px;border-radius:6px;padding:8px 10px;outline:none;flex:1;min-width:160px;letter-spacing:3px}
+  input:focus{border-color:#3a5878}
+  button{background:#1b2836;border:1px solid #2b3d50;color:#bcd2e8;font-family:inherit;font-size:13px;border-radius:6px;padding:8px 14px;cursor:pointer}
+  button:hover{background:#243548}
+  button:active{transform:translateY(1px)}
+  .rel{color:#5f6f85;font-size:12px;line-height:1.8;margin-top:24px;border-top:1px solid #1c2736;padding-top:12px}
+  .rel code{color:#86d3a4}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>von Dyck word rewriting</h1>
+  <p class="sub">group <b>&lt;a,b | a&#8309;, b&#8308;, (ab)&sup2;&gt;</b> — the {5,4} triangle group's rotation part. type a word in <b>a b A B</b> (uppercase = inverse). it reduces by free cancellation then by the relators, and lands on a canonical form. empty = identity.</p>
+  <div id="word"></div>
+  <div id="status"></div>
+  <div class="bar">
+    <input id="inp" value="ababaab" spellcheck="false" autocomplete="off">
+    <button id="go">reduce</button>
+  </div>
+  <div id="trace"></div>
+  <div class="rel">
+    relators applied (both directions, any cyclic rotation):<br>
+    <code>a&#8309; &rarr; &epsilon;</code> &nbsp; <code>b&#8308; &rarr; &epsilon;</code> &nbsp; <code>(ab)&sup2; &rarr; &epsilon;</code> &nbsp; <code>(Ab)&sup2; &rarr; &epsilon;</code><br>
+    also their inverses: <code>A&#8309;</code>, <code>B&#8308;</code>, and the reversed squares. free cancellation <code>xX &rarr; &epsilon;</code> runs first each pass.
+  </div>
+</div>
+<script>
+const wordEl = document.getElementById('word');
+const statusEl = document.getElementById('status');
+const traceEl = document.getElementById('trace');
+const inp = document.getElementById('inp');
+const goBtn = document.getElementById('go');
+
+// inverse map
+const inv = {a:'A', A:'a', b:'B', B:'b'};
+
+// relators as arrays of letters, plus all cyclic rotations and reversed-inverse forms.
+function cyclicRotations(rel){
+  const out = [];
+  for(let i=0;i<rel.length;i++) out.push(rel.slice(i).concat(rel.slice(0,i)));
+  return out;
+}
+function buildRelators(){
+  const base = [
+    ['a','a','a','a','a'],       // a^5
+    ['A','A','A','A','A'],       // A^5
+    ['b','b','b','b'],           // b^4
+    ['B','B','B','B'],           // B^4
+    ['a','b','a','b'],           // (ab)^2
+    ['A','b','A','b'],           // (Ab)^2
+    ['B','a','B','a'],           // (Ba)^2  = reverse of (ab)^2 inverse
+    ['B','A','B','A']            // (BA)^2
+  ];
+  const all = [];
+  for(const r of base){
+    for(const rot of cyclicRotations(r)){
+      // skip if it reduces trivially under free cancellation (e.g. aA adjacent)
+      let bad=false;
+      for(let i=0;i<rot.length;i++) if(inv[rot[i]]===rot[(i+1)%rot.length]) bad=true;
+      if(!bad) all.push(rot);
+    }
+  }
+  // dedupe
+  const seen=new Set(); const uniq=[];
+  for(const r of all){ const k=r.join(''); if(!seen.has(k)){seen.add(k);uniq.push(r);} }
+  return uniq;
+}
+const RELATORS = buildRelators();
+
+function freeReduce(w){
+  // stack-based cancellation of x X
+  const st=[];
+  for(const c of w){
+    if(st.length && inv[st[st.length-1]]===c) st.pop();
+    else st.push(c);
+  }
+  return st;
+}
+
+// find first relator occurrence in word array; return {at,len,rel} or null
+function findRelator(w){
+  for(const rel of RELATORS){
+    const L=rel.length;
+    for(let i=0;i+L<=w.length;i++){
+      let ok=true;
+      for(let j=0;j<L;j++){ if(w[i+j]!==rel[j]){ok=false;break;} }
+      if(ok) return {at:i, len:L, rel};
+    }
+  }
+  return null;
+}
+
+let traceLines=[];
+function render(w, hit){
+  if(w.length===0){ wordEl.innerHTML='<span class="empty">&epsilon;  (identity)</span>'; return; }
+  let html='';
+  for(let i=0;i<w.length;i++){
+    const cls=(hit && i>=hit.at && i<hit.at+hit.len)?'hit':'';
+    html+=`<span class="${cls}">${w[i]}</span>`;
+  }
+  wordEl.innerHTML=html;
+}
+function renderTrace(){
+  traceEl.innerHTML=traceLines.map(l=>l).join('<br>');
+  traceEl.scrollTop=traceEl.scrollHeight;
+}
+
+function reduceWord(startWord){
+  traceLines=[];
+  let w=Array.from(startWord).filter(c=>'aAbB'.includes(c));
+  render(w,null);
+  statusEl.textContent=''; statusEl.className='';
+  let pass=0, changed=true, total=0;
+  while(changed && pass<500){
+    pass++; changed=false;
+    // free cancellation
+    const fr=freeReduce(w);
+    if(fr.length!==w.length){
+      traceLines.push(`<span class="f">free cancel</span> ${w.join('')} &rarr; ${fr.join('')||'&epsilon;'}`);
+      w=fr; changed=true; total++;
+      render(w,null); renderTrace();
+      if(w.length===0) break;
+    }
+    // relator application
+    const hit=findRelator(w);
+    if(hit){
+      const before=w.join('');
+      w=w.slice(0,hit.at).concat(w.slice(hit.at+hit.len));
+      traceLines.push(`<span class="r">relator</span> ${before} &rarr; ${w.join('')||'&epsilon;'} &nbsp;<span style="opacity:.6">(${hit.rel.join('')})</span>`);
+      render(w,hit); renderTrace(); changed=true; total++;
+      if(w.length===0) break;
+    }
+  }
+  const reduced=freeReduce(w);
+  if(reduced.length!==w.length){ w=reduced; render(w,null); }
+  if(w.length===0){
+    statusEl.textContent='= identity'; statusEl.className='';
+  } else {
+    statusEl.textContent='canonical form: '+w.join('')+'  ('+w.length+' letters)'; statusEl.className='no';
+  }
+  if(total===0){ traceLines.push('<span style="opacity:.6">already reduced</span>'); renderTrace(); }
+  render(w,null);
+}
+
+goBtn.addEventListener('click',()=>reduceWord(inp.value));
+inp.addEventListener('keydown',e=>{ if(e.key==='Enter') reduceWord(inp.value); });
+reduceWord(inp.value);
+</script>
+</body>
+</html>
