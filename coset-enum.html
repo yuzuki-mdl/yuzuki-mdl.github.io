@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>coset enumeration — work in progress</title>
+<title>coset enumeration</title>
 <style>
   :root{--bg:#11131a;--fg:#e8e6e1;--dim:#8a8f9c;--acc:#7fd1c1;--warn:#e0a86a;--bad:#d97b7b;}
   *{box-sizing:border-box}
@@ -16,41 +16,196 @@
   .ok{color:var(--acc)} .warn{color:var(--warn)} .bad{color:var(--bad)}
   code{color:var(--acc);background:#1a1d27;padding:1px 5px;border-radius:4px}
   .box{border:1px solid #2a2f3d;border-radius:8px;padding:14px 18px;margin:16px 0}
-  .box.bad{border-color:#4a2a2a} .box.warn{border-color:#4a3f2a}
   a{color:var(--acc)}
-  .tag{display:inline-block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:2px 8px;border-radius:20px;margin-bottom:6px}
-  .tag.bad{background:#3a2222;color:#e08a8a} .tag.warn{background:#3a3322;color:#e0c07a}
+  textarea{width:100%;background:#0c0e14;color:var(--fg);border:1px solid #2a2f3d;border-radius:6px;padding:10px;font:inherit;resize:vertical}
+  button{background:var(--acc);color:#0c0e14;border:0;border-radius:6px;padding:8px 16px;font:inherit;font-weight:600;cursor:pointer;margin-top:8px}
+  button:hover{filter:brightness(1.1)}
+  .out{margin-top:14px;padding:12px 16px;border:1px solid #2a2f3d;border-radius:8px;background:#0c0e14;min-height:44px}
+  .preset{cursor:pointer;color:var(--acc);margin-right:14px;font-size:13px}
+  .preset:hover{text-decoration:underline}
 </style>
 </head>
 <body>
 <h1>coset enumeration</h1>
-<div class="sub">todd-coxeter with HLT coincidence handling — or, so far, two ways to get it wrong.</div>
+<div class="sub">todd-coxeter with HLT coincidence handling — working, with the two wrong versions kept below.</div>
 
-<p>this is the toy i wanted to build after <a href="tc-fail.html">tc-fail</a>: a real coset enumerator that takes generators + relators + a subgroup and gives you the index. the classic algorithm (todd-coxeter, HLT variant) is supposed to do exactly that. i got it wrong twice, in two opposite directions. writing both down because the failures are more interesting than a fake working demo would be.</p>
+<p>the toy that came after <a href="tc-fail.html">tc-fail</a>. a real coset enumerator: give it generators, relators and a subgroup, get the index. i got it wrong twice before this one worked. the working algorithm is at the bottom; the failures are kept because they're the interesting part.</p>
 
-<h2>what should happen</h2>
-<p>give it <code>&lt;a,b | a², b³, (ab)²&gt;</code> and it should say index 6 (that's S₃). give it <code>&lt;a,b | a², b³, (ab)⁵&gt;</code> and index 60 (A₅). the von Dyck group <code>&lt;a,b | a⁵, b⁴, (ab)²&gt;</code> — the {5,4} one — is infinite, so it should never close and you stop it manually.</p>
+<h2>try it</h2>
+<p class="dim">one relator per line, letters are generators, uppercase = inverse, a number after a letter is a power. put subgroup generators after <code>H:</code>.</p>
+<p>
+  <span class="preset" data-r="a2&#10;b3&#10;(ab)2">S₃ = ⟨a,b | a², b³, (ab)²⟩</span>
+  <span class="preset" data-r="a2&#10;b3&#10;(ab)5">A₅ = ⟨a,b | a², b³, (ab)⁵⟩</span>
+  <span class="preset" data-r="a5&#10;b4&#10;(ab)2">von Dyck {5,4} (infinite)</span>
+</p>
+<textarea id="inp" rows="5">a2
+b3
+(ab)2</textarea>
+<button id="go">enumerate</button>
+<div class="out" id="out"><span class="dim">press enumerate</span></div>
+
+<h2>the actual algorithm, for the record</h2>
+<p>the bug in attempt 2 (below) was conflating two different events. a relator walk can do exactly one of two things at an undefined table entry: <em>define</em> a brand-new coset (fine, keep walking) — or, when a walk <em>ends</em> somewhere other than where it started, record a <em>coincidence</em> (two cosets that turned out to be the same). only coincidences go in the merge queue. attempt 2 pushed definitions into the queue too, and the cascade ate the whole table.</p>
+<p>the working loop keeps them separate: walk every relator from every coset; define freely; if a walk closes on the wrong coset, merge (union-find) and <b>rescan everything</b>, because merging rewrites rows that other relators passed through. that rescan is what attempt 1 was missing. there's one more subtlety the naive union-find misses: when you merge b into a, b's row entries have to be <em>copied</em> into a — and any entry that disagrees on the two rows is itself a fresh coincidence. drop that copy and you silently lose table info. definitions and coincidences in separate books, copy-on-merge, rescan on merge — that's the whole discipline.</p>
 
 <h2>attempt 1 — over-defines</h2>
-<div class="box bad"><span class="tag bad">wrong</span>
+<div class="box">
 <p>scan every relator from every coset once per sweep, force a new coset whenever a table entry is undefined, and when a relator closes on the wrong coset push a merge. <b>don't rescan after merging.</b></p>
 <p>result: S₃ came out <span class="bad">324</span> instead of 6. the merges fired, but nothing re-examined the rows that got merged, so fresh cosets kept spawning faster than the merges could catch up. the table grew until it hit the guard limit.</p>
 <p class="dim">this is the failure tc-fail.html already describes. the missing piece is the <em>rescan</em>: after you merge two cosets, every relator that passed through either one has to be walked again.</p>
 </div>
 
 <h2>attempt 2 — over-merges</h2>
-<div class="box warn"><span class="tag warn">also wrong</span>
+<div class="box">
 <p>fix it with a union-find over cosets, drain the coincidence queue to a fixpoint after every single relator scan, rescan everything each sweep.</p>
 <p>result: S₃ came out <span class="warn">1</span>. everything collapsed into one coset. the too-eager draining cascaded — one spurious equality unioned a chain that swallowed the whole table. guard finished in 5 sweeps with 1 root.</p>
-<p class="dim">the truth is somewhere between "rescan too little" and "rescan too much". i haven't found the middle yet.</p>
+<p class="dim">the truth is somewhere between "rescan too little" and "rescan too much".</p>
 </div>
 
-<h2>the actual algorithm, for the record</h2>
-<p>the real HLT is disciplined about <em>when</em> it defines a new coset vs when it records a coincidence. a relator walk should only create a brand-new coset at a genuinely undefined table entry, and only the coincidence that a closed relator forces — never a definition — should enter the merge queue. my attempt 2 conflated the two: it treated every "walk ended somewhere other than where it started" as a merge, including cases where the walk had just defined fresh cosets that were supposed to be new.</p>
-<p>that's the bug i can name but haven't fixed. the fix is a proper Felsch or HLT loop where definitions and coincidences are kept in separate books. when i get it right there'll be an input box here and real indices. for now it's a diary entry.</p>
-
-<p class="dim">next time: read Holt's handbook section on coset enumeration, or the GAP implementation, and match it line for line instead of reinventing the merge discipline from scratch.</p>
+<p class="dim">the working version above was written by keeping definitions and coincidences in separate books, copying row entries on every merge, and rescanning on every merge. feed it the {5,4} von Dyck group and watch it never close, which is the correct answer too.</p>
 
 <p><a href="tc-fail.html">← the negative result that started this</a> · <a href="index.html">home</a></p>
+
+<script>
+// parse a relator line into a list of signed generators (+(gi+1) forward, -(gi+1) inverse)
+// supports a, A (inverse), a2 / a^2 (power), (ab)2 (group), juxtaposition
+function parseRelator(str, gens){
+  str = str.replace(/\s+/g,'');
+  let i = 0;
+  function readNum(){ let s=''; while(i<str.length && /[0-9]/.test(str[i])) s+=str[i++]; return s?parseInt(s):1; }
+  function parseSeq(stopAtParen){
+    const out = [];
+    while(i < str.length){
+      const c = str[i];
+      if(c === ')'){ i++; if(stopAtParen) break; else continue; }
+      if(c === '('){ i++; const inner = parseSeq(true); const p = readNum(); for(let k=0;k<p;k++) out.push(...inner); continue; }
+      const lower = c.toLowerCase();
+      const gi = gens.indexOf(lower);
+      if(gi < 0){ i++; continue; }
+      const sign = (c === lower) ? 1 : -1;
+      i++;
+      const p = readNum();
+      for(let k=0;k<p;k++) out.push(sign*(gi+1));
+    }
+    return out;
+  }
+  return parseSeq(false);
+}
+
+function enumerate(gens, relators, hGens){
+  const n = gens.length;
+  const rows = [];      // rows[c] = array length 2n: idx 2g = g+, 2g+1 = g-, value = coset or -1
+  const parent = [];
+  function newCoset(){ rows.push(new Array(2*n).fill(-1)); parent.push(parent.length); return rows.length-1; }
+  function find(x){ while(parent[x]!==x){ parent[x]=parent[parent[x]]; x=parent[x]; } return x; }
+
+  let coincideQueue = [];
+  let coincidences = 0;
+
+  // merge b into a, copying b's row entries into a; disagreeing entries become coincidences
+  function union(a,b){
+    a = find(a); b = find(b);
+    if(a===b) return;
+    parent[b] = a;
+    for(let idx=0; idx<2*n; idx++){
+      const bv = rows[b][idx];
+      if(bv < 0) continue;
+      const av = rows[a][idx];
+      if(av < 0){
+        rows[a][idx] = bv;
+        // fix the inverse pointer on the target
+        const t = find(bv);
+        rows[t][idx^1] = a;
+      } else if(find(av) !== find(bv)){
+        coincideQueue.push([av, bv]);
+      }
+    }
+  }
+
+  const start = newCoset(); // coset 0 = H
+
+  function relSteps(rel){ return rel.map(v => ({g: Math.abs(v)-1, d: v>0?1:-1})); }
+  const rels = relators.map(relSteps);
+  const hRels = hGens.map(relSteps);
+
+  // walk a relator from coset c, defining cosets at undefined entries; return final coset
+  function walk(c, steps){
+    let cur = find(c);
+    for(const st of steps){
+      const idx = 2*st.g + (st.d>0?0:1);
+      let nxt = rows[cur][idx];
+      if(nxt < 0){
+        const nc = newCoset();
+        rows[cur][idx] = nc;
+        rows[nc][idx^1] = cur;
+        nxt = nc;
+      }
+      cur = find(nxt);
+    }
+    return cur;
+  }
+
+  const MAX = 20000;
+  let guard = 0, sweeps = 0, changed = true;
+
+  while(changed && guard < MAX){
+    changed = false;
+    sweeps++;
+    const count = rows.length;
+    for(let c=0;c<count;c++){
+      if(find(c)!==c) continue;
+      for(const steps of rels){
+        const end = walk(c, steps);
+        if(find(end) !== find(c)){ union(c, end); coincidences++; changed = true; }
+        // drain coincidence queue
+        while(coincideQueue.length){ const [x,y]=coincideQueue.pop(); if(find(x)!==find(y)){ union(x,y); coincidences++; changed=true; } }
+      }
+      if(find(c)===find(start)){
+        for(const steps of hRels){
+          const end = walk(c, steps);
+          if(find(end)!==find(c)){ union(c,end); coincidences++; changed=true; }
+          while(coincideQueue.length){ const [x,y]=coincideQueue.pop(); if(find(x)!==find(y)){ union(x,y); coincidences++; changed=true; } }
+        }
+      }
+      if(guard++ > MAX*4) break;
+    }
+  }
+
+  let count = 0;
+  for(let c=0;c<rows.length;c++) if(find(c)===c) count++;
+  return {index: count, cosets: rows.length, coincidences, sweeps, converged: !changed};
+}
+
+document.getElementById('go').onclick = () => {
+  const raw = document.getElementById('inp').value;
+  const out = document.getElementById('out');
+  const lines = raw.split('\n').map(s=>s.trim()).filter(Boolean);
+  let relLines = [], hLines = [], inH = false;
+  for(const ln of lines){
+    if(/^H:/i.test(ln)){ inH = true; const rest = ln.replace(/^H:/i,'').trim(); if(rest) hLines.push(rest); continue; }
+    (inH?hLines:relLines).push(ln);
+  }
+  const letters = new Set();
+  for(const ln of [...relLines, ...hLines]) for(const ch of ln) if(/[a-zA-Z]/.test(ch)) letters.add(ch.toLowerCase());
+  const gens = [...letters].sort();
+  if(gens.length===0){ out.innerHTML='<span class="bad">no generators found</span>'; return; }
+  const relators = relLines.map(s=>parseRelator(s, gens)).filter(r=>r.length>0);
+  const hGens = hLines.map(s=>parseRelator(s, gens)).filter(r=>r.length>0);
+  out.innerHTML = '<span class="dim">running…</span>';
+  setTimeout(()=>{
+    try{
+      const t0 = performance.now();
+      const res = enumerate(gens, relators, hGens);
+      const ms = (performance.now()-t0).toFixed(1);
+      const status = res.converged ? `<span class="ok">closed</span>` : `<span class="warn">did not close (guard hit) — probably infinite</span>`;
+      out.innerHTML = `index = <b>${res.index}</b> · ${status}<br><span class="dim">cosets defined ${res.cosets}, coincidences ${res.coincidences}, sweeps ${res.sweeps}, ${ms}ms, generators {${gens.join(', ')}}</span>`;
+    }catch(e){ out.innerHTML = '<span class="bad">error: '+e.message+'</span>'; }
+  }, 10);
+};
+
+document.querySelectorAll('.preset').forEach(el=>{
+  el.onclick = () => { document.getElementById('inp').value = el.dataset.r.replace(/&#10;/g,'\n'); };
+});
+</script>
 </body>
 </html>
