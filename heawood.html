@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>heawood graph — the 7 faces that all touch</title>
+<style>
+  :root{--bg:#0d0f14;--fg:#e6e9f0;--dim:#7c8496;--acc:#7fd1c4;--acc2:#e0a86a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+  main{max-width:820px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:20px;font-weight:600;letter-spacing:.02em;margin:0 0 4px}
+  .sub{color:var(--dim);margin:0 0 22px;font-size:13px}
+  canvas{width:100%;height:auto;display:block;border-radius:10px;background:#12151c;touch-action:none;cursor:grab}
+  canvas:active{cursor:grabbing}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0 8px;align-items:center}
+  button{background:#1a1f29;color:var(--fg);border:1px solid #2a3140;border-radius:8px;padding:7px 13px;font:inherit;font-size:13px;cursor:pointer}
+  button:hover{border-color:var(--acc)}
+  button.on{background:var(--acc);color:#0d0f14;border-color:var(--acc)}
+  p{color:#b6bdcc;margin:14px 0}
+  a{color:var(--acc)}
+  .k{color:var(--acc2)}
+  code{color:#c8d0e0;background:#181c25;padding:1px 5px;border-radius:4px;font-size:13px}
+</style>
+</head>
+<body>
+<main>
+  <h1>heawood graph</h1>
+  <p class="sub">14 vertices · 21 edges · every face of the szilassi torus touches every other</p>
+
+  <canvas id="c" width="820" height="620"></canvas>
+
+  <div class="bar">
+    <button id="bColor">face colouring (7)</button>
+    <button id="bSpin">spin</button>
+    <button id="bReset">reset</button>
+  </div>
+
+  <p>The <span class="k">heawood graph</span> is the point–line incidence graph of the Fano plane: 7 points and 7 lines, an edge when a point lies on a line. It is the smallest cubic graph of girth 6, and it lives on the torus.</p>
+
+  <p>Its 7 "line" vertices are the 7 hexagonal faces of the <a href="https://en.wikipedia.org/wiki/Szilassi_polyhedron">szilassi polyhedron</a>. Because every pair of faces there shares an edge, every pair of line-vertices here shares a point-vertex — that's the 7-clique that forces a torus to need 7 colours. Drag to rotate.</p>
+</main>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+
+// Fano plane: points 0..6, lines as triples
+const lines=[[0,1,2],[0,3,4],[0,5,6],[1,3,5],[1,4,6],[2,3,6],[2,4,5]];
+
+// vertices: 0..6 = points, 7..13 = lines (i+7)
+const V=[];
+const R=260, rp=95, rl=215;
+for(let i=0;i<7;i++){
+  const a=-Math.PI/2 + i*2*Math.PI/7;
+  V.push({x:Math.cos(a)*rp, y:Math.sin(a)*rp, kind:'p', i});
+}
+for(let i=0;i<7;i++){
+  const a=-Math.PI/2 + (i+0.5)*2*Math.PI/7;
+  V.push({x:Math.cos(a)*rl, y:Math.sin(a)*rl, kind:'l', i});
+}
+
+const E=[];
+lines.forEach((L,li)=>{
+  L.forEach(p=>E.push([p, li+7]));
+});
+
+// 7-colouring of the LINE vertices: line i gets colour i.
+// point vertex p gets... it touches 3 lines, so it can't take one of their colours.
+// A proper edge colouring doesn't exist for 7 clique, but we colour the faces:
+// colour of face = its line index. Points get dim.
+const faceCol=['#7fd1c4','#e0a86a','#c98bd6','#8fb8e8','#e88f8f','#b6d67a','#e8d47a'];
+
+let rx=0.5, ry=0.3, drag=null, spin=false, colorMode=false;
+let last=performance.now();
+
+function project(v){
+  // rotate around x then y, then simple perspective
+  let x=v.x, y=v.y, z=0;
+  // rotate y
+  let cy=Math.cos(ry), sy=Math.sin(ry);
+  let x1=x*cy + z*sy, z1=-x*sy + z*cy;
+  // rotate x
+  let cx=Math.cos(rx), sx=Math.sin(rx);
+  let y1=y*cx - z1*sx, z2=y*sx + z1*cx;
+  const d=900, f=d/(d - z2*0.8);
+  return {x:W/2 + x1*f*0.95, y:H/2 + y1*f*0.95, z:z2};
+}
+
+function draw(t){
+  const dt=(t-last)/1000; last=t;
+  if(spin && !drag){ ry += dt*0.5; }
+  ctx.clearRect(0,0,W,H);
+
+  const P=V.map(project);
+  const order=E.map((e,i)=>({i, z:(P[e[0]].z+P[e[1]].z)/2})).sort((a,b)=>a.z-b.z);
+
+  // edges
+  for(const {i} of order){
+    const [a,b]=E[i];
+    const col = colorMode ? faceCol[V[b].i] : '#39424f';
+    ctx.strokeStyle=col;
+    ctx.lineWidth= colorMode ? 2.4 : 1.4;
+    ctx.globalAlpha= colorMode ? 0.85 : 0.7;
+    ctx.beginPath(); ctx.moveTo(P[a].x,P[a].y); ctx.lineTo(P[b].x,P[b].y); ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+
+  // vertices
+  const vo=V.map((v,i)=>i).sort((a,b)=>P[a].z-P[b].z);
+  for(const i of vo){
+    const v=V[i], p=P[i];
+    const f=1 + p.z*0.0006;
+    if(v.kind==='p'){
+      ctx.fillStyle='#2b3340'; ctx.strokeStyle='#556'; 
+      ctx.beginPath(); ctx.arc(p.x,p.y,7*f,0,7); ctx.fill(); ctx.stroke();
+    } else {
+      ctx.fillStyle= colorMode ? faceCol[v.i] : '#1a1f29';
+      ctx.strokeStyle= colorMode ? '#0d0f14' : faceCol[v.i];
+      ctx.lineWidth=2;
+      ctx.beginPath(); ctx.arc(p.x,p.y,12*f,0,7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle= colorMode ? '#0d0f14' : '#e6e9f0';
+      ctx.font=Math.round(11*f)+'px ui-monospace,monospace';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(v.i, p.x, p.y);
+    }
+  }
+  requestAnimationFrame(draw);
+}
+
+function pos(ev){
+  const r=cv.getBoundingClientRect();
+  const t=ev.touches?ev.touches[0]:ev;
+  return {x:(t.clientX-r.left)*W/r.width, y:(t.clientY-r.top)*H/r.height};
+}
+cv.addEventListener('pointerdown',e=>{drag=pos(e);cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  const p=pos(e);
+  ry += (p.x-drag.x)*0.01;
+  rx += (p.y-drag.y)*0.01;
+  rx=Math.max(-1.4,Math.min(1.4,rx));
+  drag=p;
+});
+cv.addEventListener('pointerup',()=>drag=null);
+cv.addEventListener('pointercancel',()=>drag=null);
+
+document.getElementById('bColor').onclick=e=>{colorMode=!colorMode;e.target.classList.toggle('on',colorMode)};
+document.getElementById('bSpin').onclick=e=>{spin=!spin;e.target.classList.toggle('on',spin)};
+document.getElementById('bReset').onclick=()=>{rx=0.5;ry=0.3};
+
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
