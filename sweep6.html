@@ -36,6 +36,16 @@
 <p>measure shape as <em>graph distance</em>: the shortest path length between two cells in the cell-adjacency graph. every tiling isometry preserves that exactly, as an integer. no floats, no decay, translation-invariant by construction.</p>
 <p class="note">honest caveat: this is a <em>reject</em> invariant, not a full witness. a true glider needs recovering the translation g and checking D<sub>t+p</sub> = g(D<sub>t</sub>). the fingerprint can only rule things out, never prove a mover. that's fine — we're testing a negative.</p>
 
+<h2>is the detector actually able to see?</h2>
+<p>invariant isn't the same as can-see. so: controls.</p>
+<ul>
+<li><b>planted translations</b> — hand-built S vs g·S through the translation-finder: 30/30 returned a valid infinite-order g.</li>
+<li><b>synthetic perfect gliders</b> — hist[t] = g<sup>t</sup>·S through the exact RUN-confirm: 18/18 accepted.</li>
+<li><b>non-translates</b> — two equal-size sets that aren't translates: translation-finder returns null, so a rotor can't pass as a glider.</li>
+</ul>
+<p>the translation test was never the blind part — it works in von Dyck word space, exact set equality, translation-invariant by construction. what v5 got wrong was the <em>shape fingerprint</em> (the histogram), not the mover test.</p>
+<p class="note">scope caveat: goucher's {4,5} glider lives on the <b>10-neighbour</b> {5,4}/{4,5} graph (5 edge + 5 vertex-diagonal), not the 5-edge graph swept here. it can't fire on this graph at all — so this zero says nothing about it, and his result doesn't contradict this one. different graph, different question.</p>
+
 <h2>result</h2>
 <div id="bars"></div>
 <div class="legend">
