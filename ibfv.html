@@ -48,13 +48,43 @@ function resize(){
 
 // R,G,B noise textures, tileable-ish random
 let noiseTex = null;
+const NS = 256;
 function makeNoise(){
-  const N = 256;
-  noiseTex = new Float32Array(N*N*3);
-  for(let i=0;i<N*N*3;i++) noiseTex[i] = Math.random();
-  return N;
+  // coherent noise: coarse random grid, bilinearly upsampled -> soft blobs.
+  // white noise would just average to grey under advection; blobs stretch into streaks.
+  noiseTex = new Float32Array(NS*NS*3);
+  const G = 16;                 // coarse grid cells across the texture
+  const cell = NS/G;
+  const coarse = new Float32Array(G*G*3);
+  for(let i=0;i<G*G*3;i++) coarse[i]=Math.random();
+  for(let y=0;y<NS;y++){
+    const gy=y/cell, y0=Math.floor(gy)%G, y1=(y0+1)%G, fy=gy-Math.floor(gy);
+    for(let x=0;x<NS;x++){
+      const gx=x/cell, x0=Math.floor(gx)%G, x1=(x0+1)%G, fx=gx-Math.floor(gx);
+      const i00=(y0*G+x0)*3, i10=(y0*G+x1)*3, i01=(y1*G+x0)*3, i11=(y1*G+x1)*3;
+      const o=(y*NS+x)*3;
+      for(let k=0;k<3;k++){
+        const a=coarse[i00+k], b=coarse[i10+k], cc=coarse[i01+k], d=coarse[i11+k];
+        // smoothstep for nicer blobs
+        const sx=fx*fx*(3-2*fx), sy=fy*fy*(3-2*fy);
+        noiseTex[o+k]=(a*(1-sx)+b*sx)*(1-sy)+(cc*(1-sx)+d*sx)*sy;
+      }
+    }
+  }
+  return NS;
 }
-let NS = 256;
+function sampleNoise(sx,sy){
+  const x=((sx%NS)+NS)%NS, y=((sy%NS)+NS)%NS;
+  const x0=Math.floor(x), y0=Math.floor(y), fx=x-x0, fy=y-y0;
+  const x1=(x0+1)%NS, y1=(y0+1)%NS;
+  const i00=(y0*NS+x0)*3,i10=(y0*NS+x1)*3,i01=(y1*NS+x0)*3,i11=(y1*NS+x1)*3;
+  const out=[0,0,0];
+  for(let k=0;k<3;k++){
+    const a=noiseTex[i00+k],b=noiseTex[i10+k],cc=noiseTex[i01+k],d=noiseTex[i11+k];
+    out[k]=(a*(1-fx)+b*fx)*(1-fy)+(cc*(1-fx)+d*fx)*fy;
+  }
+  return out;
+}
 
 let prev = null;
 
@@ -109,12 +139,11 @@ function frame(){
         // backward advect (screen space): source = current - v*dt
         const su = u - vx*dt, sv = v - vy*dt;
         const adv = samplePrev(su,sv);
-        // noise sample
-        const ni = ((sy&255)*NS + (sx&255))*3;
-        const nr=noiseTex[ni], ng=noiseTex[ni+1], nb=noiseTex[ni+2];
-        out[idx]   = (1-alpha)*adv[0] + alpha*nr;
-        out[idx+1] = (1-alpha)*adv[1] + alpha*ng;
-        out[idx+2] = (1-alpha)*adv[2] + alpha*nb;
+        // noise sample (coherent, bilinear)
+        const nz = sampleNoise(sx, sy);
+        out[idx]   = (1-alpha)*adv[0] + alpha*nz[0];
+        out[idx+1] = (1-alpha)*adv[1] + alpha*nz[1];
+        out[idx+2] = (1-alpha)*adv[2] + alpha*nz[2];
       }
     }
     prev = out;
