@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ca-sound — hear an elementary cellular automaton</title>
+<style>
+  :root{--bg:#0a0e14;--fg:#a9c4e0;--dim:#5f6f85;--hot:#86d3a4;--acc:#c9a227}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);font-family:ui-monospace,monospace}
+  #wrap{max-width:900px;margin:0 auto;padding:26px 20px 70px}
+  h1{font-size:15px;font-weight:400;color:var(--dim);letter-spacing:2px;text-transform:uppercase;margin:0 0 8px}
+  p.sub{color:var(--dim);font-size:13px;line-height:1.6;margin:0 0 20px;max-width:640px}
+  p.sub b{color:var(--fg);font-weight:400}
+  canvas{width:100%;image-rendering:pixelated;border:1px solid #1a2230;display:block;background:#05080c}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:16px 0}
+  button{background:#121a26;color:var(--fg);border:1px solid #24303f;border-radius:6px;padding:9px 14px;font:inherit;font-size:13px;cursor:pointer}
+  button:hover{border-color:#3a4b60}
+  button.on{background:#1b2d1f;border-color:#2f6b45;color:var(--hot)}
+  label{font-size:13px;color:var(--dim)}
+  input[type=range]{vertical-align:middle;accent-color:var(--acc)}
+  .rules{display:flex;flex-wrap:wrap;gap:8px}
+  .rules button{font-size:12px;padding:6px 10px}
+  #now{color:var(--hot);font-size:13px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>ca-sound</h1>
+  <p class="sub">an elementary cellular automaton, played as sound. each <b>row is one generation</b> (time flows down), each <b>live cell is a voice</b>. the width of the disk is the pitch: cells on the left are low, cells on the right are high. some rules are drones, some are rhythms, a few are just noise. rule 30 is a snare drum having a breakdown.</p>
+  <canvas id="cv" width="420" height="300"></canvas>
+  <div class="row">
+    <button id="play">▶ play</button>
+    <span id="now">stopped</span>
+    <label>tempo <input id="tempo" type="range" min="60" max="600" value="180"></label>
+  </div>
+  <div class="row rules" id="rules"></div>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+let rule=90, grid=[], gen=0, playing=false, timer=null, actx=null, master=null;
+const CELL=3, COLS=Math.floor(W/CELL), ROWS=Math.floor(H/CELL);
+
+function initGrid(){
+  grid=[];
+  for(let y=0;y<ROWS;y++) grid.push(new Uint8Array(COLS));
+  grid[0][Math.floor(COLS/2)]=1;
+  gen=0;
+}
+
+function stepRow(y){
+  if(y<=0) return;
+  const prev=grid[y-1], cur=grid[y];
+  for(let x=0;x<COLS;x++){
+    const l=prev[(x-1+COLS)%COLS], c=prev[x], r=prev[(x+1)%COLS];
+    const idx=(l<<2)|(c<<1)|r;
+    cur[x]=(rule>>idx)&1;
+  }
+}
+
+function computeAll(){
+  initGrid();
+  for(let y=1;y<ROWS;y++) stepRow(y);
+}
+
+function draw(){
+  ctx.fillStyle='#05080c'; ctx.fillRect(0,0,W,H);
+  for(let y=0;y<ROWS;y++){
+    const row=grid[y];
+    for(let x=0;x<COLS;x++){
+      if(row[x]){
+        const hue=200 - (x/COLS)*160; // left blue, right warm
+        ctx.fillStyle=`hsl(${hue},70%,${y<gen?70:45}%)`;
+        ctx.fillRect(x*CELL,y*CELL,CELL-1,CELL-1);
+      }
+    }
+  }
+  // playhead
+  if(gen<ROWS){
+    ctx.fillStyle='rgba(201,162,39,0.9)';
+    ctx.fillRect(0,gen*CELL,W,1);
+  }
+}
+
+function ensureAudio(){
+  if(actx) return;
+  actx=new (window.AudioContext||window.webkitAudioContext)();
+  master=actx.createGain(); master.gain.value=0.18; master.connect(actx.destination);
+}
+
+// map a column to a frequency in a pentatonic scale over ~4 octaves
+const scale=[0,2,4,7,9];
+function colFreq(x){
+  const t=x/COLS; // 0..1
+  const step=Math.floor(t*20); // 20 scale steps
+  const oct=Math.floor(step/5);
+  const deg=step%5;
+  const semis=oct*12+scale[deg];
+  return 110*Math.pow(2,semis/12);
+}
+
+function voice(x,when,dur){
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type='triangle';
+  o.frequency.value=colFreq(x);
+  g.gain.setValueAtTime(0,when);
+  g.gain.linearRampToValueAtTime(0.12,when+0.008);
+  g.gain.exponentialRampToValueAtTime(0.001,when+dur);
+  o.connect(g); g.connect(master);
+  o.start(when); o.stop(when+dur+0.02);
+}
+
+function playRow(y){
+  if(!actx) return;
+  const now=actx.currentTime+0.02;
+  const dur=Math.max(0.03, 60/ (+document.getElementById('tempo').value) * 0.9);
+  const row=grid[y];
+  // limit voices so rule 30 doesn't melt the cpu
+  let count=0;
+  for(let x=0;x<COLS;x++) if(row[x]){
+    if((count++)%2===0) voice(x, now, dur); // thin out dense rows
+  }
+}
+
+function tick(){
+  if(gen>=ROWS){ stop(); return; }
+  playRow(gen);
+  gen++;
+  draw();
+}
+
+function play(){
+  if(playing) return;
+  ensureAudio(); if(actx.state==='suspended') actx.resume();
+  if(gen>=ROWS){ computeAll(); gen=0; }
+  playing=true;
+  document.getElementById('play').textContent='⏸ pause';
+  document.getElementById('play').classList.add('on');
+  document.getElementById('now').textContent='generation '+gen;
+  const ms=Math.max(40, 60000/(+document.getElementById('tempo').value));
+  timer=setInterval(tick, ms);
+}
+
+function stop(){
+  playing=false; clearInterval(timer); timer=null;
+  document.getElementById('play').textContent='▶ play';
+  document.getElementById('play').classList.remove('on');
+  document.getElementById('now').textContent='stopped';
+}
+
+document.getElementById('play').onclick=()=>{ playing?stop():play(); };
+document.getElementById('tempo').oninput=()=>{ if(playing){ stop(); play(); } };
+
+document.getElementById('tempo').addEventListener('input',e=>{
+  document.getElementById('now').textContent = playing?('generation '+gen):'stopped';
+});
+
+const goodRules=[30,90,110,150,18,54,22,60,102,126,182,62,73,105,45,75,89,101];
+const rulesBox=document.getElementById('rules');
+function addRule(r){
+  const b=document.createElement('button');
+  b.textContent='rule '+r;
+  b.onclick=()=>{
+    rule=r; stop();
+    [...rulesBox.children].forEach(c=>c.classList.remove('on'));
+    b.classList.add('on');
+    computeAll(); gen=0; draw();
+    document.getElementById('now').textContent='rule '+r+' · press play';
+  };
+  rulesBox.appendChild(b);
+}
+// highlight a few favourites first
+[90,30,110,150,54,22,60,102,182,62,73,105,45].forEach(addRule);
+
+computeAll(); draw();
+// pick rule 90 by default and mark it
+rulesBox.children[0].classList.add('on');
+</script>
+</body>
+</html>
