@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>equilateral pentagon linkage</title>
+<style>
+  :root{--bg:#0b0f17;--fg:#e8eef7;--dim:#6b7787;--accent:#7fd1c9;--bar:#f0a868;--node:#ffd166}
+  *{box-sizing:border-box}
+  html,body{margin:0;min-height:100%;background:var(--bg);color:var(--fg);
+    font:15px/1.55 ui-monospace,Menlo,Consolas,monospace}
+  #wrap{display:flex;flex-direction:column;align-items:center;gap:12px;padding:18px}
+  h1{font-size:16px;font-weight:600;margin:0;letter-spacing:.02em}
+  h1 span{color:var(--dim);font-weight:400}
+  canvas{background:#060a10;border:1px solid #1c2735;border-radius:12px;touch-action:none;cursor:grab}
+  canvas:active{cursor:grabbing}
+  #hud{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;font-size:13px;color:var(--dim)}
+  #hud b{color:var(--fg);font-weight:600}
+  .hint{font-size:12px;color:var(--dim);max-width:600px;text-align:center}
+  a{color:var(--accent)}
+  button{background:#16202e;color:var(--fg);border:1px solid #26333f;border-radius:8px;padding:6px 12px;font:inherit;cursor:pointer}
+  button:hover{border-color:#3a4a5c}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>equilateral pentagon linkage <span>— drag a vertex, five rigid bars</span></h1>
+  <canvas id="cv" width="640" height="640"></canvas>
+  <div id="hud">
+    <span>side <b>1</b></span>
+    <span>config <b id="cfg">regular</b></span>
+    <span>area <b id="area">0</b></span>
+  </div>
+  <div class="hint">five bars all the same length, hinged at the corners. drag any joint and the rest follow (position-based relaxation).
+  the space of all shapes it can fold into is itself a hyperbolic {5,4} tiling — degenerate (flat) folds are the lower-dim faces of that tiling.
+  see Richter-Gebert, <i>Hyperbolic Structure of the Equilateral Pentagon</i> (arXiv:2507.07698).</div>
+  <button id="reset">reset to regular</button>
+</div>
+<script>
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height, CX = W/2, CY = H/2;
+const R = 150;               // circumradius of regular pentagon on screen
+const L = 2*R*Math.sin(Math.PI/5); // bar length in px
+
+// five vertices, initially a regular pentagon
+function regular(){
+  const p=[];
+  for(let i=0;i<5;i++){
+    const a = -Math.PI/2 + i*2*Math.PI/5;
+    p.push({x:CX+R*Math.cos(a), y:CY+R*Math.sin(a)});
+  }
+  return p;
+}
+let pts = regular();
+let dragIdx = -1;
+
+// position-based dynamics: keep all 5 bar lengths == L
+function relax(){
+  for(let iter=0; iter<40; iter++){
+    for(let i=0;i<5;i++){
+      const j=(i+1)%5;
+      let dx=pts[j].x-pts[i].x, dy=pts[j].y-pts[i].y;
+      let d=Math.hypot(dx,dy)||1e-6;
+      let diff=(d-L)/d*0.5;
+      let ox=dx*diff, oy=dy*diff;
+      // pinned drag vertex doesn't move
+      if(i!==dragIdx){ pts[i].x+=ox; pts[i].y+=oy; }
+      if(j!==dragIdx){ pts[j].x-=ox; pts[j].y-=oy; }
+    }
+    // keep the centroid roughly centered so it doesn't drift off screen
+    let sxx=0,syy=0; for(const p of pts){sxx+=p.x;syy+=p.y;}
+    sxx/=5; syy/=5;
+    const dx=CX-sxx, dy=CY-syy;
+    for(const p of pts){ if(p!==pts[dragIdx]){ p.x+=dx*0.12; p.y+=dy*0.12; } }
+  }
+}
+
+function area(){
+  let a=0;
+  for(let i=0;i<5;i++){ const j=(i+1)%5; a += pts[i].x*pts[j].y - pts[j].x*pts[i].y; }
+  return Math.abs(a/2)/(L*L); // in units of bar-length^2
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // disk backdrop
+  ctx.strokeStyle='#141d29'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(CX,CY,R*1.9,0,7); ctx.stroke();
+
+  // bars
+  ctx.lineWidth=4; ctx.lineCap='round';
+  for(let i=0;i<5;i++){
+    const j=(i+1)%5;
+    ctx.strokeStyle = (i===dragIdx||j===dragIdx) ? '#ffd166' : '#f0a868';
+    ctx.beginPath(); ctx.moveTo(pts[i].x,pts[i].y); ctx.lineTo(pts[j].x,pts[j].y); ctx.stroke();
+  }
+  // joints
+  for(let i=0;i<5;i++){
+    ctx.beginPath(); ctx.arc(pts[i].x,pts[i].y, i===dragIdx?9:6, 0, 7);
+    ctx.fillStyle = i===dragIdx?'#ffd166':'#7fd1c9'; ctx.fill();
+  }
+  document.getElementById('area').textContent = area().toFixed(3);
+  // config label
+  const ar = area();
+  let cfg='folded';
+  if(ar>1.6) cfg='regular-ish'; else if(ar>0.9) cfg='open'; else if(ar>0.2) cfg='pinched';
+  else cfg='flat (degenerate)';
+  document.getElementById('cfg').textContent = cfg;
+}
+
+function pos(e){
+  const r = cv.getBoundingClientRect();
+  const t = e.touches ? e.touches[0] : e;
+  return {x:(t.clientX-r.left)*(W/r.width), y:(t.clientY-r.top)*(H/r.height)};
+}
+function down(e){
+  const p = pos(e);
+  let best=-1, bd=1e9;
+  for(let i=0;i<5;i++){ const d=Math.hypot(pts[i].x-p.x,pts[i].y-p.y); if(d<bd){bd=d;best=i;} }
+  if(bd<40){ dragIdx=best; }
+  e.preventDefault();
+}
+function move(e){
+  if(dragIdx<0) return;
+  const p = pos(e);
+  pts[dragIdx].x=p.x; pts[dragIdx].y=p.y;
+  relax(); draw();
+  e.preventDefault();
+}
+function up(){ dragIdx=-1; relax(); draw(); }
+
+cv.addEventListener('mousedown',down);
+cv.addEventListener('mousemove',move);
+window.addEventListener('mouseup',up);
+cv.addEventListener('touchstart',down,{passive:false});
+cv.addEventListener('touchmove',move,{passive:false});
+window.addEventListener('touchend',up);
+
+document.getElementById('reset').onclick=()=>{ pts=regular(); dragIdx=-1; relax(); draw(); };
+
+relax(); draw();
+</script>
+</body>
+</html>
