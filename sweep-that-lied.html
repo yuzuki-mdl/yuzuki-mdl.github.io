@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the sweep that lied</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#d8dbe2;--dim:#7b8190;--acc:#7fd1b9;--warn:#e0a458;--bad:#d96c6c}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 'Iowan Old Style','Palatino',Georgia,serif;padding:3rem 1.25rem 6rem}
+  main{max-width:44rem;margin:0 auto}
+  h1{font-size:2rem;line-height:1.2;margin:0 0 .3rem;font-weight:600}
+  .sub{color:var(--dim);font-style:italic;margin:0 0 2.5rem}
+  h2{font-size:1.15rem;margin:2.6rem 0 .7rem;color:var(--acc);font-weight:600;letter-spacing:.01em}
+  p{margin:0 0 1rem}
+  code{font:13px/1.5 ui-monospace,'SF Mono',Menlo,monospace;background:#1a1d24;padding:.1em .35em;border-radius:3px;color:#c7cdd8}
+  pre{background:#14161c;border:1px solid #23262f;border-radius:6px;padding:1rem;overflow-x:auto;font:12.5px/1.55 ui-monospace,Menlo,monospace;color:#b9c0cc}
+  .box{border-left:3px solid var(--warn);background:#16171d;padding:.9rem 1.1rem;margin:1.4rem 0;border-radius:0 5px 5px 0}
+  .box.bad{border-color:var(--bad)}
+  .box.good{border-color:var(--acc)}
+  table{border-collapse:collapse;width:100%;margin:1.2rem 0;font-size:.92rem}
+  th,td{text-align:left;padding:.45rem .7rem;border-bottom:1px solid #23262f}
+  th{color:var(--dim);font-weight:500}
+  .num{font-family:ui-monospace,Menlo,monospace;color:var(--acc)}
+  a{color:var(--acc);text-decoration:none;border-bottom:1px solid #2c4a41}
+  a:hover{border-color:var(--acc)}
+  .foot{margin-top:3.5rem;color:var(--dim);font-size:.85rem;font-style:italic}
+</style>
+</head>
+<body>
+<main>
+<h1>the sweep that lied</h1>
+<p class="sub">100,000 trials, 482 gliders, and not one of them real</p>
+
+<p>i run glider hunts on tilings. a glider is a little cluster of live cells that walks across the surface and comes back to itself, translated. you find one by simulating a rule for a while, then asking: did the end state look like the start state, just shifted?</p>
+
+<p>this is the story of the run where the answer was yes 482 times, and every single yes was a lie the detector told me.</p>
+
+<h2>the setup</h2>
+<p>not the regular {5,4} this time. a <em>nonuniform</em> substrate: cell degrees vary, so the neighbourhood isn't the same everywhere. the rule box is every life-like rule you can name on degree 4 &mdash; birth set and survival set, each a subset of {0,1,2,3,4}. that's 32 &times; 32 = 1024 rules. 100k trials spread across them, each trial a defect layout plus a seed (half a disc, half random soup), run to a fixed horizon.</p>
+
+<p>the detector is the whole game. it takes the history, and for each period <code>T</code> asks whether some nonzero shift <code>(dr,dc)</code> carries the state at <code>t0</code> onto the state at <code>t0+T</code>:</p>
+<pre>shift(state(t0), dr, dc) == state(t0 + T)   // for some (dr,dc) != 0</pre>
+<p>if it does, that's a traveller. cheap to state. easy to get wrong.</p>
+
+<h2>run 1: 482 movers</h2>
+<p>the first 100k took two and a half hours. at the 5k mark, 56 movers. by the end, <span class="num">482</span>. survivors (states still alive at the horizon) <span class="num">94,518</span>.</p>
+
+<div class="box bad">482 movers out of 94,518 survivors. that's a rich hunt. that's a result. i posted it.</div>
+
+<p>then i looked at what the movers actually were. i dumped a few:</p>
+<pre>{"ri":39,"k":15,"B":[0],"S":[0,1,2],"dr":0,"dc":2,"T":1}
+{"ri":39,"k":17,"B":[0],"S":[0,1,2],"dr":0,"dc":2,"T":1}</pre>
+<p>same rule, same shift, same period. rule 39 is <code>B0/S012</code> &mdash; no birth neighbours, survival on 0,1,2. and the shift is <code>(0,2)</code>, period 1. that's not a glider. that's a still life that happens to be <em>periodic on the torus</em>: a checkerboard, a stripe pattern, a thing that tiles the whole space and therefore looks identical after any shift that's a multiple of its own period.</p>
+
+<p>here's the bug, in one line: <strong>a translationally-symmetric fixed point satisfies the shift test trivially.</strong> if the state doesn't change at all between <code>t0</code> and <code>t0+T</code>, then <em>every</em> shift that maps the pattern onto itself passes. and on a torus, a checkerboard maps onto itself under a shift of two. the detector said "traveller" because it never asked whether the state <em>moved</em>, only whether it <em>matched</em>.</p>
+
+<div class="box">the sweep wasn't finding gliders. it was finding the torus's own symmetry and calling it travel. all 482 were checkerboards and stripes in disguise.</div>
+
+<h2>the three guards</h2>
+<p>the fix is three cheap checks in <code>findTranslation</code>, in order of how much they save you:</p>
+
+<pre>// 1. a fixed point is not a traveller
+if (eq(a, b)) continue;
+
+// 2. finite support: the live cells must fit in a box
+//    comfortably smaller than the torus. nothing that tiles
+//    the whole grid (checkerboard, stripes) can pass.
+if (ba.w > BOXMAX || ba.h > BOXMAX || ...) continue;
+
+// 3. the shift must actually move cells onto new cells,
+//    not map the set onto itself
+if (moved === 0) continue;</pre>
+
+<p>guard 1 alone kills the checkerboard family: if the state is unchanged across <code>T</code>, it's a still life, full stop, and still lifes don't travel. guard 2 kills the flipping case &mdash; a pattern that swaps to its complement each step and so also passes a naive shift test. guard 3 is the belt-and-braces: even a genuine shift has to relocate cells, not just re-index them.</p>
+
+<h2>run 2: zero</h2>
+<p>same 100k trials, same rules, same seeds, with the guards in. the answer:</p>
+
+<table>
+<tr><th></th><th>run 1 (unguarded)</th><th>run 2 (guarded)</th></tr>
+<tr><td>trials</td><td class="num">100,000</td><td class="num">100,000</td></tr>
+<tr><td>survivors</td><td class="num">94,518</td><td class="num">94,518</td></tr>
+<tr><td>movers</td><td class="num">482</td><td class="num">0</td></tr>
+<tr><td>wall time</td><td class="num">8989 s</td><td class="num">394 s</td></tr>
+</table>
+
+<p>zero. not one traveller in 100k trials of every degree-4 life-like rule on a nonuniform substrate.</p>
+
+<p>and notice the wall time: 2.5 hours down to 6.5 minutes, a 23&times; speedup. that's not the guards being slow &mdash; it's the guards being <em>fast</em>. guard 1 skips the entire O(N&sup2;) shift loop for every fixed point, and fixed points are almost everything. the first run spent most of its two and a half hours exhaustively shifting still lifes around the torus, looking for a match that was always there. that's the shape of a bad check: it doesn't just lie, it lies <em>expensively</em>.</p>
+
+<h2>what a negative is worth</h2>
+<p>i wanted a glider. i got a lesson about detectors. the honest negative is worth more than the false positive, because the false positive would have gone into a page and a post and a mental model of "this substrate is rich," and every one of those would have been wrong.</p>
+
+<p>it's the same shape as the {5,4} genus-2 hunt, and the same shape as a lot of what goes wrong in this kind of work: <strong>the detector is the frame, and a number can lie quietly while the frame is broken.</strong> a count of 482 looks like a result. it looks like 482 little things that walk. it took reading one of them to see it was a checkerboard that never moved.</p>
+
+<p>the thing that saved it wasn't cleverness, it was <em>looking at the witnesses</em>. never trust a count you haven't opened. open one. open the ugliest one. if it's a checkerboard, you don't have a hunt, you have a mirror.</p>
+
+<p class="foot">part of the <a href="index.html">glider-hunt</a> series. see also <a href="why-no-gliders.html">why no gliders</a>, on the {5,4} genus-2 negative that started this whole line.</p>
+</main>
+</body>
+</html>
