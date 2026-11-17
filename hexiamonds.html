@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>the hexiamonds</title>
+<style>
+body{margin:0;background:#0e0e12;color:#8a93a0;font-family:ui-monospace,monospace}
+h1{font-size:15px;font-weight:400;padding:14px 14px 4px;color:#cdd}
+p{padding:0 14px;font-size:12px;max-width:640px;line-height:1.5}
+p a{color:#7bd}
+#g{display:flex;flex-wrap:wrap;gap:6px;padding:14px}
+.c{background:#161620;border:1px solid #23232e;border-radius:6px;position:relative}
+.c span{position:absolute;left:4px;top:2px;font-size:10px;color:#556}
+</style></head>
+<body>
+<h1>the hexiamonds</h1>
+<p>the twelve free hexiamonds: polyiamonds of six unit triangles, up to rotation and reflection. one of these twelve is the sphinx, the only pentagonal rep-4 rep-tile — four half-size copies of it rebuild it. can u spot which?</p>
+<div id=g></div>
+<script id=data type=application/json>[[[0, 0, 0], [-1, 0, 1], [-1, 1, 0], [-2, 1, 1], [-2, 2, 0], [0, -1, 1]], [[0, 0, 0], [-1, 0, 1], [-1, 1, 0], [-2, 1, 1], [-1, 1, 1], [0, -1, 1]], [[0, 0, 0], [-1, 0, 1], [-1, 1, 0], [-2, 1, 1], [-1, 1, 1], [0, 0, 1]], [[0, 0, 0], [-1, 0, 1], [-1, 1, 0], [-2, 1, 1], [-1, 1, 1], [0, 1, 0]], [[0, 0, 0], [-1, 0, 1], [-1, 1, 0], [-2, 1, 1], [-2, 1, 0], [-2, 0, 1]], [[0, 0, 0], [-1, 0, 1], [-1, 1, 0], [-2, 1, 1], [-2, 1, 0], [-3, 1, 1]], [[0, 0, 0], [-1, 0, 1], [-1, 1, 0], [-2, 1, 1], [-2, 1, 0], [0, -1, 1]], [[0, 0, 0], [-1, 0, 1], [-1, 1, 0], [-2, 1, 1], [-1, 1, 1], [-2, 2, 0]], [[0, 0, 0], [-1, 0, 1], [-1, 1, 0], [-2, 1, 1], [-1, 1, 1], [-2, 1, 0]], [[0, 0, 0], [-1, 0, 1], [-1, 1, 0], [-1, 1, 1], [0, 0, 1], [0, 1, 0]], [[0, 0, 0], [-1, 0, 1], [-1, 1, 0], [-2, 1, 1], [-2, 1, 0], [0, 0, 1]], [[0, 0, 0], [-1, 0, 1], [-1, 1, 0], [-2, 1, 1], [-1, 1, 1], [-1, 0, 0]]]</script>
+<script>
+const DATA=JSON.parse(document.getElementById('data').textContent);
+const h=Math.sqrt(3)/2;
+function P(i,j){return [i+j*0.5, -j*h];}
+function verts(c){const [i,j,o]=c;return o===0?[P(i,j),P(i+1,j),P(i,j+1)]:[P(i+1,j),P(i+1,j+1),P(i,j+1)];}
+const g=document.getElementById('g');
+DATA.forEach((cells,idx)=>{
+  const S=46, pad=8, W=S*2.4, H=S*2.4;
+  const d=document.createElement('div');d.className='c';d.style.width=W+'px';d.style.height=H+'px';
+  const c=document.createElement('canvas');c.width=W*2;c.height=H*2;c.style.width=W+'px';c.style.height=H+'px';
+  const ctx=c.getContext('2d');ctx.scale(2,2);
+  let xs=[],ys=[];cells.forEach(cc=>verts(cc).forEach(p=>{xs.push(p[0]);ys.push(p[1]);}));
+  const minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys);
+  const sc=Math.min((W-2*pad)/(maxx-minx),(H-2*pad)/(maxy-miny));
+  const ox=(W-(maxx-minx)*sc)/2-minx*sc, oy=(H-(maxy-miny)*sc)/2-miny*sc;
+  function T(p){return [ox+p[0]*sc, oy+p[1]*sc];}
+  ctx.fillStyle='#1b2a3a';ctx.strokeStyle='#3a5a6a';
+  cells.forEach(cc=>{ctx.beginPath();verts(cc).forEach((p,k)=>{const q=T(p);k?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]);});ctx.closePath();ctx.fill();ctx.stroke();});
+  d.appendChild(c);
+  const s=document.createElement('span');s.textContent=idx;d.appendChild(s);
+  g.appendChild(d);
+});
+</script></body></html>
