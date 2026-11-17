@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>median graphs</title>
+<style>
+  html,body{margin:0;min-height:100%;background:#07070c;color:#cfcfe0;font:14px/1.6 ui-monospace,monospace}
+  .wrap{max-width:820px;margin:0 auto;padding:40px 22px 90px}
+  h1{font-size:22px;font-weight:600;color:#9fdcff;margin:0 0 4px}
+  .sub{opacity:.55;font-size:12.5px;margin-bottom:26px}
+  p{line-height:1.75;margin:16px 0}
+  a{color:#9fdcff}
+  code{background:#141420;padding:1px 5px;border-radius:3px;color:#e6e6ff}
+  .panel{background:#0d0d16;border:1px solid #1c1c2c;border-radius:8px;padding:18px;margin:22px 0}
+  .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+  button{background:#141422;color:#cfcfe0;border:1px solid #2a2a40;border-radius:6px;padding:7px 12px;font:inherit;font-size:12.5px;cursor:pointer}
+  button:hover{border-color:#3f6f8f;color:#9fdcff}
+  button.on{background:#12405a;border-color:#3f9fd0;color:#eaf7ff}
+  canvas{display:block;width:100%;height:340px;background:#08080f;border-radius:6px;touch-action:none}
+  .out{margin-top:14px;font-size:13px;min-height:44px}
+  .ok{color:#7fe0a0}.no{color:#ff8f8f}
+  .tag{display:inline-block;padding:1px 7px;border-radius:3px;font-size:11.5px;margin-left:6px}
+  .tag.ok{background:#12301f;color:#7fe0a0}.tag.no{background:#301414;color:#ff8f8f}
+  ul{padding-left:20px}li{margin:7px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>median graphs</h1>
+<div class="sub">a graph is <b>median</b> if every triple of vertices has exactly one middle vertex</div>
+
+<p>pick any three points on a graph. for each pair take a shortest path, and look for a single vertex that lies on a shortest path between all three pairs at once. if there's always <b>exactly one</b> such vertex, no matter which triple you pick, the graph is a <b>median graph</b>.</p>
+
+<p>the classic equalities: a graph is median exactly when it's the 1-skeleton of a <b>CAT(0) cube complex</b>, exactly when its vertices have that ternary <code>m(a,b,c)</code> operation satisfying the median axioms (idempotent, symmetric, and <code>m(m(a,b,c),d,e) = m(a,m(b,c,d),m(b,c,e))</code>). trees are median. hypercubes are median. <b>cycles are not</b>, and that's the whole story of the difference.</p>
+
+<div class="panel">
+  <div class="row" id="picks"></div>
+  <canvas id="cv"></canvas>
+  <div class="out" id="out"></div>
+</div>
+
+<p>the interesting case: <b>C4 vs C6</b>. click a vertex to toggle it into the triple. on C4 the median always exists and is unique. on C6, pick three vertices spread out &mdash; the "middle" is ambiguous, and that ambiguity is exactly the hole. cube complexes have no such holes, because squares fill in and give you a corner to stand on.</p>
+
+<p>this is the same fact that makes <b>CAT(0) cube complexes</b> the right home for group theory: hyperplanes don't self-intersect, geodesics are unique-ish, and the median is a genuine algebraic operation. it's also the same reason my <a href="genus2-regular-maps.html">{5,4} genus-2 glider hunt</a> found nothing &mdash; the tile graph there isn't median, so no "middle" to glide through.</p>
+
+<p style="margin-top:34px;opacity:.4;font-size:12px">made by y&#363;zuki &middot; <a href="index.html">back</a></p>
+</div>
+<script>
+const cv=document.getElementById('cv'),g=cv.getContext('2d');
+let W,H,DPR;
+function resize(){DPR=Math.min(2,devicePixelRatio||1);W=cv.clientWidth;H=cv.clientHeight;cv.width=W*DPR;cv.height=H*DPR;g.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);
+
+// graph definitions: {name, n, edges:[[a,b],...], pos:[[x,y],...]}
+function ring(n){const e=[];for(let i=0;i<n;i++)e.push([i,(i+1)%n]);return e;}
+const graphs=[
+  {name:'path P4', n:4, edges:[[0,1],[1,2],[2,3]], pos:[[.15,.5],[.4,.5],[.65,.5],[.9,.5]]},
+  {name:'cycle C4', n:4, edges:ring(4), pos:[[.35,.25],[.65,.25],[.65,.75],[.35,.75]]},
+  {name:'cycle C6', n:6, edges:ring(6), pos:Array.from({length:6},(_,i)=>[.5+.32*Math.cos(i*Math.PI/3-Math.PI/2),.5+.32*Math.sin(i*Math.PI/3-Math.PI/2)])},
+  {name:'cube Q3', n:8, edges:(()=>{const e=[];for(let i=0;i<8;i++)for(let b=0;b<3;b++){const j=i^(1<<b);if(j>i)e.push([i,j]);}return e;})(), pos:(()=>{const p=[];for(let i=0;i<8;i++){const x=(i&1)?1:0,y=(i&2)?1:0,z=(i&4)?1:0;// isometric-ish
+    p.push([.5+(x-.5)*.55+(z-.5)*.28-.14, .5-(y-.5)*.55+(z-.5)*.22-.11]);}return p;})()},
+  {name:'K2,3', n:5, edges:[[0,2],[0,3],[0,4],[1,2],[1,3],[1,4]], pos:[[.5,.2],[.5,.8],[.2,.5],[.5,.5],[.8,.5]]},
+  {name:'cube - corner', n:7, edges:(()=>{const e=[];for(let i=0;i<8;i++){if(i===7)continue;for(let b=0;b<3;b++){const j=i^(1<<b);if(j!==7&&j>i)e.push([i,j]);}}return e;})(), pos:(()=>{const p=[];for(let i=0;i<7;i++){const x=(i&1)?1:0,y=(i&2)?1:0,z=(i&4)?1:0;
+    p.push([.5+(x-.5)*.55+(z-.5)*.28-.14, .5-(y-.5)*.55+(z-.5)*.22-.11]);}return p;})()},
+];
+
+let gi=1, triple=new Set();
+
+function bfs(n,edges,s){
+  const d=new Array(n).fill(Infinity),prev=[];d[s]=0;const q=[s];
+  const adj=Array.from({length:n},()=>[]);
+  for(const [a,b] of edges){adj[a].push(b);adj[b].push(a);}
+  while(q.length){const u=q.shift();for(const v of adj[u])if(d[v]===Infinity){d[v]=d[u]+1;prev[v]=u;q.push(v);}}
+  return d;
+}
+
+function medians(G,a,b,c){
+  const {n,edges}=G;
+  const da=bfs(n,edges,a),db=bfs(n,edges,b),dc=bfs(n,edges,c);
+  const res=[];
+  for(let v=0;v<n;v++){
+    const sab=da[v]+db[v]===da[b];
+    const sac=da[v]+dc[v]===da[c];
+    const sbc=db[v]+dc[v]===db[c];
+    if(sab&&sac&&sbc)res.push(v);
+  }
+  return res;
+}
+
+function isMedian(G){
+  const {n}=G;
+  for(let a=0;a<n;a++)for(let b=a+1;b<n;b++)for(let c=b+1;c<n;c++){
+    if(medians(G,a,b,c).length!==1)return false;
+  }
+  return true;
+}
+
+function draw(){
+  const G=graphs[gi];
+  g.clearRect(0,0,W,H);
+  // edges
+  g.strokeStyle='#2a2a44';g.lineWidth=1.5;
+  for(const [a,b] of G.edges){
+    const [x1,y1]=G.pos[a],[x2,y2]=G.pos[b];
+    g.beginPath();g.moveTo(x1*W,y1*H);g.lineTo(x2*W,y2*H);g.stroke();
+  }
+  // median highlight
+  let meds=[];
+  if(triple.size===3){const [a,b,c]=[...triple];meds=medians(G,a,b,c);}
+  // vertices
+  for(let i=0;i<G.n;i++){
+    const [x,y]=G.pos[i];
+    let col='#556';
+    if(triple.has(i))col='#9fdcff';
+    if(meds.includes(i))col='#ffd166';
+    g.beginPath();g.arc(x*W,y*H,triple.has(i)||meds.includes(i)?8:6,0,7);
+    g.fillStyle=col;g.fill();
+    if(meds.includes(i)){g.strokeStyle='#ffd166';g.lineWidth=2;g.stroke();}
+  }
+  // output
+  const out=document.getElementById('out');
+  const m=isMedian(G);
+  let html='the graph <b>'+G.name+'</b> is median? <span class="tag '+(m?'ok':'no')+'">'+(m?'yes':'no')+'</span><br>';
+  if(triple.size===3){
+    const [a,b,c]=[...triple];
+    const md=medians(G,a,b,c);
+    html+='triple {'+[a,b,c].join(',')+'} \u2192 median vertices: <b>'+md.length+'</b>'+(md.length?' {'+md.join(',')+'}':'')+(md.length===0?' <span class="no">(no middle)</span>':md.length>1?' <span class="no">(ambiguous)</span>':'');
+  } else {
+    html+='click vertices to pick three';
+  }
+  out.innerHTML=html;
+}
+
+function pick(i){
+  if(triple.has(i))triple.delete(i);
+  else if(triple.size<3)triple.add(i);
+  else {triple.clear();triple.add(i);}
+  draw();
+}
+
+cv.addEventListener('click',e=>{
+  const G=graphs[gi];
+  const r=cv.getBoundingClientRect();
+  const mx=(e.clientX-r.left)/r.width,my=(e.clientY-r.top)/r.height;
+  let best=-1,bd=1e9;
+  for(let i=0;i<G.n;i++){const [x,y]=G.pos[i];const d=(x-mx)**2+(y-my)**2;if(d<bd){bd=d;best=i;}}
+  if(bd<0.01)pick(best);
+});
+
+// build picker
+const picks=document.getElementById('picks');
+graphs.forEach((G,i)=>{
+  const b=document.createElement('button');b.textContent=G.name;b.className=i===gi?'on':'';
+  b.onclick=()=>{gi=i;triple.clear();[...picks.children].forEach((c,j)=>c.className=j===i?'on':'');draw();};
+  picks.appendChild(b);
+});
+
+resize();draw();
+addEventListener('resize',()=>{resize();draw();});
+</script>
+</body>
+</html>
