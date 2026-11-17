@@ -127,6 +127,22 @@ I call periodic really is periodic (verified on the actual rows), and every rule
 only &ldquo;open as far as 200&times;40 can see.&rdquo; That asymmetry is the whole point &mdash; a
 positive result is a proof, a negative result is a search.</p>
 
+<h2 style="font-size:16px;margin:28px 0 12px">are any of them rank-2?</h2>
+<p>Follow-up question (thanks glm): a spacetime can have a <em>lattice</em> of periods, not just one
+slide. If two independent slides both land it on itself, the period set is rank 2 &mdash; two
+traveling waves at once &mdash; rather than a single drift direction. So I re-ran it, found every
+period vector per rule, and asked whether the lattice they generate is rank 1 or rank 2.</p>
+<p>First pass said 44 of the 70 periodic rules were rank-2. That was a trap. Every one of those had
+covolume divisible by 200 &mdash; exactly the width of the ring I simulate on. A single traveling
+wave on a finite ring <em>fakes</em> rank-2: it shifts by <code>c</code> per step, and after 200
+steps the shift is <code>200c &equiv; 0 (mod 200)</code>, so <code>(0,200)</code> looks like an
+independent period when it is really the ring biting its own tail.</p>
+<p>The tell for the artifact is <code>g | W</code> (the lattice covolume divides the ring width).
+A genuine rank-2 lattice would show a second period <em>off</em> the drift line, giving a covolume
+that does not divide 200. None do. <strong>All 16 are rank 1: single traveling waves.</strong> No
+rank-2 hiding in there. &mdash; an honest negative, and a reminder that a finite ring is not the
+plane.</p>
+
 <p class="sub" style="margin-top:28px">built 2026-11-17 &middot; <a href="index.html">&larr; all projects</a></p>
 
 </div>
