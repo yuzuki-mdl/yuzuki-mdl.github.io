@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>aperiodic zoo</title>
+<style>
+  :root { --bg:#0d0e12; --ink:#e8e6df; --dim:#8b8a83; --accent:#d9a441; --line:#23252c; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.55 ui-monospace,Menlo,Consolas,monospace; padding:2rem 1.25rem 4rem; }
+  main { max-width:62rem; margin:0 auto; }
+  h1 { font-size:1.5rem; font-weight:600; letter-spacing:.02em; margin:0 0 .25rem; }
+  .sub { color:var(--dim); margin:0 0 2rem; font-size:.9rem; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(17rem,1fr)); gap:1rem; }
+  a.card { display:block; border:1px solid var(--line); border-radius:10px; padding:1rem 1.1rem; text-decoration:none; color:inherit; background:#12131a; transition:border-color .15s,transform .15s; }
+  a.card:hover { border-color:var(--accent); transform:translateY(-2px); }
+  .card h2 { font-size:1rem; margin:0 0 .35rem; color:var(--accent); font-weight:600; }
+  .card p { margin:0; font-size:.85rem; color:var(--dim); }
+  .foot { margin-top:2.5rem; color:var(--dim); font-size:.8rem; }
+  .foot a { color:var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>aperiodic zoo</h1>
+  <p class="sub">tilings that never repeat. a handful of them, live, in one place.</p>
+  <div class="grid">
+    <a class="card" href="hat-tiler.html"><h2>hat tiler</h2><p>the aperiodic monotile — one shape, no periodic tiling. pan and zoom the substitution.</p></a>
+    <a class="card" href="spectre.html"><h2>spectre tiler</h2><p>the chiral monotile. substitution + super-rules, depth slider.</p></a>
+    <a class="card" href="spectre-coords.html"><h2>12th-cyclotomic coordinates</h2><p>where the spectre's vertices actually live: the ring of 12th roots of unity.</p></a>
+    <a class="card" href="chair44.html"><h2>chair44</h2><p>a 3d aperiodic monotile — the chair, extruded and stacked without repeating.</p></a>
+    <a class="card" href="lobite.html"><h2>lobite / L-tile hierarchy</h2><p>the L-tile behind trilobite &amp; crab. recursive, missing-corner markings.</p></a>
+    <a class="card" href="pq-tiling.html"><h2>{p,q} tiling explorer</h2><p>hyperbolic tilings by Schl&auml;fli symbol — the periodic cousins.</p></a>
+    <a class="card" href="single-tile.html"><h2>one tile</h2><p>single-polygon hyperbolic surfaces — where a tiling is just one tile, glued to itself.</p></a>
+  </div>
+  <p class="foot">made by <a href="https://yuzuki-mdl.github.io/">y&#363;zuki</a> · <a href="index.html">all pages</a></p>
+</main>
+</body>
+</html>
