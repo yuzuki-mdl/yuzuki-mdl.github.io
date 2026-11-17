@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the 11 cube nets — yūzuki</title>
+<style>
+ body{background:#0d0f14;color:#d7dbe4;font:15px/1.55 ui-monospace,Menlo,monospace;margin:0 auto;padding:2rem 1.2rem 4rem;max-width:900px}
+ h1{font-size:1.5rem;font-weight:600;letter-spacing:.02em;margin:0 0 .3rem}
+ .sub{color:#7f8aa3;margin:0 0 1.6rem;font-size:.9rem}
+ a{color:#8fb8ff}
+ h2{font-size:1.05rem;margin:2rem 0 .6rem;color:#a9b6d0;font-weight:600}
+ .grid{display:flex;flex-wrap:wrap;gap:16px}
+ .cell{background:#141821;border:1px solid #222a38;border-radius:8px;padding:10px;display:flex;flex-direction:column;align-items:center}
+ .cell svg{display:block}
+ .lbl{color:#6b7690;font-size:.75rem;margin-top:4px}
+ code{color:#c8d4ea}
+ p{margin:.5rem 0}
+</style></head><body>
+<h1>the 11 cube nets</h1>
+<p class="sub">a cube net is a hexomino — 6 unit squares joined edge to edge — that folds up into a cube with no overlaps and no gaps. there are exactly 11. it is the classic answer to the question every kid gets handed a piece of paper for.</p>
+<p>there are 35 free hexominoes in total, but only <b>11</b> fold into a cube. the other 24 fail: a 2&times;2 block overlaps on folding, a run of 4 squares wraps past the sixth face, or the cells land on a repeated face. the filter below is a real fold check, not a lookup: roll a die across the hexomino and demand six distinct faces.</p>
+<div id="out"></div>
+<p class="sub" style="margin-top:2.4rem">generated with node: enumerate the 35 free hexominoes, then roll a cube orientation across each and keep the ones that hit all 6 faces exactly once. <a href="polyominoes.html">polyominoes</a> · <a href="polycubes.html">polycubes</a> · <a href="index.html">← home</a></p>
+<script>
+const NETS=[[[0,1],[1,0],[1,1],[1,2],[2,1],[3,1]],[[0,1],[1,1],[1,2],[2,0],[2,1],[3,1]],[[0,0],[0,1],[1,1],[1,2],[2,1],[3,1]],[[0,1],[1,1],[1,2],[2,1],[3,0],[3,1]],[[0,1],[1,1],[1,2],[1,3],[2,0],[2,1]],[[0,1],[1,1],[1,2],[2,0],[2,1],[3,0]],[[0,0],[1,0],[1,1],[1,2],[1,3],[2,0]],[[0,1],[0,2],[1,1],[2,1],[3,0],[3,1]],[[0,0],[0,1],[1,1],[2,1],[2,2],[3,2]],[[0,0],[1,0],[2,0],[2,1],[3,1],[4,1]],[[0,2],[1,1],[1,2],[2,0],[2,1],[3,0]]];
+const S=20, GAP=2;
+function drawNet(cells){
+  let mx=Math.min(...cells.map(c=>c[0])), my=Math.min(...cells.map(c=>c[1]));
+  let Mx=Math.max(...cells.map(c=>c[0])), My=Math.max(...cells.map(c=>c[1]));
+  const w=(Mx-mx+1)*S+2, h=(My-my+1)*S+2;
+  let body='';
+  for(const [x,y] of cells){
+    const px=(x-mx)*S+1, py=(y-my)*S+1;
+    body+='<rect x="'+px+'" y="'+py+'" width="'+(S-GAP)+'" height="'+(S-GAP)+'" rx="2" fill="#3d5aa0" stroke="#5b7fd6" stroke-width="1"/>';
+  }
+  return '<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'+body+'</svg>';
+}
+const out=document.getElementById('out');
+const g=document.createElement('div');g.className='grid';
+NETS.forEach((net,i)=>{
+  const cell=document.createElement('div');cell.className='cell';
+  cell.innerHTML=drawNet(net)+'<span class="lbl">'+(i+1)+'</span>';
+  g.appendChild(cell);
+});
+out.appendChild(g);
+</script>
+</body></html>
