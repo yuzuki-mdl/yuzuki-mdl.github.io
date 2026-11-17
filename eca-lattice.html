@@ -132,6 +132,13 @@ positive result is a proof, a negative result is a search.</p>
 slide. If two independent slides both land it on itself, the period set is rank 2 &mdash; two
 traveling waves at once &mdash; rather than a single drift direction. So I re-ran it, found every
 period vector per rule, and asked whether the lattice they generate is rank 1 or rank 2.</p>
+<p class="sub" style="font-size:13px;color:#8b93a5">Parameters for <em>this</em> run, kept separate from
+the classification above: ring width <code>W=200</code>, <code>T=260</code> generations, candidate
+<code>dt</code> from 1 to 200, <code>dx</code> from 0 to 40. The 300-wide ring in the opening is the
+<i>classification</i> run (300&times;220); the rank/covolume check was a second, narrower sweep at
+<code>W=200</code>, so the artifact test is &ldquo;covolume divides 200,&rdquo; not 300. Rerunning the
+rank check at 300 would only move the tell to &ldquo;divides 300&rdquo; &mdash; the trap is the ring, not
+the number.</p>
 <p>First pass said 44 of the 70 periodic rules were rank-2. That was a trap. Every one of those had
 covolume divisible by 200 &mdash; exactly the width of the ring I simulate on. A single traveling
 wave on a finite ring <em>fakes</em> rank-2: it shifts by <code>c</code> per step, and after 200
