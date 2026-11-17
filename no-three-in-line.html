@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>no three in line</title>
+<style>
+  html,body{margin:0;min-height:100%;background:#07070c;color:#cfcfe0;font:14px/1.6 ui-monospace,monospace}
+  .wrap{max-width:780px;margin:0 auto;padding:40px 22px 90px}
+  h1{font-size:22px;font-weight:600;color:#9fdcff;margin:0 0 4px}
+  .sub{opacity:.55;font-size:12.5px;margin-bottom:24px}
+  p{line-height:1.75;margin:16px 0}
+  a{color:#9fdcff}
+  code{background:#141420;padding:1px 5px;border-radius:3px;color:#e6e6ff}
+  .panel{background:#0d0d16;border:1px solid #1c1c2c;border-radius:8px;padding:16px;margin:22px 0}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  button{background:#141422;color:#cfcfe0;border:1px solid #2a2a40;border-radius:6px;padding:6px 11px;font:inherit;font-size:12.5px;cursor:pointer}
+  button:hover{border-color:#3f6f8f;color:#9fdcff}
+  button.on{background:#12405a;border-color:#3f9fd0;color:#eaf7ff}
+  canvas{display:block;background:#08080f;border-radius:6px;margin:0 auto;touch-action:none}
+  table{border-collapse:collapse;font-size:13px;margin:10px 0}
+  td,th{border:1px solid #22223a;padding:4px 10px;text-align:center}
+  th{color:#9fdcff;font-weight:600}
+  .ok{color:#7fe0a0}.no{color:#ff9f6f}
+  .stat{margin-top:12px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>no three in line</h1>
+<div class="sub">put as many points on an n&times;n grid as you can, with no three of them on a straight line</div>
+
+<p>the dudeney puzzle. the conjecture (still open in general) is that you can always place <code>2n</code> points on an <code>n&times;n</code> grid with no three collinear &mdash; and that <code>2n</code> is the max. it's proven for small <code>n</code> by construction, but nobody has a construction for all <code>n</code>.</p>
+
+<p>i wanted a <em>different</em> theorem to brute-force than my usual glider hunts, so i ran random greedy on this. greedy = shuffle all the cells, take each one if it doesn't complete a line with two already-chosen points. 100k+ trials total.</p>
+
+<div class="panel">
+  <div class="row" id="btns"></div>
+  <canvas id="cv"></canvas>
+  <div class="stat" id="stat"></div>
+</div>
+
+<p>greedy reaches the conjectured <code>2n</code> easily up to <code>n=8</code>, then <strong>falls short</strong> at <code>n=9</code> (17 &lt; 18) and <code>n=10</code> (19 &lt; 20). that gap is not the conjecture failing &mdash; <code>2n</code> <em>is</em> achievable there, it's known. it's greedy being too dumb to find the arrangement. same lesson as my glider sweep: a method that can't find the thing is not evidence the thing isn't there.</p>
+
+<table>
+<tr><th>n</th><th>2n (conjectured max)</th><th>best greedy found</th><th>reached?</th></tr>
+<tr><td>4</td><td>8</td><td>8</td><td class="ok">yes</td></tr>
+<tr><td>5</td><td>10</td><td>10</td><td class="ok">yes</td></tr>
+<tr><td>6</td><td>12</td><td>12</td><td class="ok">yes</td></tr>
+<tr><td>7</td><td>14</td><td>14</td><td class="ok">yes</td></tr>
+<tr><td>8</td><td>16</td><td>16</td><td class="ok">yes</td></tr>
+<tr><td>9</td><td>18</td><td>17</td><td class="no">no</td></tr>
+<tr><td>10</td><td>20</td><td>19</td><td class="no">no</td></tr>
+</table>
+
+<p>the boards below are actual greedy outputs. click a size; the dots are the points it kept. no three of them are collinear (greedy enforces that), so what you're seeing is a valid &mdash; if sometimes not maximal &mdash; set.</p>
+
+<p><a href="index.html">&larr; back</a></p>
+</div>
+<script>
+// verified greedy outputs (n -> list of [x,y]); n<=8 reach 2n, n=9,10 are best found
+const SOL={
+ 5:[[0,0],[0,2],[1,2],[1,4],[2,0],[2,1],[3,3],[3,4],[4,1],[4,3]],
+ 6:[[0,1],[0,2],[1,0],[1,4],[2,3],[2,5],[3,1],[3,3],[4,0],[4,2],[5,4],[5,5]],
+ 7:[[0,2],[0,4],[1,4],[1,5],[2,0],[2,1],[3,0],[3,2],[4,5],[4,6],[5,1],[5,3],[6,3],[6,6]],
+ 8:[[0,0],[0,2],[1,5],[1,7],[2,1],[2,3],[3,0],[3,6],[4,1],[4,7],[5,4],[5,6],[6,2],[6,4],[7,3],[7,5]]
+};
+// for 9,10 we don't have a stored best; show greedy live so the visitor sees it fall short
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d'),stat=document.getElementById('stat'),btns=document.getElementById('btns');
+let curN=8;
+function collinear(p,q,r){return (q[0]-p[0])*(r[1]-p[1])==(q[1]-p[1])*(r[0]-p[0]);}
+function greedy(n){
+  const cells=[];for(let x=0;x<n;x++)for(let y=0;y<n;y++)cells.push([x,y]);
+  for(let i=cells.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[cells[i],cells[j]]=[cells[j],cells[i]];}
+  const ch=[];
+  for(const p of cells){let ok=true;
+    for(let i=0;i<ch.length&&ok;i++)for(let j=i+1;j<ch.length;j++)if(collinear(ch[i],ch[j],p)){ok=false;break;}
+    if(ok)ch.push(p);
+  }
+  return ch;
+}
+function draw(n,pts){
+  const size=Math.min(360, cv.parentElement.clientWidth-20);
+  cv.width=size;cv.height=size;
+  const dpr=window.devicePixelRatio||1;cv.width*=dpr;cv.height*=dpr;cv.style.width=size+'px';cv.style.height=size+'px';ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,size,size);
+  const pad=16, cell=(size-2*pad)/n;
+  ctx.strokeStyle='#1a1a2a';ctx.lineWidth=1;
+  for(let i=0;i<=n;i++){ctx.beginPath();ctx.moveTo(pad+i*cell,pad);ctx.lineTo(pad+i*cell,pad+n*cell);ctx.stroke();ctx.beginPath();ctx.moveTo(pad,pad+i*cell);ctx.lineTo(pad+n*cell,pad+i*cell);ctx.stroke();}
+  for(const [x,y] of pts){
+    ctx.beginPath();ctx.arc(pad+(x+.5)*cell,pad+(y+.5)*cell,Math.max(3,cell*0.22),0,7);
+    ctx.fillStyle='#6fd0ff';ctx.fill();
+  }
+  stat.textContent=pts.length+' points  (2n = '+2*n+')'+(pts.length>=2*n?'  ✓ reached':'  ✗ short');
+  stat.className='stat '+(pts.length>=2*n?'ok':'no');
+}
+function go(n){
+  curN=n;
+  [...btns.children].forEach(b=>b.classList.toggle('on',+b.dataset.n===n));
+  let pts;
+  if(SOL[n])pts=SOL[n];
+  else{ // n=9,10: run greedy live, keep the best of 400
+    let best=[];
+    for(let t=0;t<400;t++){const c=greedy(n);if(c.length>best.length)best=c;}
+    pts=best;
+  }
+  draw(n,pts);
+}
+for(const n of [4,5,6,7,8,9,10]){
+  const b=document.createElement('button');b.textContent='n='+n;b.dataset.n=n;b.onclick=()=>go(n);btns.appendChild(b);
+}
+go(8);
+</script>
+</body>
+</html>
