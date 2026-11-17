@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>snarks — the smallest graph that refuses 3 colors</title>
+<style>
+  :root{--bg:#0d0f14;--fg:#e8e6e0;--dim:#7a7f8a;--line:#3a3f4a;--c0:#e05a5a;--c1:#5ab0e0;--c2:#8fe05a;--bad:#e0b040;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-monospace,Menlo,monospace;padding:2rem;max-width:900px;margin:auto}
+  h1{font-size:1.5rem;font-weight:600;margin:0 0 .5rem}
+  h2{font-size:1.1rem;margin:2rem 0 .5rem;color:var(--c1)}
+  p{color:#c8c8c0}
+  .dim{color:var(--dim)}
+  .wrap{display:flex;gap:2.5rem;flex-wrap:wrap;align-items:flex-start;margin:1.5rem 0}
+  svg{background:#14161c;border-radius:8px}
+  .panel{flex:1;min-width:260px}
+  button{background:#20242c;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:.5rem .9rem;font:inherit;cursor:pointer;margin:.2rem}
+  button:hover{border-color:var(--c1)}
+  button:active{transform:translateY(1px)}
+  .msg{margin-top:.8rem;min-height:1.6em;color:var(--bad)}
+  .ok{color:var(--c2)}
+  code{background:#1a1d24;padding:.1em .3em;border-radius:3px;font-size:.92em}
+  .legend{display:flex;gap:1rem;margin:.5rem 0;font-size:.85rem}
+  .sw{display:inline-block;width:1em;height:1em;border-radius:2px;vertical-align:-2px;margin-right:.3em}
+</style>
+</head>
+<body>
+<h1>snarks</h1>
+<p>a <b>snark</b> is a cubic graph (every vertex has 3 edges) that you <b>cannot</b> properly edge-color with 3 colors. every edge gets one of 3 colors, no two edges of the same color may meet at a vertex. sounds easy. a snark is a graph where it's impossible.</p>
+<p class="dim">by vizing's theorem every cubic graph is 3- or 4-edge-colorable. snarks are exactly the ones that need 4. they're all nonplanar and non-hamiltonian. the smallest is the petersen graph (10 vertices).</p>
+
+<h2>the petersen graph</h2>
+<div class="wrap">
+  <svg id="pet" width="320" height="320" viewBox="0 0 320 320"></svg>
+  <div class="panel">
+    <div class="legend">
+      <span><span class="sw" style="background:var(--c0)"></span>color 1</span>
+      <span><span class="sw" style="background:var(--c1)"></span>color 2</span>
+      <span><span class="sw" style="background:var(--c2)"></span>color 3</span>
+    </div>
+    <p class="dim" style="font-size:.9rem">click an edge to cycle its color. try to make no two edges at any vertex share a color.</p>
+    <button onclick="autoColor('pet')">try to auto-color</button>
+    <button onclick="clearColor('pet')">clear</button>
+    <div class="msg" id="petmsg"></div>
+  </div>
+</div>
+
+<h2>the blanuša snark (first kind)</h2>
+<div class="wrap">
+  <svg id="bla" width="360" height="360" viewBox="0 0 360 360"></svg>
+  <div class="panel">
+    <p class="dim" style="font-size:.9rem">18 vertices. two 9-cycles joined by a perfect matching. also impossible with 3 colors.</p>
+    <button onclick="autoColor('bla')">try to auto-color</button>
+    <button onclick="clearColor('bla')">clear</button>
+    <div class="msg" id="blamsg"></div>
+  </div>
+</div>
+
+<h2>why it's impossible</h2>
+<p>a proper 3-edge-coloring of a cubic graph is the same as a <b>1-factorization</b>: split all the edges into 3 perfect matchings (each color is a set of edges covering every vertex exactly once). so a snark is a cubic graph with no 1-factorization.</p>
+<p>the clean reason petersen fails: it has no hamiltonian cycle, and brooks'/parity arguments bite. but the real invariant is that a 3-edge-coloring corresponds to a proper vertex coloring of the <b>line graph</b>, and the line graph of petersen is the complement of the petersen graph itself — which is famously not 3-colorable (it's the smallest graph of chromatic number 4 that isn't a complete graph).</p>
+<p>snarks are weird and rare. the sequence of snark counts: 1 (10v), 2 (18v), 5 (20v), 12 (22v)... they were studied for the four-color theorem (tait's reformulation: 4CT ⟺ every bridgeless cubic planar graph is 3-edge-colorable, so a snark being nonplanar is exactly why 4CT survives them).</p>
+
+<script>
+const COLORS = ['var(--c0)','var(--c1)','var(--c2)'];
+const graphs = {};
+
+function buildPetersen(){
+  const nodes=[];
+  for(let i=0;i<5;i++){const a=-Math.PI/2+i*2*Math.PI/5; nodes.push({x:160+120*Math.cos(a),y:160+120*Math.sin(a)});}
+  for(let i=0;i<5;i++){const a=-Math.PI/2+i*2*Math.PI/5; nodes.push({x:160+55*Math.cos(a),y:160+55*Math.sin(a)});}
+  const edges=[];
+  for(let i=0;i<5;i++) edges.push([i,(i+1)%5]);
+  for(let i=0;i<5;i++) edges.push([5+i,5+(i+2)%5]);
+  for(let i=0;i<5;i++) edges.push([i,5+i]);
+  return {nodes,edges};
+}
+
+function buildBlanusa(){
+  const nodes=[];
+  const sig=[0,2,4,1,3,6,8,5,7];
+  for(let i=0;i<9;i++){const a=-Math.PI/2+i*2*Math.PI/9; nodes.push({x:180+150*Math.cos(a),y:180+150*Math.sin(a)});}
+  for(let i=0;i<9;i++){const a=-Math.PI/2+i*2*Math.PI/9; nodes.push({x:180+75*Math.cos(a),y:180+75*Math.sin(a)});}
+  const edges=[];
+  for(let i=0;i<9;i++) edges.push([i,(i+1)%9]);
+  for(let i=0;i<9;i++) edges.push([9+i,9+(i+1)%9]);
+  for(let i=0;i<9;i++) edges.push([i,9+sig[i]]);
+  return {nodes,edges};
+}
+
+function render(id){
+  const g = graphs[id];
+  const svg = document.getElementById(id);
+  const W = +svg.getAttribute('width');
+  svg.innerHTML='';
+  const ns='http://www.w3.org/2000/svg';
+  g.edges.forEach((e,idx)=>{
+    const [a,b]=e;
+    const line=document.createElementNS(ns,'line');
+    line.setAttribute('x1',g.nodes[a].x);line.setAttribute('y1',g.nodes[a].y);
+    line.setAttribute('x2',g.nodes[b].x);line.setAttribute('y2',g.nodes[b].y);
+    line.setAttribute('stroke', g.col && g.col[idx]>=0 ? COLORS[g.col[idx]] : '#3a3f4a');
+    line.setAttribute('stroke-width', g.col && g.col[idx]>=0 ? 4 : 2);
+    line.setAttribute('stroke-linecap','round');
+    line.dataset.edge=idx; line.style.cursor='pointer';
+    line.addEventListener('click',()=>cycleEdge(id,idx));
+    svg.appendChild(line);
+  });
+  g.nodes.forEach(n=>{
+    const c=document.createElementNS(ns,'circle');
+    c.setAttribute('cx',n.x);c.setAttribute('cy',n.y);c.setAttribute('r',6);
+    c.setAttribute('fill','#e8e6e0');
+    svg.appendChild(c);
+  });
+}
+
+function cycleEdge(id,idx){
+  const g=graphs[id];
+  if(!g.col) g.col=[];
+  const cur = g.col[idx]>=0?g.col[idx]:-1;
+  g.col[idx] = cur+1>2 ? -1 : cur+1;
+  render(id);
+  checkMsg(id);
+}
+
+function clearColor(id){
+  const g=graphs[id]; g.col=[]; render(id);
+  document.getElementById(id+'msg').textContent='';
+}
+
+function checkMsg(id){
+  const g=graphs[id];
+  const msg=document.getElementById(id+'msg');
+  // check each vertex
+  const inc={};
+  g.nodes.forEach((_,i)=>inc[i]=[]);
+  g.edges.forEach((e,i)=>{inc[e[0]].push(i);inc[e[1]].push(i);});
+  let conflict=false;
+  for(const v in inc){
+    const cs=inc[v].map(i=>g.col&&g.col[i]>=0?g.col[i]:null).filter(x=>x!==null);
+    if(new Set(cs).size!==cs.length) conflict=true;
+  }
+  const allColored = g.edges.every((_,i)=>g.col&&g.col[i]>=0);
+  msg.className='msg';
+  if(conflict) msg.textContent='conflict: two same-colored edges meet at a vertex';
+  else if(allColored) msg.textContent='you did it? (you should not be able to)';
+  else msg.textContent='';
+}
+
+function autoColor(id){
+  const g=graphs[id];
+  const inc={}; g.nodes.forEach((_,i)=>inc[i]=[]);
+  g.edges.forEach((e,i)=>{inc[e[0]].push(i);inc[e[1]].push(i);});
+  const col=new Array(g.edges.length).fill(-1);
+  function ok(i,c){const [a,b]=g.edges[i];
+    for(const j of inc[a]) if(j!==i&&col[j]===c) return false;
+    for(const j of inc[b]) if(j!==i&&col[j]===c) return false;
+    return true;}
+  function bt(k){
+    if(k===g.edges.length) return true;
+    for(let c=0;c<3;c++){if(ok(k,c)){col[k]=c;if(bt(k+1))return true;col[k]=-1;}}
+    return false;}
+  const res=bt(0);
+  g.col=col.slice(); render(id);
+  const msg=document.getElementById(id+'msg');
+  if(res){msg.textContent='colored! (unexpected)';msg.className='msg ok';}
+  else{msg.textContent='no 3-coloring exists. the search tried every option and failed.';msg.className='msg';}
+}
+
+graphs.pet=buildPetersen(); graphs.bla=buildBlanusa();
+render('pet'); render('bla');
+</script>
+</body>
+</html>
