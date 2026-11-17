@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ford circles</title>
+<style>
+  :root{--bg:#0b0d12;--fg:#e8ecf4;--dim:#7a8699;--acc:#7ad0ff;--acc2:#ff9ecb}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+  #wrap{display:flex;height:100%;flex-direction:column}
+  header{padding:14px 18px;border-bottom:1px solid #1b2130}
+  h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.02em}
+  .sub{color:var(--dim);font-size:12px;margin-top:4px}
+  .sub b{color:var(--acc)}
+  #stage{flex:1;position:relative;min-height:0}
+  canvas{display:block;width:100%;height:100%;cursor:crosshair}
+  #hud{position:absolute;left:14px;bottom:12px;font-size:12px;color:var(--dim);pointer-events:none;line-height:1.7}
+  #hud b{color:var(--fg)}
+  #hud .ok{color:#7dffa0}
+  #hud .no{color:#ff8a8a}
+  #bar{position:absolute;right:14px;top:12px;display:flex;gap:8px;align-items:center;font-size:12px;color:var(--dim)}
+  button{background:#161c28;color:var(--fg);border:1px solid #2a3448;border-radius:6px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{border-color:var(--acc)}
+  input[type=range]{accent-color:var(--acc);width:130px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <h1>ford circles</h1>
+    <div class="sub">every fraction p/q gets a circle above the line at x=p/q, radius 1/(2q&sup2;). any two of them are either <b>tangent</b> or <b>disjoint</b> &mdash; they never overlap. hover one to check. this is the horocycle picture of ℚ: the circles are horocycles, the point where each touches the line is a cusp of the modular surface.</div>
+  </header>
+  <div id="stage"><canvas id="c"></canvas>
+    <div id="bar"><label>depth <input id="d" type="range" min="0" max="9" value="6"></label><span id="cnt"></span></div>
+    <div id="hud"></div>
+  </div>
+</div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const hud=document.getElementById('hud'), cnt=document.getElementById('cnt'), dEl=document.getElementById('d');
+let W=0,H=0,cx=0,cy=0,R=0,dpr=1;
+let circles=[]; // {p,q,x,y,r}
+let hover=null;
+
+// build all ford circles with denominators up to N (via farey / stern-brocot by brute gcd)
+function build(N){
+  circles=[];
+  for(let q=1;q<=N;q++){
+    for(let p=0;p<=q;p++){
+      if(gcd(p,q)!==1) continue;
+      const x=p/q, r=1/(2*q*q);
+      circles.push({p,q,x,y:r,r});
+    }
+  }
+}
+function gcd(a,b){ while(b){[a,b]=[b,a%b];} return a; }
+
+function resize(){
+  const rc=cv.getBoundingClientRect();
+  dpr=window.devicePixelRatio||1;
+  W=rc.width; H=rc.height;
+  cv.width=W*dpr; cv.height=H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  // fit [0,1] horizontally with margin; line near bottom
+  R=W*0.86; cx=(W-R)/2; cy=H*0.72;
+  draw();
+}
+function X(x){ return cx+x*R; }
+function Y(y){ return cy-y*R; }
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // baseline (the real line)
+  ctx.strokeStyle='#2a3448'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(X(0)-40,Y(0)); ctx.lineTo(X(1)+40,Y(0)); ctx.stroke();
+  // circles
+  for(const c of circles){
+    const sx=X(c.x), sy=Y(c.y), sr=c.r*R;
+    const isHover = hover===c;
+    ctx.beginPath(); ctx.arc(sx,sy,sr,0,Math.PI*2);
+    if(isHover){ ctx.fillStyle='rgba(122,208,255,0.22)'; ctx.fill(); ctx.strokeStyle='#7ad0ff'; }
+    else { ctx.strokeStyle='rgba(122,208,255,0.45)'; }
+    ctx.lineWidth=isHover?1.6:1; ctx.stroke();
+  }
+  // hud
+  if(hover){
+    const c=hover;
+    let lines=[`<b>${c.p}/${c.q}</b> &nbsp; radius 1/(2&middot;${c.q}&sup2;) = ${c.r.toFixed(5)}`];
+    // find its neighbours (tangent ones) and one non-tangent to show
+    let tan=0, near=null, nearD=1e9;
+    for(const d of circles){
+      if(d===c) continue;
+      const dx=d.x-c.x, dy=d.y-c.y, dist=Math.hypot(dx,dy), sum=c.r+d.r;
+      if(Math.abs(dist-sum)<1e-9) tan++;
+      if(dist < sum-1e-9 && Math.abs(dist-sum)<nearD){ nearD=Math.abs(dist-sum); near=d; }
+    }
+    lines.push(`tangent to <span class="ok">${tan}</span> other circle${tan===1?'':'s'}`);
+    lines.push(`never overlapping: min gap to any neighbour &ge; 0`);
+    hud.innerHTML=lines.join('<br>');
+  } else {
+    hud.innerHTML='hover a circle &middot; <b>'+circles.length+'</b> circles shown';
+  }
+  cnt.textContent=circles.length+' circles';
+}
+
+function pick(mx,my){
+  // circle under cursor = smallest r containing point
+  let best=null, bestR=1e9;
+  for(const c of circles){
+    const sx=X(c.x), sy=Y(c.y), sr=c.r*R;
+    const d=Math.hypot(mx-sx,my-sy);
+    if(d<=sr && c.r<bestR){ best=c; bestR=c.r; }
+  }
+  return best;
+}
+
+cv.addEventListener('mousemove',e=>{
+  const rc=cv.getBoundingClientRect();
+  const m=pick(e.clientX-rc.left, e.clientY-rc.top);
+  if(m!==hover){ hover=m; draw(); }
+});
+cv.addEventListener('mouseleave',()=>{ hover=null; draw(); });
+
+dEl.addEventListener('input',()=>{ const N=2**Math.min(parseInt(dEl.value),9)*1; // depth -> max denom
+  // map slider 0..9 to maxDen 1,2,3,4,6,8,12,16,24,32
+  const den=[1,2,3,4,6,8,12,16,24,32][parseInt(dEl.value)];
+  build(den); hover=null; draw();
+});
+window.addEventListener('resize',resize);
+build(12);
+resize();
+</script>
+</body>
+</html>
