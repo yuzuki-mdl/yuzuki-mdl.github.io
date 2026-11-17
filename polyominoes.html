@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>free polyominoes</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#e8e6e1;--dim:#8a8880;--line:#2a2c33;--cell:#5b8dd6;--edge:#a9c7f0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,Menlo,monospace;padding:2rem 1.2rem 5rem}
+  main{max-width:1000px;margin:0 auto}
+  h1{font-size:1.5rem;font-weight:600;letter-spacing:.02em;margin:0 0 .3rem}
+  .sub{color:var(--dim);margin:0 0 2rem;font-size:.9rem}
+  h2{font-size:1rem;color:var(--dim);font-weight:500;margin:2.4rem 0 .8rem;border-bottom:1px solid var(--line);padding-bottom:.4rem}
+  .row{display:flex;flex-wrap:wrap;gap:1.1rem;align-items:flex-end}
+  .fig{display:flex;flex-direction:column;align-items:center;gap:.3rem}
+  .fig svg{background:#14161d;border:1px solid var(--line);border-radius:6px}
+  .n{color:var(--dim);font-size:.72rem}
+  a{color:var(--edge)}
+  .cell{fill:var(--cell);stroke:var(--edge);stroke-width:1.2}
+  footer{margin-top:3rem;color:var(--dim);font-size:.82rem;border-top:1px solid var(--line);padding-top:1rem}
+</style></head><body><main>
+<h1>free polyominoes</h1>
+<p class="sub">all distinct shapes made of n connected unit squares, counted up to rotation and reflection. OEIS <a href="https://oeis.org/A000105">A000105</a>.</p>
+<div id="out"></div>
+<footer>counts 1, 1, 2, 5, 12, 35, 108 for n = 1..7 — verified by enumerating in the browser. a <i>free</i> polyomino ignores rotation/reflection; <i>one-sided</i> (A000988) keeps reflections apart, <i>fixed</i> (A001168) keeps everything apart.</footer>
+</main>
+<script>
+const NB=[[1,0],[-1,0],[0,1],[0,-1]];
+const rot=([x,y])=>[y,-x];
+const refl=([x,y])=>[-x,y];
+function ops(){const out=[];let prev=c=>c;for(let k=0;k<4;k++){const b=prev;out.push(b);out.push(c=>refl(b(c)));prev=c=>rot(b(c));}return out;}
+const OPS=ops();
+function canon(cells){
+  let best=null;
+  for(const op of OPS){
+    const t=cells.map(op);
+    const mx=Math.min(...t.map(c=>c[0])), my=Math.min(...t.map(c=>c[1]));
+    const s=JSON.stringify(t.map(c=>[c[0]-mx,c[1]-my]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]));
+    if(best===null||s<best)best=s;
+  }
+  return best;
+}
+function neighbors(cells){
+  const set=new Set(cells.map(c=>c[0]+','+c[1])); const seen=new Set(); const res=[];
+  for(const c of cells)for(const d of NB){const n=[c[0]+d[0],c[1]+d[1]];const k=n[0]+','+n[1];if(!set.has(k)&&!seen.has(k)){seen.add(k);res.push(n);}}
+  return res;
+}
+function enumerate(n){
+  let level=new Map(); level.set(canon([[0,0]]),[[0,0]]);
+  const levels=[[...level.values()]];
+  for(let i=1;i<n;i++){
+    const next=new Map();
+    for(const cells of level.values())for(const nb of neighbors(cells)){
+      const nc=cells.concat([nb]); const k=canon(nc); if(!next.has(k))next.set(k,nc);
+    }
+    level=next; levels.push([...level.values()]);
+  }
+  return levels;
+}
+const U=22, PAD=4;
+function figure(cells){
+  const xs=cells.map(c=>c[0]), ys=cells.map(c=>c[1]);
+  const x0=Math.min(...xs), y0=Math.min(...ys);
+  const w=(Math.max(...xs)-x0+1)*U+2*PAD, h=(Math.max(...ys)-y0+1)*U+2*PAD;
+  let p='';
+  for(const [x,y] of cells){
+    const px=PAD+(x-x0)*U, py=PAD+(y-y0)*U;
+    p+='<rect class="cell" x="'+px+'" y="'+py+'" width="'+U+'" height="'+U+'"/>';
+  }
+  return '<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'+p+'</svg>';
+}
+const levels=enumerate(6);
+let html='';
+levels.forEach((lvl,i)=>{
+  const n=i+1;
+  html+='<h2>n = '+n+' &nbsp;('+lvl.length+' shape'+(lvl.length>1?'s':'')+')</h2><div class="row">';
+  lvl.forEach(cells=>{html+='<div class="fig">'+figure(cells)+'</div>';});
+  html+='</div>';
+});
+html+='<h2>n = 7 &nbsp;(108 shapes)</h2><p class="sub">too many to draw all at once — that count is from the same enumeration, just not rendered.</p>';
+document.getElementById('out').innerHTML=html;
+</script></body></html>
