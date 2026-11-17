@@ -1,0 +1,73 @@
+<!doctype html><html><head><meta charset=utf-8><title>modular horocycles / a real cusp</title>
+<style>
+body{margin:0;background:#0d0d12;color:#d8d8e0;font:14px/1.5 ui-monospace,monospace;display:flex;flex-direction:column;align-items:center}
+canvas{display:block;max-width:100%;height:auto}
+.pad{padding:14px 18px;max-width:760px}
+h1{font-size:15px;font-weight:400;letter-spacing:.04em;margin:0 0 6px}
+.dim{color:#7a7a8a}
+code{color:#a8c8ff}
+</style></head><body>
+<div class=pad>
+<h1>modular horocycles — the cusp that's actually a cusp</h1>
+<div class=dim>upper half plane mod PSL(2,&#8484;). the cusp at i&#8734; is a real cusp: a finite-area surface has it as a point, with infinite horocycle structure heaping in. horocycles at i&#8734; are the horizontal lines y=c; in the fundamental domain they wrap into loops around the cusp. drag to pan, scroll to zoom.</div>
+</div>
+<canvas id=c width=900 height=600></canvas>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let ox=0,oy=0,scale=1;
+const W=cv.width,H=cv.height;
+// world: upper half plane, y up. map world->screen
+function sx(x){return W/2 + (x-ox)*scale*140;}
+function sy(y){return H - (y-oy)*scale*140;}
+// fundamental domain of PSL(2,Z): |x|<=1/2, |z|>=1, plus the two arcs |z|=1
+function drawFD(){
+  ctx.strokeStyle='#ffb060';ctx.lineWidth=1.6;ctx.beginPath();
+  // left vertical x=-1/2 from y=sqrt(3)/2 up
+  const a=Math.sqrt(3)/2;
+  ctx.moveTo(sx(-0.5),sy(a));ctx.lineTo(sx(-0.5),sy(6));
+  ctx.moveTo(sx(0.5),sy(a));ctx.lineTo(sx(0.5),sy(6));
+  // arc |z|=1 from angle 60 to 120 (in world coords, x=cos,y=sin)
+  ctx.moveTo(sx(Math.cos(Math.PI/3)),sy(Math.sin(Math.PI/3)));
+  for(let t=Math.PI/3;t<=2*Math.PI/3;t+=0.01){ctx.lineTo(sx(Math.cos(t)),sy(Math.sin(t)));}
+  ctx.stroke();
+}
+// translate by n: x -> x+n. draw the FD translated
+function drawFDT(n){ctx.save();ctx.translate(n*140*scale,0);drawFD();ctx.restore();}
+function drawHorocycles(){
+  // horizontal lines y=c for a set of c
+  const cs=[0.12,0.2,0.32,0.5,0.75,1.1,1.6,2.4,3.5];
+  for(const c of cs){
+    ctx.strokeStyle='rgba(120,200,255,'+(0.25+0.5/Math.max(1,c)) +')';
+    ctx.lineWidth=1.2;
+    ctx.beginPath();ctx.moveTo(0,sy(c));ctx.lineTo(W,sy(c));ctx.stroke();
+  }
+  // the loop around the cusp: image of y=c under the FD wrap = the horocycle cycle on modular surface.
+  // visually: draw the FD-clipped arc of y=c, plus its translates, thicker.
+  ctx.strokeStyle='#ffffff';ctx.lineWidth=2.2;
+  for(const c of [0.5,1.1,2.4]){
+    ctx.beginPath();
+    // within FD: x in [-1/2,1/2]
+    ctx.moveTo(sx(-0.5),sy(c));ctx.lineTo(sx(0.5),sy(c));ctx.stroke();
+  }
+}
+function draw(){
+  ctx.fillStyle='#0d0d12';ctx.fillRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle='rgba(255,255,255,0.05)';ctx.lineWidth=1;
+  for(let x=-4;x<=4;x+=0.5){ctx.beginPath();ctx.moveTo(sx(x),0);ctx.lineTo(sx(x),H);ctx.stroke();}
+  for(let y=0;y<=6;y+=0.5){ctx.beginPath();ctx.moveTo(0,sy(y));ctx.lineTo(W,sy(y));ctx.stroke();}
+  drawHorocycles();
+  // FD and translates
+  for(let n=-3;n<=3;n++){ctx.save();ctx.translate(n*140*scale,0);drawFD();ctx.restore();}
+  // cusp marker at i*infty (top)
+  ctx.fillStyle='#ffb060';ctx.font='12px ui-monospace,monospace';
+  ctx.fillText('cusp at i∞  (a point, area finite)',10,20);
+  ctx.fillText('fundamental domain of PSL(2,ℤ)',10,38);
+}
+let drag=false,lx,ly;
+cv.addEventListener('mousedown',e=>{drag=true;lx=e.clientX;ly=e.clientY;});
+window.addEventListener('mouseup',()=>drag=false);
+window.addEventListener('mousemove',e=>{if(!drag)return;ox-=(e.clientX-lx)/(140*scale);oy+=(e.clientY-ly)/(140*scale);lx=e.clientX;ly=e.clientY;draw();});
+cv.addEventListener('wheel',e=>{e.preventDefault();const f=e.deltaY<0?1.1:0.9;scale*=f;draw();},{passive:false});
+draw();
+</script></body></html>
