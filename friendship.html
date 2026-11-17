@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the friendship theorem</title>
+<style>
+  :root { --bg:#0d0f14; --fg:#e6e6e6; --dim:#8b93a7; --acc:#7fd1c1; --warm:#e0a060; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 ui-monospace,Menlo,monospace; padding:2rem 1rem 6rem; }
+  main { max-width:720px; margin:0 auto; }
+  h1 { font-size:1.5rem; font-weight:600; letter-spacing:-.01em; margin:0 0 .25rem; }
+  .sub { color:var(--dim); margin:0 0 2rem; font-size:.9rem; }
+  h2 { font-size:1rem; color:var(--acc); margin:2.2rem 0 .6rem; font-weight:600; }
+  p { margin:.7rem 0; }
+  em { color:var(--warm); font-style:normal; }
+  .box { background:#141821; border:1px solid #232a38; border-radius:10px; padding:1rem 1.2rem; margin:1rem 0; }
+  canvas { display:block; width:100%; max-width:480px; height:auto; margin:0 auto; background:#0a0c10; border-radius:8px; cursor:crosshair; touch-action:none; }
+  .row { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; justify-content:center; margin:.8rem 0; }
+  button { background:#1c2230; color:var(--fg); border:1px solid #2c3546; border-radius:7px; padding:.4rem .8rem; font:inherit; font-size:.85rem; cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  .msg { text-align:center; min-height:1.5em; font-size:.9rem; }
+  .ok { color:var(--acc); } .bad { color:#e07070; }
+  code { color:var(--warm); }
+</style>
+</head>
+<body>
+<main>
+<h1>the friendship theorem</h1>
+<p class="sub">every pair of people has exactly one common friend → somebody knows everybody</p>
+
+<p>theorem (erdős–rényi–sós, 1966): if in a finite group of people <em>every two people have exactly one common friend</em>, then there is one person who is friends with everyone.</p>
+
+<p>that feels wrong the first time. a party where any two guests share exactly one mutual acquaintance sounds like it could be a nice symmetric web of strangers. it can't. the only graphs with that property are <em>windmills</em>: triangles glued at one shared vertex.</p>
+
+<h2>why</h2>
+<p>the proof runs by contradiction. if no one knows everybody, pick a person <code>a</code> and a non-friend <code>b</code>. the friends of <code>a</code> and the friends of <code>b</code> must pair up one-to-one (each friend of <code>a</code> is the unique common friend of some friend of <code>b</code>), so <code>a</code> and <code>b</code> have the same degree. that makes the graph regular. then counting the common friends of a pair two ways (rows × columns of the adjacency matrix) forces the degree to satisfy <code>k(k−1) = n−1</code>, and a short eigenvalue argument shows that's impossible for any real graph unless the windmill structure appears — which does have a universal vertex.</p>
+
+<h2>try it</h2>
+<p>click two dots to toggle an edge. the checker looks for the property and, if it holds, lights up the politician.</p>
+
+<canvas id="cv" width="480" height="480"></canvas>
+<div class="row">
+  <button id="clear">clear</button>
+  <button id="windmill">windmill (n=7)</button>
+  <button id="c5">C<sub>5</sub></button>
+  <button id="random">random</button>
+</div>
+<div class="msg" id="msg">click two dots to draw an edge</div>
+
+<p style="color:var(--dim);font-size:.85rem;margin-top:2rem">the windmill with <code>m</code> blades has <code>2m+1</code> vertices: one hub, and <code>m</code> triangles hanging off it. any two blade-vertices from different triangles share exactly the hub; two from the same triangle share their third corner; the hub and any blade-vertex share... the hub is friends with everything, so the theorem's conclusion holds. it's the only shape that does.</p>
+</main>
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const msg = document.getElementById('msg');
+let N = 7;
+let pos = [];
+let adj = [];
+let sel = -1;
+
+function layout(n) {
+  N = n;
+  pos = [];
+  const cx = cv.width/2, cy = cv.height/2, R = cv.width*0.38;
+  for (let i=0;i<n;i++) {
+    const t = -Math.PI/2 + 2*Math.PI*i/n;
+    pos.push([cx + R*Math.cos(t), cy + R*Math.sin(t)]);
+  }
+  adj = Array.from({length:n},()=>Array(n).fill(0));
+}
+
+function draw() {
+  ctx.clearRect(0,0,cv.width,cv.height);
+  // edges
+  for (let i=0;i<N;i++) for (let j=i+1;j<N;j++) if (adj[i][j]) {
+    ctx.strokeStyle = '#3a4a5a'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(...pos[i]); ctx.lineTo(...pos[j]); ctx.stroke();
+  }
+  // vertices
+  for (let i=0;i<N;i++) {
+    ctx.beginPath(); ctx.arc(...pos[i], 9, 0, 7);
+    ctx.fillStyle = i===sel ? '#7fd1c1' : '#1c2230';
+    ctx.fill();
+    ctx.strokeStyle = '#7fd1c1'; ctx.lineWidth = 1.5; ctx.stroke();
+  }
+}
+
+function check() {
+  // common-friend matrix
+  const cf = Array.from({length:N},()=>Array(N).fill(0));
+  for (let i=0;i<N;i++) for (let j=0;j<N;j++) if (i!==j) {
+    let c=0; for (let k=0;k<N;k++) if (adj[i][k]&&adj[j][k]) c++;
+    cf[i][j]=c;
+  }
+  let bad=null;
+  outer:
+  for (let i=0;i<N;i++) for (let j=i+1;j<N;j++) if (cf[i][j]!==1) { bad=[i,j,cf[i][j]]; break outer; }
+  if (bad) {
+    msg.className='msg bad';
+    msg.textContent = `no: pair (${bad[0]},${bad[1]}) has ${bad[2]} common friend(s), need exactly 1`;
+    return;
+  }
+  // find universal vertex
+  let pol=-1;
+  for (let i=0;i<N;i++) { let d=0; for (let j=0;j<N;j++) if (i!==j&&adj[i][j]) d++; if (d===N-1) pol=i; }
+  if (pol>=0) {
+    msg.className='msg ok';
+    msg.textContent = `property holds — vertex ${pol} knows everyone ✓`;
+    ctx.beginPath(); ctx.arc(...pos[pol], 15, 0, 7);
+    ctx.strokeStyle='#e0a060'; ctx.lineWidth=2.5; ctx.stroke();
+  } else {
+    msg.className='msg bad';
+    msg.textContent = 'property holds but no universal vertex?! (impossible — bug)';
+  }
+}
+
+function hit(x,y) {
+  for (let i=0;i<N;i++) {
+    const dx=x-pos[i][0], dy=y-pos[i][1];
+    if (dx*dx+dy*dy < 22*22) return i;
+  }
+  return -1;
+}
+
+function evt(e) {
+  const r = cv.getBoundingClientRect();
+  const x = (e.clientX-r.left)*cv.width/r.width;
+  const y = (e.clientY-r.top)*cv.height/r.height;
+  const i = hit(x,y);
+  if (i<0) return;
+  if (sel<0) { sel=i; }
+  else if (sel===i) { sel=-1; }
+  else { adj[sel][i]=adj[i][sel]=1-adj[sel][i]; sel=-1; }
+  draw(); check();
+}
+cv.addEventListener('mousedown', evt);
+cv.addEventListener('touchstart', e=>{ e.preventDefault(); evt(e.touches[0]); }, {passive:false});
+
+document.getElementById('clear').onclick = ()=>{ layout(N); sel=-1; draw(); msg.className='msg'; msg.textContent='cleared'; };
+document.getElementById('c5').onclick = ()=>{ layout(5); for(let i=0;i<5;i++) adj[i][(i+1)%5]=adj[(i+1)%5][i]=1; sel=-1; draw(); check(); };
+document.getElementById('random').onclick = ()=>{ layout(N); for(let i=0;i<N;i++)for(let j=i+1;j<N;j++) if(Math.random()<0.45) adj[i][j]=adj[j][i]=1; sel=-1; draw(); check(); };
+document.getElementById('windmill').onclick = ()=>{ layout(7); adj=Array.from({length:7},()=>Array(7).fill(0)); for(let b=0;b<3;b++){ const a=1+2*b, c=2+2*b; adj[0][a]=adj[a][0]=adj[0][c]=adj[c][0]=adj[a][c]=adj[c][a]=1; } sel=-1; draw(); check(); };
+
+layout(7); draw(); check();
+</script>
+</body>
+</html>
