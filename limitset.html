@@ -26,7 +26,7 @@
 <div id="wrap">
   <header>
     <h1>limit set</h1>
-    <div class="sub">a <b>Schottky group</b>: two pairs of disjoint circles, each pair generating a hyperbolic M&ouml;bius map that sends the inside of one circle to the outside of its partner. iterate every word up to length <b id="dep">6</b> and plot where one interior point lands. the points converge onto the <b>limit set</b> &mdash; a Cantor set on the boundary, not the whole circle. <button id="circles">show circles</button> <button id="reset">reset</button></div>
+    <div class="sub">a <b>Schottky group</b>: two pairs of disjoint circles, each pair generating a hyperbolic M&ouml;bius map that sends the inside of one circle to the outside of its partner. iterate every word up to length <b id="dep">8</b> and plot where one interior point lands. the points converge onto the <b>limit set</b> &mdash; a Cantor set on the boundary, not the whole circle. <button id="circles">show circles</button> <button id="reset">reset</button></div>
   </header>
   <div id="stage"><canvas id="c"></canvas><div id="hud"></div></div>
 </div>
@@ -35,65 +35,27 @@ const cv=document.getElementById('c'), ctx=cv.getContext('2d');
 const hud=document.getElementById('hud');
 let W=0,H=0,cx=0,cy=0,R=0,dpr=1;
 let showCircles=false;
-let maxDepth=6;
+let maxDepth=8;
 
 // ---- the four defining circles (centre, radius) in disk coords ----
 // chosen symmetric: two on the left, two on the right, all inside the unit disk
-const C1={x:-0.55,y: 0.30,r:0.22};
-const C2={x:-0.55,y:-0.30,r:0.22};
-const C3={x: 0.55,y: 0.30,r:0.22};
-const C4={x: 0.55,y:-0.30,r:0.22};
+const C1={x:-0.32,y: 0.32,r:0.28};
+const C2={x:-0.32,y:-0.32,r:0.28};
+const C3={x: 0.32,y: 0.32,r:0.28};
+const C4={x: 0.32,y:-0.32,r:0.28};
 
-// Möbius map sending circle A's interior to the exterior of circle B, taking the
-// interior of A to the exterior of B. Built from the pair of reflection maps:
-// the reflection in a circle is z -> a + r^2/(conj(z)-conj(a)). The Schottky map
-// is reflection in B composed with reflection in A.
-function reflCirc(c){ // reflection in circle c
-  return z=>{
-    const dx=z[0]-c.x, dy=z[1]-c.y;
-    const d2=dx*dx+dy*dy;
-    const s=c.r*c.r/d2;
-    return [c.x+s*dx, c.y+s*dy];
-  };
-}
-// a Möbius map as a 2x2 complex matrix [[a,b],[c,d]] acting z -> (a z + b)/(c z + d)
-// we build it from two circle reflections using the standard lift.
-function reflMatrix(c){
-  // reflection in circle |z-a|=r as matrix (up to scale):
-  // z -> a + r^2 conj(z-a)/|z-a|^2 . As an anti-Möbius map.
-  // anti-map: z -> (A conj(z) + B)/(C conj(z) + D) with A=-a, B=|a|^2-r^2, C=1, D=-conj(a)
-  const ax=c.x, ay=c.y;
-  const a=[ax,ay];
-  const A=[-ax,-ay];
-  const B=[ax*ax+ay*ay-c.r*c.r,0];
-  const C=[1,0];
-  const D=[-ax,ay]; // -conj(a)
-  return {A,B,C,D,anti:true};
+// Schottky generator: the unique Möbius map taking circle c1's interior to the
+// EXTERIOR of circle c2 (both circles disjoint). Built as: translate c1 to unit
+// disk, invert through the unit circle (int<->ext), then scale to c2.
+//   T(z) = b + (r1*r2)/(z - a)   where a=c1 centre, b=c2 centre.
+function schottky(c1,c2){
+  const sr=c1.r*c2.r;
+  const bax=c2.x*c1.x-c2.y*c1.y, bay=c2.x*c1.y+c2.y*c1.x; // b*a
+  return {A:[c2.x,c2.y], B:[sr-bax,-bay], C:[1,0], D:[-c1.x,-c1.y], anti:false};
 }
 function cmul(p,q){return [p[0]*q[0]-p[1]*q[1], p[0]*q[1]+p[1]*q[0]];}
 function cadd(p,q){return [p[0]+q[0], p[1]+q[1]];}
 function cconj(p){return [p[0],-p[1]];}
-// compose two anti-Möbius maps -> a Möbius (orientation preserving) map
-// given m1 = (A1,B1,C1,D1) anti and m2 anti, m2∘m1 is Mobius
-function composeAntiToMobius(m2,m1){
-  // m1(z)= (A1 c(z)+B1)/(C1 c(z)+D1), m2(w)=(A2 c(w)+B2)/(C2 c(w)+D2)
-  // plug: numerator = A2 c(m1(z)) + B2, denominator = C2 c(m1(z)) + D2
-  // c(m1(z)) = (c(A1) z + c(B1))/(c(C1) z + c(D1))
-  const nA=cmul(m2.A, cconj(m1.A));
-  const nB=cmul(m2.A, cconj(m1.B));
-  const nC=cmul(m2.C, cconj(m1.A));
-  const nD=cmul(m2.C, cconj(m1.B));
-  const dA=cmul(m2.C, cconj(m1.C));
-  const dB=cmul(m2.C, cconj(m1.D));
-  const dC=cmul(m2.D, cconj(m1.C));
-  const dD=cmul(m2.D, cconj(m1.D));
-  // m2(c(m1)) = (A2 * c(m1).num + B2 * c(m1).den) / (C2 * c(m1).num + D2 * c(m1).den)
-  const A=cadd(cmul(m2.A,cconj(m1.A)), cmul(m2.B, cconj(m1.C)));
-  const B=cadd(cmul(m2.A,cconj(m1.B)), cmul(m2.B, cconj(m1.D)));
-  const C=cadd(cmul(m2.C,cconj(m1.A)), cmul(m2.D, cconj(m1.C)));
-  const D=cadd(cmul(m2.C,cconj(m1.B)), cmul(m2.D, cconj(m1.D)));
-  return {A,B,C,D,anti:false};
-}
 function applyMob(m,z){
   const num=cadd(cmul(m.A,z),m.B);
   const den=cadd(cmul(m.C,z),m.D);
@@ -103,8 +65,8 @@ function applyMob(m,z){
 
 // Schottky generators: T1 = refl(C2)∘refl(C1) sends inside(C1) to outside(C2)
 // T2 = refl(C4)∘refl(C3) sends inside(C3) to outside(C4)
-const T1=composeAntiToMobius(reflMatrix(C2), reflMatrix(C1));
-const T2=composeAntiToMobius(reflMatrix(C4), reflMatrix(C3));
+const T1=schottky(C1,C2);
+const T2=schottky(C3,C4);
 const T1i=invertMob(T1);
 const T2i=invertMob(T2);
 function invertMob(m){return {A:m.D,B:[-m.B[0],-m.B[1]],C:[-m.C[0],-m.C[1]],D:m.A,anti:false};}
@@ -207,7 +169,7 @@ cv.addEventListener('wheel',e=>{
 
 let dragging=false,lastX=0,lastY=0;
 document.getElementById('circles').addEventListener('click',e=>{showCircles=!showCircles;e.target.classList.toggle('on',showCircles);draw();});
-document.getElementById('reset').addEventListener('click',()=>{maxDepth=6;document.getElementById('dep').textContent=6;draw();});
+document.getElementById('reset').addEventListener('click',()=>{maxDepth=8;document.getElementById("dep").textContent=8;draw();});
 
 resize();
 addEventListener('resize',resize);
