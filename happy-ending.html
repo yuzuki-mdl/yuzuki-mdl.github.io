@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the happy ending problem</title>
+<style>
+  :root{--bg:#0e1116;--fg:#e6edf3;--dim:#8b949e;--acc:#7ee0c8;--warn:#e0a97e;--line:#222a35}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+  h1{font-size:22px;margin:0 0 4px;font-weight:600}
+  .sub{color:var(--dim);margin:0 0 22px;font-size:13px}
+  p{color:#c9d1d9;margin:0 0 16px}
+  .stage{position:relative;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#0a0d12}
+  canvas{display:block;width:100%;height:auto;touch-action:none;cursor:crosshair}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0}
+  button{background:#1a2230;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  .stat{color:var(--dim);font-size:13px}
+  .stat b{color:var(--acc)}
+  .note{font-size:13px;color:var(--dim);border-left:2px solid var(--line);padding-left:12px;margin:20px 0}
+  code{background:#161b22;padding:1px 5px;border-radius:4px;color:var(--acc)}
+  .fact{color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>the happy ending problem</h1>
+  <p class="sub">click to drop points. the tool finds the largest subset in convex position (no point inside the hull of the others).</p>
+
+  <p>Erdős and Szekeres asked: how many points in general position guarantee that some <code>k</code> of them form a convex <code>k</code>-gon? Call that number <code>ES(k)</code>. Click points and watch the biggest empty convex subset grow.</p>
+
+  <div class="stage"><canvas id="cv" width="820" height="520"></canvas></div>
+
+  <div class="row">
+    <button id="clear">clear</button>
+    <button id="rand">random 10</button>
+    <span class="stat" id="stat">points: 0 · biggest convex subset: 0</span>
+  </div>
+
+  <div class="note">
+    <span class="fact">ES(3) = 3 · ES(4) = 5 · ES(5) = 9 · ES(6) = 17.</span><br>
+    ES(3) and ES(4) are easy. ES(5)=9 is a classic. ES(6)=17 took until 2006 to prove by computer (Szekeres–Peters). Beyond 6 nobody knows the exact value — only bounds. It's called the "happy ending" problem because Erdős and Szekeres married, and the problem led to their marriage (the story goes).<br><br>
+    The hard direction: a set of 8 points with <em>no</em> 5 in convex position exists. Try to build one. Then find 9 points that force it.
+  </div>
+</div>
+
+<script>
+const cv=document.getElementById('cv');
+const ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+let pts=[];
+
+function cross(o,a,b){return (a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x);}
+
+// convex hull (monotone chain), returns indices
+function hullIdx(idx){
+  const p=idx.map(i=>pts[i]).map((q,i)=>({x:q.x,y:q.y,i:idx[i]}));
+  if(p.length<3) return p.map(q=>q.i);
+  p.sort((a,b)=>a.x-b.x||a.y-b.y);
+  const lo=[];
+  for(const q of p){while(lo.length>=2&&cross(lo[lo.length-2],lo[lo.length-1],q)<=0)lo.pop();lo.push(q);}
+  const up=[];
+  for(let i=p.length-1;i>=0;i--){const q=p[i];while(up.length>=2&&cross(up[up.length-2],up[up.length-1],q)<=0)up.pop();up.push(q);}
+  lo.pop();up.pop();
+  return lo.concat(up).map(q=>q.i);
+}
+
+// is subset in convex position: every point is a hull vertex of the subset
+function inConvexPos(idx){
+  if(idx.length<3) return true;
+  const h=hullIdx(idx);
+  return h.length===idx.length;
+}
+
+// brute force largest convex subset (n small)
+let bestSubset=[];
+function findBest(){
+  const n=pts.length;
+  bestSubset=[];
+  // cap search: if n large, just check full set and greedy
+  if(n<=20){
+    let best=[];
+    for(let mask=1;mask<(1<<n);mask++){
+      let cnt=0;for(let i=0;i<n;i++)if(mask&(1<<i))cnt++;
+      if(cnt<=best.length) continue;
+      const idx=[];for(let i=0;i<n;i++)if(mask&(1<<i))idx.push(i);
+      if(inConvexPos(idx)) best=idx;
+    }
+    bestSubset=best;
+  } else {
+    // greedy: full set hull, that's a lower bound
+    bestSubset=hullIdx([...Array(n).keys()]);
+  }
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // grid dots
+  ctx.fillStyle='#141a22';
+  for(let x=20;x<W;x+=40)for(let y=20;y<H;y+=40){ctx.beginPath();ctx.arc(x,y,1,0,7);ctx.fill();}
+
+  // draw best convex subset polygon
+  if(bestSubset.length>=3){
+    const h=hullIdx(bestSubset);
+    ctx.beginPath();
+    h.forEach((i,k)=>{const p=pts[i];if(k===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);});
+    ctx.closePath();
+    ctx.fillStyle='rgba(126,224,200,0.10)';
+    ctx.fill();
+    ctx.strokeStyle='rgba(126,224,200,0.7)';ctx.lineWidth=2;ctx.stroke();
+  }
+
+  const inBest=new Set(bestSubset);
+  pts.forEach((p,i)=>{
+    ctx.beginPath();ctx.arc(p.x,p.y,5,0,7);
+    if(inBest.has(i)){ctx.fillStyle='#7ee0c8';}
+    else{ctx.fillStyle='#8b949e';}
+    ctx.fill();
+    ctx.strokeStyle='#0a0d12';ctx.lineWidth=1.5;ctx.stroke();
+  });
+
+  document.getElementById('stat').innerHTML=
+    'points: <b>'+pts.length+'</b> · biggest convex subset: <b>'+bestSubset.length+'</b>';
+}
+
+cv.addEventListener('click',e=>{
+  const r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left)*(W/r.width);
+  const y=(e.clientY-r.top)*(H/r.height);
+  // avoid near-duplicates
+  if(pts.some(p=>Math.hypot(p.x-x,p.y-y)<14))return;
+  pts.push({x,y});
+  findBest();draw();
+});
+
+document.getElementById('clear').onclick=()=>{pts=[];bestSubset=[];draw();};
+document.getElementById('rand').onclick=()=>{
+  pts=[];
+  let tries=0;
+  while(pts.length<10&&tries<500){
+    tries++;
+    const x=40+Math.random()*(W-80),y=40+Math.random()*(H-80);
+    if(pts.some(p=>Math.hypot(p.x-x,p.y-y)<30))continue;
+    // general position: avoid 3 collinear roughly
+    pts.push({x,y});
+  }
+  findBest();draw();
+};
+
+draw();
+</script>
+</body>
+</html>
