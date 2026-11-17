@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>horocycles</title>
+<style>
+  :root{--bg:#0b0d12;--fg:#e8ecf4;--dim:#7a8699;--acc:#7ad0ff;--acc2:#ff9ecb}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+  #wrap{display:flex;height:100%;flex-direction:column}
+  header{padding:14px 18px;border-bottom:1px solid #1b2130}
+  h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.02em}
+  .sub{color:var(--dim);font-size:12px;margin-top:4px}
+  .sub b{color:var(--acc)}
+  #stage{flex:1;position:relative;min-height:0}
+  canvas{display:block;width:100%;height:100%;cursor:crosshair}
+  #hud{position:absolute;left:14px;bottom:12px;font-size:12px;color:var(--dim);pointer-events:none;line-height:1.7}
+  #hud b{color:var(--fg)}
+  button{background:#161c28;color:var(--fg);border:1px solid #2a3448;border-radius:6px;padding:4px 10px;font:inherit;font-size:12px;cursor:pointer}
+  button:hover{border-color:var(--acc)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <h1>horocycles</h1>
+    <div class="sub">drag the point in the disk. every <b>horocycle</b> through it is drawn &mdash; a circle tangent to the boundary from inside. horocycles are the &ldquo;circles of infinite radius&rdquo;: limits of hyperbolic circles whose centre runs off to infinity. <button id="center">recenter</button></div>
+  </header>
+  <div id="stage"><canvas id="c"></canvas><div id="hud"></div></div>
+</div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const hud=document.getElementById('hud');
+let W=0,H=0,cx=0,cy=0,R=0,dpr=1;
+let p=[0.45,0.0]; // the point all horocycles pass through (disk coords)
+
+function resize(){
+  const r=cv.getBoundingClientRect();
+  dpr=window.devicePixelRatio||1;
+  W=r.width; H=r.height;
+  cv.width=W*dpr; cv.height=H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  cx=W/2; cy=H/2; R=Math.min(W,H)*0.46;
+  draw();
+}
+function toScreen(q){ return [cx+q[0]*R, cy+q[1]*R]; }
+function fromScreen(x,y){ return [(x-cx)/R,(y-cy)/R]; }
+
+// horocycle through interior point p, tangent to the unit circle at angle t.
+// circle internally tangent at T=(cos t, sin t): centre C=(1-r)T, radius r.
+// require |p-C|=r  ->  solve for r.
+// |p - (1-r)T|^2 = r^2
+// |p|^2 - 2(1-r)(p.T) + (1-r)^2 = r^2
+// |p|^2 - 2(p.T) + 2r(p.T) + 1 - 2r + r^2 = r^2
+// 2r( (p.T) - 1 ) = 2(p.T) - 1 - |p|^2
+// r = ( 2(p.T) - 1 - |p|^2 ) / ( 2( (p.T) - 1 ) )
+function horocycle(t){
+  const T=[Math.cos(t),Math.sin(t)];
+  const pT=p[0]*T[0]+p[1]*T[1];
+  const pp=p[0]*p[0]+p[1]*p[1];
+  const den=2*(pT-1);
+  if(Math.abs(den)<1e-9) return null;
+  const r=(2*pT-1-pp)/den;
+  if(!(r>0)||r>1) return null;
+  const c=[(1-r)*T[0],(1-r)*T[1]];
+  return {c,r,T};
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // boundary circle
+  ctx.strokeStyle='#2a3448'; ctx.lineWidth=1.5;
+  ctx.beginPath();ctx.arc(cx,cy,R,0,2*Math.PI);ctx.stroke();
+
+  // fan of horocycles through p, one per tangent direction
+  const N=180;
+  for(let i=0;i<N;i++){
+    const t=i/N*2*Math.PI;
+    const h=horocycle(t);
+    if(!h) continue;
+    const [sx,sy]=toScreen(h.c);
+    const fade=0.06+0.34*Math.pow(Math.abs(Math.sin(t*0.5)),0.5);
+    ctx.strokeStyle='rgba(122,208,255,'+fade.toFixed(3)+')';
+    ctx.lineWidth=1.1;
+    ctx.beginPath();ctx.arc(sx,sy,h.r*R,0,2*Math.PI);ctx.stroke();
+  }
+
+  // the point
+  const [px,py]=toScreen(p);
+  ctx.fillStyle='#ff9ecb'; ctx.shadowColor='#ff9ecb'; ctx.shadowBlur=10;
+  ctx.beginPath();ctx.arc(px,py,5,0,2*Math.PI);ctx.fill();
+  ctx.shadowBlur=0;
+
+  updateHud();
+}
+
+function updateHud(){
+  const rho=Math.hypot(p[0],p[1]);
+  const d=Math.acosh(1+2*rho*rho/((1-rho*rho)*(1-rho*rho)));
+  // actually hyperbolic distance from origin to p is 2 atanh(rho)
+  const dist=2*Math.atanh(rho);
+  hud.innerHTML='point at hyperbolic distance <b>'+dist.toFixed(3)+'</b> from centre &nbsp; (euclidean r '+rho.toFixed(3)+')';
+}
+
+let dragging=false;
+function setFromEvent(e){
+  const r=cv.getBoundingClientRect();
+  let q=fromScreen(e.clientX-r.left, e.clientY-r.top);
+  const rho=Math.hypot(q[0],q[1]);
+  if(rho>=0.985){ q=[q[0]/rho*0.985, q[1]/rho*0.985]; }
+  p=q; draw();
+}
+cv.addEventListener('pointerdown',e=>{dragging=true;cv.setPointerCapture(e.pointerId);setFromEvent(e);});
+cv.addEventListener('pointermove',e=>{if(dragging)setFromEvent(e);});
+cv.addEventListener('pointerup',()=>{dragging=false;});
+document.getElementById('center').addEventListener('click',()=>{p=[0,0];draw();});
+window.addEventListener('resize',resize);
+resize();
+</script>
+</body>
+</html>
