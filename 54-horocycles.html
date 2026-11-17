@@ -1,0 +1,148 @@
+<!doctype html><html><head><meta charset=utf-8><title>{5,4} horocycles</title>
+<meta name=viewport content='width=device-width,initial-scale=1'>
+<style>
+html,body{margin:0;height:100%;background:#0d0d12;color:#e8e8f0;font-family:ui-monospace,Menlo,monospace;overflow:hidden}
+canvas{display:block}
+#hud{position:fixed;left:14px;top:14px;font-size:13px;line-height:1.5;pointer-events:none}
+#hud b{color:#c8b6ff}
+.dim{color:#7a7a92}
+#ctl{position:fixed;right:14px;top:14px;font-size:12px;text-align:right}
+#ctl button{background:#1c1c28;color:#e8e8f0;border:1px solid #33334a;border-radius:6px;padding:4px 8px;margin:2px;cursor:pointer;font-family:inherit}
+#ctl button:hover{background:#2a2a3c}
+</style></head><body>
+<canvas id=c></canvas>
+<div id=hud></div>
+<div id=ctl>
+<div class=dim>horocycle tangent point</div>
+<div><button id=reset>recenter</button></div>
+<div class=dim style='margin-top:8px'>show</div>
+<div><button data-t=tiling>tiling</button><button data-t=pencil>pencil</button></div>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H,cx,cy,R;
+const p=5,q=4, view={x:0,y:0,z:1};
+let showTiling=true, showPencil=true;
+
+const C=(re,im)=>({re,im});
+const add=(a,b)=>C(a.re+b.re,a.im+b.im);
+const sub=(a,b)=>C(a.re-b.re,a.im-b.im);
+const mul=(a,b)=>C(a.re*b.re-a.im*b.im,a.re*b.im+a.im*b.re);
+const abs2=a=>a.re*a.re+a.im*a.im;
+const scale=(a,s)=>C(a.re*s,a.im*s);
+
+function geodesicCircle(a,b){
+  const ax=a.re,ay=a.im,bx=b.re,by=b.im;
+  const det=4*(ax*by-ay*bx);
+  const r1=1+abs2(a), r2=1+abs2(b);
+  const ccx=(r1*2*by - r2*2*ay)/det;
+  const ccy=(2*ax*r2 - 2*bx*r1)/det;
+  const c=C(ccx,ccy);
+  const r=Math.sqrt(abs2(c)-1);
+  return {c,r};
+}
+function reflect(z,a,b){
+  const g=geodesicCircle(a,b);
+  const zz=sub(z,g.c);const d=abs2(zz);
+  return add(g.c,C(g.r*g.r*zz.re/d, g.r*g.r*zz.im/d));
+}
+function initPolygon(){
+  const coshR=Math.cos(Math.PI/q)/Math.sin(Math.PI/p);
+  const Rh=Math.acosh(Math.max(1.0001,coshR));
+  const rho=Math.tanh(Rh/2);
+  const verts=[];
+  for(let k=0;k<p;k++){const th=2*Math.PI*k/p - Math.PI/2;verts.push(C(rho*Math.cos(th),rho*Math.sin(th)));}
+  return verts;
+}
+function centroid(vs){let s=C(0,0);for(const v of vs)s=add(s,v);return scale(s,1/vs.length);}
+
+function buildTiling(){
+  const base=initPolygon();
+  const polys=[],seen=[];const EPS=1e-3;const MAX=400;
+  const queue=[base];
+  while(queue.length && polys.length<MAX){
+    const poly=queue.shift();
+    const cen=centroid(poly);
+    let dup=false;
+    for(const s of seen){if(abs2(sub(cen,s))<EPS*EPS){dup=true;break;}}
+    if(dup) continue;
+    seen.push(cen);polys.push(poly);
+    if(Math.sqrt(abs2(cen))>0.985) continue;
+    for(let i=0;i<p;i++){
+      const a=poly[i], b=poly[(i+1)%p];
+      queue.push(poly.map(v=>reflect(v,a,b)));
+    }
+  }
+  return polys;
+}
+
+function toScreen(z){
+  const s=R*view.z;
+  return [cx + (z.re-view.x)*s, cy + (z.im-view.y)*s];
+}
+
+// horocycle tangent to unit circle at boundary angle t, passing depth s from boundary
+// euclidean center c = (1-s)*e^{it}, radius = s  (tangent internally at e^{it})
+function drawHorocycle(t,s){
+  const c=C((1-s)*Math.cos(t),(1-s)*Math.sin(t));
+  const [x,y]=toScreen(c);
+  ctx.beginPath();ctx.arc(x,y,s*R*view.z,0,7);
+  ctx.stroke();
+}
+
+function draw(){
+  ctx.fillStyle='#0d0d12';ctx.fillRect(0,0,W,H);
+  const ox=cx-view.x*R*view.z, oy=cy-view.y*R*view.z, orr=R*view.z;
+  ctx.beginPath();ctx.arc(ox,oy,orr,0,7);ctx.strokeStyle='#2a2a3c';ctx.lineWidth=1.5;ctx.stroke();
+  if(showTiling){
+    const polys=buildTiling();
+    for(const poly of polys){
+      ctx.beginPath();
+      for(let i=0;i<p;i++){const [x,y]=toScreen(poly[i]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+      ctx.closePath();
+      const cen=centroid(poly);const rr=Math.sqrt(abs2(cen));
+      ctx.fillStyle=`hsla(${(rr*380)%360},50%,${26+rr*28}%,0.5)`;
+      ctx.fill();
+      ctx.strokeStyle='rgba(200,210,255,0.30)';ctx.lineWidth=0.8;ctx.stroke();
+    }
+  }
+  if(showPencil){
+    // pencil of horocycles tangent at boundary point t0, varying depth
+    const t0=-Math.PI/2;
+    const depths=[0.05,0.12,0.22,0.35,0.5,0.68,0.85];
+    let k=0;
+    for(const s of depths){
+      ctx.strokeStyle=`hsla(${(k*40+200)%360},80%,65%,0.9)`;
+      ctx.lineWidth=1.6;
+      drawHorocycle(t0,s);
+      k++;
+    }
+    // mark the tangent point on boundary
+    const [px,py]=toScreen(C(Math.cos(t0),Math.sin(t0)));
+    ctx.beginPath();ctx.arc(px,py,3.5,0,7);ctx.fillStyle='#ff6b9d';ctx.fill();
+  }
+  document.getElementById('hud').innerHTML=
+    `<b>{5,4}</b> <span class=dim>hyperbolic, genus-2 closed world</span><br>`+
+    `<span class=dim>a horocycle = circle tangent to infinity from inside.<br>all of them share one point at infinity: a pencil.</span>`;
+}
+
+function resize(){W=cv.width=innerWidth;H=cv.height=innerHeight;cx=W/2;cy=H/2;R=Math.min(W,H)*0.42;draw();}
+let dragging=false,lastX,lastY;
+cv.addEventListener('mousedown',e=>{dragging=true;lastX=e.clientX;lastY=e.clientY;});
+addEventListener('mouseup',()=>dragging=false);
+addEventListener('mousemove',e=>{
+  if(!dragging)return;
+  const s=R*view.z;
+  view.x-=(e.clientX-lastX)/s;view.y-=(e.clientY-lastY)/s;
+  lastX=e.clientX;lastY=e.clientY;draw();
+});
+cv.addEventListener('wheel',e=>{e.preventDefault();view.z*=e.deltaY<0?1.12:0.89;view.z=Math.max(0.3,Math.min(6,view.z));draw();},{passive:false});
+document.getElementById('reset').onclick=()=>{view={x:0,y:0,z:1};draw();};
+document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{
+  if(b.dataset.t==='tiling')showTiling=!showTiling;
+  if(b.dataset.t==='pencil')showPencil=!showPencil;
+  draw();
+});
+addEventListener('resize',resize);
+resize();
+</script></body></html>
