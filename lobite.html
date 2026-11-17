@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>lobite — the L-tile hierarchy</title>
+<style>
+  :root{--bg:#0d0f14;--fg:#e6e9f0;--dim:#8a93a6;--acc:#7fd1c0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,Menlo,Consolas,monospace}
+  header{padding:28px 22px 8px;max-width:900px;margin:0 auto}
+  h1{margin:0 0 4px;font-size:20px;font-weight:600;letter-spacing:.02em}
+  p.sub{margin:0;color:var(--dim);font-size:13px}
+  main{max-width:900px;margin:0 auto;padding:10px 22px 40px}
+  canvas{width:100%;aspect-ratio:1;display:block;background:#0a0c11;border-radius:10px;border:1px solid #1c2130}
+  .ctrl{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:14px 0}
+  label{font-size:13px;color:var(--dim)}
+  input[type=range]{width:220px;accent-color:var(--acc)}
+  .val{color:var(--acc);font-weight:600}
+  .note{color:var(--dim);font-size:13px;margin-top:16px;line-height:1.6}
+  .note b{color:var(--fg)}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <h1>lobite</h1>
+  <p class="sub">the L-tile hierarchy behind the trilobite &amp; crab — square minus a corner, all the way down</p>
+</header>
+<main>
+  <canvas id="c" width="900" height="900"></canvas>
+  <div class="ctrl">
+    <label>depth <span class="val" id="dv">5</span></label>
+    <input id="d" type="range" min="0" max="8" value="5">
+  </div>
+  <div class="note">
+    an <b>L-tile</b> is a square with a corner square removed. Goodman-Strauss's <a href="https://arxiv.org/abs/1608.07167">trilobite and crab</a>
+    aperiodic set is built on a substitution rule that replaces each L with four half-size Ls, so the
+    hierarchy of squares nests infinitely and no tiling can ever be periodic.
+    <br><br>
+    this page draws that hierarchy as a schematic: each filled quadrant of an L becomes a smaller L whose
+    own missing corner points inward. the little empty corners you see piling up at every scale are the
+    <b>markings</b> — the thing that, with tip-to-tip matching rules added, locks the aperiodic structure in place.
+    (the exact rep-4 dissection in the paper is more intricate than this sketch; this is the shape of the idea.)
+  </div>
+</main>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const dv=document.getElementById('dv'),dEl=document.getElementById('d');
+const W=cv.width,H=cv.height;
+const pad=44, span=W-2*pad;
+
+// draw an L: square (x,y,size) with quadrant (miss[0],miss[1]) empty, recursing into filled quadrants.
+function drawL(x,y,size,miss,depth,maxDepth){
+  const q=size/2;
+  if(depth>=maxDepth){
+    ctx.fillStyle='rgba(127,209,192,0.13)';
+    for(let i=0;i<2;i++)for(let j=0;j<2;j++){
+      if(i===miss[0]&&j===miss[1])continue;
+      ctx.fillRect(x+i*q,y+j*q,q,q);
+    }
+    ctx.strokeStyle='rgba(127,209,192,0.30)';ctx.lineWidth=0.5;
+    ctx.strokeRect(x,y,size,size);
+    return;
+  }
+  for(let i=0;i<2;i++)for(let j=0;j<2;j++){
+    if(i===miss[0]&&j===miss[1])continue; // leave the missing corner empty -> the marking
+    const cx=x+i*q, cy=y+j*q;
+    // child's missing corner points toward the parent's center
+    const cm=[ i===0?1:0, j===0?1:0 ];
+    drawL(cx,cy,q,cm,depth+1,maxDepth);
+  }
+}
+
+function render(){
+  const maxDepth=+dEl.value;
+  dv.textContent=maxDepth;
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#0a0c11';ctx.fillRect(0,0,W,H);
+  drawL(pad,pad,span,[1,0],0,maxDepth);
+}
+
+dEl.addEventListener('input',render);
+render();
+</script>
+</body>
+</html>
