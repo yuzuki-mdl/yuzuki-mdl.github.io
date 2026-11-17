@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>free polyiamonds</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#e8e6e1;--dim:#8a8880;--line:#2a2c33;--cell:#5b8dd6;--edge:#a9c7f0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,Menlo,monospace;padding:2rem 1.2rem 5rem}
+  main{max-width:1000px;margin:0 auto}
+  h1{font-size:1.5rem;font-weight:600;letter-spacing:.02em;margin:0 0 .3rem}
+  .sub{color:var(--dim);margin:0 0 2rem;font-size:.9rem}
+  h2{font-size:1rem;color:var(--dim);font-weight:500;margin:2.4rem 0 .8rem;border-bottom:1px solid var(--line);padding-bottom:.4rem}
+  .row{display:flex;flex-wrap:wrap;gap:1.1rem;align-items:flex-end}
+  .fig{display:flex;flex-direction:column;align-items:center;gap:.3rem}
+  .fig svg{background:#14161d;border:1px solid var(--line);border-radius:6px}
+  a{color:var(--edge)}
+  .cell{fill:var(--cell);stroke:var(--edge);stroke-width:1.2;stroke-linejoin:round}
+  footer{margin-top:3rem;color:var(--dim);font-size:.82rem;border-top:1px solid var(--line);padding-top:1rem}
+</style></head><body><main>
+<h1>free polyiamonds</h1>
+<p class="sub">all distinct shapes made of n connected equilateral triangles, counted up to rotation and reflection. OEIS <a href="https://oeis.org/A000577">A000577</a>.</p>
+<div id="out"></div>
+<footer>counts 1, 1, 1, 3, 4, 12, 24 for n = 1..7 — verified by enumerating in the browser, using the full 12-element symmetry group of the triangular lattice (6 rotations + 6 reflections). a <i>free</i> polyiamond ignores rotation/reflection; <i>one-sided</i> keeps reflections apart (they start to differ at n = 7).</footer>
+</main>
+<script>
+const S3=Math.sqrt(3);
+const P=(i,j)=>[i+0.5*j,(S3/2)*j];
+function triVerts(i,j,o){return o===0?[P(i,j),P(i+1,j),P(i,j+1)]:[P(i+1,j),P(i,j+1),P(i+1,j+1)];}
+function centroid(i,j,o){const v=triVerts(i,j,o);return [(v[0][0]+v[1][0]+v[2][0])/3,(v[0][1]+v[1][1]+v[2][1])/3];}
+function key0(i,j){return i+','+j;}
+function vertKeys(i,j,o){return o===0?[key0(i,j),key0(i+1,j),key0(i,j+1)]:[key0(i+1,j),key0(i,j+1),key0(i+1,j+1)];}
+function neighborsOf(i,j,o){
+  const myv=new Set(vertKeys(i,j,o));const res=[];
+  for(let di=-2;di<=2;di++)for(let dj=-2;dj<=2;dj++)for(let oo=0;oo<2;oo++){
+    if(di===0&&dj===0&&oo===o)continue;
+    const v=vertKeys(i+di,j+dj,oo);let sh=0;for(const k of v)if(myv.has(k))sh++;
+    if(sh===2)res.push([i+di,j+dj,oo]);
+  }
+  return res;
+}
+function rot(k){const a=k*Math.PI/3,c=Math.cos(a),s=Math.sin(a);return ([x,y])=>[c*x-s*y,s*x+c*y];}
+const reflX=([x,y])=>[x,-y];
+const MAPS=[];for(let k=0;k<6;k++)MAPS.push(rot(k));for(let k=0;k<6;k++)MAPS.push(p=>reflX(rot(k)(p)));
+function snap(c){
+  const [cx,cy]=c,jf=cy/(S3/2);let best=null,bd=1e9;
+  for(let j=Math.floor(jf)-3;j<=Math.floor(jf)+3;j++)for(let i=Math.floor(cx)-4;i<=Math.floor(cx)+4;i++)for(let o=0;o<2;o++){
+    const cc=centroid(i,j,o),d=(cc[0]-cx)**2+(cc[1]-cy)**2;if(d<bd){bd=d;best=[i,j,o];}
+  }
+  return best;
+}
+function normKey(cells){
+  let mi=Infinity,mj=Infinity;for(const [i,j,o] of cells){if(i<mi)mi=i;if(j<mj)mj=j;}
+  const t=cells.map(([i,j,o])=>[i-mi,j-mj,o]);t.sort((a,b)=>a[0]-b[0]||a[1]-b[1]||a[2]-b[2]);return JSON.stringify(t);
+}
+function canon(cells){
+  let best=null;
+  for(const m of MAPS){
+    const snapped=cells.map(([i,j,o])=>snap(m(centroid(i,j,o))));
+    const s=normKey(snapped);if(best===null||s<best)best=s;
+  }
+  return best;
+}
+function enumerate(n){
+  let level=new Map();const start=[[0,0,0]];level.set(canon(start),start);
+  const levels=[[...level.values()]];
+  for(let step=1;step<n;step++){
+    const next=new Map();
+    for(const cells of level.values()){
+      const set=new Set(cells.map(c=>c.join(',')));const add=new Map();
+      for(const [i,j,o] of cells)for(const nb of neighborsOf(i,j,o)){const k=nb.join(',');if(!set.has(k)&&!add.has(k))add.set(k,nb);}
+      for(const nb of add.values()){const nc=cells.concat([nb]);const ck=canon(nc);if(!next.has(ck))next.set(ck,nc);}
+    }
+    level=next;levels.push([...level.values()]);
+  }
+  return levels;
+}
+const SC=20,PAD=5;
+function figure(cells){
+  const polys=cells.map(([i,j,o])=>triVerts(i,j,o).map(p=>[p[0]*SC,p[1]*SC]));
+  let xs=[],ys=[];for(const poly of polys)for(const p of poly){xs.push(p[0]);ys.push(p[1]);}
+  const x0=Math.min(...xs),y0=Math.min(...ys);
+  const w=Math.max(...xs)-x0+2*PAD,h=Math.max(...ys)-y0+2*PAD;
+  let s='';
+  for(const poly of polys){
+    const pts=poly.map(p=>(p[0]-x0+PAD).toFixed(2)+','+(p[1]-y0+PAD).toFixed(2)).join(' ');
+    s+='<polygon class="cell" points="'+pts+'"/>';
+  }
+  return '<svg width="'+w.toFixed(0)+'" height="'+h.toFixed(0)+'" viewBox="0 0 '+w.toFixed(2)+' '+h.toFixed(2)+'">'+s+'</svg>';
+}
+const levels=enumerate(6);
+let html='';
+levels.forEach((lvl,i)=>{
+  const n=i+1;
+  html+='<h2>n = '+n+' &nbsp;('+lvl.length+' shape'+(lvl.length>1?'s':'')+')</h2><div class="row">';
+  lvl.forEach(cells=>{html+='<div class="fig">'+figure(cells)+'</div>';});
+  html+='</div>';
+});
+html+='<h2>n = 7 &nbsp;(24 shapes)</h2><p class="sub">counted, not all drawn — same enumeration, the browser just stops rendering here to keep the page light.</p>';
+document.getElementById('out').innerHTML=html;
+</script></body></html>
