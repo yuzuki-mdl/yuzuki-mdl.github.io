@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>chair — the L-tromino rep-4 tiling</title>
+<style>
+  :root{--bg:#0d0f14;--fg:#e6e9f0;--dim:#8a93a6;--acc:#7fd1c0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,Menlo,Consolas,monospace}
+  header{padding:28px 22px 8px;max-width:900px;margin:0 auto}
+  h1{margin:0 0 4px;font-size:20px;font-weight:600;letter-spacing:.02em}
+  p.sub{margin:0;color:var(--dim);font-size:13px}
+  main{max-width:900px;margin:0 auto;padding:10px 22px 40px}
+  canvas{width:100%;aspect-ratio:1;display:block;background:#0a0c11;border-radius:10px;border:1px solid #1c2130}
+  .ctrl{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:14px 0}
+  label{font-size:13px;color:var(--dim)}
+  input[type=range]{width:220px;accent-color:var(--acc)}
+  .val{color:var(--acc);font-weight:600}
+  .note{color:var(--dim);font-size:13px;margin-top:16px;line-height:1.6}
+  .note b{color:var(--fg)}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <h1>chair</h1>
+  <p class="sub">the L-tromino is a rep-4 tile — one L becomes four, forever</p>
+</header>
+<main>
+  <canvas id="c" width="900" height="900"></canvas>
+  <div class="ctrl">
+    <label>depth <span class="val" id="dv">4</span></label>
+    <input id="d" type="range" min="1" max="7" value="4">
+  </div>
+  <div class="note">
+    an <b>L-tromino</b> is three unit squares in an L — a 2×2 square with one corner removed. Golomb (1965)
+    showed it's a <b>rep-4</b> tile: scale it ×2 and four copies tile it exactly. iterate and the Ls shrink without
+    bound; the limit is the <a href="https://en.wikipedia.org/wiki/Chair_tiling">chair tiling</a>, a nonperiodic
+    substitution tiling.
+    <br><br>
+    this page draws the classic <b>divide-and-conquer</b> dissection: start with a 2<sup>n</sup>×2<sup>n</sup> board
+    with one cell missing. split into four quadrants; the hole sits in one, so lay a single L across the centre
+    covering the other three quadrants' inner corners, then recurse into all four. every cell gets covered, exactly
+    once — the whole board is tiled by L-trominoes, and the recursion <i>is</i> the rep-4 rule made explicit.
+    <br><br>
+    <a href="./aperiodic.html">← back to the aperiodic gallery</a>
+  </div>
+</main>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const dv=document.getElementById('dv'),dEl=document.getElementById('d');
+const W=cv.width,H=cv.height,pad=40,span=W-2*pad;
+const cols=['#7fd1c0','#e0a86f','#9a8fe0','#e07f9a','#7fb0e0','#c8e07f'];
+const tiles=[];
+
+function solve(x,y,size,hx,hy,col){
+  if(size===1) return;
+  const h=size/2;
+  // quadrant of hole: 0=TL,1=TR,2=BL,3=BR
+  let q = (hy>=y+h?2:0) + (hx>=x+h?1:0);
+  // centre L covers the three quadrants that don't have the hole
+  const cx=x+h, cy=y+h;
+  const quads=[[x,y],[x+h,y],[x,y+h],[x+h,y+h]].map((p,i)=>i);
+  const covered=[];
+  for(let i=0;i<4;i++) if(i!==q) covered.push(i);
+  // build the L as up to 2 rects per covered quadrant corner cell (unit cell at inner corner)
+  const cells=[];
+  for(const i of covered){
+    const qx = (i%2)? x+h : x+h-1;
+    const qy = (i>=2)? y+h : y+h-1;
+    cells.push([qx,qy]);
+  }
+  tiles.push({cells, col});
+  // recurse
+  const nextCol=(col+1)%cols.length;
+  const quadsXY=[[x,y],[x+h,y],[x,y+h],[x+h,y+h]];
+  for(let i=0;i<4;i++){
+    const [qx,qy]=quadsXY[i];
+    let nhx=hx, nhy=hy;
+    if(i===q){ nhx=hx; nhy=hy; }
+    else { nhx= qx + (qx===x? h-1:0); nhy= qy + (qy===y? h-1:0); }
+    solve(qx,qy,h,nhx,nhy,nextCol);
+  }
+}
+
+function draw(){
+  const depth=+dEl.value; dv.textContent=depth;
+  const N=1<<depth; const cell=span/N;
+  ctx.clearRect(0,0,W,H);
+  // board is N x N, hole at top-left cell (0,0)
+  tiles.length=0;
+  solve(0,0,N,0,0,0);
+  // draw grid faint
+  ctx.strokeStyle='#151a26'; ctx.lineWidth=1;
+  for(let i=0;i<=N;i++){
+    ctx.beginPath();ctx.moveTo(pad+i*cell,pad);ctx.lineTo(pad+i*cell,pad+N*cell);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(pad,pad+i*cell);ctx.lineTo(pad+N*cell,pad+i*cell);ctx.stroke();
+  }
+  // draw tiles
+  for(const t of tiles){
+    ctx.fillStyle=cols[t.col%cols.length]+'cc';
+    ctx.strokeStyle='#0a0c11'; ctx.lineWidth=Math.max(1,cell*0.12);
+    for(const [cx,cy] of t.cells){
+      const px=pad+cx*cell, py=pad+cy*cell;
+      ctx.fillRect(px,py,cell,cell);
+      ctx.strokeRect(px,py,cell,cell);
+    }
+  }
+  // mark the hole
+  ctx.fillStyle='#0a0c11';
+  ctx.fillRect(pad,pad,cell,cell);
+  ctx.strokeStyle='#e07f9a'; ctx.lineWidth=2;
+  ctx.strokeRect(pad+1,pad+1,cell-2,cell-2);
+}
+dEl.addEventListener('input',draw);
+draw();
+</script>
+</body>
+</html>
