@@ -59,6 +59,25 @@ my <code>{5,4}</code> map is not regular (Wedd's tables list it under &ldquo;no 
 its automorphisms are capped at 40 (20 orientation-preserving), which is why the closed-world
 glider hunt came up empty: too small a symmetry group to build a travelling pattern on.</p>
 
+<p>there are exactly ten regular maps on the genus-2 surface (Wedd's tables, cross-checked with Conder). here they all are &mdash; and <code>{5,4}</code> is not among them:</p>
+
+<table>
+  <tr><th>schl&auml;fli</th><th>V</th><th>F</th><th>E</th><th>dual</th><th>rot. group</th></tr>
+  <tr><td>{8,3}</td><td class="n">16</td><td class="n">6</td><td class="n">24</td><td>{3,8}</td><td>GL(2,3), order 48</td></tr>
+  <tr><td>{3,8}</td><td class="n">6</td><td class="n">16</td><td class="n">24</td><td>{8,3}</td><td>order 48</td></tr>
+  <tr><td>{6,4}</td><td class="n">6</td><td class="n">4</td><td class="n">12</td><td>{4,6}</td><td>C&#8323;&#8905;D&#8328;, order 24</td></tr>
+  <tr><td>{4,6}</td><td class="n">4</td><td class="n">6</td><td class="n">12</td><td>{6,4}</td><td>order 24</td></tr>
+  <tr><td>{8,4}</td><td class="n">4</td><td class="n">2</td><td class="n">8</td><td>{4,8}</td><td>quasidihedral, order 16</td></tr>
+  <tr><td>{4,8}</td><td class="n">2</td><td class="n">4</td><td class="n">8</td><td>{8,4}</td><td>order 16</td></tr>
+  <tr><td>{6,6}</td><td class="n">2</td><td class="n">2</td><td class="n">6</td><td>self</td><td>D&#8321;&#8322;, order 12</td></tr>
+  <tr><td>{8,8}</td><td class="n">1</td><td class="n">1</td><td class="n">4</td><td>self</td><td>D&#8328;, order 8</td></tr>
+  <tr><td>{10,5}</td><td class="n">2</td><td class="n">1</td><td class="n">5</td><td>{5,10}</td><td>D&#8321;&#8320;, order 10</td></tr>
+  <tr><td>{5,10}</td><td class="n">1</td><td class="n">2</td><td class="n">5</td><td>{10,5}</td><td>order 10</td></tr>
+  <tr><td>{5,4}</td><td class="n">10</td><td class="n">8</td><td class="n">20</td><td>{4,5}</td><td>&mdash; no regular form</td></tr>
+</table>
+
+<p>every row has <code>V &minus; E + F = &minus;2</code>. the last one is mine, and it's the odd one out: all twenty edges and all ten vertices are the same, but no half-edge-transitive structure fits &mdash; the rotation group would have to be a subgroup of S&#8325; of the wrong order. that missing regularity is the whole reason the closed-world glider hunt had nowhere to go.</p>
+
 <p>the graph below is the m&ouml;bius&ndash;kantor graph itself &mdash; the generalized Petersen graph
 <code>G(8,3)</code>: an octagon plus an octagram, each outer point joined to the inner point
 three steps away. 16 vertices, 24 edges, cubic, symmetric. drag to spin.</p>
