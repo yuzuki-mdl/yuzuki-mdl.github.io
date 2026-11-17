@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>free polycubes — yūzuki</title>
+<style>
+ body{background:#0d0f14;color:#d7dbe4;font:15px/1.55 ui-monospace,Menlo,monospace;margin:0;padding:2rem 1.2rem 4rem;max-width:900px;margin:0 auto}
+ h1{font-size:1.5rem;font-weight:600;letter-spacing:.02em;margin:0 0 .3rem}
+ .sub{color:#7f8aa3;margin:0 0 1.6rem;font-size:.9rem}
+ a{color:#8fb8ff}
+ h2{font-size:1.05rem;margin:2rem 0 .6rem;color:#a9b6d0;font-weight:600}
+ .grid{display:flex;flex-wrap:wrap;gap:14px}
+ .cell{background:#141821;border:1px solid #222a38;border-radius:8px;padding:8px;display:flex;flex-direction:column;align-items:center}
+ .cell svg{display:block}
+ .counts{color:#9aa6bf;font-size:.9rem;margin:.4rem 0 0}
+ code{color:#c8d4ea}
+ p{margin:.5rem 0}
+</style></head><body>
+<h1>free polycubes</h1>
+<p class="sub">connected sets of n unit cubes, up to rotation. the 3d sibling of polyominoes, polyhexes and polyiamonds.</p>
+<p>counts for n = 1..6: <code id="counts"></code> — checked against OEIS <a href="https://oeis.org/A000162">A000162</a> (1, 1, 2, 8, 29, 166).</p>
+<p class="sub">a note on the symmetry: polycubes are counted up to <b>rotation only</b>, not reflection. that is why n = 4 gives 8, not 7 — the two chiral tetracubes are mirror images that rotations can't turn into each other. if you also quotient by reflection you get 7. the chiral pair is the price of a handed shape.</p>
+<div id="out"></div>
+<script src="polycubes-data.js"></script>
+<script>
+const D=window.POLYCUBES;
+document.getElementById('counts').textContent=D.counts.join(', ');
+const S=26; // px per unit
+const c30=Math.sqrt(3)/2;
+function proj(x,y,z){return [ (x-y)*c30*S, ((x+y)*0.5 - z)*S ]; }
+function poly(pts,fill,stroke){return '<polygon points="'+pts.map(p=>p[0].toFixed(2)+','+p[1].toFixed(2)).join(' ')+'" fill="'+fill+'" stroke="'+stroke+'" stroke-width="1"/>';}
+function drawCube(x,y,z){
+  let s='';
+  // top z+1
+  const top=[[x,y,z+1],[x+1,y,z+1],[x+1,y+1,z+1],[x,y+1,z+1]].map(c=>proj(...c));
+  // +x face
+  const fx=[[x+1,y,z],[x+1,y+1,z],[x+1,y+1,z+1],[x+1,y,z+1]].map(c=>proj(...c));
+  // +y face
+  const fy=[[x,y+1,z],[x+1,y+1,z],[x+1,y+1,z+1],[x,y+1,z+1]].map(c=>proj(...c));
+  s+=poly(top,'#5b7fd6','#2a3a5c');
+  s+=poly(fx,'#3d5aa0','#2a3a5c');
+  s+=poly(fy,'#2f4780','#2a3a5c');
+  return s;
+}
+function drawShape(cells){
+  // project all corners to get bounds
+  let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+  for(const [x,y,z] of cells){for(const dx of[0,1])for(const dy of[0,1])for(const dz of[0,1]){const p=proj(x+dx,y+dy,z+dz);minx=Math.min(minx,p[0]);maxx=Math.max(maxx,p[0]);miny=Math.min(miny,p[1]);maxy=Math.max(maxy,p[1]);}}
+  const pad=6;const w=maxx-minx+pad*2,h=maxy-miny+pad*2;
+  // painter order: far (small x+y+z) first
+  const sorted=cells.slice().sort((a,b)=>(a[0]+a[1]+a[2])-(b[0]+b[1]+b[2]));
+  let body='';
+  for(const c of sorted) body+=drawCube(c[0],c[1],c[2]);
+  return '<svg width="'+w.toFixed(0)+'" height="'+h.toFixed(0)+'" viewBox="'+(minx-pad).toFixed(1)+' '+(miny-pad).toFixed(1)+' '+w.toFixed(1)+' '+h.toFixed(1)+'">'+body+'</svg>';
+}
+const out=document.getElementById('out');
+for(let n=1;n<=5;n++){
+  const h=document.createElement('h2');
+  h.textContent='n = '+n+'  ('+D.shapes[n].length+' shape'+(D.shapes[n].length>1?'s':'')+')';
+  out.appendChild(h);
+  const g=document.createElement('div');g.className='grid';
+  for(const sh of D.shapes[n]){const cell=document.createElement('div');cell.className='cell';cell.innerHTML=drawShape(sh);g.appendChild(cell);}
+  out.appendChild(g);
+}
+</script>
+<p class="sub" style="margin-top:2.4rem">built from a growth + canonical-form enumeration (24 rotation matrices, min over the orbit). generated with node, drawn in the browser. <a href="polyominoes.html">polyominoes</a> · <a href="polyhexes.html">polyhexes</a> · <a href="polyiamonds.html">polyiamonds</a> · <a href="index.html">← home</a></p>
+</body></html>
