@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rhombille & fibonacci word</title>
+<style>
+  body{margin:0;background:#0e0f13;color:#d8dbe2;font:15px/1.5 ui-monospace,Menlo,monospace}
+  header{padding:18px 20px 8px;max-width:820px}
+  h1{font-size:19px;margin:0 0 6px;font-weight:600;letter-spacing:.2px}
+  p{margin:0 0 8px;color:#9aa1ad;font-size:13.5px}
+  a{color:#8fb8ff;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{display:flex;flex-wrap:wrap;gap:20px;padding:8px 20px 24px;align-items:flex-start}
+  canvas{background:#14161c;border:1px solid #23262f;border-radius:8px;display:block}
+  .panel{min-width:230px}
+  label{display:block;font-size:12.5px;color:#8b93a1;margin:10px 0 3px}
+  input[type=range]{width:100%}
+  .val{color:#c8d0dc}
+  .key{display:flex;gap:10px;align-items:center;margin-top:8px;font-size:13px}
+  .sw{width:14px;height:14px;border-radius:3px;display:inline-block}
+</style>
+</head>
+<body>
+<header>
+  <h1>rhombille tiling &amp; the fibonacci word</h1>
+  <p>the rhombille tiling is the tiling by 60°/120° rhombi — three rhombi round each vertex, each rhombus two equilateral triangles. colour it by a <b>fibonacci word</b> and the paper <a href="https://arxiv.org/abs/2403.01911">2403.01911</a> shows the turtle / hat / spectre monotiles sit on top of it as a cut-and-project of that 1d substitution.</p>
+  <p>this page is the substrate, not the monotiles: the rhombille lattice, and a fibonacci-word colouring that walks along it. the point is the <i>rule</i>: a 1d substitution (a→ab, b→a) drives a 2d pattern.</p>
+</header>
+<div class="wrap">
+  <canvas id="c" width="720" height="520"></canvas>
+  <div class="panel">
+    <label>fibonacci word length: <span class="val" id="lenv">34</span></label>
+    <input id="len" type="range" min="5" max="200" value="34" step="1">
+    <label>rhombus size: <span class="val" id="szv">26</span></label>
+    <input id="sz" type="range" min="12" max="44" value="26" step="1">
+    <div class="key"><span class="sw" style="background:#3a6ea5"></span> a</div>
+    <div class="key"><span class="sw" style="background:#d98a4a"></span> b</div>
+    <p style="margin-top:14px;font-size:12.5px">the word is laid along a path of rhombi in the tiling; the two letters pick which of the three rhombus orientations is highlighted, so the substitution shows up as a stripe that never quite repeats.</p>
+  </div>
+</div>
+<script>
+function fibWord(n){
+  let a='a', b='ab';
+  while(b.length<n){ const t=b; b=b+a; a=t; }
+  return b.slice(0,n);
+}
+const c=document.getElementById('c'), ctx=c.getContext('2d');
+const lenEl=document.getElementById('len'), szEl=document.getElementById('sz');
+const lenv=document.getElementById('lenv'), szv=document.getElementById('szv');
+
+function draw(){
+  const n=+lenEl.value, s=+szEl.value;
+  lenv.textContent=n; szv.textContent=s;
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.fillStyle='#14161c'; ctx.fillRect(0,0,c.width,c.height);
+
+  const w=Math.sqrt(3)/2*s;      // triangle height
+  const word=fibWord(n);
+
+  // rhombille: draw rows of triangles, group pairs into rhombi.
+  // each rhombus = two triangles sharing a long edge. three orientations:
+  // 0: flat-ish (up-down long diagonal), 1: /, 2: \
+  // we tile a hex grid of triangles and colour by word along a snake path.
+  const cols=Math.ceil(c.width/(s*0.5))+2;
+  const rows=Math.ceil(c.height/w)+2;
+  let idx=0;
+
+  function tri(x,y,up,fill,stroke){
+    ctx.beginPath();
+    if(up){ ctx.moveTo(x,y+w); ctx.lineTo(x+s/2,y); ctx.lineTo(x+s,y+w); }
+    else  { ctx.moveTo(x,y); ctx.lineTo(x+s/2,y+w); ctx.lineTo(x+s,y); }
+    ctx.closePath();
+    if(fill){ctx.fillStyle=fill;ctx.fill();}
+    if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.stroke();}
+  }
+
+  // base lattice: triangular grid, faint
+  for(let r=0;r<rows;r++){
+    for(let col=0;col<cols;col++){
+      const x=col*s*0.5 - (r%2)*s*0.5;
+      const y=r*w;
+      const up=((col+r)%2===0);
+      tri(x,y,up,null,'#20232b');
+    }
+  }
+
+  // colour a snake path of rhombi by the word
+  // walk columns of pairs, colour rhombus by letter
+  let placed=0;
+  for(let r=0;r<rows;r++){
+    const dir = (r%2===0)?1:-1;
+    const colsR = cols;
+    for(let k=0;k<colsR;k++){
+      const col = (dir===1)?k:(colsR-1-k);
+      const x=col*s*0.5 - (r%2)*s*0.5;
+      const y=r*w;
+      const up=((col+r)%2===0);
+      const letter=word[placed%word.length];
+      const fill = letter==='a'?'#3a6ea5':'#d98a4a';
+      tri(x,y,up,fill,'#0e0f13');
+      placed++;
+    }
+  }
+}
+lenEl.oninput=draw; szEl.oninput=draw;
+draw();
+</script>
+</body>
+</html>
