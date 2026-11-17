@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>polyhexes — free polyforms on the hexagonal tiling</title>
+<style>
+ body{background:#11131a;color:#d8dbe6;font:15px/1.55 ui-monospace,Menlo,monospace;margin:0;padding:2rem 1.2rem 4rem}
+ main{max-width:960px;margin:0 auto}
+ h1{font-size:1.5rem;font-weight:600;margin:0 0 .3rem}
+ h2{font-size:1rem;color:#8ea0c4;margin:2.2rem 0 .6rem;font-weight:600;border-bottom:1px solid #232838;padding-bottom:.3rem}
+ p{color:#a7b0c4;max-width:64ch}
+ a{color:#7ec8ff}
+ .grid{display:flex;flex-wrap:wrap;gap:8px}
+ .pf{background:#181b24;border:1px solid #232838;border-radius:8px;padding:4px}
+ .pf svg{display:block}
+ .hex{fill:#3a5a8c;stroke:#7ec8ff;stroke-width:.6}
+ .count{color:#e8c07a}
+ .note{color:#6f7a92;font-size:.85rem}
+</style></head><body><main>
+<h1>polyhexes</h1>
+<p>a polyhex is a connected set of n cells on the hexagonal tiling, joined edge to edge. counted <em>free</em>: up to rotation and reflection. the counts below are generated right here in the page, then checked against OEIS <a href="https://oeis.org/A000228">A000228</a>.</p>
+<p class="note">n = 1, 2, 3, 4, 5, 6 → 1, 1, 3, 7, 22, 82. the heptahex count (n=7) is 333; too many to draw all of them here.</p>
+<div id="out"></div>
+</main>
+<script>
+const NB=[[1,0],[1,-1],[0,-1],[-1,0],[-1,1],[0,1]];
+const rot=([q,r])=>[q+r,-q];
+const refl=([q,r])=>[-r,-q];
+function ops(){const out=[];let prev=c=>c;for(let k=0;k<6;k++){const b=prev;out.push(b);out.push(c=>refl(b(c)));prev=c=>rot(b(c));}return out;}
+const OPS=ops();
+function canon(cells){
+ let best=null;
+ for(const op of OPS){
+  let t=cells.map(op);
+  const mq=Math.min(...t.map(c=>c[0])), mr=Math.min(...t.map(c=>c[1]));
+  t=t.map(c=>[c[0]-mq,c[1]-mr]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const s=JSON.stringify(t); if(best===null||s<best)best=s;
+ }
+ return best;
+}
+function neighbors(cells){
+ const set=new Set(cells.map(c=>c[0]+','+c[1])); const seen=new Set(); const res=[];
+ for(const c of cells)for(const d of NB){const n=[c[0]+d[0],c[1]+d[1]];const k=n[0]+','+n[1];if(!set.has(k)&&!seen.has(k)){seen.add(k);res.push(n);}}
+ return res;
+}
+function enumerate(n){
+ let level=new Map(); level.set(canon([[0,0]]),[[0,0]]);
+ const levels=[[...level.values()]];
+ for(let s=1;s<n;s++){
+  const next=new Map();
+  for(const cells of level.values())for(const nb of neighbors(cells)){
+   const nc=cells.concat([nb]); const k=canon(nc); if(!next.has(k))next.set(k,nc);
+  }
+  level=next; levels.push([...level.values()]);
+ }
+ return levels;
+}
+// pointy-top hex geometry
+const S=13, SQ3=Math.sqrt(3);
+function center([q,r]){return [S*SQ3*(q+r/2), S*1.5*r];}
+function hexPath(cx,cy){
+ let p='';
+ for(let k=0;k<6;k++){const a=Math.PI/180*(60*k-30);const x=cx+S*Math.cos(a),y=cy+S*Math.sin(a);p+=(k?'L':'M')+x.toFixed(2)+' '+y.toFixed(2);}
+ return p+'Z';
+}
+function figure(cells){
+ const pts=cells.map(center);
+ const xs=pts.map(p=>p[0]), ys=pts.map(p=>p[1]);
+ const pad=S*1.3;
+ const x0=Math.min(...xs)-pad, y0=Math.min(...ys)-pad;
+ const w=Math.max(...xs)-Math.min(...xs)+2*pad, h=Math.max(...ys)-Math.min(...ys)+2*pad;
+ let paths='';
+ for(const p of pts) paths+='<path class="hex" d="'+hexPath(p[0]-x0,p[1]-y0)+'"/>';
+ return '<svg width="'+Math.round(w)+'" height="'+Math.round(h)+'" viewBox="0 0 '+Math.round(w)+' '+Math.round(h)+'">'+paths+'</svg>';
+}
+const levels=enumerate(6);
+const OEIS=[1,1,3,7,22,82];
+let html='';
+for(let n=1;n<=levels.length;n++){
+ const L=levels[n-1];
+ const ok=L.length===OEIS[n-1]?'✓':'✗';
+ html+='<h2>n = '+n+' — <span class="count">'+L.length+'</span> free '+ok+'</h2><div class="grid">';
+ for(const cells of L) html+='<div class="pf">'+figure(cells)+'</div>';
+ html+='</div>';
+}
+document.getElementById('out').innerHTML=html;
+</script>
+</body></html>
