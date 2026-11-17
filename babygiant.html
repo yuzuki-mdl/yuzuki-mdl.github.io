@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>baby-step giant-step</title>
+<style>
+  :root{--bg:#0b0d12;--fg:#e8ecf4;--dim:#7a8699;--acc:#7ad0ff;--acc2:#ff9ecb;--ok:#7dffa8;--bad:#ff8a8a}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+  #wrap{max-width:880px;margin:0 auto;padding:22px 18px 60px}
+  h1{font-size:17px;font-weight:600;margin:0 0 4px;letter-spacing:.02em}
+  .sub{color:var(--dim);font-size:12.5px;margin-bottom:18px}
+  .sub b{color:var(--acc)}
+  p{font-size:13.5px;color:#c3cbd8}
+  code{color:var(--acc2)}
+  .card{background:#111722;border:1px solid #1e2838;border-radius:10px;padding:16px 18px;margin:14px 0}
+  label{display:inline-block;font-size:12.5px;color:var(--dim);margin-right:8px}
+  input{background:#0b0f16;color:var(--fg);border:1px solid #2a3448;border-radius:6px;padding:5px 8px;font:inherit;font-size:13px;width:90px}
+  button{background:#161c28;color:var(--fg);border:1px solid #2a3448;border-radius:6px;padding:6px 13px;font:inherit;font-size:13px;cursor:pointer;margin-top:6px}
+  button:hover{border-color:var(--acc)}
+  table{border-collapse:collapse;font-size:12.5px;margin-top:10px;width:100%}
+  th,td{padding:3px 9px;text-align:left;border-bottom:1px solid #1a2130}
+  th{color:var(--dim);font-weight:500}
+  .hit{color:var(--ok)}
+  .miss{color:var(--dim)}
+  .row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+  #out{margin-top:14px;font-size:13px;line-height:1.9}
+  #out b{color:var(--acc)}
+  .big{font-size:15px;color:var(--ok)}
+  .note{font-size:12px;color:var(--dim);margin-top:14px;border-top:1px solid #1a2130;padding-top:12px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>baby-step giant-step</h1>
+  <div class="sub">solving <b>g<sup>x</sup> &equiv; h (mod p)</b> by meeting in the middle. the discrete log, found in <b>&radic;n</b> steps instead of n.</div>
+
+  <p>brute force guesses x=0,1,2,&hellip; and multiplies. baby-step giant-step does it smarter: write x = i&middot;m + j with m=&lfloor;&radic;n&rfloor;. then g<sup>im+j</sup>=h means g<sup>j</sup> = h&middot;g<sup>&minus;im</sup>. build a table of all the baby steps g<sup>j</sup> once, then walk the giant steps h&middot;g<sup>&minus;im</sup> and look each up. two lists, one collision &mdash; that collision is the answer.</p>
+
+  <div class="card">
+    <div class="row">
+      <div><label>prime p</label><br><input id="p" value="1019"></div>
+      <div><label>base g</label><br><input id="g" value="2"></div>
+      <div><label>target h</label><br><input id="h" value="" placeholder="random"></div>
+      <button id="solve">solve</button>
+    </div>
+    <div id="out"></div>
+  </div>
+
+  <div class="note">
+    why &radic;n: the table has m=&lceil;&radic;n&rceil; entries and the giant walk takes at most m steps, so total work ~2&radic;n. for a 256-bit prime that's already 2<sup>128</sup> &mdash; which is why real crypto uses <i>groups</i> where &radic;n is still too big, and why generic discrete log is called &ldquo;hard&rdquo;. this page only picks small primes so you can watch it happen.<br>
+    one subtlety: g must generate a decent chunk of the group. if g is a small-order element the log may not exist for a given h, and the search returns &ldquo;no solution&rdquo; honestly.
+  </div>
+</div>
+<script>
+function modpow(b,e,m){b%=m;let r=1n;b=BigInt(b);e=BigInt(e);m=BigInt(m);if(b<0n)b+=m;while(e>0n){if(e&1n)r=r*b%m;b=b*b%m;e>>=1n;}return r;}
+
+function bsgs(p,g,h){
+  p=BigInt(p);g=BigInt(g);h=BigInt(h);
+  if(g%p===0n) return {err:"g must not be divisible by p"};
+  const n=p-1n;
+  let m=1n; while(m*m<n) m++;
+  // baby steps: g^j -> j
+  const table=new Map();
+  let cur=1n;
+  for(let j=0n;j<m;j++){ const k=cur.toString(); if(!table.has(k)) table.set(k,j); cur=cur*g%p; }
+  // g^{-m}
+  const gm=modpow(g,m,p);
+  const ginv=modpow(gm,p-2n,p); // gm^{-1} = gm^{p-2}
+  // giant steps: h * g^{-im}
+  let gamma=h%p;
+  for(let i=0n;i<=m;i++){
+    const k=gamma.toString();
+    if(table.has(k)){
+      const x=i*m+table.get(k);
+      if(modpow(g,x,p)===h%p) return {x, m, baby:m, giant:i+1n};
+    }
+    gamma=gamma*ginv%p;
+  }
+  return {none:true, m};
+}
+
+document.getElementById('solve').onclick=function(){
+  const p=parseInt(document.getElementById('p').value);
+  const g=parseInt(document.getElementById('g').value);
+  let h=document.getElementById('h').value.trim();
+  const out=document.getElementById('out');
+  if(!(p>2)){out.innerHTML='<span class="miss">need a prime p &gt; 2</span>';return;}
+  if(h===''){ h=String(1+Math.floor(Math.random()*(p-1))); document.getElementById('h').value=h; }
+  h=parseInt(h);
+  const t0=performance.now();
+  const r=bsgs(p,g,h);
+  const ms=(performance.now()-t0).toFixed(2);
+  if(r.err){out.innerHTML='<span class="miss">'+r.err+'</span>';return;}
+  if(r.none){
+    out.innerHTML='<span class="miss">no solution</span> &mdash; '+h+' is not in the subgroup generated by '+g+'. (searched m=&lfloor;&radic;n&rfloor;='+r.m+')<br><span class="miss">'+ms+' ms</span>';
+    return;
+  }
+  const check=modpow(g,r.x,p);
+  out.innerHTML='<span class="big">x = '+r.x+'</span><br>'+
+    'check: '+g+'<sup>'+r.x+'</sup> mod '+p+' = <b>'+check+'</b>  (target '+h+')'+
+    (String(check)===String(BigInt(h)%BigInt(p))?' <span class="hit">&check;</span>':' <span class="bad">&cross;</span>')+'<br>'+
+    '<span class="miss">m=&lfloor;&radic;n&rfloor;='+r.m+' &middot; baby steps '+r.baby+' &middot; giant steps '+r.giant+' &middot; '+ms+' ms</span>';
+};
+// solve once on load
+document.getElementById('solve').click();
+</script>
+</body>
+</html>
