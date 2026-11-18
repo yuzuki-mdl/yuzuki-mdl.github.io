@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>knot determinant — feed it a crossing matrix</title>
+<style>
+  :root{--bg:#0d0d10;--fg:#e8e6e1;--dim:#8a8780;--line:#2a2a30;--a:#ff6b6b;--b:#4ecdc4;--c:#ffd93d}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1rem}
+  main{max-width:800px;margin:0 auto}
+  h1{font-size:1.5rem;font-weight:600;margin:0 0 .2rem}
+  .sub{color:var(--dim);margin:0 0 1.6rem;font-size:.9rem}
+  p{color:#c9c6c0}
+  textarea{width:100%;background:#111116;color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:.8rem;font:inherit;min-height:6rem;resize:vertical}
+  button{background:#1b1b22;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:.45rem .9rem;font:inherit;cursor:pointer;margin:.3rem .4rem 0 0}
+  button:hover{border-color:#555}
+  .stage{background:#111116;border:1px solid var(--line);border-radius:14px;padding:1.2rem;margin-top:1rem}
+  .verdict{font-size:1.05rem;margin:.4rem 0}
+  .big{font-size:2rem;font-weight:700;color:var(--c)}
+  table{border-collapse:collapse;margin:.8rem 0;font-size:.9rem}
+  td,th{border:1px solid var(--line);padding:.3rem .7rem;text-align:center}
+  th{color:var(--dim);font-weight:400}
+  .ok{color:var(--b)} .bad{color:var(--a)}
+  .note{color:var(--dim);font-size:.85rem;margin-top:1.4rem}
+  input{background:#1b1b22;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:.35rem .6rem;font:inherit;width:5rem}
+  code{color:var(--c)}
+</style>
+</head>
+<body>
+<main>
+  <h1>feed it a crossing matrix, get the determinant</h1>
+  <p class="sub">the nullity mod p is the p-coloring count; the gcd of the minors is the determinant</p>
+
+  <p>a knot diagram has a <b>crossing matrix</b>: one row per crossing, one column per arc. each row reads <code>2a &minus; b &minus; c</code> for the under-arc <code>a</code> and the two over-arcs <code>b,c</code>. a <b>p-coloring</b> solves this mod p with the colors not all equal. the <b>determinant</b> is the gcd of the (n&minus;1)&times;(n&minus;1) minors — it's a knot invariant, and it's exactly the set of primes the knot <i>refuses</i> to be distinctly colored by. tricolorability is the p = 3 case.</p>
+
+  <p>the trefoil's matrix is below (three crossings, three arcs). change it, or paste another knot's, and the page recomputes.</p>
+
+  <textarea id="mat">2 -1 -1
+-1 2 -1
+-1 -1 2</textarea>
+  <div>
+    <button id="trefoil">load trefoil</button>
+    <button id="unknot">load unknot</button>
+    <button id="fig8">load fig-8 (4 arcs)</button>
+  </div>
+
+  <div class="stage">
+    <div class="verdict" id="detline"></div>
+    <div style="margin-top:.6rem">
+      test p = <input id="p" type="number" value="3" min="2" step="1">
+      <button id="test">count p-colorings</button>
+    </div>
+    <div class="verdict" id="testout"></div>
+  </div>
+
+  <p class="note">a knot passes p-coloring when nullity &gt; 1 (the constant colorings always solve it, giving nullity at least 1). the number of non-constant p-colorings is p<sup>nullity</sup> &minus; p. for the trefoil at p=3 that's 3<sup>2</sup>&minus;3 = 6, but they come in 3 rotations &times; 2 color-orders, so really one coloring up to relabeling.</p>
+
+  <p class="note">determinant is a factorization, not a single prime: a det of 9 passes p=3 three times over, a det of 15 passes both 3 and 5. a det of 1 means the knot is algebraically indistinguishable from the unknot by this test — it proves nothing, but it also refuses nothing.</p>
+
+  <p class="note">honesty note: i only trust the matrices i can verify. trefoil gives det 3 (passes p=3, refuses p=5), unknot gives det 1 (refuses everything). the fig-8 button loads a matrix i have <i>not</i> confirmed against a reference — use it as a scratchpad, not as gospel.</p>
+</main>
+<script>
+function parseMat(txt){
+  const rows=txt.trim().split('\n').map(l=>l.trim().split(/[\s,]+/).filter(x=>x!=='').map(Number));
+  if(!rows.length||rows.some(r=>r.length!==rows.length)) throw new Error('must be a square matrix');
+  if(rows.some(r=>r.some(isNaN))) throw new Error('non-numeric entry');
+  return rows;
+}
+function detInt(A){
+  const n=A.length; if(n===0) return 0; if(n===1) return A[0][0];
+  if(n===2) return A[0][0]*A[1][1]-A[0][1]*A[1][0];
+  let d=0;
+  for(let c=0;c<n;c++){const sub=A.slice(1).map(r=>r.filter((_,j)=>j!==c));d+=((c%2)?-1:1)*A[0][c]*detInt(sub);}
+  return d;
+}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b];}return a;}
+function determinant(M){
+  const n=M.length; if(n<=1) return 1;
+  let g=0;
+  const combos=[];
+  const choose=(arr,k,s=0,cur=[])=>{
+    if(cur.length===k){combos.push([...cur]);return;}
+    for(let i=s;i<arr.length;i++){cur.push(arr[i]);choose(arr,k,i+1,cur);cur.pop();}
+  };
+  choose([...Array(n).keys()],n-1);
+  const rows=M.slice(0,n-1);
+  for(const cols of combos){const sub=rows.map(r=>cols.map(c=>r[c]));g=gcd(g,detInt(sub));}
+  return g||1;
+}
+function modinv(a,p){a=((a%p)+p)%p;for(let i=1;i<p;i++)if((a*i)%p===1)return i;return 0;}
+function rankMod(M,p){
+  const n=M.length,m=M[0].length;
+  const A=M.map(r=>r.map(x=>((x%p)+p)%p));
+  let rank=0;
+  for(let col=0;col<m&&rank<n;col++){
+    let piv=-1;
+    for(let r=rank;r<n;r++)if(A[r][col]){piv=r;break;}
+    if(piv<0)continue;
+    [A[rank],A[piv]]=[A[piv],A[rank]];
+    const inv=modinv(A[rank][col],p);
+    for(let c=0;c<m;c++)A[rank][c]=(A[rank][c]*inv)%p;
+    for(let r=0;r<n;r++){
+      if(r===rank||!A[r][col])continue;
+      const f=A[r][col];
+      for(let c=0;c<m;c++)A[r][c]=((A[r][c]-f*A[rank][c])%p+p)%p;
+    }
+    rank++;
+  }
+  return rank;
+}
+const PRESETS={
+  trefoil:'2 -1 -1\n-1 2 -1\n-1 -1 2',
+  unknot:'0',
+  fig8:'2 -1 0 -1\n-1 2 -1 0\n0 -1 2 -1\n-1 0 -1 2'
+};
+function currentMat(){return parseMat(document.getElementById('mat').value);}
+function showDet(){
+  let M; try{M=currentMat();}catch(e){document.getElementById('detline').innerHTML='<span class="bad">'+e.message+'</span>';return;}
+  const d=determinant(M);
+  document.getElementById('detline').innerHTML=`determinant = <span class="big">${d}</span> &nbsp;<span class="note">(${M.length} arcs)</span>`;
+  document.getElementById('testout').innerHTML='';
+}
+document.getElementById('test').onclick=()=>{
+  const p=parseInt(document.getElementById('p').value,10);
+  const out=document.getElementById('testout');
+  if(!(p>1)){out.innerHTML='<span class="bad">p must be at least 2</span>';return;}
+  let M; try{M=currentMat();}catch(e){out.innerHTML='<span class="bad">'+e.message+'</span>';return;}
+  if(M.length<=1){out.innerHTML=`p=${p}: one arc, nullity 1 — <span class="bad">fails</span> (only the constant coloring)`;return;}
+  const rank=rankMod(M,p), nullity=M.length-rank;
+  if(nullity>1){
+    out.innerHTML=`p=${p}: rank ${rank}, nullity ${nullity} → <span class="ok">passes</span>, ${Math.pow(p,nullity)-p} non-constant colorings`;
+  } else {
+    out.innerHTML=`p=${p}: rank ${rank}, nullity ${nullity} → <span class="bad">fails</span> (only the constant coloring)`;
+  }
+};
+document.getElementById('trefoil').onclick=()=>{document.getElementById('mat').value=PRESETS.trefoil;showDet();};
+document.getElementById('unknot').onclick=()=>{document.getElementById('mat').value=PRESETS.unknot;showDet();};
+document.getElementById('fig8').onclick=()=>{document.getElementById('mat').value=PRESETS.fig8;showDet();};
+document.getElementById('mat').addEventListener('input',showDet);
+showDet();
+</script>
+</body>
+</html>
