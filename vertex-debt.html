@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>vertex debt — 720° a sphere owes</title>
+<style>
+  :root{--bg:#0e0f13;--ink:#e8e6df;--dim:#8a8778;--acc:#e0b050;--warn:#d86b6b;--ok:#6bc7a0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 ui-monospace,Menlo,monospace;padding:2rem 1rem}
+  main{max-width:760px;margin:0 auto}
+  h1{font-size:1.4rem;font-weight:600;margin:0 0 .2rem}
+  .sub{color:var(--dim);margin:0 0 1.5rem;font-size:.9rem}
+  canvas{width:100%;height:auto;display:block;border-radius:10px;background:#12141a}
+  .bar{display:flex;gap:.6rem;align-items:center;margin:1rem 0;flex-wrap:wrap}
+  button{background:#1c1f28;color:var(--ink);border:1px solid #2a2e3a;border-radius:8px;padding:.5rem .9rem;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc)}
+  .readout{color:var(--dim);font-size:.9rem}
+  .readout b{color:var(--acc);font-weight:600}
+  p{color:#b9b6a8;font-size:.92rem}
+  code{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+  <h1>vertex debt</h1>
+  <p class="sub">roll a coin around the corners of a polyhedron. every corner overpays.</p>
+  <canvas id="c" width="760" height="420"></canvas>
+  <div class="bar">
+    <button id="play">▶ roll</button>
+    <button id="reset">reset</button>
+    <span class="readout">corners visited: <b id="n">0</b> · excess banked: <b id="deg">0°</b></span>
+  </div>
+  <p>a flat sheet has 360° around every point. at a corner of a cube only 3 squares meet: <code>3×90° = 270°</code>, so 90° is <em>missing</em>. that missing angle is the corner's curvature. walk a coin all the way around the solid, turning at each corner, and the total missing angle you bank is always <b>720°</b> — no matter the shape. it's the debt a sphere can't pay. flat space owes nothing; a sphere owes a full 720°.</p>
+  <p class="sub">this page rolls the coin around a cube's 8 corners. 8 × 90° = 720°. try the tetrahedron: 4 × 180° = 720°. the number never moves.</p>
+</main>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+const nEl=document.getElementById('n'),degEl=document.getElementById('deg');
+
+// cube corners projected isometrically
+function cubeCorner(i){
+  const s=1,pts=[];
+  for(let b=0;b<8;b++){
+    const x=(b&1?1:-1),y=(b&2?1:-1),z=(b&4?1:-1);
+    // iso projection
+    const px=(x-z)*0.866*s, py=(x+z)*0.5*s - y*s;
+    pts.push({x:px,y:py});
+  }
+  return pts;
+}
+// order corners so the walk looks like a loop-ish tour (a hamiltonian-ish path over cube)
+const order=[0,1,3,2,6,7,5,4];
+
+const P=cubeCorner();
+const cx=W/2, cy=H/2, scale=95;
+const proj=P.map(p=>({x:cx+p.x*scale, y:cy+p.y*scale}));
+
+let t=0, playing=false, last=0;
+const SPEED=0.9; // corners per second-ish
+
+function reset(){ t=0; playing=false; document.getElementById('play').textContent='▶ roll'; render(); }
+
+function posOnTour(u){ // u in [0, order.length)
+  const i=Math.floor(u)%order.length, j=(i+1)%order.length;
+  const f=u-Math.floor(u);
+  const a=proj[order[i]], b=proj[order[j]];
+  return {x:a.x+(b.x-a.x)*f, y:a.y+(b.y-a.y)*f, i, j, f};
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+  // draw cube edges (the 12 edges)
+  const edges=[[0,1],[1,3],[3,2],[2,0],[4,5],[5,7],[7,6],[6,4],[0,4],[1,5],[2,6],[3,7]];
+  ctx.strokeStyle='#2a2e3a'; ctx.lineWidth=1.5;
+  for(const [a,b] of edges){
+    ctx.beginPath(); ctx.moveTo(proj[a].x,proj[a].y); ctx.lineTo(proj[b].x,proj[b].y); ctx.stroke();
+  }
+  // corners, filled if visited
+  const visited=Math.floor(t);
+  for(let k=0;k<order.length;k++){
+    const p=proj[order[k]];
+    const done = k < visited;
+    ctx.beginPath(); ctx.arc(p.x,p.y, done?6:4, 0, 7);
+    ctx.fillStyle = done ? '#e0b050' : '#3a3f4d'; ctx.fill();
+    // label the missing angle
+    if(done){
+      ctx.fillStyle='#8a8778'; ctx.font='11px ui-monospace,monospace'; ctx.textAlign='center';
+      ctx.fillText('+90°', p.x, p.y-12);
+    }
+  }
+  // coin
+  const cur=posOnTour(t);
+  ctx.beginPath(); ctx.arc(cur.x,cur.y,9,0,7);
+  const g=ctx.createRadialGradient(cur.x-3,cur.y-3,1,cur.x,cur.y,9);
+  g.addColorStop(0,'#fff2c8'); g.addColorStop(1,'#e0b050');
+  ctx.fillStyle=g; ctx.fill();
+  ctx.strokeStyle='#0e0f13'; ctx.lineWidth=1; ctx.stroke();
+
+  // readout
+  const banked=Math.min(order.length, Math.floor(t))*90;
+  nEl.textContent=Math.min(order.length,Math.floor(t));
+  degEl.textContent=banked+'°'+(banked>=720?' ✓':'') ;
+}
+
+function loop(ts){
+  if(!last) last=ts;
+  const dt=(ts-last)/1000; last=ts;
+  if(playing){ t += dt*SPEED; if(t>=order.length){ t=order.length; playing=false; document.getElementById('play').textContent='▶ roll'; } }
+  render();
+  if(playing) requestAnimationFrame(loop); else last=0;
+}
+
+document.getElementById('play').onclick=()=>{ if(t>=order.length) t=0; playing=true; document.getElementById('play').textContent='⏸'; last=0; requestAnimationFrame(loop); };
+document.getElementById('reset').onclick=reset;
+
+render();
+</script>
+</body>
+</html>
