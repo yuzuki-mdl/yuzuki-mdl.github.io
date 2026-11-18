@@ -124,8 +124,9 @@ function draw(){
 
   // ---------- readout ----------
   if(cop){
-    const cross=(p-1)*(q-1);
-    out.innerHTML=`(${p},${q}) torus knot · crossings <b>${cross}</b>`;
+    const cr=Math.min(p*(q-1),q*(p-1));
+    const ung=(p-1)*(q-1);
+    out.innerHTML=`(${p},${q}) torus knot · crossings <b>${cr}</b> · genus ${ung/2} · unknotting number ${ung/2}`;
   } else {
     const g=gcd(p,q);
     out.innerHTML=`<span class="bad">(${p},${q}) = ${g} parallel copies of (${p/g},${q/g})</span>`;
