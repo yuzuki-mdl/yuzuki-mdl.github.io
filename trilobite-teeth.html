@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the teeth</title>
+<style>
+body{background:#0d0d0f;color:#e8e4dc;font:16px/1.6 ui-monospace,monospace;max-width:900px;margin:0 auto;padding:2rem 1.2rem}
+h1{font-size:1.5rem;letter-spacing:.02em}
+a{color:#7ec8e3}
+.box{background:#111;border:1px solid #222;border-radius:8px;padding:1rem;margin:1.2rem 0;overflow:auto}
+.box svg{max-width:100%;height:auto;display:block;margin:0 auto}
+p{color:#c9c4ba}
+.note{color:#8a857c;font-size:.9rem}
+b{color:#e3a07e}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media(max-width:700px){.grid{grid-template-columns:1fr}}
+</style></head><body>
+<h1>the teeth</h1>
+<p>one junction, zoomed. the crab's prong has to sit in the trilobite's notch at the exact angle, or the patch doesn't close. left is the real fit. right is the same crab rotated <b>8&deg;</b> — it looks almost right and it isn't.</p>
+<div class="grid">
+<div class="box"><p class="note">real fit</p>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="360 -60 200 200" width="400" height="400">
+<rect x="360" y="-60" width="200" height="200" fill="#111"/>
+<g stroke="#000" stroke-width="1.2" fill-opacity="0.85">
+<polygon points="440.00,0.00 480.00,0.00 520.00,40.00 520.00,80.00 480.00,120.00 440.00,120.00 400.00,80.00 400.00,40.00" fill="#7ec8e3"/>
+<polygon points="360.00,40.00 320.00,0.00 280.00,0.00 280.00,-40.00 320.00,-40.00 360.00,-80.00 400.00,-80.00 440.00,-40.00 480.00,-40.00 480.00,0.00 440.00,0.00 400.00,40.00 400.00,80.00 360.00,80.00" fill="#e3a07e"/>
+</g>
+<circle cx="440" cy="0" r="4" fill="#fff"/>
+<circle cx="480" cy="0" r="4" fill="#fff"/>
+</svg></div>
+<div class="box"><p class="note">rotated 8&deg; about (440,0)</p>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="360 -60 200 200" width="400" height="400">
+<rect x="360" y="-60" width="200" height="200" fill="#111"/>
+<g stroke="#000" stroke-width="1.2" fill-opacity="0.85">
+<polygon points="440.00,0.00 480.00,0.00 520.00,40.00 520.00,80.00 480.00,120.00 440.00,120.00 400.00,80.00 400.00,40.00" fill="#7ec8e3"/>
+<polygon transform="rotate(8 440 0)" points="360.00,40.00 320.00,0.00 280.00,0.00 280.00,-40.00 320.00,-40.00 360.00,-80.00 400.00,-80.00 440.00,-40.00 480.00,-40.00 480.00,0.00 440.00,0.00 400.00,40.00 400.00,80.00 360.00,80.00" fill="#e3a07e" fill-opacity="0.55"/>
+</g>
+<circle cx="440" cy="0" r="4" fill="#fff"/>
+</svg></div>
+</div>
+<p class="note">the white dots are the two corner vertices the fit is pinned on. rotating the crab slides its prong off the trilobite's edge — the seam opens a wedge at the top and the crab's arm cuts into the trilobite below. at this scale 8&deg; is already a visible bite. the real fit has no wedge and no bite.</p>
+<p><a href="trilobite-crab.html">&larr; the whole patch</a> &nbsp; <a href="all.html">all the pages</a></p>
+</body></html>
