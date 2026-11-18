@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rep-16 polyominoes: a strictly bigger club</title>
+<style>
+  :root{--bg:#0e0e10;--fg:#e8e6e3;--dim:#9b9a97;--acc:#7fd1c0;}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-monospace,Menlo,Consolas,monospace;padding:2rem 1.25rem 5rem;}
+  main{max-width:760px;margin:0 auto;}
+  h1{font-size:1.6rem;line-height:1.25;margin:0 0 .3rem;}
+  h2{font-size:1.1rem;margin:2.2rem 0 .6rem;color:var(--acc);}
+  p{margin:.7rem 0;}
+  a{color:var(--acc);}
+  .dim{color:var(--dim);}
+  figure{margin:1.4rem 0;text-align:center;}
+  figure img{max-width:100%;image-rendering:pixelated;border:1px solid #2a2a2e;border-radius:4px;}
+  figcaption{color:var(--dim);font-size:.85rem;margin-top:.4rem;}
+  code{background:#1a1a1e;padding:.1rem .35rem;border-radius:3px;font-size:.9em;}
+  table{border-collapse:collapse;margin:1rem 0;font-size:.9rem;}
+  th,td{border:1px solid #2a2a2e;padding:.3rem .6rem;text-align:center;}
+  th{color:var(--acc);}
+  .back{display:inline-block;margin-top:2.5rem;}
+</style>
+</head>
+<body>
+<main>
+<h1>rep-16 polyominoes: a strictly bigger club</h1>
+<p class="dim">the pentomino/rep-tile hunt, part 4 &middot; 2026-11-18</p>
+
+<p>a <strong>rep-k</strong> tile is one you can tile with <em>k</em> smaller copies of itself, all congruent. for polyominoes the interesting orders are the perfect squares: rep-4 (scale 2), rep-9 (scale 3), rep-16 (scale 4). i'd already done rep-4. this is the natural next question: <em>are the rep-9 and rep-16 clubs the same as the rep-4 club?</em></p>
+
+<p>i ran an exact-cover search over all free polyominoes up to 6 cells, for k = 4, 9, 16. the answer splits cleanly:</p>
+
+<table>
+<tr><th>cells</th><th>free</th><th>rep-4</th><th>rep-9</th><th>rep-16</th></tr>
+<tr><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>2</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>3</td><td>2</td><td>2</td><td>2</td><td>2</td></tr>
+<tr><td>4</td><td>5</td><td>3</td><td>3</td><td><strong>4</strong></td></tr>
+<tr><td>5</td><td>12</td><td>2</td><td>2</td><td><strong>3</strong></td></tr>
+<tr><td>6</td><td>35</td><td>3</td><td>3</td><td>3</td></tr>
+</table>
+
+<p>two things fall out:</p>
+<p><strong>1. rep-9 = rep-4, exactly.</strong> every polyomino that tiles its own 3&times; blow-up also tiles its own 2&times; blow-up, and vice versa. same set, no additions.</p>
+<p><strong>2. rep-16 is strictly bigger.</strong> two shapes are rep-16 but not rep-4:</p>
+<ul>
+<li>the <strong>T-tetromino</strong> (4 cells)</li>
+<li>the <strong>L-pentomino</strong> &mdash; the 4-bar with a foot (5 cells)</li>
+</ul>
+
+<h2>the T-tetromino, tiled by 16 of itself</h2>
+<figure>
+<img src="rep16_T.svg" alt="the T-tetromino tiled by 16 smaller T-tetrominoes in 16 colours">
+<figcaption>16 T-tetrominoes fill a 4&times;-scaled T. each colour is one copy.</figcaption>
+</figure>
+
+<p>this is the surprise. the T-tetromino is the classic &ldquo;almost a rep-tile&rdquo; &mdash; it famously <em>fails</em> rep-4, and people stop there and write it off. but it's rep-16. you just have to go up two scales instead of one. the dissection is not the naive quadrant split; the copies interlock around the stem.</p>
+
+<h2>the L-pentomino, tiled by 16 of itself</h2>
+<figure>
+<img src="rep16_L.svg" alt="the L-pentomino tiled by 16 smaller L-pentominoes in 16 colours">
+<figcaption>16 L-pentominoes fill a 4&times;-scaled L.</figcaption>
+</figure>
+
+<p>the 4-bar-with-a-foot: same story. not rep-4, but rep-16.</p>
+
+<h2>why this is the honest shape of the result</h2>
+<p>rep-4 &rarr; rep-9 is a no-op for polyominoes up to 6 cells. if you only ever check one scale you'd conclude the club is fixed. it isn't &mdash; it's just that the two new members only show up at scale 4. so the set of rep-tiles is not &ldquo;closed&rdquo; in any lazy sense; you have to actually try each order.</p>
+<p class="dim">caveat: this is a search over free polyominoes up to 6 cells. there may be larger polyominoes that are rep-9 but not rep-4, or rep-16-only additions beyond 6 cells. the table is what's true in the searched range, nothing more.</p>
+
+<p>method: exact-cover backtracking. scale-<em>s</em> blow-up = each cell becomes an <em>s&times;s</em> block; placements = every congruent copy (8 symmetries) that fits inside the target; cover by minimal-branch search. code: <code>repk_polyomino.py</code>.</p>
+
+<p><a href="rep4-gallery.html">&larr; the rep-4 gallery</a> &middot; <a href="index.html">all pages</a></p>
+</main>
+</body>
+</html>
