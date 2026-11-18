@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>turning number</title>
+<style>
+  :root{--bg:#0d1014;--fg:#d7e0e8;--dim:#7c8a99;--acc:#5fd0c0;--warm:#e8a15f}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+  header{padding:28px 22px 6px;max-width:820px;margin:0 auto}
+  h1{font-size:22px;font-weight:600;margin:0 0 4px;letter-spacing:.3px}
+  p.sub{color:var(--dim);margin:0 0 4px;font-size:13.5px}
+  .wrap{max-width:820px;margin:0 auto;padding:10px 22px 60px}
+  canvas{width:100%;height:auto;display:block;background:#0a0d10;border:1px solid #1c242c;border-radius:10px;touch-action:none;cursor:crosshair}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0}
+  button{background:#16202a;color:var(--fg);border:1px solid #27333e;border-radius:8px;padding:7px 13px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  .read{font-variant-numeric:tabular-nums}
+  .read b{color:var(--acc);font-weight:600}
+  .read i{color:var(--warm);font-style:normal}
+  .note{color:var(--dim);font-size:13px;margin-top:16px;border-top:1px solid #1c242c;padding-top:14px}
+  .note b{color:var(--fg)}
+  code{color:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <h1>turning number</h1>
+  <p class="sub">click to drop points. drag to bend. the total turn is a whole number of 360° — always.</p>
+</header>
+<div class="wrap">
+  <canvas id="c" width="760" height="480"></canvas>
+  <div class="row">
+    <button id="add">add a random point</button>
+    <button id="clear">clear</button>
+    <button id="eight">figure-eight</button>
+    <button id="tri">triangle</button>
+  </div>
+  <div class="read" id="read"></div>
+  <div class="note">
+    for any <b>closed</b> curve that doesn't cross itself, the sum of the exterior
+    (turning) angles is exactly one full turn: <code>360°</code>. cross it once and you
+    get a figure-eight: <code>0°</code>. loop it twice, <code>720°</code>. the number of
+    full turns — the <b>turning number</b> — is an integer that can't wobble. bend the
+    shape all you like; it only changes when the curve passes through itself.
+  </div>
+</div>
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+let pts = [];
+let drag = -1;
+
+function defaultShape(){
+  pts = [];
+  const cx=W/2, cy=H/2, R=140, n=6;
+  for(let i=0;i<n;i++){
+    const a = -Math.PI/2 + i*2*Math.PI/n;
+    pts.push({x:cx+R*Math.cos(a), y:cy+R*Math.sin(a)});
+  }
+}
+
+function turningNumber(ps){
+  // sum of signed turning angles between consecutive edges, closed
+  const n = ps.length;
+  if(n < 3) return null;
+  let total = 0;
+  for(let i=0;i<n;i++){
+    const a = ps[i], b = ps[(i+1)%n], c = ps[(i+2)%n];
+    const v1x = b.x-a.x, v1y = b.y-a.y;
+    const v2x = c.x-b.x, v2y = c.y-b.y;
+    let ang = Math.atan2(v1x*v2y - v1y*v2x, v1x*v2x + v1y*v2y);
+    total += ang;
+  }
+  return total; // radians
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // grid dots
+  ctx.fillStyle = '#141b22';
+  for(let x=20;x<W;x+=40) for(let y=20;y<H;y+=40){
+    ctx.beginPath(); ctx.arc(x,y,1,0,7); ctx.fill();
+  }
+  if(pts.length===0){ drawRead(null); return; }
+
+  // edges
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = '#5fd0c0';
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x, pts[i].y);
+  if(pts.length>2) ctx.closePath();
+  ctx.stroke();
+
+  // turning-angle arcs at each vertex
+  const n = pts.length;
+  for(let i=0;i<n && n>2;i++){
+    const a = pts[(i-1+n)%n], b = pts[i], c = pts[(i+1)%n];
+    const v1x = a.x-b.x, v1y = a.y-b.y;
+    const v2x = c.x-b.x, v2y = c.y-b.y;
+    const ang1 = Math.atan2(v1y,v1x), ang2 = Math.atan2(v2y,v2x);
+    let d = ang2-ang1;
+    while(d>Math.PI) d-=2*Math.PI;
+    while(d<-Math.PI) d+=2*Math.PI;
+    const r = 22;
+    ctx.beginPath();
+    ctx.strokeStyle = d>=0 ? 'rgba(232,161,95,.8)' : 'rgba(120,160,230,.8)';
+    ctx.lineWidth = 1.5;
+    // draw the smaller arc, direction depends on sign
+    if(d>=0) ctx.arc(b.x,b.y,r,ang1,ang1+d);
+    else ctx.arc(b.x,b.y,r,ang1+d,ang1);
+    ctx.stroke();
+  }
+
+  // points
+  for(let i=0;i<pts.length;i++){
+    ctx.beginPath();
+    ctx.fillStyle = i===drag ? '#e8a15f' : '#d7e0e8';
+    ctx.arc(pts[i].x, pts[i].y, 5, 0, 7);
+    ctx.fill();
+  }
+  drawRead(turningNumber(pts));
+}
+
+function drawRead(t){
+  const el = document.getElementById('read');
+  if(t===null){ el.innerHTML = 'drop at least 3 points'; return; }
+  const deg = t*180/Math.PI;
+  const turns = t/(2*Math.PI);
+  el.innerHTML = 'total turn = <b>'+deg.toFixed(1)+'°</b> &nbsp;·&nbsp; turning number = <i>'+turns.toFixed(3)+'</i>';
+}
+
+function hit(mx,my){
+  for(let i=pts.length-1;i>=0;i--){
+    const dx=pts[i].x-mx, dy=pts[i].y-my;
+    if(dx*dx+dy*dy < 220) return i;
+  }
+  return -1;
+}
+
+function pos(e){
+  const r = cv.getBoundingClientRect();
+  const x = (e.touches?e.touches[0].clientX:e.clientX);
+  const y = (e.touches?e.touches[0].clientY:e.clientY);
+  return {x:(x-r.left)*W/r.width, y:(y-r.top)*H/r.height};
+}
+
+cv.addEventListener('pointerdown', e=>{
+  const p = pos(e);
+  const h = hit(p.x,p.y);
+  if(h>=0){ drag=h; }
+  else { pts.push({x:p.x,y:p.y}); }
+  draw();
+});
+cv.addEventListener('pointermove', e=>{
+  if(drag<0) return;
+  const p = pos(e);
+  pts[drag] = {x:p.x,y:p.y};
+  draw();
+});
+cv.addEventListener('pointerup', ()=>{ drag=-1; draw(); });
+cv.addEventListener('pointerleave', ()=>{ drag=-1; });
+
+document.getElementById('add').onclick = ()=>{
+  const cx=W/2, cy=H/2, R=120+Math.random()*60, a=Math.random()*6.28;
+  pts.push({x:cx+R*Math.cos(a), y:cy+R*Math.sin(a)});
+  draw();
+};
+document.getElementById('clear').onclick = ()=>{ pts=[]; draw(); };
+document.getElementById('tri').onclick = ()=>{
+  const cx=W/2, cy=H/2, R=140;
+  pts = [0,1,2].map(i=>{const a=-Math.PI/2+i*2*Math.PI/3; return {x:cx+R*Math.cos(a),y:cy+R*Math.sin(a)};});
+  draw();
+};
+document.getElementById('eight').onclick = ()=>{
+  // a figure-eight: goes around one loop cw, other ccw -> turning number 0
+  pts = [];
+  const cx=W/2, cy=H/2;
+  for(let i=0;i<40;i++){
+    const t = i/40*2*Math.PI;
+    pts.push({x:cx+120*Math.sin(t), y:cy+70*Math.sin(2*t)});
+  }
+  draw();
+};
+
+defaultShape();
+draw();
+</script>
+</body>
+</html>
