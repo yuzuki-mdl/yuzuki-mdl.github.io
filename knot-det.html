@@ -32,7 +32,7 @@
   <h1>feed it a crossing matrix, get the determinant</h1>
   <p class="sub">the nullity mod p is the p-coloring count; the gcd of the minors is the determinant</p>
 
-  <p>a knot diagram has a <b>crossing matrix</b>: one row per crossing, one column per arc. each row reads <code>2a &minus; b &minus; c</code> for the under-arc <code>a</code> and the two over-arcs <code>b,c</code>. a <b>p-coloring</b> solves this mod p with the colors not all equal. the <b>determinant</b> is the gcd of the (n&minus;1)&times;(n&minus;1) minors — it's a knot invariant, and it's exactly the set of primes the knot <i>refuses</i> to be distinctly colored by. tricolorability is the p = 3 case.</p>
+  <p>a knot diagram has a <b>crossing matrix</b>: one row per crossing, one column per arc. each row reads <code>2a &minus; b &minus; c</code> for the under-arc <code>a</code> and the two over-arcs <code>b,c</code>. a <b>p-coloring</b> solves this mod p with the colors not all equal. the <b>determinant</b> is the gcd of the (n&minus;1)&times;(n&minus;1) minors — it's a knot invariant, and a prime p divides it exactly when the knot <i>admits</i> a nontrivial p-coloring. tricolorability is the p = 3 case.</p>
 
   <p>the trefoil's matrix is below (three crossings, three arcs). change it, or paste another knot's, and the page recomputes.</p>
 
@@ -55,6 +55,8 @@
   </div>
 
   <p class="note">a knot passes p-coloring when nullity &gt; 1 (the constant colorings always solve it, giving nullity at least 1). the number of non-constant p-colorings is p<sup>nullity</sup> &minus; p. for the trefoil at p=3 that's 3<sup>2</sup>&minus;3 = 6, but they come in 3 rotations &times; 2 color-orders, so really one coloring up to relabeling.</p>
+
+  <p class="note"><b>scope:</b> the coloring counter works over <i>prime</i> p only. it finds the nullity by field rank (gaussian elimination mod p), and a composite modulus has no field — a pivot like 3 mod 6 has no inverse, so the rank is meaningless. composite p needs Smith normal form. thanks @sophia for catching it.</p>
 
   <p class="note">determinant is a factorization, not a single prime: a det of 9 passes p=3 three times over, a det of 15 passes both 3 and 5. a det of 1 means the knot is algebraically indistinguishable from the unknot by this test — it proves nothing, but it also refuses nothing.</p>
 
@@ -95,6 +97,7 @@ function determinant(M){
   }
   return g||1;
 }
+function isPrime(p){if(p<2)return false;for(let i=2;i*i<=p;i++)if(p%i===0)return false;return true;}
 function modinv(a,p){a=((a%p)+p)%p;for(let i=1;i<p;i++)if((a*i)%p===1)return i;return 0;}
 function rankMod(M,p){
   const n=M.length,m=M[0].length;
@@ -132,6 +135,7 @@ document.getElementById('test').onclick=()=>{
   const p=parseInt(document.getElementById('p').value,10);
   const out=document.getElementById('testout');
   if(!(p>1)){out.innerHTML='<span class="bad">p must be at least 2</span>';return;}
+  if(!isPrime(p)){out.innerHTML=`<span class="bad">p=${p} is composite — this counter uses field rank, which only works for prime p</span>`;return;}
   let M; try{M=currentMat();}catch(e){out.innerHTML='<span class="bad">'+e.message+'</span>';return;}
   if(M.length<=1){out.innerHTML=`p=${p}: one arc, nullity 1 — <span class="bad">fails</span> (only the constant coloring)`;return;}
   const rank=rankMod(M,p), nullity=M.length-rank;
