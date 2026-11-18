@@ -43,6 +43,11 @@
     <button id="trefoil">load trefoil</button>
     <button id="unknot">load unknot</button>
     <button id="fig8">load fig-8 impostor (det 4)</button>
+    <button id="trefoil-g">trefoil Goeritz (2&times;2)</button>
+    <button id="fig8-g">fig-8 Goeritz (2&times;2)</button>
+  </div>
+  <div style="margin-top:.6rem">
+    <label><input type="checkbox" id="goeritz" style="width:auto;vertical-align:middle"> this is a <b>Goeritz matrix</b> (full det = knot det, no minors)</label>
   </div>
 
   <div class="stage">
@@ -65,6 +70,8 @@
   <p class="note">scope: this eats <b>crossing matrices</b> (n&times;n, one row per crossing, row sums zero, so the full determinant is always 0 — the knot det is the gcd of the (n&minus;1)&times;(n&minus;1) minors). a <b>Goeritz matrix</b> is a different object: already (n&minus;1)&times;(n&minus;1), and its <i>full</i> determinant is the knot det. feed a Goeritz matrix to this and it takes minors of minors (gcd of the entries) and reads 1 — not a bug, wrong coat. good to know where the tool stops.</p>
 
   <p class="note">edit (penny's catch): that fig-8 matrix is a symmetric impostor — it wears the row-sums of the real thing but its determinant is 4, not 5. every 3&times;3 minor is 4, so no p=5 coloring can ever fall out of it. the real 4<sub>1</sub> has det 5 and <i>is</i> 5-colorable; the tool's 5-coloring verdict on that preset is wrong. the p=3 verdict is right (4<sub>1</sub> isn't tricolorable). also fixed: the gcd now walks <i>every</i> (n&minus;1)&times;(n&minus;1) minor (all row-subsets &times; all column-subsets), not just the top n&minus;1 rows — a matrix where the two conventions disagree will now read as the knot determinant, not a row artifact.</p>
+  <p class="note"><b>Goeritz mode</b> (checkbox above): a Goeritz matrix is built from the <i>checkerboard-shaded regions</i> of the diagram, not the crossings. it's already (k&minus;1)&times;(k&minus;1) with k = shaded regions, so its <i>full</i> determinant is the knot determinant — tick the box and the page takes the plain determinant instead of gcd-of-minors. the p-coloring test is the same rank/nullity computation either way (knot det and coloring matrix have the same nullity mod p).</p>
+  <p class="note">the two Goeritz presets: trefoil <code>[[-2,1],[1,-2]]</code> det 3, rank 1 mod 3 → tricolorable. fig-8 <code>[[-3,1],[1,-2]]</code> det 5, rank 1 mod 5 (5-colorable), rank 2 mod 3 (not tricolorable). both reproduce 4<sub>1</sub>'s known determinant and coloring behaviour — i'm presenting them as <i>a</i> Goeritz matrix that does, not as the canonical one from a diagram i drew by hand. the impostor above is the cautionary tale: a matrix can wear the right row-sums and still be the wrong knot.</p>
 </main>
 <script>
 function parseMat(txt){
@@ -122,13 +129,18 @@ function rankMod(M,p){
 const PRESETS={
   trefoil:'2 -1 -1\n-1 2 -1\n-1 -1 2',
   unknot:'0',
-  fig8:'2 -1 0 -1\n-1 2 -1 0\n0 -1 2 -1\n-1 0 -1 2'
+  fig8:'2 -1 0 -1\n-1 2 -1 0\n0 -1 2 -1\n-1 0 -1 2',
+  trefoil_g:'-2 1\n1 -2',
+  fig8_g:'-3 1\n1 -2'
 };
+function goeritzMode(){return document.getElementById('goeritz').checked;}
 function currentMat(){return parseMat(document.getElementById('mat').value);}
 function showDet(){
   let M; try{M=currentMat();}catch(e){document.getElementById('detline').innerHTML='<span class="bad">'+e.message+'</span>';return;}
-  const d=determinant(M);
-  document.getElementById('detline').innerHTML=`determinant = <span class="big">${d}</span> &nbsp;<span class="note">(${M.length} arcs)</span>`;
+  let d,what;
+  if(goeritzMode()){ d=Math.abs(detInt(M)); what=`Goeritz, full det`; }
+  else { d=determinant(M); what=`${M.length} arcs, gcd of minors`; }
+  document.getElementById('detline').innerHTML=`determinant = <span class="big">${d}</span> &nbsp;<span class="note">(${what})</span>`;
   document.getElementById('testout').innerHTML='';
 }
 document.getElementById('test').onclick=()=>{
@@ -139,8 +151,9 @@ document.getElementById('test').onclick=()=>{
   let M; try{M=currentMat();}catch(e){out.innerHTML='<span class="bad">'+e.message+'</span>';return;}
   if(M.length<=1){out.innerHTML=`p=${p}: one arc, nullity 1 — <span class="bad">fails</span> (only the constant coloring)`;return;}
   const rank=rankMod(M,p), nullity=M.length-rank;
-  if(nullity>1){
-    out.innerHTML=`p=${p}: rank ${rank}, nullity ${nullity} → <span class="ok">passes</span>, ${Math.pow(p,nullity)-p} non-constant colorings`;
+  const thresh=goeritzMode()?0:1;
+  if(nullity>thresh){
+    out.innerHTML=`p=${p}: rank ${rank}, nullity ${nullity} → <span class="ok">passes</span>`+(goeritzMode()?'':`, ${Math.pow(p,nullity)-p} non-constant colorings`);
   } else {
     out.innerHTML=`p=${p}: rank ${rank}, nullity ${nullity} → <span class="bad">fails</span> (only the constant coloring)`;
   }
@@ -148,6 +161,9 @@ document.getElementById('test').onclick=()=>{
 document.getElementById('trefoil').onclick=()=>{document.getElementById('mat').value=PRESETS.trefoil;showDet();};
 document.getElementById('unknot').onclick=()=>{document.getElementById('mat').value=PRESETS.unknot;showDet();};
 document.getElementById('fig8').onclick=()=>{document.getElementById('mat').value=PRESETS.fig8;showDet();};
+document.getElementById('trefoil-g').onclick=()=>{document.getElementById('goeritz').checked=true;document.getElementById('mat').value=PRESETS.trefoil_g;showDet();};
+document.getElementById('fig8-g').onclick=()=>{document.getElementById('goeritz').checked=true;document.getElementById('mat').value=PRESETS.fig8_g;showDet();};
+document.getElementById('goeritz').addEventListener('change',showDet);
 document.getElementById('mat').addEventListener('input',showDet);
 showDet();
 </script>
