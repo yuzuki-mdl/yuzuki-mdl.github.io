@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>linking number</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#e8e6e3;--dim:#8a8790;--acc:#7fd1c0;--acc2:#e08f7a}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,Menlo,monospace}
+  #wrap{display:flex;flex-direction:column;height:100%}
+  header{padding:14px 18px 6px}
+  h1{margin:0;font-size:16px;font-weight:600;letter-spacing:.02em}
+  .sub{color:var(--dim);font-size:12px;margin-top:2px}
+  .bar{padding:8px 18px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #1c1e24}
+  label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--dim)}
+  input[type=range]{width:160px;accent-color:var(--acc)}
+  .val{color:var(--fg);min-width:4ch;display:inline-block;text-align:right}
+  .readout{font-size:13px;color:var(--dim);margin-left:auto}
+  .readout b{color:var(--acc);font-weight:600;font-size:15px}
+  canvas{flex:1;display:block;width:100%}
+  .note{padding:8px 18px 14px;color:var(--dim);font-size:12px;line-height:1.6}
+  .note b{color:var(--fg)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <h1>linking number</h1>
+    <div class="sub">two closed loops, one threaded through the other. drag the slider to deform it. the integer never changes.</div>
+  </header>
+  <div class="bar">
+    <label>deform <input id="t" type="range" min="0" max="100" value="40"><span class="val" id="tv">0.40</span></label>
+    <div class="readout">linking number <b id="lk">?</b></div>
+  </div>
+  <canvas id="c"></canvas>
+  <div class="note">
+    <b>lk</b> = half the sum of signed crossings in a 2d projection. each crossing is +1 or &minus;1 by the right-hand rule (which strand is on top × its direction). it's a knot invariant: no amount of wiggling changes it, because every wiggle can be undone by a Reidemeister move that leaves the sum fixed. this pair is locked at lk = &minus;1 (a mirror hopf link; the sign is just a convention for which way the strands wind).
+  </div>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W=0,H=0,DPR=Math.min(devicePixelRatio||1,2);
+function resize(){const r=cv.getBoundingClientRect();W=r.width;H=r.height;cv.width=W*DPR;cv.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0);}
+addEventListener('resize',resize);
+
+// two curves in 3d: A is a circle in a tilted plane, B is a circle that threads through it.
+// param u in [0,2pi). deform pushes B along its axis so it slides through A's disk.
+function curveA(u,t){
+  const R=1.0;
+  return [R*Math.cos(u), R*Math.sin(u), 0];
+}
+function curveB(u,t){
+  // B is a loop threading through A's disk once: circle in the xz-plane,
+  // centered at (1,0,0), radius 0.9. it passes through A's disk at (0.1,0,0).
+  const dz=(t-0.5)*0.8;              // wiggle in z (never unthreads)
+  const wy=0.9*Math.sin(u)*0.25*(t-0.5)*2; // slight out-of-plane wobble
+  return [1+0.9*Math.cos(u), wy, dz+0.9*Math.sin(u)];
+}
+
+// rotate for a nice 3d view then project to 2d
+function view(p){
+  // tilt about x then y
+  const ax=-0.55, ay=0.7;
+  let [x,y,z]=p;
+  // rotate about x
+  let y1=y*Math.cos(ax)-z*Math.sin(ax), z1=y*Math.sin(ax)+z*Math.cos(ax);
+  // rotate about y
+  let x2=x*Math.cos(ay)+z1*Math.sin(ay), z2=-x*Math.sin(ay)+z1*Math.cos(ay);
+  return {x:x2, y:y1, z:z2};
+}
+
+const N=300;
+function sample(fn,t){const pts=[];for(let i=0;i<=N;i++){const u=i/N*Math.PI*2;pts.push({u, w:view(fn(u,t))});}return pts;}
+
+function draw(){
+  const t=+document.getElementById('t').value/100;
+  document.getElementById('tv').textContent=t.toFixed(2);
+  ctx.clearRect(0,0,W,H);
+  const cx=W/2, cy=H/2, S=Math.min(W,H)*0.32;
+  const proj=p=>({x:cx+p.x*S, y:cy+p.y*S, z:p.z});
+
+  const A=sample(curveA,t), B=sample(curveB,t);
+  const Ap=A.map(p=>({...proj(p.w), z:p.w.z}));
+  const Bp=B.map(p=>({...proj(p.w), z:p.w.z}));
+
+  // gather all crossings (segment pairs) with sign + depth
+  const crossings=[];
+  for(let i=0;i<A.length-1;i++){
+    for(let j=0;j<B.length-1;j++){
+      const a1=Ap[i],a2=Ap[i+1],b1=Bp[j],b2=Bp[j+1];
+      const d=(a2.x-a1.x)*(b2.y-b1.y)-(a2.y-a1.y)*(b2.x-b1.x);
+      if(Math.abs(d)<1e-9)continue;
+      const s=((b1.x-a1.x)*(b2.y-b1.y)-(b1.y-a1.y)*(b2.x-b1.x))/d;
+      const r=((b1.x-a1.x)*(a2.y-a1.y)-(b1.y-a1.y)*(a2.x-a1.x))/d;
+      if(s<0||s>1||r<0||r>1)continue;
+      const px=a1.x+s*(a2.x-a1.x), py=a1.y+s*(a2.y-a1.y);
+      const za=a1.z+s*(a2.z-a1.z), zb=b1.z+r*(b2.z-b1.z);
+      // sign: cross of tangents, times which is on top
+      const ta=[a2.x-a1.x,a2.y-a1.y], tb=[b2.x-b1.x,b2.y-b1.y];
+      let cr=ta[0]*tb[1]-ta[1]*tb[0];
+      let sign=cr>0?1:-1;
+      const atop=za>zb;
+      if(!atop) sign=-sign; // sign uses over-strand x under-strand: flip if B is on top
+      const over=atop?{x1:a1.x,y1:a1.y,x2:a2.x,y2:a2.y,col:'#7fd1c0'}:{x1:b1.x,y1:b1.y,x2:b2.x,y2:b2.y,col:'#e08f7a'};
+      crossings.push({x:px,y:py,sign,atop,over});
+    }
+  }
+
+  // draw strands: split each into pieces, hide the under-strand at crossings
+  function strokeCurve(pts,color,under){
+    ctx.lineWidth=2.4;ctx.strokeStyle=color;
+    ctx.beginPath();
+    for(let i=0;i<pts.length;i++){const p=pts[i];if(i===0)ctx.moveTo(p.x,p.y);else ctx.lineTo(p.x,p.y);}
+    ctx.stroke();
+  }
+  // draw B first, then A, then re-draw over-strand bits at each crossing
+  strokeCurve(Bp,'#e08f7a');
+  strokeCurve(Ap,'#7fd1c0');
+
+  // over/under: cut a bg gap in the under-strand, then redraw the over-strand through it
+  for(const c of crossings){
+    ctx.beginPath();
+    ctx.arc(c.x,c.y,5,0,Math.PI*2);
+    ctx.fillStyle='#0e0f13';
+    ctx.fill();
+  }
+  for(const c of crossings){
+    ctx.beginPath();
+    ctx.moveTo(c.over.x1,c.over.y1);
+    ctx.lineTo(c.over.x2,c.over.y2);
+    ctx.lineWidth=2.4;
+    ctx.strokeStyle=c.over.col;
+    ctx.stroke();
+  }
+
+  // sum of signs -> linking number (only count crossings where the two strands really interleave)
+  let sum=0,n=0;
+  for(const c of crossings){sum+=c.sign;n++;}
+  const lk=Math.round(sum/2);
+  document.getElementById('lk').textContent=lk;
+  requestAnimationFrame(()=>{});
+}
+
+document.getElementById('t').addEventListener('input',draw);
+resize();draw();
+</script>
+</body>
+</html>
