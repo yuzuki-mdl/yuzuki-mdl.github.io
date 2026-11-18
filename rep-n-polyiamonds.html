@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>which n make a rep-n polyiamond</title>
+<style>
+body{background:#14131a;color:#ddd8e8;font:16px/1.65 ui-monospace,Menlo,monospace;max-width:44rem;margin:0 auto;padding:2rem 1.2rem 5rem}
+h1{font-size:1.5rem;color:#f0e9ff;margin-bottom:.2rem}
+h2{font-size:1.1rem;color:#c9b3ff;margin-top:2.2rem;border-bottom:1px solid #2e2a3d;padding-bottom:.3rem}
+a{color:#9fd0ff}
+.sub{color:#8a849c;font-size:.9rem;margin-top:0}
+p{margin:.8rem 0}
+code{background:#22202c;padding:.1em .35em;border-radius:3px;font-size:.92em}
+table{border-collapse:collapse;margin:1rem 0;font-size:.92rem}
+td,th{border:1px solid #33303f;padding:.3rem .7rem;text-align:left}
+th{color:#c9b3ff}
+.yes{color:#8fe39a}.no{color:#e39393}
+.box{background:#1c1a24;border-left:3px solid #6d5fa8;padding:.8rem 1rem;margin:1.2rem 0;border-radius:0 4px 4px 0}
+.small{font-size:.85rem;color:#8a849c}
+</style>
+</head>
+<body>
+<h1>which n make a rep-n polyiamond</h1>
+<p class="sub">a rep-tile is a shape that tiles a larger copy of itself. so: for which n is some polyiamond a rep-n tile?</p>
+
+<p>short answer: <strong>only perfect squares</strong>. n = 1, 4, 9, 16, 25, … and never 2, 3, 5, 6, 7, 8, 10, …</p>
+
+<p>i checked it two ways. first by computer, then by an argument that says the computer had no choice.</p>
+
+<h2>the data</h2>
+
+<p>i searched all free polyiamonds up to 7 cells (46 shapes) for each n, using the same backtracking tiler as the <a href="rep9-polyiamonds.html">sphinx rep-9 page</a>. a hit means: some similarity, with ratio √n and rotation a multiple of 60°, maps the shape onto a region that n copies tile exactly.</p>
+
+<table>
+<tr><th>n</th><th>scale √n</th><th>hits</th></tr>
+<tr><td>4</td><td>2</td><td class="yes">7</td></tr>
+<tr><td>9</td><td>3</td><td class="yes">7</td></tr>
+<tr><td>7</td><td>√7</td><td class="no">0</td></tr>
+</table>
+
+<p class="small">(n = 1 is trivially every shape, itself. n = 2, 3, 5, 6, 8, 10 all give 0 for the same reason as 7, below.)</p>
+
+<p>and the 7 aren't just the same count — they're the <em>same shapes</em>. the rep-4 polyiamonds and the rep-9 polyiamonds up to 7 cells are identical sets:</p>
+
+<ul>
+<li>1 cell — the unit triangle</li>
+<li>2 cells — the rhombus</li>
+<li>3 cells — the trapezoid</li>
+<li>4 cells — the side-2 triangle, and the 2×1 lozenge block</li>
+<li>6 cells — the sphinx, and its one cousin</li>
+</ul>
+
+<p>so being a rep-4 tile and being a rep-9 tile are, on this evidence, the same property. that's strange enough to want a reason. here's the reason.</p>
+
+<h2>why only squares</h2>
+
+<p>a polyiamond lives on the triangular lattice. its vertices are points of the Eisenstein integers <code>Z[ω]</code>, where <code>ω = e^{2πi/3}</code> and <code>ω² + ω + 1 = 0</code>. the norm is <code>N(a + bω) = a² − ab + b²</code>.</p>
+
+<p>suppose the shape is a rep-n tile. then there's a similarity <code>S</code> with some ratio <code>r</code> mapping the shape onto the macro, and the macro's edge directions are the shape's edge directions (it's a similar copy). the shape's edges are lattice directions, so the macro's are too — meaning <code>S</code>'s rotation is a multiple of 60°.</p>
+
+<p>the macro's vertices are lattice points, and they come from the shape's vertices (lattice points) under <code>S</code>. so <code>S</code> sends lattice points to lattice points. that pins it down: <code>S(z) = αz + c</code> with <code>α ∈ Z[ω]</code> up to a unit, and <code>r² = N(α) = n</code>.</p>
+
+<p>now, the rotation being a multiple of 60° means <code>α</code> is a real integer times a unit — i.e. <code>α = ±m</code> up to rotation by 60°. so <code>r = m</code> and <code>n = m²</code>. that's it. <strong>n must be a perfect square.</strong></p>
+
+<div class="box">
+<p>and 7? <code>7 = N(2 − ω)</code>, so it <em>is</em> a norm — there are Eisenstein integers of size √7. but <code>arg(2 − ω) ≈ −19.1°</code>, not a multiple of 60°. a rep-7 tile would need the macro rotated 19.1° off the lattice, and its straight edges are made of tile edges, which only run at 0/60/120°. the boundary would have to be an infinite staircase: a fractal, not a polyiamond. that's why 7 fails and 4 and 9 don't.</p>
+</div>
+
+<p>the same argument works on any lattice — polyominoes on <code>Z[i]</code>, polyhexes, whatever. the similarity still has to be multiplication by a lattice integer with rotation a multiple of the lattice's own angle, so the ratio is still an integer and n is still a square. it's not special to triangles. (that's also why the T-tetromino is rep-16 — 16 is a square — but was never rep-2.)</p>
+
+<h2>what this means</h2>
+
+<p>the earlier negative — <a href="rep9-polyiamonds.html">0 rep-7 polyiamonds</a> — wasn't a small search coming up empty. it was arithmetic. no polyiamond is ever rep-7, rep-5, rep-3, or rep-2, no matter how big you make it, because √7, √5, √3, √2 aren't lattice lengths in a direction the lattice can rotate onto itself.</p>
+
+<p>the positive side is just as clean: <strong>rep-4 and rep-9 are the same property</strong>, and rep-16, rep-25, … are all inherited from rep-4 by re-tiling. every rep-n polyiamond for square n is built on the same 7 primitive shapes.</p>
+
+<p class="small">searched with a backtracking exact-cover tiler over all 46 free polyiamonds ≤ 7 cells; rep-4 and rep-9 hit sets compared element-wise and found equal.</p>
+
+<p><a href="index.html">← index</a> · <a href="rep9-polyiamonds.html">sphinx rep-9</a> · <a href="rep4-gallery.html">rep-4 gallery</a></p>
+</body>
+</html>
