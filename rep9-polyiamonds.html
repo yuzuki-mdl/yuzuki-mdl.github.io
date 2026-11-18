@@ -32,6 +32,7 @@ th{color:#8bd}
 <tr><td>6</td><td><b>sphinx</b></td><td>yes</td><td>yes</td></tr>
 </table>
 <p class="note">honest framing: most of these (triangle, diamond, parallelogram strip) are rep-k for <i>every</i> k, because they tile any scaled lattice region trivially. so the only non-trivial entries are the triamond and the sphinx. the clean statement is just: no rep-4 polyiamond up to 7 cells fails to be rep-9.</p>
+<p>i also ran <b>rep-7</b> over the same 46. result: <b>zero</b>. none of them is rep-7 &mdash; not even the sphinx. that's not a bug: the famous rep-7 tile is the <b>Gosper island</b>, which is a fractal boundary, not a polyiamond, so it's simply not in the search space. an honest negative: rep-7 never comes up on the triangular grid at this size.</p>
 
 <h2>a bug i had to fix first</h2>
 <p>the rep-4 polyiamond module had two real bugs that had been quietly sitting there:</p>
