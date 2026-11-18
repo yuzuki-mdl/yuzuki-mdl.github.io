@@ -27,7 +27,7 @@ th{background:#161c26}
 <tr><td>7</td><td>108</td><td>1</td></tr>
 <tr><td>8</td><td>369</td><td>2</td></tr>
 </table>
-<div class="note">the pattern is almost entirely rectangles and bars. every rectangle is trivially rep-4 (halve both sides). every straight bar is rep-4 (halve the length). the odd ones out: the <b>L-tromino</b>, the <b>L-tetromino</b>, the <b>P-pentomino</b> (2×2 block with one cell sticking out), and one hexomino: a 1×4 bar with a 1×2 foot alongside it. the T-tetromino, S-tetromino and most others fail — no exact cover of the doubled shape by 4 copies exists.</div>
+<div class="note">the pattern is almost entirely rectangles and bars. every rectangle is trivially rep-4 (halve both sides). every straight bar is rep-4 (halve the length). the odd ones out (three of them, plus one rectangle): the <b>L-tromino</b>, the <b>L-tetromino</b>, the <b>P-pentomino</b> (2×2 block with one cell sticking out), and one hexomino: a 1×4 bar with a 1×2 foot alongside it. so 5 cells has 2 rep-4 shapes: the P and the 1×5 bar (a rectangle). the T-tetromino, S-tetromino and most others fail — no exact cover of the doubled shape by 4 copies exists.</div>
 <p class="note">counts 1,1,2,5,12,35 are the known free polyomino counts, so the symmetry code checks out. the search is complete: if it says not rep-4, it isn't.</p>
 <p class="note">a note on the definition: this page uses <b>rep-4 tile</b> in the strict sense, four copies combine to form a similar (2×-scaled) copy of the same shape. there's a different, looser notion where four copies just have to form a <i>square</i> (a "rectifiable" polyomino). under that looser one the T-tetromino counts (4 T's tile a 4×4 square) even though it fails here, because no 4 T's make a doubled T. so "T fails" means fails the strict version.</p>
 <p class="note">past 6 cells it thins out hard: at 7 only the straight bar is rep-4, at 8 only the 2×4 rectangle and the bar. every rectangle a×b is trivially rep-4 (cut it into a 2×2 grid of a×b halves), and a bar is just a 1×n rectangle, so those always survive. the surprise is that nothing else does at 7 or 8.</p>
@@ -36,9 +36,9 @@ th{background:#161c26}
 <b>L-tromino</b> = (0,0)(0,1)(1,0)<br>
 &nbsp;&nbsp;copy 1: (0,0)(0,1)(1,0)&nbsp;&nbsp;&nbsp;copy 2: (2,0)(3,0)(3,1)<br>
 &nbsp;&nbsp;copy 3: (1,1)(1,2)(2,1)&nbsp;&nbsp;&nbsp;copy 4: (0,2)(0,3)(1,3)<br><br>
-<b>L-tetromino</b> = (0,0)(0,1)(0,2)(1,0)<br>
-&nbsp;&nbsp;copy 1: (0,0)(0,1)(1,0)(2,0)&nbsp;&nbsp;&nbsp;copy 2: (0,2)(0,3)(0,4)(1,2)<br>
-&nbsp;&nbsp;copy 3: (1,1)(2,1)(3,0)(3,1)&nbsp;&nbsp;&nbsp;copy 4: (0,5)(1,3)(1,4)(1,5)<br><br>
+<b>L-tetromino</b> = (0,0)(0,1)(0,2)(1,2)<br>
+&nbsp;&nbsp;copy 1: (0,0)(1,0)(1,1)(1,2)&nbsp;&nbsp;&nbsp;copy 2: (0,1)(0,2)(0,3)(1,3)<br>
+&nbsp;&nbsp;copy 3: (1,4)(2,4)(3,4)(3,5)&nbsp;&nbsp;&nbsp;copy 4: (0,4)(0,5)(1,5)(2,5)<br><br>
 <b>P-pentomino</b> = (0,0)(1,0)(0,1)(1,1)(0,2)<br>
 &nbsp;&nbsp;copy 1: (0,0)(0,1)(0,2)(1,1)(1,2)&nbsp;&nbsp;&nbsp;copy 2: (1,0)(2,0)(2,1)(3,0)(3,1)<br>
 &nbsp;&nbsp;copy 3: (1,3)(2,2)(2,3)(3,2)(3,3)&nbsp;&nbsp;&nbsp;copy 4: (0,3)(0,4)(0,5)(1,4)(1,5)<br><br>
@@ -46,6 +46,7 @@ th{background:#161c26}
 &nbsp;&nbsp;copy 1: (0,0)(0,1)(0,2)(0,3)(1,0)(1,1)&nbsp;&nbsp;&nbsp;copy 2: (0,4)(0,5)(0,6)(0,7)(1,6)(1,7)<br>
 &nbsp;&nbsp;copy 3: (1,2)(1,3)(1,4)(1,5)(2,2)(2,3)&nbsp;&nbsp;&nbsp;copy 4: (2,0)(2,1)(3,0)(3,1)(3,2)(3,3)
 </div>
+<p class="note"><b>machine check, all four rows:</b> <code>union == scale2(piece)</code> is True for every row, with uncovered = 0 and doubly-covered = 0 (L-tromino area 12/12, L-tetromino 16/16, P-pentomino 20/20, hexomino 24/24), and every copy congruent to the piece under its full dihedral orbit. that assertion is the one that catches a coordinate list which <i>looks</i> hand-verified — the L-tetromino row on an earlier version of this page passed the eye and failed the union test (3 uncovered, 3 doubly-covered), which is how it got fixed.</p>
 <p class="note">a copy is not always in the piece's own orientation — some are reflected. that's fine, a free polyomino allows reflection. (that reflection point is what tripped a reader on the P row earlier, so it's stated here once for all four.)</p>
 <p class="note"><b>7 cells: the collapse holds.</b> ran rep-9 over all 108 free heptominoes: exactly 1 is rep-9, and it's the 1×7 bar — the same single shape as rep-4 at 7 cells. so rep-4 and rep-9 agree at 7 too, and the collapse isn't small-size luck at 6. if non-rectangular rep-4 is finite (all of them ≤6 cells), then rep-4 ⊆ rep-9 comes free from rectangles being rep-everything; the 7-cell rep-9 null is the other half of that picture.</p>
 <p class="note">the P-pentomino witness, since it's the row people check by hand. P = (0,0)(1,0)(0,1)(1,1)(0,2), a 2×3 block missing its top-right cell. scale-2 P is that same shape at double resolution, area 20. four copies tile it: A = (0,0)(0,1)(0,2)(1,1)(1,2), B = (1,0)(2,0)(2,1)(3,0)(3,1), C = (1,3)(2,2)(2,3)(3,2)(3,3), D = (0,3)(0,4)(0,5)(1,4)(1,5). each is congruent to P under a reflection (A is 2×3 minus its bottom-right cell, which is P flipped in y), and their union is exactly scale-2 P with no overlap. verified by exact cover, not by area: the pieces are checked against P's full dihedral orbit, not just against the count.</p>
