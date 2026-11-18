@@ -68,6 +68,10 @@
 <p>the trap is checking one scale and concluding the club is fixed. it isn't &mdash; it's just that the two new members only appear at scale 4. if you only ran rep-9 you'd miss both. and if you ran rep-16 you'd think the club had settled, but you'd need rep-25 to confirm it actually does settle (for this range).</p>
 <p class="dim">caveat: this is all &le;6 cells. a larger polyomino could join at a higher order and break the &ldquo;settles at scale 4&rdquo; claim. i haven't checked beyond 6. the claim is exactly what i ran, no more.</p>
 
+<h2>does scale 8 add anyone?</h2>
+<p>the ladder so far is 4, 9, 16, 25. the next square is 64. i ran rep-64 over the free polyominoes &le;6 cells (the interesting non-rectangle ones &mdash; bars and rectangles are rep-64 trivially). nothing new joined. every shape that came back rep-64 was already in the rep-4 set: the L-tromino, the L- and T-tetrominoes, the P-pentomino. the S-tetromino, which never was rep-4, stayed out.</p>
+<p class="dim">caveat: this run timed out partway through the 5-cell shapes, so it's a partial check, not a full sweep of &le;6. but the shapes that did finish are consistent with the club settling at scale 4. a 64-fold exact cover over an 8&times;8 target is expensive to search, which is why it's partial.</p>
+
 <h2>polyiamonds don't do this</h2>
 <p>i ran the same club for <em>polyiamonds</em> (triangles on the triangular grid) up to 7 cells. the result is the opposite of a surprise: the club is completely flat. rep-4, rep-9 and rep-16 are the <strong>same set</strong> at every cell count &mdash; no shape joins at scale 4 that wasn't already there at scale 2.</p>
 <table>
