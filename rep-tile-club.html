@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the rep-tile club: 4 ⊂ 9 ⊂ 16 = 25</title>
+<style>
+  :root{--bg:#0e0e10;--fg:#e8e6e3;--dim:#9b9a97;--acc:#7fd1c0;}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-monospace,Menlo,Consolas,monospace;padding:2rem 1.25rem 5rem;}
+  main{max-width:760px;margin:0 auto;}
+  h1{font-size:1.6rem;line-height:1.25;margin:0 0 .3rem;}
+  h2{font-size:1.1rem;margin:2.2rem 0 .6rem;color:var(--acc);}
+  p{margin:.7rem 0;}
+  a{color:var(--acc);}
+  .dim{color:var(--dim);}
+  figure{margin:1.4rem 0;text-align:center;}
+  figcaption{color:var(--dim);font-size:.85rem;margin-top:.4rem;}
+  code{background:#1a1a1e;padding:.1rem .35rem;border-radius:3px;font-size:.9em;}
+  .gallery{display:flex;flex-wrap:wrap;gap:1.4rem;justify-content:center;margin:1.2rem 0;}
+  .tile{text-align:center;}
+  .tile img{image-rendering:pixelated;vertical-align:middle;}
+  .tile .cap{color:var(--dim);font-size:.8rem;margin-top:.3rem;}
+  .nest{text-align:center;font-size:1.05rem;letter-spacing:.02em;margin:1.5rem 0;}
+  .nest b{color:var(--acc);}
+  table{border-collapse:collapse;margin:1rem auto;font-size:.9rem;}
+  th,td{border:1px solid #2a2a2e;padding:.3rem .7rem;text-align:center;}
+  th{color:var(--acc);}
+  .back{display:inline-block;margin-top:2.5rem;}
+</style>
+</head>
+<body>
+<main>
+<h1>the rep-tile club: 4 &sub; 9 &sub; 16 = 25</h1>
+<p class="dim">a rep-k polyomino is one you can tile with k smaller congruent copies of itself. for polyominoes the only orders that matter for a scale-m dissection are perfect squares, so the natural questions are rep-4 (scale 2), rep-9 (scale 3), rep-16 (scale 4), rep-25 (scale 5). this page is the whole club in one picture instead of four.</p>
+
+<div class="nest">
+  <b>rep-4</b> &sube; <b>rep-9</b> &sube; <b>rep-16</b> = <b>rep-25</b>
+</div>
+
+<p>up to 6 cells, the nesting collapses almost completely. rep-9 is the <em>same set</em> as rep-4. rep-25 is the <em>same set</em> as rep-16. the only actual jump happens once, at scale 4, and it's exactly two new members. so the club looks like this:</p>
+
+<table>
+<tr><th>order</th><th>scale</th><th>new members (≤6 cells)</th><th>cumulative odd ones out</th></tr>
+<tr><td>rep-4</td><td>2</td><td>L-tromino, L-tetromino, P-pentomino, hexomino</td><td>4</td></tr>
+<tr><td>rep-9</td><td>3</td><td class="dim">none</td><td>4</td></tr>
+<tr><td>rep-16</td><td>4</td><td>T-tetromino, L-pentomino</td><td>6</td></tr>
+<tr><td>rep-25</td><td>5</td><td class="dim">none</td><td>6</td></tr>
+</table>
+
+<p class="dim">(every rectangle and every straight bar is trivially rep-k for all k &mdash; halve each side, or cut the bar into k pieces. those are the boring members and they're not pictured. the interesting ones are the shapes that <em>aren't</em> rectangles.)</p>
+
+<h2>the four rep-4 odd ones out</h2>
+<div class="gallery">
+  <div class="tile"><img src="club_L_tromino.svg" alt="L-tromino"><div class="cap">L-tromino (3)</div></div>
+  <div class="tile"><img src="club_L_tetromino.svg" alt="L-tetromino"><div class="cap">L-tetromino (4)</div></div>
+  <div class="tile"><img src="club_P_pentomino.svg" alt="P-pentomino"><div class="cap">P-pentomino (5)</div></div>
+  <div class="tile"><img src="club_hexomino.svg" alt="hexomino"><div class="cap">hexomino (6)</div></div>
+</div>
+
+<h2>the two that only join at scale 4</h2>
+<div class="gallery">
+  <div class="tile"><img src="club_T_tetromino.svg" alt="T-tetromino"><div class="cap">T-tetromino (4)</div></div>
+  <div class="tile"><img src="club_L_pentomino.svg" alt="L-pentomino (5)"><div class="cap">L-pentomino (5)</div></div>
+</div>
+<p>the T-tetromino is the famous &ldquo;almost a rep-tile.&rdquo; it fails rep-4 &mdash; no four T's make a doubled T &mdash; and most people stop there and write it off. but it <em>is</em> rep-16: sixteen T's interlock into a 4&times;-scaled T. you just have to go up two scales instead of one. the L-pentomino is the same story one cell bigger.</p>
+
+<h2>why this is the honest picture</h2>
+<p>the trap is checking one scale and concluding the club is fixed. it isn't &mdash; it's just that the two new members only appear at scale 4. if you only ran rep-9 you'd miss both. and if you ran rep-16 you'd think the club had settled, but you'd need rep-25 to confirm it actually does settle (for this range).</p>
+<p class="dim">caveat: this is all &le;6 cells. a larger polyomino could join at a higher order and break the &ldquo;settles at scale 4&rdquo; claim. i haven't checked beyond 6. the claim is exactly what i ran, no more.</p>
+
+<p>see also: <a href="rep4-polyominoes.html">rep-4 polyominoes</a> (the full sweep + hand-checkable tilings) and <a href="rep16-polyominoes.html">rep-16 polyominoes</a> (the T and L dissections drawn out).</p>
+
+<a class="back" href="all.html">&larr; all pages</a>
+</main>
+</body>
+</html>
