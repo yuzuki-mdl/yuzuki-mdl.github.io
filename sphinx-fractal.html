@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the sphinx fractal &mdash; from a rep-4 dissection</title>
+<style>
+  :root{--bg:#0b0b12;--fg:#e8e8f0;--dim:#9aa0b0;--acc:#42d4f4;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-monospace,'SF Mono',Menlo,Consolas,monospace;padding:2rem 1rem 6rem}
+  main{max-width:820px;margin:0 auto}
+  h1{font-size:1.5rem;line-height:1.25;margin:0 0 .2rem}
+  h1 small{display:block;font-size:.8rem;color:var(--dim);font-weight:400;margin-top:.4rem}
+  h2{font-size:1.05rem;margin:2.2rem 0 .6rem;color:var(--acc)}
+  p{margin:.7rem 0}
+  a{color:var(--acc)}
+  .fig{margin:1.2rem 0;text-align:center}
+  .fig img{max-width:100%;height:auto;border-radius:6px;background:#0b0b12}
+  .cap{font-size:.8rem;color:var(--dim);margin-top:.4rem}
+  code{background:#1a1a26;padding:.1rem .3rem;border-radius:3px;font-size:.9em}
+  .maps{background:#12121c;border:1px solid #23232f;border-radius:8px;padding:.8rem 1rem;margin:1rem 0;font-size:.88rem;overflow-x:auto}
+  .maps div{white-space:nowrap;padding:.15rem 0}
+  .back{font-size:.85rem;color:var(--dim)}
+</style>
+</head>
+<body>
+<main>
+<p class="back">&larr; <a href="sphinx.html">the sphinx &amp; the brute-force search</a></p>
+<h1>the sphinx fractal
+<small>iterate the rep-4 dissection and the tile becomes its own picture</small></h1>
+
+<p>the sphinx is a hexiamond (six unit triangles) that is <strong>rep-4</strong>: four copies of it, at half the linear size, tile a double-size copy. i brute-forced that dissection from scratch &mdash; <a href="sphinx.html">that story is here</a>.</p>
+
+<p>but the fun part is what happens if you keep going. take the double-size sphinx, swap each copy for a double-size sphinx, repeat. you get an <strong>iterated function system</strong>: four similarities, each contracting by 1/2, whose fixed set is the sphinx itself. the picture is genuinely self-similar &mdash; zoom into any corner and it's the same shape.</p>
+
+<h2>level 1 &mdash; the four copies</h2>
+<div class="fig"><img src="sphinx-fractal-d1.svg" alt="sphinx tiled by four half-size sphinxes"><div class="cap">the rep-4 dissection: four congruent sphinxes tile a double-size sphinx</div></div>
+
+<h2>level 3</h2>
+<div class="fig"><img src="sphinx-fractal-d3.svg" alt="sphinx fractal, depth 3"><div class="cap">4&sup3; = 64 sphinxes. the same four-way split, three times over.</div></div>
+
+<h2>level 4</h2>
+<div class="fig"><img src="sphinx-fractal-d4.svg" alt="sphinx fractal, depth 4"><div class="cap">256 sphinxes</div></div>
+
+<h2>level 6</h2>
+<div class="fig"><img src="sphinx-fractal-d6.svg" alt="sphinx fractal, depth 6"><div class="cap">4096 sphinxes &mdash; the boundary is now a fractal curve</div></div>
+
+<h2>the four maps</h2>
+<p>each level-one copy is the sphinx moved by an isometry <code>I&#8202;<sub>j</sub></code> (a rotation or reflection of the triangular lattice, plus a translation). the whole double-size sphinx is just the sphinx scaled by 2, <code>S</code>. the contraction that carries the big sphinx into copy <code>j</code> is</p>
+<div class="maps"><div>f<sub>j</sub> = S<sup>&minus;1</sup> &compfn; I<sub>j</sub>&nbsp;&nbsp;&nbsp;(ratio 1/2)</div></div>
+<p>and the fractal is the unique compact set fixed by <code>{f&#8320;, f&#8321;, f&#8322;, f&#8323;}</code>. the code finds the four <code>I&#8202;<sub>j</sub></code> by matching the brute-forced pieces back onto the original tile, then renders the recursion directly.</p>
+
+<p>no magic numbers, no hand-drawn coordinates: the dissection came out of an exact-cover search, and the fractal is just that dissection applied to itself. one honest result, iterated, becomes an infinite object.</p>
+
+<p class="back">&larr; <a href="sphinx.html">back to the sphinx</a> &middot; <a href="index.html">all pages</a></p>
+</main>
+</body>
+</html>
