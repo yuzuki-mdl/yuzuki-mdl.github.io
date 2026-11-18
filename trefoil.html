@@ -66,45 +66,57 @@ const M=t=>{const [x,y]=P(t);return [(x-mnx)*sc+ox,(mxy-y)*sc+oy];};
 // 3 arcs split at crossing params
 // cuts at underpass params (the smaller t of each crossing pair) —
 // each arc runs undercrossing to undercrossing
-const cuts=[0.27092,1.82348,2.36531];
+const cuts=[0.27018,2.36562,4.45949];
 const segs=[[cuts[0],cuts[1]],[cuts[1],cuts[2]],[cuts[2],cuts[0]+2*Math.PI]];
 function pathFor(a,b){let d='';const steps=Math.max(20,Math.round((b-a)/(2*Math.PI)*240));for(let k=0;k<=steps;k++){const t=a+(b-a)*k/steps;const [x,y]=M(t);d+=(k?'L':'M')+x.toFixed(1)+' '+y.toFixed(1);}return d;}
-// crossings: [tA,tB] both params hitting same point; over = larger t
-const crossings=[[0.27092,3.91787],[1.82348,4.45971],[2.36531,6.01227]];
+// each crossing: [under, over]. over is the strand that passes ON TOP.
+// (which param is over isn't always the larger t — it alternates round the knot.)
+const crossings=[[0.27018,3.91757],[4.45949,1.82369],[2.36562,6.01301]];
 const arcs=[];
 segs.forEach(([a,b],i)=>{const p=document.createElementNS(NS,'path');p.setAttribute('d',pathFor(a,b));p.setAttribute('fill','none');p.setAttribute('stroke',COLORS[0]);p.setAttribute('stroke-width','8');p.setAttribute('stroke-linecap','round');p.setAttribute('class','arc');p.dataset.arc=i;svg.appendChild(p);arcs.push(p);});
 // crossings: gap + over-strand redraw handled in repaint() (needs col)
 const overLayer=document.createElementNS(NS,'g');svg.appendChild(overLayer);
-// which arc does each crossing's over/under belong to? map param -> arc index
-function arcOf(t){t=((t% (2*Math.PI))+2*Math.PI)%(2*Math.PI);if(t>=cuts[0]&&t<cuts[1])return 0;if(t>=cuts[1]&&t<cuts[2])return 1;return 2;}
-const crossArcs=crossings.map(([a,b])=>[arcOf(a),arcOf(b)]);
+// which arc does a param belong to (strict interior of an arc)?
+const TAU=2*Math.PI;
+function norm(t){return ((t%TAU)+TAU)%TAU;}
+function arcOf(t){t=norm(t);if(t>=cuts[0]&&t<cuts[1])return 0;if(t>=cuts[1]&&t<cuts[2])return 1;return 2;}
+// the two arcs meeting at an underpass u: the one ending there, the one starting there
+function arcEndingAt(u){u=norm(u);if(Math.abs(norm(segs[0][1])-u)<1e-3)return 0;if(Math.abs(norm(segs[1][1])-u)<1e-3)return 1;return 2;}
+function arcStartingAt(u){u=norm(u);if(Math.abs(norm(segs[0][0])-u)<1e-3)return 0;if(Math.abs(norm(segs[1][0])-u)<1e-3)return 1;return 2;}
+// the three arc-pieces meeting at each crossing: over, under-before, under-after
+const crossTriples=crossings.map(([u,o])=>[arcOf(o),arcEndingAt(u),arcStartingAt(u)]);
 let col=[0,0,0];
 function repaint(){
   arcs.forEach((p,i)=>p.setAttribute('stroke',COLORS[col[i]]));
   // over/under: gap on under strand, then redraw over strand on top
   while(overLayer.firstChild)overLayer.removeChild(overLayer.firstChild);
-  for(const [ta,tb] of crossings){
-    const [cx,cy]=M(ta);
+  for(const [u,o] of crossings){
+    const [cx,cy]=M(u);
     const gap=document.createElementNS(NS,'circle');gap.setAttribute('cx',cx.toFixed(1));gap.setAttribute('cy',cy.toFixed(1));gap.setAttribute('r','6');gap.setAttribute('fill','#0d0d10');overLayer.appendChild(gap);
   }
-  for(const [ta,tb] of crossings){
-    const a=Math.max(0,tb-0.35), b=tb+0.35;
+  for(const [u,o] of crossings){
+    const a=Math.max(0,o-0.35), b=o+0.35;
     const p=document.createElementNS(NS,'path');p.setAttribute('d',pathFor(a,b));p.setAttribute('fill','none');p.setAttribute('stroke','#0d0d10');p.setAttribute('stroke-width','9');p.setAttribute('stroke-linecap','round');overLayer.appendChild(p);
-    const q=document.createElementNS(NS,'path');q.setAttribute('d',pathFor(a,b));q.setAttribute('fill','none');q.setAttribute('stroke',COLORS[col[arcOf(tb)]]);q.setAttribute('stroke-width','8');q.setAttribute('stroke-linecap','round');overLayer.appendChild(q);
+    const q=document.createElementNS(NS,'path');q.setAttribute('d',pathFor(a,b));q.setAttribute('fill','none');q.setAttribute('stroke',COLORS[col[arcOf(o)]]);q.setAttribute('stroke-width','8');q.setAttribute('stroke-linecap','round');overLayer.appendChild(q);
   }
   check();
 }
 function check(){
   const v=document.getElementById('verdict');
   if(col.includes(0)){v.textContent='';v.className='verdict';return;}
-  // for the 3-arc trefoil EVERY crossing spans all three arcs, so the
-  // per-crossing rule (all-same or all-distinct) is just a condition on
-  // the whole triple {col[0],col[1],col[2]} — testing the set size is
-  // exactly equivalent here.
-  const s=new Set(col);
-  if(s.size===1){v.textContent='✓ valid (all one color — the trivial coloring)';v.className='verdict ok';}
-  else if(s.size===3){v.textContent='✓ valid tricoloring — the trefoil is a knot';v.className='verdict ok';}
-  else{v.textContent='✗ invalid — the trefoil needs all same or all three different';v.className='verdict bad';}
+  // the real rule, tested at EVERY crossing: its three arc-pieces (over,
+  // under-before, under-after) must be all the same color or all three different.
+  let ok=true, trivial=true;
+  for(const tr of crossTriples){
+    const cs=tr.map(i=>col[i]);
+    const same=(cs[0]===cs[1]&&cs[1]===cs[2]);
+    const diff=(cs[0]!==cs[1]&&cs[1]!==cs[2]&&cs[0]!==cs[2]);
+    if(!(same||diff)) ok=false;
+    if(!same) trivial=false;
+  }
+  if(!ok){v.textContent='✗ invalid — at some crossing the strands are neither all same nor all three different';v.className='verdict bad';}
+  else if(trivial){v.textContent='✓ valid (all one color — the trivial coloring)';v.className='verdict ok';}
+  else{v.textContent='✓ valid tricoloring — the trefoil is a knot';v.className='verdict ok';}
 }
 arcs.forEach((p,i)=>p.addEventListener('click',()=>{col[i]=(col[i]+1)%4;repaint();}));
 document.getElementById('reset').onclick=()=>{col=[0,0,0];repaint();};
