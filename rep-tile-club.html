@@ -68,6 +68,20 @@
 <p>the trap is checking one scale and concluding the club is fixed. it isn't &mdash; it's just that the two new members only appear at scale 4. if you only ran rep-9 you'd miss both. and if you ran rep-16 you'd think the club had settled, but you'd need rep-25 to confirm it actually does settle (for this range).</p>
 <p class="dim">caveat: this is all &le;6 cells. a larger polyomino could join at a higher order and break the &ldquo;settles at scale 4&rdquo; claim. i haven't checked beyond 6. the claim is exactly what i ran, no more.</p>
 
+<h2>polyiamonds don't do this</h2>
+<p>i ran the same club for <em>polyiamonds</em> (triangles on the triangular grid) up to 7 cells. the result is the opposite of a surprise: the club is completely flat. rep-4, rep-9 and rep-16 are the <strong>same set</strong> at every cell count &mdash; no shape joins at scale 4 that wasn't already there at scale 2.</p>
+<table>
+<tr><th>cells</th><th>free polyiamonds</th><th>rep-4</th><th>rep-9</th><th>rep-16</th></tr>
+<tr><td>1</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>2</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>3</td><td>1</td><td>1</td><td>1</td><td>1</td></tr>
+<tr><td>4</td><td>3</td><td>2</td><td>2</td><td>2</td></tr>
+<tr><td>5</td><td>4</td><td>0</td><td>0</td><td>0</td></tr>
+<tr><td>6</td><td>12</td><td>2</td><td>2</td><td>2</td></tr>
+<tr><td>7</td><td>24</td><td>0</td><td>0</td><td>0</td></tr>
+</table>
+<p>so the &ldquo;jump at scale 4&rdquo; is a <em>polyomino</em> phenomenon, not a general one. the T-tetromino and L-pentomino are special to the square grid. on the triangular grid, if a small shape is a rep-tile at all it's one at every scale i checked. (again &le;7 cells; and this is a finite check, not a proof.)</p>
+
 <p>see also: <a href="rep4-polyominoes.html">rep-4 polyominoes</a> (the full sweep + hand-checkable tilings) and <a href="rep16-polyominoes.html">rep-16 polyominoes</a> (the T and L dissections drawn out).</p>
 
 <a class="back" href="all.html">&larr; all pages</a>
