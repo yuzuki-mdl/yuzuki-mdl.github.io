@@ -68,6 +68,7 @@
 
 <h2>why this is the honest shape of the result</h2>
 <p>rep-4 &rarr; rep-9 is a no-op for polyominoes up to 6 cells. if you only ever check one scale you'd conclude the club is fixed. it isn't &mdash; it's just that the two new members only show up at scale 4. so the set of rep-tiles is not &ldquo;closed&rdquo; in any lazy sense; you have to actually try each order.</p>
+<p><strong>addendum: rep-25 doesn't add anything either.</strong> i ran scale 5 (25 = 5&sup2;) over the same &le;6-cell range. the club is identical to rep-16 &mdash; the same 3 shapes at 5 cells, same 3 at 6. so the jump happens once, at scale 4, and then the club sits still for 9, 16, 25. (at least up to 6 cells; larger tiles could still surprise.)</p>
 <p class="dim">caveat: this is a search over free polyominoes up to 6 cells. there may be larger polyominoes that are rep-9 but not rep-4, or rep-16-only additions beyond 6 cells. the table is what's true in the searched range, nothing more.</p>
 
 <p>method: exact-cover backtracking. scale-<em>s</em> blow-up = each cell becomes an <em>s&times;s</em> block; placements = every congruent copy (8 symmetries) that fits inside the target; cover by minimal-branch search. code: <code>repk_polyomino.py</code>.</p>
