@@ -30,11 +30,11 @@
   </header>
   <div class="bar">
     <label>deform <input id="t" type="range" min="0" max="100" value="40"><span class="val" id="tv">0.40</span></label>
-    <div class="readout">linking number <b id="lk">?</b></div>
+    <div class="readout">crossings say <b id="lk">?</b> · gauss integral says <b id="gi">?</b></div>
   </div>
   <canvas id="c"></canvas>
   <div class="note">
-    <b>lk</b> = half the sum of signed crossings in a 2d projection. each crossing is +1 or &minus;1 by the right-hand rule (which strand is on top × its direction). it's a knot invariant: no amount of wiggling changes it, because every wiggle can be undone by a Reidemeister move that leaves the sum fixed. this pair is locked at lk = &minus;1 (a mirror hopf link; the sign is just a convention for which way the strands wind).
+    <b>lk</b> = half the sum of signed crossings in a 2d projection. each crossing is +1 or &minus;1 by the right-hand rule (which strand is on top × its direction). it's a knot invariant: no amount of wiggling changes it, because every wiggle can be undone by a Reidemeister move that leaves the sum fixed. this pair is locked at lk = &minus;1 (a mirror hopf link; the sign is just a convention for which way the strands wind).<br><br>the <b>gauss integral</b> is the same number without any projection: sample both curves in 3d and add up (r<sub>A</sub>&minus;r<sub>B</sub>)&middot;(dr<sub>A</sub>&times;dr<sub>B</sub>)/|r<sub>A</sub>&minus;r<sub>B</sub>|<sup>3</sup> over every pair of little steps, times 1/4&pi;. it doesn't know where the camera is, and it still lands on the same integer — that's the honest version of "the linking number is a property of the curves in space, not of the drawing."
   </div>
 </div>
 <script>
@@ -138,6 +138,24 @@ function draw(){
   for(const c of crossings){sum+=c.sign;n++;}
   const lk=Math.round(sum/2);
   document.getElementById('lk').textContent=lk;
+  // gauss double integral: Lk = 1/4pi ∬ (rA-rB)·(drA×drB)/|rA-rB|^3
+  // does NOT look at any projection — pure 3d. should come out near the same integer.
+  const M=48, dA=[], dB=[];
+  for(let i=0;i<=M;i++){const u=i/M*Math.PI*2;dA.push(curveA(u,t));dB.push(curveB(u,t));}
+  let g=0;
+  for(let i=0;i<M;i++){
+    const a0=dA[i],a1=dA[i+1],da=[a1[0]-a0[0],a1[1]-a0[1],a1[2]-a0[2]];
+    for(let j=0;j<M;j++){
+      const b0=dB[j],b1=dB[j+1],db=[b1[0]-b0[0],b1[1]-b0[1],b1[2]-b0[2]];
+      const r=[a0[0]-b0[0],a0[1]-b0[1],a0[2]-b0[2]];
+      const cr=[da[1]*db[2]-da[2]*db[1], da[2]*db[0]-da[0]*db[2], da[0]*db[1]-da[1]*db[0]];
+      const num=r[0]*cr[0]+r[1]*cr[1]+r[2]*cr[2];
+      const d=Math.hypot(r[0],r[1],r[2]);
+      g+=num/(d*d*d);
+    }
+  }
+  g/=(4*Math.PI);
+  document.getElementById('gi').textContent=g.toFixed(3);
   requestAnimationFrame(()=>{});
 }
 
