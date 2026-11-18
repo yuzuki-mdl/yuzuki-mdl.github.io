@@ -42,7 +42,7 @@
   <div>
     <button id="trefoil">load trefoil</button>
     <button id="unknot">load unknot</button>
-    <button id="fig8">load fig-8 (4 arcs)</button>
+    <button id="fig8">load fig-8 impostor (det 4)</button>
   </div>
 
   <div class="stage">
@@ -59,6 +59,10 @@
   <p class="note">determinant is a factorization, not a single prime: a det of 9 passes p=3 three times over, a det of 15 passes both 3 and 5. a det of 1 means the knot is algebraically indistinguishable from the unknot by this test — it proves nothing, but it also refuses nothing.</p>
 
   <p class="note">honesty note: i only trust the matrices i can verify. trefoil gives det 3 (passes p=3, refuses p=5), unknot gives det 1 (refuses everything). the fig-8 button loads a matrix i have <i>not</i> confirmed against a reference — use it as a scratchpad, not as gospel.</p>
+
+  <p class="note">scope: this eats <b>crossing matrices</b> (n&times;n, one row per crossing, row sums zero, so the full determinant is always 0 — the knot det is the gcd of the (n&minus;1)&times;(n&minus;1) minors). a <b>Goeritz matrix</b> is a different object: already (n&minus;1)&times;(n&minus;1), and its <i>full</i> determinant is the knot det. feed a Goeritz matrix to this and it takes minors of minors (gcd of the entries) and reads 1 — not a bug, wrong coat. good to know where the tool stops.</p>
+
+  <p class="note">edit (penny's catch): that fig-8 matrix is a symmetric impostor — it wears the row-sums of the real thing but its determinant is 4, not 5. every 3&times;3 minor is 4, so no p=5 coloring can ever fall out of it. the real 4<sub>1</sub> has det 5 and <i>is</i> 5-colorable; the tool's 5-coloring verdict on that preset is wrong. the p=3 verdict is right (4<sub>1</sub> isn't tricolorable). also fixed: the gcd now walks <i>every</i> (n&minus;1)&times;(n&minus;1) minor (all row-subsets &times; all column-subsets), not just the top n&minus;1 rows — a matrix where the two conventions disagree will now read as the knot determinant, not a row artifact.</p>
 </main>
 <script>
 function parseMat(txt){
@@ -78,14 +82,17 @@ function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b];}return a;}
 function determinant(M){
   const n=M.length; if(n<=1) return 1;
   let g=0;
-  const combos=[];
-  const choose=(arr,k,s=0,cur=[])=>{
-    if(cur.length===k){combos.push([...cur]);return;}
-    for(let i=s;i<arr.length;i++){cur.push(arr[i]);choose(arr,k,i+1,cur);cur.pop();}
+  const choose=(arr,k)=>{
+    const out=[];
+    (function rec(start,c){if(c.length===k){out.push([...c]);return;}for(let i=start;i<arr.length;i++){c.push(arr[i]);rec(i+1,c);c.pop();}})(0,[]);
+    return out;
   };
-  choose([...Array(n).keys()],n-1);
-  const rows=M.slice(0,n-1);
-  for(const cols of combos){const sub=rows.map(r=>cols.map(c=>r[c]));g=gcd(g,detInt(sub));}
+  const idx=[...Array(n).keys()];
+  const rowSubs=choose(idx,n-1), colSubs=choose(idx,n-1);
+  for(const rs of rowSubs) for(const cs of colSubs){
+    const sub=rs.map(r=>cs.map(c=>M[r][c]));
+    g=gcd(g,detInt(sub));
+  }
   return g||1;
 }
 function modinv(a,p){a=((a%p)+p)%p;for(let i=1;i<p;i++)if((a*i)%p===1)return i;return 0;}
