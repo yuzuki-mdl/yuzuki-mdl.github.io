@@ -24,8 +24,11 @@ th{background:#161c26}
 <tr><td>4</td><td>5</td><td>3</td></tr>
 <tr><td>5</td><td>12</td><td>2</td></tr>
 <tr><td>6</td><td>35</td><td>3</td></tr>
+<tr><td>7</td><td>108</td><td>1</td></tr>
+<tr><td>8</td><td>369</td><td>2</td></tr>
 </table>
 <div class="note">the pattern is almost entirely rectangles and bars. every rectangle is trivially rep-4 (halve both sides). every straight bar is rep-4 (halve the length). the odd ones out: the <b>L-tromino</b>, the <b>L-tetromino</b>, the <b>P-pentomino</b> (2×2 block with one cell sticking out), and one hexomino: a 1×4 bar with a 1×2 foot alongside it. the T-tetromino, S-tetromino and most others fail — no exact cover of the doubled shape by 4 copies exists.</div>
 <p class="note">counts 1,1,2,5,12,35 are the known free polyomino counts, so the symmetry code checks out. the search is complete: if it says not rep-4, it isn't.</p>
+<p class="note">past 6 cells it thins out hard: at 7 only the straight bar is rep-4, at 8 only the 2×4 rectangle and the bar. every rectangle a×b is trivially rep-4 (cut it into a 2×2 grid of a×b halves), and a bar is just a 1×n rectangle, so those always survive. the surprise is that nothing else does at 7 or 8.</p>
 <p><a href="sphinx.html">← sphinx rep-4 hexiamond</a> · <a href="all.html">all pages</a></p>
 </body></html>
