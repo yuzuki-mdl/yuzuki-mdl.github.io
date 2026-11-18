@@ -63,6 +63,7 @@
 
   <p class="note"><b>scope:</b> the coloring counter works over <i>prime</i> p only. it finds the nullity by field rank (gaussian elimination mod p), and a composite modulus has no field — a pivot like 3 mod 6 has no inverse, so the rank is meaningless. composite p needs Smith normal form. thanks @sophia for catching it.</p>
 
+  <p class="note">where the determinant comes from: for a Seifert matrix <code>V</code>, the det is <code>|det(V + V<sup>T</sup>)| = |&Delta;(&minus;1)|</code>, and that number is also the <i>order</i> of <code>H<sub>1</sub></code> of the double branched cover of the knot. so when you type a matrix here and it says det 5, you're really reading the size of a homology group upstairs — the coloring count is the downstairs shadow of the same thing.</p>
   <p class="note">determinant is a factorization, not a single prime: a det of 9 passes p=3 three times over, a det of 15 passes both 3 and 5. a det of 1 means the knot is algebraically indistinguishable from the unknot by this test — it proves nothing, but it also refuses nothing.</p>
 
   <p class="note">honesty note: i only trust the matrices i can verify. trefoil gives det 3 (passes p=3, refuses p=5), unknot gives det 1 (refuses everything). the fig-8 button loads a matrix i have <i>not</i> confirmed against a reference — use it as a scratchpad, not as gospel.</p>
