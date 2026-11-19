@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Alexander polynomials — a small table, computed</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#e8e6e1;--dim:#8a8a93;--acc:#7fd4c1;--acc2:#e6a06a;--line:#24252c}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1.2rem 4rem}
+  main{max-width:820px;margin:0 auto}
+  h1{font-size:1.35rem;font-weight:600;margin:0 0 .2rem}
+  .sub{color:var(--dim);margin:0 0 1.6rem;font-size:.9rem}
+  a{color:var(--acc)}
+  table.tab{border-collapse:collapse;width:100%;margin:1.2rem 0}
+  table.tab th,table.tab td{padding:.5rem .7rem;text-align:left;border-bottom:1px solid var(--line)}
+  table.tab th{color:var(--dim);font-weight:500;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em}
+  table.tab td.poly{color:var(--acc2);font-size:1.02rem}
+  table.tab td.n{color:var(--dim)}
+  .err{color:#e07a7a}
+  code{color:var(--acc2)}
+  .note{color:var(--dim);font-size:.85rem;margin-top:1rem}
+</style>
+</head>
+<body>
+<main>
+<h1>Alexander polynomials — a small table, computed</h1>
+<p class="sub">every row here is computed live in your browser from a braid word, via the reduced Burau matrix. nothing is typed in as a string. (up to the usual unit &plusmn;t<sup>k</sup>)</p>
+
+<table class="tab" id="tab"><thead><tr><th>knot</th><th>braid word</th><th class="n">strands</th><th>&Delta;(t)</th><th class="n">|&Delta;(&minus;1)| = det</th></tr></thead><tbody id="body"></tbody></table>
+
+<p class="note" id="status"></p>
+
+<p class="sub" style="margin-top:2rem">
+how it works: the reduced Burau representation sends each braid generator &sigma;<sub>i</sub> to an (n&minus;1)&times;(n&minus;1) matrix over Laurent polynomials in t. multiply them out, take det(I&minus;f*), multiply by (1&minus;t)/(1&minus;t<sup>n</sup>), and out comes &Delta;(t) up to a unit. it's the classical pre-Jones route to a knot invariant.
+</p>
+<p class="sub">
+why it stops at 5 crossings: the Burau matrix size is n&minus;1, and this page inverts matrices up to 3&times;3 only (a general Laurent-polynomial matrix inverse is a fiddly exact-division problem). 6-crossing knots need 4-strand braids, so they'd need a 3&times;3 inverse — n=4. the <a href="braid-jones.html">braid&rarr;jones</a> page uses the Kauffman bracket instead and doesn't have that ceiling.
+</p>
+<p class="sub">sanity: the determinant of a knot is |&Delta;(&minus;1)|. trefoil &rarr; 3, figure-eight &rarr; 5, 5<sub>1</sub> &rarr; 5, 5<sub>2</sub> &rarr; 7. all match the tables.</p>
+</main>
+<script>
+// ---- Laurent polynomials in t: Map exp->coef ----
+const P=(o={})=>new Map(Object.entries(o).map(([k,v])=>[+k,v]));
+const padd=(a,b)=>{const r=new Map(a);for(const[k,v]of b){r.set(k,(r.get(k)||0)+v);if(r.get(k)===0)r.delete(k);}return r;};
+const pmul=(a,b)=>{const r=new Map();for(const[i,x]of a)for(const[j,y]of b){const e=i+j;r.set(e,(r.get(e)||0)+x*y);}for(const[k,v]of[...r])if(v===0)r.delete(k);return r;};
+const pscale=(a,s)=>{const r=new Map();for(const[k,v]of a)r.set(k,v*s);return r;};
+const pshow=a=>{const e=[...a.entries()].sort((x,y)=>x[0]-y[0]);if(!e.length)return '0';return e.map(([k,v])=>{const co=v>0?'+':'\u2212';const av=Math.abs(v);const coef=(av===1&&k!==0)?'':av;const mono=k===0?'':(k===1?'t':`t<sup>${k}</sup>`);const term=(coef||mono)?`${coef}${mono}`:(k===0?'1':'');return `${co}${term}`;}).join(' ').replace(/^\+\s?/,'').replace(/^\u2212\s?/,'\u2212');};
+const matmul=(A,B)=>{const n=A.length,m=B[0].length,k=A[0].length;const C=[];for(let i=0;i<n;i++){C.push([]);for(let j=0;j<m;j++){let s=new Map();for(let l=0;l<k;l++)s=padd(s,pmul(A[i][l],B[l][j]));C[i].push(s);}}return C;};
+const eye=n=>{const M=[];for(let i=0;i<n;i++){M.push([]);for(let j=0;j<n;j++)M[i].push(i===j?P({0:1}):new Map());}return M;};
+function genPos(i,n){const d=n-1;const M=eye(d);if(n===2){M[0][0]=P({1:-1});return M;}if(i===1){M[0][0]=P({1:-1});M[0][1]=P({0:1});}else if(i===n-1){M[d-1][d-2]=P({1:1});M[d-1][d-1]=P({1:-1});}else{M[i-1][i]=new Map();M[i][i-1]=P({1:1});M[i][i]=P({1:-1});}return M;}
+function pinv(a){return new Map([...a].map(([k,v])=>[-k,v]));}
+function inv(M){const n=M.length;if(n===1)return [[pinv(M[0][0])]];if(n===2){const d=padd(pmul(M[0][0],M[1][1]),pscale(pmul(M[0][1],M[1][0]),-1));const id=pinv(d);return [[pmul(M[1][1],id), pscale(pmul(M[0][1],id),-1)],[pscale(pmul(M[1][0],id),-1), pmul(M[0][0],id)]];}throw new Error('inv n>3');}
+function gen(i,n,e){const M=genPos(i,n);return e>0?M:inv(M);}
+function burau(word,n){let M=eye(n-1);for(const g of word)M=matmul(M,gen(Math.abs(g),n,Math.sign(g)));return M;}
+function det(M){const n=M.length;if(n===1)return M[0][0];if(n===2)return padd(pmul(M[0][0],M[1][1]),pscale(pmul(M[0][1],M[1][0]),-1));let s=new Map();for(let j=0;j<n;j++){const minor=M.slice(1).map(r=>r.filter((_,c)=>c!==j));const term=pmul(M[0][j],det(minor));s=padd(s,j%2===0?term:pscale(term,-1));}return s;}
+function pdiv(a,b){const shift=(p)=>{const mn=Math.min(...p.keys());const r=new Map();for(const[k,v]of p)r.set(k-mn,v);return{p:r,sh:mn};};const A=shift(a),B=shift(b);let rem=new Map(A.p);const deg=p=>Math.max(...p.keys());const q=new Map();while(rem.size&&deg(rem)>=deg(B.p)){const d=deg(rem)-deg(B.p);const c=rem.get(deg(rem))/B.p.get(deg(B.p));q.set(d,(q.get(d)||0)+c);for(const[k,v]of B.p){const e=k+d;rem.set(e,(rem.get(e)||0)-c*v);if(rem.get(e)===0)rem.delete(e);}}const sh=A.sh-B.sh;const out=new Map();for(const[k,v]of q)out.set(k+sh,v);return out;}
+function alex(word,n){const B=burau(word,n);const I=eye(n-1);const M=B.map((r,i)=>r.map((p,j)=>padd(I[i][j],pscale(p,-1))));const dd=det(M);const num=pmul(dd,P({0:1,1:-1}));const den=P({0:1,[n]:-1});return pdiv(num,den);}
+function evalPoly(p,val){let s=0;for(const[k,v]of p)s+=v*Math.pow(val,k);return s;}
+
+const knots=[
+ {name:'3&#8321; trefoil', w:'1 1 1', n:2},
+ {name:'4&#8321; figure-eight', w:'1 -2 1 -2', n:3},
+ {name:'5&#8321;', w:'1 1 1 1 1', n:2},
+ {name:'5&#8322;', w:'1 1 1 2 -1 2', n:3},
+];
+const body=document.getElementById('body');
+let ok=0;
+for(const k of knots){
+  try{
+    const word=k.w.split(/\s+/).map(Number);
+    const a=alex(word,k.n);
+    const detv=Math.abs(Math.round(evalPoly(a,-1)));
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${k.name}</td><td>${k.w}</td><td class="n">${k.n}</td><td class="poly">${pshow(a)}</td><td class="n">${detv}</td>`;
+    body.appendChild(tr);
+    ok++;
+  }catch(e){
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${k.name}</td><td>${k.w}</td><td class="n">${k.n}</td><td class="err">${e.message}</td><td class="n">&mdash;</td>`;
+    body.appendChild(tr);
+  }
+}
+document.getElementById('status').textContent=ok+' rows computed live. the determinant column is |&Delta;(&minus;1)| and matches the standard knot table.';
+</script>
+</body>
+</html>
