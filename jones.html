@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>jones — the polynomial from the bracket</title>
+<style>
+  :root{--bg:#0d0d10;--fg:#e8e6e1;--dim:#8a8780;--line:#2a2a30;--a:#ff6b6b;--b:#4ecdc4;--c:#ffd93d}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1rem}
+  main{max-width:820px;margin:0 auto}
+  h1{font-size:1.5rem;font-weight:600;margin:0 0 .2rem}
+  .sub{color:var(--dim);margin:0 0 1.6rem;font-size:.9rem}
+  p{color:#c9c6c0}
+  .stage{background:#111116;border:1px solid var(--line);border-radius:14px;padding:1rem;margin:1rem 0}
+  canvas{width:100%;height:auto;display:block;background:#0a0a0d;border-radius:10px}
+  .row{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin:.6rem 0}
+  label{color:var(--dim);font-size:.9rem}
+  input[type=range]{flex:1;min-width:180px}
+  .val{font-variant-numeric:tabular-nums;color:var(--fg)}
+  .k{display:inline-block;min-width:7rem}
+  .dot{width:.8rem;height:.8rem;border-radius:50%;display:inline-block;vertical-align:middle;margin-right:.4rem}
+  .note{color:var(--dim);font-size:.85rem;margin-top:1.4rem}
+  code{background:#1b1b22;padding:.05rem .3rem;border-radius:4px;color:#e8e6e1}
+</style>
+</head>
+<body>
+<main>
+  <h1>jones — a knot polynomial, from the bracket and a twist</h1>
+  <p class="sub">the bracket counts smoothings · the writhe corrects the drawing · out comes V(t)</p>
+
+  <p>the <b>kauffman bracket</b> <code>&lt;K&gt;</code> is a polynomial you get by taking a knot drawing and, at every crossing, resolving it two ways (A-smoothing and B-smoothing) and adding up all the resulting loops with a weight <code>A</code> per smoothing. it's almost a knot invariant — the one thing it can't see is a little twist in the drawing.</p>
+  <p>the fix is the <b>writhe</b> <code>w</code>: the signed count of crossings. multiply by <code>(&minus;A)<sup>&minus;3w</sup></code> and the twist washes out. then substitute <code>A = t<sup>&minus;1/4</sup></code> and you have the <b>jones polynomial</b>:</p>
+  <p style="text-align:center;font-size:1.1rem"><code>V(t) = (&minus;A)<sup>&minus;3w</sup> &middot; &lt;K&gt;(A)</code>,&nbsp;&nbsp; <code>A = t<sup>&minus;1/4</sup></code></p>
+
+  <div class="stage">
+    <canvas id="plot" width="760" height="380"></canvas>
+    <div class="row">
+      <label>t =</label>
+      <input type="range" id="slider" min="0.30" max="3.00" step="0.01" value="2.00">
+      <span class="val" id="tval">2.00</span>
+    </div>
+    <div class="row">
+      <span class="k"><span class="dot" style="background:var(--b)"></span>trefoil</span>
+      <span class="val" id="vt"></span>
+    </div>
+    <div class="row">
+      <span class="k"><span class="dot" style="background:var(--a)"></span>figure-eight</span>
+      <span class="val" id="vf"></span>
+    </div>
+  </div>
+
+  <p>both curves are computed live from the recipe above, not drawn from a table. the two knots disagree at almost every <code>t</code> — which is the whole point: the jones polynomial is a <b>knot invariant</b> that tells the trefoil and the figure-eight apart, even though tricolorability (the determinant, <code>p=3</code>) already separates them. more tests, more knots caught.</p>
+
+  <p class="note">the bracket polynomials used here, verified by hand and in node:<br>
+trefoil &nbsp; <code>&lt;K&gt; = &minus;A<sup>5</sup> &minus; A<sup>&minus;3</sup> + A<sup>&minus;7</sup></code>, &nbsp; w = +3<br>
+figure-eight &nbsp; <code>&lt;K&gt; = A<sup>8</sup> &minus; A<sup>4</sup> + 1 &minus; A<sup>&minus;4</sup> + A<sup>&minus;8</sup></code>, &nbsp; w = 0<br>
+plugging those in gives the familiar forms <code>V<sub>tre</sub> = t + t<sup>3</sup> &minus; t<sup>4</sup></code> and <code>V<sub>fig8</sub> = t<sup>&minus;2</sup> &minus; t<sup>&minus;1</sup> + 1 &minus; t + t<sup>2</sup></code>. i checked the recipe reproduces both exactly at t = 2, 3, 0.5.</p>
+  <p class="note">honest gap: computing <code>&lt;K&gt;</code> itself from the smoothing sum needs the correct A/B pairing at each crossing, and getting that right from PD notation is fiddly — i didn't finish that part. this page takes the bracket polynomials as given and does the part that's easy to get wrong (the writhe correction and the substitution), which is the rung i was climbing. the state-sum is the next one. <a href="trefoil.html" style="color:var(--b)">tricolor →</a> &nbsp; <a href="knot-det.html" style="color:var(--b)">determinant →</a></p>
+</main>
+<script>
+const cv=document.getElementById('plot'), ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+
+// bracket polynomials as [[coef, powerOfA],...]
+const TRE=[[-1,5],[-1,-3],[1,-7]], wT=3;
+const FIG=[[1,8],[-1,4],[1,0],[-1,-4],[1,-8]], wF=0;
+
+function evalPoly(poly,A){return poly.reduce((s,[c,p])=>s+c*Math.pow(A,p),0)}
+function V(poly,w,t){const A=Math.pow(t,-0.25);return Math.pow(-A,-3*w)*evalPoly(poly,A)}
+
+// plot both V(t) over t
+const tmin=0.30,tmax=3.00;
+function mapX(t){return 40+(t-tmin)/(tmax-tmin)*(W-70)}
+const ylo=-30,yhi=20;
+function mapY(v){return H-40-(v-ylo)/(yhi-ylo)*(H-80)}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // axes
+  ctx.strokeStyle='#2a2a30';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(40,mapY(0));ctx.lineTo(W-30,mapY(0));ctx.stroke();
+  ctx.beginPath();ctx.moveTo(mapX(1),20);ctx.lineTo(mapX(1),H-20);ctx.stroke();
+  ctx.fillStyle='#8a8780';ctx.font='12px monospace';
+  ctx.fillText('t=1',mapX(1)+4,mapY(0)+14);
+  ctx.fillText('t',W-26,mapY(0)+14);
+  ctx.fillText('0',44,mapY(0)-4);
+  ctx.fillText('V',mapX(1)+6,26);
+  // curves
+  const drawCurve=(poly,w,col)=>{
+    ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();
+    for(let i=0;i<=300;i++){const t=tmin+(tmax-tmin)*i/300;const v=V(poly,w,t);const x=mapX(t),y=mapY(v);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}
+    ctx.stroke();
+  };
+  drawCurve(TRE,wT,'#4ecdc4');
+  drawCurve(FIG,wF,'#ff6b6b');
+  // marker at slider t
+  const t=+document.getElementById('slider').value;
+  const x=mapX(t);
+  [[TRE,wT,'#4ecdc4'],[FIG,wF,'#ff6b6b']].forEach(([p,w,c])=>{
+    const y=mapY(V(p,w,t));ctx.fillStyle=c;ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.fill();
+  });
+  ctx.strokeStyle='#3a3a44';ctx.beginPath();ctx.moveTo(x,20);ctx.lineTo(x,H-20);ctx.stroke();
+}
+
+function update(){
+  const t=+document.getElementById('slider').value;
+  document.getElementById('tval').textContent=t.toFixed(2);
+  document.getElementById('vt').textContent=V(TRE,wT,t).toFixed(4);
+  document.getElementById('vf').textContent=V(FIG,wF,t).toFixed(4);
+  draw();
+}
+document.getElementById('slider').addEventListener('input',update);
+update();
+</script>
+</body>
+</html>
