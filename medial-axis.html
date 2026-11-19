@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>medial axis by bitangent circles</title>
+<style>
+  :root { --bg:#14131a; --fg:#e8e4f0; --dim:#8a8498; --accent:#7fd1c8; --ridge:#ff7a59; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:14px; }
+  header { padding:18px 22px 6px; }
+  h1 { font-size:17px; margin:0 0 4px; font-weight:600; }
+  .sub { color:var(--dim); font-size:12.5px; line-height:1.5; max-width:720px; }
+  .wrap { display:flex; gap:18px; padding:10px 22px 30px; flex-wrap:wrap; align-items:flex-start; }
+  #cv { background:#0e0d13; border:1px solid #2a2833; border-radius:8px; touch-action:none; cursor:crosshair; }
+  .panel { min-width:230px; }
+  .row { margin:10px 0; display:flex; gap:8px; flex-wrap:wrap; }
+  button { background:#23212c; color:var(--fg); border:1px solid #3a3746; border-radius:6px; padding:6px 11px; font:inherit; font-size:12.5px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.on { background:var(--accent); color:#14131a; border-color:var(--accent); }
+  .stat { color:var(--dim); font-size:12px; margin-top:14px; line-height:1.6; }
+  .stat b { color:var(--fg); }
+  .legend { display:flex; gap:14px; font-size:12px; color:var(--dim); margin-top:8px; flex-wrap:wrap; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+</style>
+</head>
+<body>
+<header>
+  <h1>medial axis by bitangent circles</h1>
+  <p class="sub">the medial axis is the set of points with more than one closest boundary point — the centers of the bitangent circles, the ridge of the distance field. drag the polygon vertices around. the orange points are the <em>discrete</em> medial axis: for each grid point i find its nearest boundary point, then the nearest boundary point that is genuinely far away (a bitangent partner), and keep it if the two distances match. that's literally the definition, done on a grid — not the exact segment-voronoi, but the leaves land on convex corners and it branches into the teeth like it should.</p>
+</header>
+<div class="wrap">
+  <canvas id="cv" width="560" height="520"></canvas>
+  <div class="panel">
+    <div class="row">
+      <button id="showField" class="on">distance field</button>
+      <button id="showRidge" class="on">medial axis</button>
+    </div>
+    <div class="row">
+      <button id="reset">reset shape</button>
+      <button id="concave">comb shape</button>
+    </div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--accent)"></span>polygon</span>
+      <span><span class="dot" style="background:var(--ridge)"></span>medial axis</span>
+    </div>
+    <div class="stat" id="stat"></div>
+  </div>
+</div>
+
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+let poly = [
+  {x:120,y:110},{x:430,y:95},{x:470,y:250},
+  {x:360,y:300},{x:410,y:430},{x:210,y:450},{x:150,y:300},{x:70,y:250}
+];
+
+let showField = true, showRidge = true;
+let drag = -1;
+
+const STEP = 4;          // grid spacing
+const RIDGE_TOL = 2.2;   // equidistance tolerance (px)
+const GAP = 40;          // bitangent partner must be this far apart in space (px)
+const PER_EDGE = 50;     // boundary samples per edge
+
+function pointInPoly(px,py,poly){
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const xi=poly[i].x, yi=poly[i].y, xj=poly[j].x, yj=poly[j].y;
+    if(((yi>py)!=(yj>py)) && (px < (xj-xi)*(py-yi)/(yj-yi)+xi)) inside=!inside;
+  }
+  return inside;
+}
+
+function distToEdges(px,py,poly){
+  let best=Infinity;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const ax=poly[j].x, ay=poly[j].y, bx=poly[i].x, by=poly[i].y;
+    const dx=bx-ax, dy=by-ay, L2=dx*dx+dy*dy;
+    let t = L2>0 ? ((px-ax)*dx+(py-ay)*dy)/L2 : 0;
+    t = Math.max(0,Math.min(1,t));
+    const d=Math.hypot(px-(ax+t*dx), py-(ay+t*dy));
+    if(d<best) best=d;
+  }
+  return best;
+}
+
+function sampleBoundary(poly, perEdge){
+  const pts=[];
+  for(let i=0;i<poly.length;i++){
+    const a=poly[i], b=poly[(i+1)%poly.length];
+    for(let k=0;k<perEdge;k++){
+      const t=k/perEdge;
+      pts.push([a.x+(b.x-a.x)*t, a.y+(b.y-a.y)*t]);
+    }
+  }
+  return pts;
+}
+
+// nearest boundary point, and the nearest one that's far apart in space
+function twoNearest(px,py,bpts,gap){
+  let best=Infinity, bi=-1;
+  for(let i=0;i<bpts.length;i++){
+    const d=Math.hypot(px-bpts[i][0],py-bpts[i][1]);
+    if(d<best){best=d;bi=i;}
+  }
+  const nx=bpts[bi][0], ny=bpts[bi][1];
+  let bestFar=Infinity;
+  for(let i=0;i<bpts.length;i++){
+    if(Math.hypot(bpts[i][0]-nx,bpts[i][1]-ny) < gap) continue;
+    const d=Math.hypot(px-bpts[i][0],py-bpts[i][1]);
+    if(d<bestFar) bestFar=d;
+  }
+  return [best,bestFar];
+}
+
+let bpts = [];
+function recomputeBoundary(){ bpts = sampleBoundary(poly, PER_EDGE); }
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  recomputeBoundary();
+
+  const fw = Math.ceil(W/STEP), fh = Math.ceil(H/STEP);
+
+  // distance field shading
+  if(showField){
+    let maxd=1;
+    const field=new Float32Array(fw*fh);
+    for(let gy=0; gy<fh; gy++) for(let gx=0; gx<fw; gx++){
+      const x=gx*STEP, y=gy*STEP;
+      const d = pointInPoly(x,y,poly) ? distToEdges(x,y,poly) : 0;
+      field[gy*fw+gx]=d; if(d>maxd) maxd=d;
+    }
+    for(let gy=0; gy<fh; gy++) for(let gx=0; gx<fw; gx++){
+      const d=field[gy*fw+gx]; if(d<=0) continue;
+      const a = 0.05 + 0.30*(d/maxd);
+      ctx.fillStyle = `rgba(127,209,200,${a.toFixed(3)})`;
+      ctx.fillRect(gx*STEP, gy*STEP, STEP, STEP);
+    }
+  }
+
+  // medial axis: bitangent test on the grid
+  let count=0;
+  if(showRidge){
+    ctx.fillStyle = '#ff7a59';
+    for(let gy=0; gy<fh; gy++) for(let gx=0; gx<fw; gx++){
+      const x=gx*STEP, y=gy*STEP;
+      if(!pointInPoly(x,y,poly)) continue;
+      const [dn,df] = twoNearest(x,y,bpts,GAP);
+      if(dn < 2.5) continue;
+      if(Math.abs(df-dn) < RIDGE_TOL){
+        count++;
+        ctx.fillRect(gx*STEP-1, gy*STEP-1, 3, 3);
+      }
+    }
+  }
+
+  // polygon outline
+  ctx.beginPath();
+  ctx.moveTo(poly[0].x, poly[0].y);
+  for(let i=1;i<poly.length;i++) ctx.lineTo(poly[i].x, poly[i].y);
+  ctx.closePath();
+  ctx.strokeStyle = '#7fd1c8';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  for(let i=0;i<poly.length;i++){
+    ctx.beginPath();
+    ctx.arc(poly[i].x, poly[i].y, i===drag?7:5, 0, Math.PI*2);
+    ctx.fillStyle = i===drag ? '#fff' : '#7fd1c8';
+    ctx.fill();
+  }
+
+  document.getElementById('stat').innerHTML =
+    `vertices: <b>${poly.length}</b><br>`+
+    `grid: <b>${fw}×${fh}</b> (step ${STEP}px)<br>`+
+    `boundary samples: <b>${bpts.length}</b><br>`+
+    `medial-axis points: <b>${count}</b>`;
+}
+
+function nearestVertex(x,y){
+  let best=-1, bd=18*18;
+  for(let i=0;i<poly.length;i++){
+    const dx=poly[i].x-x, dy=poly[i].y-y, d=dx*dx+dy*dy;
+    if(d<bd){ bd=d; best=i; }
+  }
+  return best;
+}
+function evtPos(e){
+  const r = cv.getBoundingClientRect();
+  const cx = (e.touches?e.touches[0].clientX:e.clientX);
+  const cy = (e.touches?e.touches[0].clientY:e.clientY);
+  return { x:(cx-r.left)*(W/r.width), y:(cy-r.top)*(H/r.height) };
+}
+cv.addEventListener('pointerdown', e=>{
+  const p=evtPos(e); drag = nearestVertex(p.x,p.y);
+  if(drag>=0){ cv.setPointerCapture(e.pointerId); draw(); }
+});
+cv.addEventListener('pointermove', e=>{
+  if(drag<0) return;
+  const p=evtPos(e);
+  poly[drag].x = Math.max(8,Math.min(W-8,p.x));
+  poly[drag].y = Math.max(8,Math.min(H-8,p.y));
+  draw();
+});
+cv.addEventListener('pointerup', ()=>{ drag=-1; draw(); });
+
+const sf=document.getElementById('showField'), sr=document.getElementById('showRidge');
+sf.onclick=()=>{ showField=!showField; sf.classList.toggle('on',showField); draw(); };
+sr.onclick=()=>{ showRidge=!showRidge; sr.classList.toggle('on',showRidge); draw(); };
+document.getElementById('reset').onclick=()=>{
+  poly = [{x:120,y:110},{x:430,y:95},{x:470,y:250},{x:360,y:300},{x:410,y:430},{x:210,y:450},{x:150,y:300},{x:70,y:250}];
+  draw();
+};
+document.getElementById('concave').onclick=()=>{
+  poly = [{x:80,y:90},{x:480,y:90},{x:480,y:200},{x:400,y:200},{x:400,y:130},{x:330,y:130},{x:330,y:200},{x:250,y:200},{x:250,y:130},{x:180,y:130},{x:180,y:200},{x:80,y:200}];
+  draw();
+};
+
+draw();
+</script>
+</body>
+</html>
