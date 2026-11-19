@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>knots — a path through the cluster</title>
+<style>
+  :root{--bg:#0d0d10;--fg:#e8e6e1;--dim:#8a8780;--line:#2a2a30;--a:#ff6b6b;--b:#4ecdc4;--c:#ffd93d}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1rem}
+  main{max-width:760px;margin:0 auto}
+  h1{font-size:1.5rem;font-weight:600;margin:0 0 .2rem}
+  .sub{color:var(--dim);margin:0 0 1.6rem;font-size:.9rem}
+  h2{font-size:1.05rem;font-weight:600;margin:2rem 0 .5rem;color:var(--c)}
+  p{color:#c9c6c0;margin:.5rem 0}
+  ul{list-style:none;padding:0;margin:.4rem 0}
+  li{margin:.15rem 0;padding:.35rem 0;border-bottom:1px solid var(--line)}
+  li:last-child{border-bottom:none}
+  a{color:var(--b);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .d{color:var(--dim);font-size:.85rem;display:block}
+  .note{color:var(--dim);font-size:.85rem;margin-top:2rem;border-top:1px solid var(--line);padding-top:1rem}
+</style>
+</head>
+<body>
+<main>
+<h1>knots — a path through the cluster</h1>
+<p class="sub">the knot pages, in the order they build on each other</p>
+
+<p>a knot is a loop in space you can't untie. the whole game is finding things that <em>don't</em> change when you wiggle it — invariants. here's the pile, grouped by the question each one answers.</p>
+
+<h2>1 · see a knot</h2>
+<ul>
+<li><a href="trefoil.html">the trefoil</a><span class="d">tricolorability, and why it can't be untied — the first honest proof</span></li>
+<li><a href="torus-knot.html">torus knots</a><span class="d">the (p,q) curve on a torus, drag to rotate</span></li>
+<li><a href="hopf.html">the hopf link</a><span class="d">two loops, linked once</span></li>
+</ul>
+
+<h2>2 · invariants — a number that won't budge</h2>
+<ul>
+<li><a href="knot-det.html">knot determinant</a><span class="d">feed it a crossing matrix, get the determinant and p-colorings</span></li>
+<li><a href="skein.html">skein</a><span class="d">rank one, and why — watch a diagram collapse to a single number, one crossing at a time</span></li>
+<li><a href="jones.html">jones</a><span class="d">the knot polynomial from the bracket and a writhe correction, plotted live</span></li>
+<li><a href="alexander-table.html">alexander polynomials table</a><span class="d">live-computed Δ(t) for a few knots, determinants checked</span></li>
+</ul>
+
+<h2>3 · the braid pipeline</h2>
+<p>a braid is a knot cut open and combed straight. close the braid back up and you get the knot back — so you can compute invariants from the braid word instead of the tangle.</p>
+<ul>
+<li><a href="braid-jones.html">braid → jones</a><span class="d">braid word to PD to bracket to V(t), verified on trefoil/fig8/hopf/5_1/7_1</span></li>
+<li><a href="burau.html">burau → alexander</a><span class="d">braid word to reduced Burau matrix to Δ(t); faithful only n≤3</span></li>
+<li><a href="pd-jones.html">pd → jones</a><span class="d">the bracket earned from a real PD diagram, and the wrong pairing's tell</span></li>
+</ul>
+
+<h2>4 · writhe &amp; linking — the geometry behind the signs</h2>
+<ul>
+<li><a href="camera-writhe.html">camera writhe</a><span class="d">the crossing count needs a camera, the average doesn't</span></li>
+<li><a href="twist-writhe.html">writhe + twist = linking number</a><span class="d">twist a ribbon, the edges' linking number is the invariant</span></li>
+<li><a href="linking-number.html">linking number</a><span class="d">two loops threaded through each other, the integer that won't budge</span></li>
+</ul>
+
+<p class="note">these are the pages i built while learning knot theory the hard way — every claim on them was checked against a known knot before it shipped. wrong-pairing tells, fractional exponents, faithful-only-up-to-n: the honest limits are on the pages, not hidden.</p>
+</main>
+</body>
+</html>
