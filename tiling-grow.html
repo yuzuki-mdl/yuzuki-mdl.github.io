@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>grow a {5,4}</title>
+<style>
+  html,body{margin:0;background:#0d0b12;color:#d8d2e0;font:14px/1.5 ui-monospace,Menlo,monospace}
+  #wrap{display:flex;flex-wrap:wrap;gap:16px;padding:16px;max-width:1200px;margin:0 auto}
+  canvas{background:#141020;border-radius:8px;touch-action:none;cursor:crosshair;max-width:100%}
+  #side{flex:1;min-width:240px}
+  h1{font-size:18px;margin:0 0 4px;font-weight:600;color:#c9b6ff}
+  .sub{color:#7d7490;font-size:12px;margin-bottom:14px}
+  .stat{display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #221c33}
+  .stat b{color:#9be8b8;font-weight:600}
+  button{background:#2a2140;color:#d8d2e0;border:1px solid #4a3a6b;border-radius:6px;padding:8px 12px;font:inherit;cursor:pointer;margin:4px 4px 0 0}
+  button:hover{background:#372a52}
+  button:disabled{opacity:.4;cursor:default}
+  .msg{color:#e8b45c;font-size:12px;min-height:18px;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv" width="560" height="560"></canvas>
+  <div id="side">
+    <h1>grow a {5,4}</h1>
+    <div class="sub">pentagons, four to a corner. click empty space near the edge to grow.</div>
+    <div class="stat"><span>pentagons</span><b id="n">0</b></div>
+    <div class="stat"><span>corners</span><b id="v">0</b></div>
+    <div class="stat"><span>curvature banked</span><b id="cur">0&deg;</b></div>
+    <div class="stat"><span>per second</span><b id="ps">0</b></div>
+    <div class="stat"><span>banked while away</span><b id="off">0</b></div>
+    <div style="margin-top:12px">
+      <button id="auto">auto-grower</button>
+      <button id="reset">reset</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </div>
+</div>
+<script>
+// {5,4}: regular pentagons, 4 meeting at each vertex.
+// hyperbolic disk. we place pentagons one at a time by reflection across an edge.
+// coordinates: complex plane, disk model. a pentagon = center + 5 vertices.
+
+const R = 0.92;              // how far out we draw (poincare radius)
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const S = cv.width / 2;
+
+// --- hyperbolic geometry in the poincare disk, complex numbers as [re,im] ---
+const cmul=(a,b)=>[a[0]*b[0]-a[1]*b[1], a[0]*b[1]+a[1]*b[0]];
+const cadd=(a,b)=>[a[0]+b[0], a[1]+b[1]];
+const csub=(a,b)=>[a[0]-b[0], a[1]-b[1]];
+const cconj=a=>[a[0],-a[1]];
+const cabs=a=>Math.hypot(a[0],a[1]);
+const cscale=(a,s)=>[a[0]*s,a[1]*s];
+
+// reflection of point z across the geodesic through p,q (both inside disk)
+// the geodesic is a circle orthogonal to the unit circle.
+function reflect(z, p, q){
+  // find the circle through p,q orthogonal to unit circle: center c, radius r
+  // |c|^2 = r^2 + 1  (orthogonality) and |p-c|=r, |q-c|=r
+  // solve for c from the two point constraints + orthogonality
+  // use the standard: circle orthogonal to unit circle has equation
+  //   z zbar - cbar z - c zbar + 1 = 0  (since |c|^2-r^2=1)
+  // p,q on it => solve linear system for c.
+  const [px,py]=p,[qx,qy]=q;
+  // p: |p|^2 - 2(cx px + cy py) + 1 = 0  => cx px + cy py = (|p|^2+1)/2
+  // q: same
+  const b1=(px*px+py*py+1)/2, b2=(qx*qx+qy*qy+1)/2;
+  const det=px*qy-py*qx;
+  if(Math.abs(det)<1e-12) return z; // p,q,0 collinear: geodesic is a diameter
+  const cx=(b1*qy-b2*py)/det, cy=(px*b2-qx*b1)/det;
+  const c=[cx,cy];
+  const r2=cx*cx+cy*cy-1; // |c|^2 - r^2 = 1 => r^2=|c|^2-1
+  // inversion of z in circle (c,r): z' = c + r^2 * conj(z-c)/|z-c|^2
+  const zc=csub(z,c);
+  const d2=zc[0]*zc[0]+zc[1]*zc[1];
+  if(d2<1e-15) return z;
+  const inv=cscale(zc, r2/d2);
+  return cadd(c, inv);
+}
+
+// build one regular pentagon given its center c and one vertex v0.
+// internal angle of {5,4} pentagon = 2*pi/4 = pi/2.
+// side length via: cosh(s/2)... simpler: place vertices by walking.
+// we build pentagon as list of 5 vertices, given center and first vertex.
+function pentagon(center, v0){
+  // reflect v0 around center? no — build by rotating around center in hyperbolic sense.
+  // easier: given center c and vertex v0, the other vertices come from
+  // reflecting v0 across the 5 geodesics through c... but we don't have angles yet.
+  // Instead: the pentagon is determined by edge through v0. We'll construct
+  // vertices iteratively by reflecting across edges once we have the first edge.
+  return null; // (replaced below)
+}
+
+// --- simpler, robust construction: work with the group, place by reflection ---
+// Represent a pentagon as its 5 vertices in order. Start: central pentagon centered at 0.
+// For {5,4}, the vertex angle is 90deg, so at each vertex 4 pentagons meet.
+// A regular pentagon centered at origin: vertices on a circle of hyperbolic radius rho.
+// We need vertices such that when 4 pentagons meet, angles sum to 360.
+// interior angle = 90deg = pi/2. half-angle at vertex = pi/4.
+// In a right triangle (center, vertex, edge-midpoint): angle at vertex = pi/4,
+// angle at center = pi/5 (pentagon). So we can solve for rho.
+// cos(pi/4) = tanh(rho) * ... let's just solve numerically.
+
+// Right triangle: center O, vertex V, midpoint M of edge.
+// angle at V = pi/4, angle at O = pi/5, right angle at M.
+// hyperbolic: cos(angle at V) = tanh(OM)/tanh(OV)?? use standard relations.
+// For right triangle with right angle at M: sides a=OM (adj to O), b=MV (adj to V), hyp c=OV.
+// angle at O = pi/5, angle at V = pi/4.
+// cos(O) = tanh(a)/tanh(c)  [relation: cos A = tanh(adj leg)/tanh(hyp)]
+// cos(V) = tanh(b)/tanh(c)
+// and tanh(c) = ... we need one more: the triangle exists for these angles (hyperbolic).
+// Solve: given A=pi/5 (at O), B=pi/4 (at V), C=pi/2.
+// hyperbolic law of cosines for angles: cos C = -cos A cos B + sin A sin B cosh c
+// => cosh(c) = (cos C + cos A cos B)/(sin A sin B)
+const A = Math.PI/5, B = Math.PI/4, C = Math.PI/2;
+const coshc = (Math.cos(C)+Math.cos(A)*Math.cos(B))/(Math.sin(A)*Math.sin(B));
+const cosh_c = coshc;
+const tanh_c = Math.sqrt(1-1/(cosh_c*cosh_c));
+const tanh_a = Math.cos(A)*tanh_c; // a = OM
+const tanh_b = Math.cos(B)*tanh_c; // b = MV
+const rho = Math.atanh(tanh_c);   // hyperbolic radius of vertex = OV
+const rEdge = Math.atanh(tanh_b); // not needed directly
+
+// vertex at hyperbolic distance rho from origin, euclidean radius = tanh(rho/2)
+const vr = Math.tanh(rho/2);
+
+// central pentagon vertices (euclidean, in disk), angle step 2pi/5
+function centralVerts(){
+  const vs=[];
+  for(let k=0;k<5;k++){
+    const th = -Math.PI/2 + k*2*Math.PI/5;
+    vs.push([vr*Math.cos(th), vr*Math.sin(th)]);
+  }
+  return vs;
+}
+
+// --- state ---
+let pents = [];   // each: {verts:[5 pts], id}
+let banked = 0;   // curvature degrees
+let autoOn = false;
+let autoRate = 0;
+let lastT = Date.now();
+const CURV_PER_PENT = 720; // total curvature of genus-2-ish? for flavor: each pentagon "owes" 720/... just a number
+
+function save(){
+  const data={pents:pents.map(p=>p.verts), banked, autoOn, autoRate, t:Date.now()};
+  try{localStorage.setItem('tiling54',JSON.stringify(data));}catch(e){}
+}
+function load(){
+  try{
+    const raw=localStorage.getItem('tiling54');
+    if(!raw) return false;
+    const d=JSON.parse(raw);
+    pents=d.pents.map((vs,i)=>({verts:vs,id:i}));
+    banked=d.banked||0; autoOn=!!d.autoOn; autoRate=d.autoRate||0;
+    // offline gain
+    const dt=(Date.now()-(d.t||Date.now()))/1000;
+    if(autoOn&&autoRate>0&&dt>0){
+      const gain=Math.floor(dt*autoRate);
+      if(gain>0){ banked+=gain; document.getElementById('off').textContent=gain; }
+    }
+    return true;
+  }catch(e){return false;}
+}
+
+function toScreen(z){ return [S+z[0]*S*0.98, S+z[1]*S*0.98]; }
+
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  // disk boundary
+  ctx.strokeStyle='#2a2140'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(S,S,S*0.96,0,7); ctx.stroke();
+  // pentagons
+  for(const p of pents){
+    ctx.beginPath();
+    for(let i=0;i<5;i++){
+      const [x,y]=toScreen(p.verts[i]);
+      i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+    }
+    ctx.closePath();
+    ctx.fillStyle='rgba(120,90,200,0.10)';
+    ctx.fill();
+    ctx.strokeStyle='#6b5aa0'; ctx.lineWidth=1.2; ctx.stroke();
+  }
+  document.getElementById('n').textContent=pents.length;
+  document.getElementById('v').textContent=pents.length*5;
+  document.getElementById('cur').textContent=Math.floor(banked)+'\u00b0';
+}
+
+// grow: reflect an existing pentagon across one of its edges that has no neighbour
+function growOne(){
+  for(let pi=0;pi<pents.length;pi++){
+    const P=pents[pi];
+    for(let i=0;i<5;i++){
+      const a=P.verts[i], b=P.verts[(i+1)%5];
+      // is there already a pentagon sharing edge a-b?
+      let shared=false;
+      for(const Q of pents){ if(Q===P) continue;
+        for(let j=0;j<5;j++){
+          const c=Q.verts[j], d=Q.verts[(j+1)%5];
+          if(dist(a,c)<1e-6 && dist(b,d)<1e-6 || dist(a,d)<1e-6 && dist(b,c)<1e-6){ shared=true; break; }
+        }
+        if(shared) break;
+      }
+      if(shared) continue;
+      // reflect P's vertices across geodesic a-b to get neighbour
+      const nv=P.verts.map(v=>reflect(v,a,b));
+      // only keep if it lands inside the disk
+      if(nv.every(v=>cabs(v)<0.999)){
+        pents.push({verts:nv,id:pents.length});
+        banked+=CURV_PER_PENT;
+        save();
+        return true;
+      }
+    }
+  }
+  return false;
+}
+function dist(a,b){return Math.hypot(a[0]-b[0],a[1]-b[1]);}
+
+// init
+if(!load()){
+  pents=[{verts:centralVerts(),id:0}];
+  banked=CURV_PER_PENT;
+  save();
+}
+draw();
+
+// click to grow
+document.getElementById('auto').onclick=()=>{
+  autoOn=!autoOn;
+  autoRate=autoOn?0.5:0;
+  document.getElementById('auto').textContent=autoOn?'auto-grower: ON':'auto-grower';
+  document.getElementById('ps').textContent=autoOn?'0.5':'0';
+  save();
+};
+document.getElementById('reset').onclick=()=>{
+  if(!confirm('start over?'))return;
+  localStorage.removeItem('tiling54');
+  pents=[{verts:centralVerts(),id:0}]; banked=CURV_PER_PENT; autoOn=false;
+  document.getElementById('auto').textContent='auto-grower';
+  document.getElementById('ps').textContent='0'; save(); draw();
+};
+
+let lastGrow=Date.now();
+function tick(){
+  const now=Date.now();
+  if(autoOn){
+    if(now-lastGrow > 1000/autoRate*Math.max(1,Math.min(3,Math.floor(pents.length/10)+1))){ // slower as it grows
+      if(growOne()){ lastGrow=now; draw(); }
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+// manual click: grow nearest unsupported edge
+cv.addEventListener('pointerdown',e=>{
+  if(growOne()){ draw(); } else { document.getElementById('msg').textContent='no edge left to grow (disk full)'; }
+});
+</script>
+</body>
+</html>
