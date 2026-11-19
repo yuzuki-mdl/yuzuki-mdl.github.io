@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>von Dyck word reducer — {5,4}</title>
+<style>
+  :root { --bg:#0e0e12; --fg:#e8e6df; --dim:#6b6a72; --accent:#c9a227; --bad:#c0392b; --good:#4a9; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; min-height:100%; }
+  body {
+    background:var(--bg); color:var(--fg);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    display:flex; flex-direction:column; align-items:center;
+    padding:28px 16px; gap:18px;
+  }
+  h1 { font-size:15px; letter-spacing:.18em; text-transform:uppercase; color:var(--dim); font-weight:400; margin:0; }
+  .sub { font-size:12px; color:var(--dim); max-width:680px; text-align:center; line-height:1.7; }
+  .sub b { color:var(--fg); font-weight:400; }
+  #bar { display:flex; gap:10px; width:100%; max-width:680px; }
+  #inp {
+    flex:1; background:#17171d; border:1px solid #26262e; color:var(--fg);
+    font:inherit; font-size:16px; padding:12px 14px; border-radius:8px; outline:none;
+    letter-spacing:.08em;
+  }
+  #inp:focus { border-color:#3a3a46; }
+  button {
+    background:#17171d; border:1px solid #26262e; color:var(--fg);
+    font:inherit; font-size:13px; padding:12px 16px; border-radius:8px; cursor:pointer;
+  }
+  button:hover { border-color:#3a3a46; }
+  #out { width:100%; max-width:680px; display:flex; flex-direction:column; gap:8px; }
+  .step {
+    background:#14141a; border:1px solid #1e1e26; border-radius:8px;
+    padding:10px 14px; font-size:15px; letter-spacing:.06em;
+    display:flex; gap:14px; align-items:baseline;
+  }
+  .step .w { flex:1; word-break:break-all; }
+  .step .w .gen { color:var(--fg); }
+  .step .w .inv { color:var(--dim); }
+  .step .w .hit { color:var(--accent); }
+  .step .why { font-size:11px; color:var(--dim); white-space:nowrap; }
+  .final { border-color:#2a3a2a; }
+  .final .w { color:var(--good); }
+  .err { color:var(--bad); font-size:13px; }
+  .empty { color:var(--dim); font-size:14px; text-align:center; padding:20px; }
+</style>
+</head>
+<body>
+<h1>von Dyck word reducer</h1>
+<div class="sub">
+  the <b>{5,4}</b> reflection group. generators <b>a</b>, <b>b</b> with<br>
+  a<sup>5</sup> = b<sup>4</sup> = (ab)<sup>2</sup> = 1 &nbsp;·&nbsp; A / B = inverses.<br>
+  type a word, watch it reduce one rewrite at a time to the shortest form.
+</div>
+<div id="bar">
+  <input id="inp" placeholder="e.g.  aaaaabbbbbabab" autocomplete="off" spellcheck="false" value="aaaaabbbbbabab">
+  <button id="go">reduce</button>
+</div>
+<div id="out"></div>
+<script>
+const FIVE=5, FOUR=4;
+// represent word as array of +1/-1 (a/A) and +2/-2 (b/B). 1=a,2=b.
+function parse(s){
+  const w=[];
+  for(const ch of s){
+    if(ch==='a') w.push(1);
+    else if(ch==='A') w.push(-1);
+    else if(ch==='b') w.push(2);
+    else if(ch==='B') w.push(-2);
+    else throw new Error('bad char: '+ch);
+  }
+  return w;
+}
+function show(w){
+  return w.map(x=>{const g=Math.abs(x)===1?'a':'b'; return x>0?g:g.toUpperCase();}).join('') || '(empty)';
+}
+// one rewrite pass: apply relations, return {word, why} or null if no change.
+function step(w){
+  const n=w.length;
+  // cancel adjacent inverses xx^1 -> 1
+  for(let i=0;i<n-1;i++){
+    if(w[i]===-w[i+1]){
+      return {word:w.slice(0,i).concat(w.slice(i+2)), why:'cancel '+show([w[i],w[i+1]])};
+    }
+  }
+  // a^5 -> 1  (five same a's)
+  for(let i=0;i<=n-FIVE;i++){
+    let all=true; for(let j=0;j<FIVE;j++) if(w[i+j]!==1) all=false;
+    if(all) return {word:w.slice(0,i).concat(w.slice(i+FIVE)), why:'a^5 = 1'};
+    all=true; for(let j=0;j<FIVE;j++) if(w[i+j]!==-1) all=false;
+    if(all) return {word:w.slice(0,i).concat(w.slice(i+FIVE)), why:'A^5 = 1'};
+  }
+  // b^4 -> 1
+  for(let i=0;i<=n-FOUR;i++){
+    let all=true; for(let j=0;j<FOUR;j++) if(w[i+j]!==2) all=false;
+    if(all) return {word:w.slice(0,i).concat(w.slice(i+FOUR)), why:'b^4 = 1'};
+    all=true; for(let j=0;j<FOUR;j++) if(w[i+j]!==-2) all=false;
+    if(all) return {word:w.slice(0,i).concat(w.slice(i+FOUR)), why:'B^4 = 1'};
+  }
+  // (ab)^2 = 1  ->  abab -> 1 ; also baba, and with inverses: aBaB etc? (ab)^2=1 means abab=1.
+  // the relation is abab=1. matching abab, abAB? no—inverses. just abab and its inverse baba.
+  for(let i=0;i<=n-4;i++){
+    const q=w.slice(i,i+4).join(',');
+    if(q==='1,2,1,2') return {word:w.slice(0,i).concat(w.slice(i+4)), why:'(ab)^2 = 1'};
+    if(q==='2,1,2,1') return {word:w.slice(0,i).concat(w.slice(i+4)), why:'(ba)^2 = 1'};
+    if(q==='-1,-2,-1,-2') return {word:w.slice(0,i).concat(w.slice(i+4)), why:'(AB)^2 = 1'};
+    if(q==='-2,-1,-2,-1') return {word:w.slice(0,i).concat(w.slice(i+4)), why:'(BA)^2 = 1'};
+  }
+  return null;
+}
+function reduce(w){
+  const steps=[{word:w.slice(), why:'start'}];
+  let guard=0;
+  while(true){
+    const s=step(w);
+    if(!s) break;
+    w=s.word;
+    steps.push({word:w.slice(), why:s.why});
+    if(++guard>2000){ break; }
+  }
+  return steps;
+}
+function render(steps){
+  const out=document.getElementById('out');
+  out.innerHTML='';
+  steps.forEach((st,i)=>{
+    const d=document.createElement('div');
+    d.className='step'+(i===steps.length-1?' final':'');
+    const w=document.createElement('div'); w.className='w';
+    w.textContent=show(st.word);
+    const y=document.createElement('div'); y.className='why';
+    y.textContent=st.why;
+    d.appendChild(w); d.appendChild(y);
+    out.appendChild(d);
+  });
+}
+document.getElementById('go').onclick=()=>{
+  const out=document.getElementById('out');
+  let w;
+  try{ w=parse(document.getElementById('inp').value.trim()); }
+  catch(e){ out.innerHTML='<div class="err">'+e.message+'</div>'; return; }
+  if(w.length===0){ out.innerHTML='<div class="empty">empty word = identity</div>'; return; }
+  render(reduce(w));
+};
+document.getElementById('inp').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('go').click(); });
+document.getElementById('go').click();
+</script>
+</body>
+</html>
