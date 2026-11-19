@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>boy's surface — RP² in 3D</title>
+<style>
+  body { background:#0b0d12; color:#c8d2ea; font-family:system-ui,sans-serif; margin:0; padding:2rem; line-height:1.6; }
+  main { max-width:820px; margin:0 auto; }
+  h1 { font-size:1.5rem; }
+  p { color:#9aa6c2; }
+  a { color:#6ea8ff; }
+  code { background:#1a2030; padding:.1em .35em; border-radius:4px; }
+  canvas { width:100%; height:auto; display:block; border-radius:10px; background:#0e1118; margin:1.5rem 0; touch-action:none; cursor:grab; }
+  .hint { font-size:.85rem; color:#66708a; }
+</style>
+</head>
+<body>
+<main>
+  <h1>boy's surface — RP² living in 3D</h1>
+  <p>the real projective plane can't sit in 3D without intersecting itself. boy's surface is the cleanest way it does it: a closed surface with no boundary, no inside or outside, a single triple point, and three-fold symmetry. every point of it is a direction in space, and a direction and its opposite are the same point.</p>
+  <p>this is the kusner–bryant parametrization. drag to spin it.</p>
+  <canvas id='c' width='760' height='560'></canvas>
+  <p class='hint'>three lobes, one seam where the surface passes through itself. the trefoil-shaped triple point is where three sheets meet. the parametrization is over the unit disk, with opposite points on the rim glued — that gluing is exactly what makes it a projective plane.</p>
+  <p><a href='index.html'>← back</a></p>
+</main>
+<script>
+(() => {
+  const cv = document.getElementById('c');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+
+  // complex helpers
+  const cmul=(a,b)=>[a[0]*b[0]-a[1]*b[1], a[0]*b[1]+a[1]*b[0]];
+  const cadd=(a,b)=>[a[0]+b[0], a[1]+b[1]];
+  const csub=(a,b)=>[a[0]-b[0], a[1]-b[1]];
+  const cdiv=(a,b)=>{const d=b[0]*b[0]+b[1]*b[1]; return [(a[0]*b[0]+a[1]*b[1])/d,(a[1]*b[0]-a[0]*b[1])/d];};
+  const cpow=(a,n)=>{let r=[1,0]; for(let i=0;i<n;i++)r=cmul(r,a); return r;};
+  const S3=Math.sqrt(3)/2;
+
+  // kusner–bryant parametrization, w = u+iv, |w|<=1
+  function boy(u,v) {
+    const w=[u,v], w3=cpow(w,3), w4=cpow(w,4), w6=cpow(w,6);
+    const den=csub(cadd(w6,cmul([5,0],w3)),[1,0]);
+    const t1=cdiv(cmul(w,csub([1,0],w4)),den);
+    const t2=cdiv(cmul(w,cadd([1,0],w4)),den);
+    const g1=-S3*t1[1];
+    const g2=-S3*t2[0];
+    const g3=cdiv(cadd([1,0],w6),den)[1]-0.5;
+    const n=Math.hypot(g1,g2,g3)||1;
+    return [g1/n, g2/n, g3/n];
+  }
+
+  // mesh over the disk
+  const NU=110, NV=110;
+  const verts=[], grid=[];
+  for(let i=0;i<=NU;i++){
+    grid.push([]);
+    for(let j=0;j<NV;j++){
+      const r=i/NU, th=2*Math.PI*j/NV;
+      grid[i].push(verts.length);
+      verts.push(boy(r*Math.cos(th), r*Math.sin(th)));
+    }
+  }
+  const idx=[];
+  for(let i=0;i<NU;i++) for(let j=0;j<NV;j++){
+    const a=grid[i][j], b=grid[i+1][j], c=grid[i+1][(j+1)%NV], d=grid[i][(j+1)%NV];
+    idx.push([a,b,c],[a,c,d]);
+  }
+
+  let ax=0.55, ay=0.4, dragging=false, lx=0, ly=0;
+  cv.addEventListener('pointerdown',e=>{dragging=true;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId);});
+  cv.addEventListener('pointerup',()=>{dragging=false;});
+  cv.addEventListener('pointermove',e=>{
+    if(!dragging)return;
+    ay+=(e.clientX-lx)*0.01; ax+=(e.clientY-ly)*0.01;
+    ax=Math.max(-1.5,Math.min(1.5,ax)); lx=e.clientX; ly=e.clientY; draw();
+  });
+
+  function rot(p){
+    let [x,y,z]=p;
+    let cy=Math.cos(ay),sy=Math.sin(ay);
+    let x1=x*cy+z*sy, z1=-x*sy+z*cy;
+    let cx=Math.cos(ax),sx=Math.sin(ax);
+    let y1=y*cx-z1*sx, z2=y*sx+z1*cx;
+    return [x1,y1,z2];
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    const S=200, cx0=W/2, cy0=H/2;
+    const proj=verts.map(p=>{
+      const r=rot(p);
+      const persp=2.8/(2.8+r[2]);
+      return [cx0+r[0]*S*persp, cy0-r[1]*S*persp, r[2]];
+    });
+    const faces=idx.map(f=>{
+      const z=(proj[f[0]][2]+proj[f[1]][2]+proj[f[2]][2])/3;
+      const nx=verts[f[1]][0]-verts[f[0]][0], ny=verts[f[1]][1]-verts[f[0]][1], nz=verts[f[1]][2]-verts[f[0]][2];
+      const mx=verts[f[2]][0]-verts[f[0]][0], my=verts[f[2]][1]-verts[f[0]][1], mz=verts[f[2]][2]-verts[f[0]][2];
+      const cr=[ny*mz-nz*my, nz*mx-nx*mz, nx*my-ny*mx];
+      const cl=Math.hypot(cr[0],cr[1],cr[2])||1;
+      const rn=rot([cr[0]/cl,cr[1]/cl,cr[2]/cl]);
+      return {f,z,shade:rn[2]};
+    });
+    faces.sort((a,b)=>a.z-b.z);
+    for(const {f,shade} of faces){
+      const t=0.5+0.5*Math.max(-1,Math.min(1,shade));
+      ctx.fillStyle=`rgb(${Math.round(55+150*t)},${Math.round(95+140*t)},${Math.round(205+50*t)})`;
+      ctx.beginPath();
+      ctx.moveTo(proj[f[0]][0],proj[f[0]][1]);
+      ctx.lineTo(proj[f[1]][0],proj[f[1]][1]);
+      ctx.lineTo(proj[f[2]][0],proj[f[2]][1]);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  draw();
+})();
+</script>
+</body>
+</html>
