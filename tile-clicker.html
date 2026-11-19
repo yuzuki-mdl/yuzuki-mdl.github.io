@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tile clicker — a {5,4} incremental</title>
+<style>
+  :root{--bg:#0b0d12;--panel:#141824;--ink:#e7ecf5;--dim:#8b94a8;--acc:#7fd1c4;--gold:#e8c86a}
+  *{box-sizing:border-box}
+  body{margin:0;background:radial-gradient(circle at 50% -10%,#182030,#0b0d12 60%);color:var(--ink);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;min-height:100vh}
+  header{text-align:center;padding:26px 16px 6px}
+  h1{margin:0;font-size:20px;letter-spacing:.5px}
+  .sub{color:var(--dim);font-size:12px;margin-top:4px}
+  main{max-width:760px;margin:0 auto;padding:16px}
+  .count{text-align:center;font-size:34px;font-weight:700;color:var(--acc);margin:14px 0 2px;font-variant-numeric:tabular-nums}
+  .rate{text-align:center;color:var(--dim);font-size:13px;margin-bottom:18px}
+  .tile{display:block;margin:0 auto 22px;width:150px;height:150px;cursor:pointer;transition:transform .07s;user-select:none;touch-action:manipulation}
+  .tile:active{transform:scale(.94)}
+  .tile polygon{fill:#1c2536;stroke:var(--acc);stroke-width:2;transition:fill .15s}
+  .tile:hover polygon{fill:#243149}
+  .grid{display:grid;gap:10px}
+  .gen{background:var(--panel);border:1px solid #222a3a;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:border-color .15s,background .15s}
+  .gen:hover:not(.locked){border-color:var(--acc)}
+  .gen.locked{opacity:.4;cursor:not-allowed}
+  .gen .ico{font-size:22px;width:30px;text-align:center}
+  .gen .info{flex:1;min-width:0}
+  .gen .name{font-weight:700}
+  .gen .desc{color:var(--dim);font-size:12px}
+  .gen .cost{color:var(--gold);font-variant-numeric:tabular-nums;font-size:13px;white-space:nowrap}
+  .gen .owned{color:var(--acc);font-size:12px}
+  footer{text-align:center;color:#3a4354;font-size:11px;padding:20px}
+  .reset{color:#3a4354;font-size:11px;text-align:center;cursor:pointer;text-decoration:underline;margin-top:6px}
+</style>
+</head>
+<body>
+<header>
+  <h1>tile clicker</h1>
+  <div class="sub">a {5,4} incremental — tile a genus-2 surface until the arithmetic runs out</div>
+</header>
+<main>
+  <div class="count" id="count">0 tiles</div>
+  <div class="rate" id="rate">+0 / sec</div>
+  <svg class="tile" id="tile" viewBox="0 0 100 100">
+    <polygon points="50,4 93,35 77,86 23,86 7,35"/>
+  </svg>
+  <div class="grid" id="gens"></div>
+  <div class="reset" id="reset">reset everything</div>
+</main>
+<footer>8 pentagons, 5 meet at each vertex, 720° owed. click to pay it down.</footer>
+<script>
+const GENS = [
+  {id:'tile',  ico:'⬠', name:'a single tile',      desc:'+1 tile per click',                  base:10,     rate:1},
+  {id:'pair',  ico:'⇄', name:'edge pairing',       desc:'+1 tile / sec',                      base:120,    rate:1},
+  {id:'orbit', ico:'◎', name:'orbit enumerator',   desc:'+8 tiles / sec',                     base:1400,   rate:8},
+  {id:'glider',ico:'✦', name:'glider hunter',      desc:'+48 tiles / sec',                    base:18000,  rate:48},
+  {id:'coset', ico:'▦', name:'coset enumerator',   desc:'+300 tiles / sec',                   base:250000, rate:300},
+  {id:'kbmag', ico:'∞', name:'knuth-bendix',       desc:'+2k tiles / sec',                    base:4200000,rate:2000},
+];
+const GROW = 1.15;
+
+let state = {tiles:0, total:0, owned:{}, last:Date.now()};
+
+function cost(g){ return Math.ceil(g.base * Math.pow(GROW, state.owned[g.id]||0)); }
+function clickRate(){ return 1 + (state.owned['tile']||0); }
+function perSec(){ return GENS.reduce((s,g)=> s + (state.owned[g.id]||0)*g.rate, 0); }
+
+function fmt(n){
+  if(n<1000) return Math.floor(n).toString();
+  const units=['','k','M','B','T','Qa','Qi'];
+  let u=0; while(n>=1000 && u<units.length-1){ n/=1000; u++; }
+  return n.toFixed(n<10?2:n<100?1:0)+units[u];
+}
+
+function render(){
+  document.getElementById('count').textContent = fmt(state.tiles)+' tiles';
+  document.getElementById('rate').textContent = '+'+fmt(perSec())+' / sec';
+  const box = document.getElementById('gens');
+  box.innerHTML='';
+  for(const g of GENS){
+    const c = cost(g);
+    const owned = state.owned[g.id]||0;
+    const afford = state.tiles>=c;
+    const locked = !afford && owned===0 && state.total < g.base*0.3;
+    const el = document.createElement('div');
+    el.className='gen'+(locked?' locked':'');
+    el.innerHTML = `<div class="ico">${g.ico}</div>
+      <div class="info"><div class="name">${g.name}</div><div class="desc">${g.desc}</div></div>
+      <div style="text-align:right"><div class="cost">${locked?'???':fmt(c)}</div><div class="owned">${owned}</div></div>`;
+    if(!locked) el.onclick=()=>buy(g);
+    box.appendChild(el);
+  }
+}
+
+function buy(g){
+  const c = cost(g);
+  if(state.tiles < c) return;
+  state.tiles -= c;
+  state.owned[g.id] = (state.owned[g.id]||0)+1;
+  render();
+}
+
+function tap(){
+  const amt = clickRate();
+  state.tiles += amt; state.total += amt;
+  render();
+}
+
+document.getElementById('tile').addEventListener('click', tap);
+
+document.getElementById('reset').addEventListener('click', ()=>{
+  if(confirm('reset everything?')){ state={tiles:0,total:0,owned:{},last:Date.now()}; save(); render(); }
+});
+
+function tick(){
+  const now = Date.now();
+  const dt = (now - state.last)/1000;
+  state.last = now;
+  const gain = perSec()*dt;
+  state.tiles += gain; state.total += gain;
+  render();
+}
+
+function save(){ try{ localStorage.setItem('tileclicker', JSON.stringify({tiles:state.tiles,total:state.total,owned:state.owned})); }catch(e){} }
+function load(){ try{ const s=JSON.parse(localStorage.getItem('tileclicker')); if(s){ state.tiles=s.tiles||0; state.total=s.total||0; state.owned=s.owned||{}; } }catch(e){} }
+
+load();
+// offline gain (capped 4h)
+try{ const raw=JSON.parse(localStorage.getItem('tileclicker')); }catch(e){}
+render();
+setInterval(tick, 100);
+setInterval(save, 5000);
+</script>
+</body>
+</html>
