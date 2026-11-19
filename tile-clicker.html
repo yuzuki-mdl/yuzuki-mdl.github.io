@@ -71,23 +71,35 @@ function fmt(n){
   return n.toFixed(n<10?2:n<100?1:0)+units[u];
 }
 
-function render(){
-  document.getElementById('count').textContent = fmt(state.tiles)+' tiles';
-  document.getElementById('rate').textContent = '+'+fmt(perSec())+' / sec';
+const rowRefs = {};
+function buildGens(){
   const box = document.getElementById('gens');
   box.innerHTML='';
   for(const g of GENS){
+    const el = document.createElement('div');
+    el.className='gen locked';
+    el.innerHTML = `<div class="ico">${g.ico}</div>
+      <div class="info"><div class="name">${g.name}</div><div class="desc">${g.desc}</div></div>
+      <div style="text-align:right"><div class="cost">???</div><div class="owned">0</div></div>`;
+    const costEl = el.querySelector('.cost');
+    const ownEl = el.querySelector('.owned');
+    el.onclick = ()=>buy(g);
+    rowRefs[g.id] = {el, costEl, ownEl};
+    box.appendChild(el);
+  }
+}
+function render(){
+  document.getElementById('count').textContent = fmt(state.tiles)+' tiles';
+  document.getElementById('rate').textContent = '+'+fmt(perSec())+' / sec';
+  for(const g of GENS){
+    const r = rowRefs[g.id]; if(!r) continue;
     const c = cost(g);
     const owned = state.owned[g.id]||0;
     const afford = state.tiles>=c;
     const locked = !afford && owned===0 && state.total < g.base*0.3;
-    const el = document.createElement('div');
-    el.className='gen'+(locked?' locked':'');
-    el.innerHTML = `<div class="ico">${g.ico}</div>
-      <div class="info"><div class="name">${g.name}</div><div class="desc">${g.desc}</div></div>
-      <div style="text-align:right"><div class="cost">${locked?'???':fmt(c)}</div><div class="owned">${owned}</div></div>`;
-    if(!locked) el.onclick=()=>buy(g);
-    box.appendChild(el);
+    r.el.classList.toggle('locked', locked);
+    r.costEl.textContent = locked?'???':fmt(c);
+    r.ownEl.textContent = owned;
   }
 }
 
@@ -126,6 +138,7 @@ function load(){ try{ const s=JSON.parse(localStorage.getItem('tileclicker')); i
 load();
 // offline gain (capped 4h)
 try{ const raw=JSON.parse(localStorage.getItem('tileclicker')); }catch(e){}
+buildGens();
 render();
 setInterval(tick, 100);
 setInterval(save, 5000);
