@@ -1,0 +1,83 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pentagon spiral</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;background:#0b0e14;color:#cfd6e4;font:14px/1.5 ui-monospace,monospace;display:flex;flex-direction:column;align-items:center}
+canvas{display:block;max-width:100vw;height:auto;margin-top:1rem}
+p{max-width:640px;padding:0 1rem;opacity:.85}
+a{color:#7fd1ff}
+code{color:#ffd479}
+</style></head><body>
+<canvas id="c" width="720" height="720"></canvas>
+<p><b>five pentagons won't go straight.</b> lay a regular pentagon, then set the next one flat against a free edge. two pentagons meeting at an edge leave 360&minus;2&middot;108 = 144&deg; of gap at each shared corner. do it again and again and the chain <i>curves</i> &mdash; it can never run in a straight line, and it never closes back on itself. that stubborn curvature is the whole reason five pentagons can't tile the flat plane, and why you need hyperbolic geometry ({5,4}, where five pentagons <i>do</i> meet at a corner) to make them close at all.</p>
+<p><a href="./index.html">back</a></p>
+<script>
+const c=document.getElementById('c'),g=c.getContext('2d');
+const cx=360,cy=380,R=90;
+const TAU=Math.PI*2;
+// golden-ratio-based pentagon: internal angle 108deg. exterior turn 72deg.
+// each new pentagon shares one edge with previous, rotated outward.
+let polys=[];
+function pent(cx,cy,r,rot){
+  const p=[];
+  for(let i=0;i<5;i++){const a=rot+TAU*i/5-Math.PI/2;p.push([cx+r*Math.cos(a),cy+r*Math.sin(a)]);}
+  return p;
+}
+// build by walking: start pent, then next pent attaches on edge (0,1) of prev, rotated by +72deg about that edge... 
+// simpler standard construction: each step rotate/translate so a new pent shares an edge.
+// Use the classic: cumulative rotation 72deg, scale 1 (same size) => spiral of pentagons.
+let ang=0, x=cx, y=cy;
+// We'll build centers by composing transforms. A pentagon with a marked edge.
+// Place pentagon i centered so that edge (v0,v1) sits where previous pentagon's outer edge was.
+// Do it numerically: place pent1, then attach along its edge.
+function rot(p,a){return [p[0]*Math.cos(a)-p[1]*Math.sin(a),p[0]*Math.sin(a)+p[1]*Math.cos(a)];}
+let base=pent(0,0,R,0);
+// edge from base[1] to base[2] will carry the next pentagon
+let placed=[base];
+let ei=1; // index of the vertex where the shared edge starts
+for(let k=0;k<12;k++){
+  const prev=placed[placed.length-1];
+  // take edge prev[ei]->prev[(ei+1)%5]
+  const a=prev[ei], b=prev[(ei+1)%5];
+  const mid=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+  const angEdge=Math.atan2(b[1]-a[1],b[0]-a[0]);
+  // new pentagon reflected across that edge: mirror the previous pentagon's center through the edge line
+  // Build a pent with same orientation but placed on far side: rotate prev pent by 72deg about edge.
+  const rotAng=TAU/5; // 72deg
+  // rotate each point of a fresh pentagon placed at mid, then shift so its edge matches
+  // easier: mirror construction. reflect prev[0..] across edge line to get new pentagon.
+  function reflect(p,a,b){
+    const dx=b[0]-a[0],dy=b[1]-a[1];
+    const len2=dx*dx+dy*dy;
+    const t=((p[0]-a[0])*dx+(p[1]-a[1])*dy)/len2;
+    const projx=a[0]+t*dx, projy=a[1]+t*dy;
+    return [2*projx-p[0], 2*projy-p[1]];
+  }
+  // new pentagon = reflection of prev pentagon across shared edge, but that keeps same size and flips it.
+  const np=prev.map(p=>reflect(p,a,b));
+  placed.push(np);
+  // continue around the same way: next shared edge starts at the far vertex
+  ei=(ei+2)%5;
+}
+// center all
+let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+for(const P of placed)for(const p of P){minx=Math.min(minx,p[0]);maxx=Math.max(maxx,p[0]);miny=Math.min(miny,p[1]);maxy=Math.max(maxy,p[1]);}
+const s=Math.min(660/(maxx-minx),660/(maxy-miny));
+const ox=360-(minx+maxx)/2*s, oy=360-(miny+maxy)/2*s;
+function draw(t){
+  g.clearRect(0,0,720,720);
+  placed.forEach((P,i)=>{
+    g.beginPath();
+    P.forEach((p,j)=>{const X=p[0]*s+ox,Y=p[1]*s+oy; j?g.lineTo(X,Y):g.moveTo(X,Y);});
+    g.closePath();
+    const hue=(i*30)%360;
+    g.fillStyle=`hsla(${200+i*12},70%,${20+i*3}%,0.55)`;
+    g.fill();
+    g.strokeStyle=`hsla(${180+i*15},80%,65%,${0.4+0.5*((i+1)/placed.length)})`;
+    g.lineWidth=1.5;
+    g.stroke();
+  });
+}
+draw();
+</script>
+</body></html>
