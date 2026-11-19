@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the seven frieze groups</title>
+<style>
+  body{margin:0;background:#0e0e12;color:#d8d8e0;font:14px/1.5 ui-monospace,Menlo,monospace}
+  header{padding:28px 20px 8px;max-width:900px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 6px;color:#f0f0f8}
+  p.sub{margin:0;color:#8888a0;font-size:13px;max-width:640px}
+  .strip{max-width:900px;margin:18px auto;padding:0 20px}
+  .strip h2{font-size:13px;font-weight:600;color:#a0a0c0;margin:0 0 2px;letter-spacing:.04em}
+  .strip .desc{font-size:12px;color:#6a6a80;margin:0 0 6px}
+  canvas{display:block;width:100%;height:70px;background:#14141c;border:1px solid #24242e;border-radius:4px}
+  footer{max-width:900px;margin:30px auto 60px;padding:0 20px;color:#5a5a70;font-size:12px}
+  a{color:#8a8ad0}
+</style>
+</head>
+<body>
+<header>
+  <h1>the seven frieze groups</h1>
+  <p class="sub">every pattern that repeats along one direction, forever, without ever getting boring — there are exactly seven. each strip below is a motif repeated by that group's symmetries. the moving highlight shows one fundamental domain sliding to its images.</p>
+</header>
+
+<div id="strips"></div>
+
+<footer>
+  frieze groups are the 1d wallpaper groups: translations in one direction, plus mirrors, glides, and 180° rotations. seven of them, no more, no less. <a href="index.html">← home</a>
+</footer>
+
+<script>
+const groups=[
+  {id:'p1',name:'p1',desc:'translation only — the plainest repeat',gen:[[1,0]]},
+  {id:'p11g',name:'p11g',desc:'glide reflection — slide then flip',gen:[[1,0],[-1,0,1]]},
+  {id:'p1m1',name:'p1m1',desc:'vertical mirrors between copies',gen:[[1,0],[-1,0,0]]},
+  {id:'p11m',name:'p11m',desc:'horizontal mirror — flipped across the strip',gen:[[1,0],[1,0,1]]},
+  {id:'p2',name:'p2',desc:'180° rotation at each point',gen:[[1,0],[-1,0,0.5]]},
+  {id:'p2mg',name:'p2mg',desc:'mirror + glide + rotation',gen:[[1,0],[-1,0,0.5],[1,0,1]]},
+  {id:'p2mm',name:'p2mm',desc:'both mirrors plus rotation — the fullest',gen:[[1,0],[-1,0,0],[1,0,1],[-1,0,0.5]]}
+];
+
+// motif = a little asymmetric glyph. draw it transformed.
+function motif(ctx,x,y,s,flipX,flipY){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(flipX?-1:1,flipY?-1:1);
+  ctx.beginPath();
+  ctx.moveTo(0,-s);
+  ctx.lineTo(s*0.8,s*0.6);
+  ctx.lineTo(-s*0.4,s*0.2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(-s*0.5,-s*0.4,s*0.22,0,7);
+  ctx.fill();
+  ctx.restore();
+}
+
+const W=840,H=70,CELL=70;
+const container=document.getElementById('strips');
+const anims=[];
+
+groups.forEach((g,gi)=>{
+  const wrap=document.createElement('div');
+  wrap.className='strip';
+  wrap.innerHTML='<h2>'+g.name+'</h2><p class="desc">'+g.desc+'</p>';
+  const cv=document.createElement('canvas');
+  cv.width=W;cv.height=H;
+  wrap.appendChild(cv);
+  container.appendChild(wrap);
+  const ctx=cv.getContext('2d');
+  anims.push({g,ctx,t:gi*0.7});
+});
+
+function drawStrip(g,ctx,phase){
+  ctx.clearRect(0,0,W,H);
+  const midY=H/2;
+  const n=Math.ceil(W/CELL)+2;
+  // base motif colour
+  for(let i=-1;i<n;i++){
+    const x=i*CELL+CELL/2;
+    ctx.fillStyle='#6a6ad0';
+    motif(ctx,x,midY,13,false,false);
+  }
+  // images under each generator
+  g.gen.forEach((gen,gi)=>{
+    const [tx,ty,flip]=gen;
+    for(let i=-1;i<n;i++){
+      const x=i*CELL+CELL/2;
+      const imgX=x+tx*CELL;
+      const imgY=midY+(ty? (ty>0?1:-1)*CELL*0.6 : 0);
+      const fx=flip===1;
+      ctx.fillStyle='#3a3a58';
+      motif(ctx,imgX,imgY,13,fx,false);
+    }
+  });
+  // sliding highlight = fundamental domain
+  const hx=((phase%1)*n-1)*CELL;
+  ctx.fillStyle='rgba(240,220,120,0.13)';
+  ctx.fillRect(hx,0,CELL,H);
+  ctx.strokeStyle='rgba(240,220,120,0.5)';
+  ctx.lineWidth=1;
+  ctx.strokeRect(hx+0.5,0.5,CELL-1,H-1);
+}
+
+function frame(ts){
+  anims.forEach(a=>{
+    a.t+=0.004;
+    drawStrip(a.g,a.ctx,a.t);
+  });
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
