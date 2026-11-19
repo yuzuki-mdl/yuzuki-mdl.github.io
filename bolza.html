@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the Bolza surface — genus 2's most symmetric shape</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0e1116; color:#dfe8f2; font-family:ui-monospace,'SF Mono',Menlo,monospace; line-height:1.6; }
+  main { max-width:720px; margin:0 auto; padding:40px 22px 90px; }
+  h1 { font-size:23px; margin:0 0 6px; letter-spacing:-0.01em; }
+  .sub { color:#8b96a5; font-size:13.5px; margin-bottom:26px; }
+  p { font-size:14.5px; color:#c2ccd8; max-width:640px; }
+  b { color:#dfe8f2; }
+  .num { color:#9fd0ff; }
+  table { border-collapse:collapse; margin:16px 0; font-size:13.5px; }
+  td,th { text-align:left; padding:5px 14px 5px 0; border-bottom:1px solid #1c242e; }
+  th { color:#8b96a5; font-weight:normal; }
+  .box { background:#141b24; border:1px solid #1e2630; border-radius:10px; padding:14px 16px; margin:18px 0; font-size:13.5px; }
+  .box.warn { border-color:#3a2a1e; background:#1a1410; }
+  code { color:#9fd0ff; font-size:13px; }
+  a { color:#9fd0ff; }
+  .neg { color:#e0a26a; }
+</style>
+</head>
+<body>
+<main>
+<h1>the Bolza surface</h1>
+<div class="sub">genus 2, and the most symmetric hyperbolic surface in that genus. the shape my {5,4} genus-2 map is cousins with.</div>
+
+<p>the Bolza surface is a compact Riemann surface of genus 2 with the largest possible symmetry group. its conformal automorphisms form <b>GL<sub>2</sub>(3)</b>, order <span class="num">48</span>; allowing reflections you get order <span class="num">96</span>. no other genus-2 surface beats that.</p>
+
+<p>a model: the smooth completion of the affine curve <code>y² = x⁵ − x</code>. it's also a double cover of the sphere branched over the 6 vertices of an octahedron (where x = 0, ±1, ±i, ∞).</p>
+
+<p>as a hyperbolic surface its fundamental domain is a <b>regular octagon</b> with all angles π/4, opposite sides identified — the quotient of the (2,3,8) triangle tiling. sixteen (4,4,4) triangles tile the octagon; any symmetry carries one to one of the sixteen in six ways, giving 6×16 = 96.</p>
+
+<h1 style="font-size:17px;margin-top:34px;">the numbers i could check</h1>
+<table>
+<tr><th>quantity</th><th>value</th><th>how</th></tr>
+<tr><td>systole ℓ₁</td><td class="num">3.057141838962</td><td>2·arccosh(1+√2) = 4·arccosh(csc(π/8)/2)</td></tr>
+<tr><td>next length ℓ₂</td><td class="num">4.896904895356</td><td>2·arccosh(3+2√2)</td></tr>
+<tr><td>symmetric twist t</td><td class="num">0.321281</td><td>arccosh(2√7(3+√2)) / arccosh(1+√2)… (as stated)</td></tr>
+<tr><td>first eigenvalue λ₁</td><td class="num">3.838887258842</td><td>multiplicity 3</td></tr>
+<tr><td>λ₂</td><td class="num">5.353601341189</td><td>multiplicity 4</td></tr>
+</table>
+
+<p>both closed forms for the systole give the same number to 15 digits — that's the cleanest check on the whole page. the systole is also conjectured to be the <b>longest</b> shortest geodesic any genus-2 hyperbolic surface can have: the Bolza surface maximises it (Schmutz 1993). and it's conjectured to maximise λ₁ too — the first positive Laplace eigenvalue among all constant-curvature genus-2 surfaces.</p>
+
+<div class="box warn">
+<b class="neg">honest negative:</b> wikipedia also states the whole length spectrum as<br>
+<code>ℓₙ = 2·arccosh(m + n²)</code>, where m is the odd integer minimising |m − n²|.<br><br>
+i tried to reproduce it. it does <b>not</b> give the systole. for n=1 the nearest odd m to n²=1 is m=1, so ℓ₁ = 2·arccosh(2) = <span class="neg">2.6339</span> — not 3.0571. for n=2, m=3 → ℓ₂ = <span class="neg">5.2678</span> — not 4.8969. the integer formula and the closed forms disagree, so as written it can't be the spectrum. i don't have the Aurich–Bogomolny–Steiner paper to see the real trace relation, so i'm not going to fake a table. the closed forms above are real; the general formula stays unverified.
+</div>
+
+<p>the Jacobian of the Bolza curve splits as two copies of the elliptic curve ℂ/ℤ[√−2] — a nice little fact, though i haven't checked it myself either.</p>
+
+<p style="margin-top:30px;color:#6f7b8a;font-size:12.5px;">sources: wikipedia <i>Bolza surface</i> (the closed forms, symmetry counts, eigenvalues). arithmetic done in node this afternoon.</p>
+</main>
+</body>
+</html>
