@@ -36,6 +36,7 @@
   <button onclick="preset('trefoil')">trefoil</button>
   <button onclick="preset('fig8')">figure-eight</button>
   <button onclick="run()">compute</button>
+  <label style="color:var(--dim);font-size:.85rem;display:flex;align-items:center;gap:.4rem;cursor:pointer"><input type="checkbox" id="wrong" onchange="run()"> use the wrong pairing</label>
 </div>
 <p class="hint">PD format: <code>X[i,j,k,l]</code>, arcs numbered counterclockwise, <code>i→k</code> under, <code>j→l</code> over. one per line or comma-separated. writhe is read from an optional <code>w=</code> line; otherwise it's assumed from the preset.</p>
 
@@ -46,7 +47,7 @@ how it works: at each crossing there are two smoothings (A joins i–j and k–l
 </p>
 </main>
 <script>
-function bracketFromPD(crossings){
+function bracketFromPD(crossings,wrong){
   const n=crossings.length, slots=4*n;
   const padd=(a,b,s=1)=>{const r=new Map(a);for(const[k,v]of b){const nv=(r.get(k)||0)+s*v;if(Math.abs(nv)<1e-12)r.delete(k);else r.set(k,nv);}return r;};
   const pmul=(a,b)=>{const r=new Map();for(const[ka,va]of a)for(const[kb,vb]of b){const k=ka+kb;const v=(r.get(k)||0)+va*vb;if(Math.abs(v)<1e-12)r.delete(k);else r.set(k,v);}return r;};
@@ -58,7 +59,7 @@ function bracketFromPD(crossings){
     const find=x=>{while(p[x]!==x){p[x]=p[p[x]];x=p[x];}return x;};
     const uni=(x,y)=>{p[find(x)]=find(y);};
     let nA=0,nB=0;
-    for(let c=0;c<n;c++){const b=4*c;const isA=((state>>c)&1)===0;if(isA){uni(b,b+1);uni(b+2,b+3);nA++;}else{uni(b,b+3);uni(b+1,b+2);nB++;}}
+    for(let c=0;c<n;c++){const b=4*c;const isA=((state>>c)&1)===0;if(isA){uni(b,b+1);uni(b+2,b+3);nA++;}else{if(wrong){uni(b,b+2);uni(b+1,b+3);}else{uni(b,b+3);uni(b+1,b+2);}nB++;}}
     const arcSlots=new Map();
     for(let c=0;c<n;c++){const[i,j,k,l]=crossings[c];const b=4*c;const pairs=[[b+0,i],[b+1,j],[b+2,k],[b+3,l]];for(const[slot,arc]of pairs){if(!arcSlots.has(arc))arcSlots.set(arc,[]);arcSlots.get(arc).push(slot);}}
     for(const[,ss]of arcSlots)for(let t=1;t<ss.length;t++)uni(ss[0],ss[t]);
@@ -107,11 +108,14 @@ function run(){
     const{crossings,w}=parsePD(document.getElementById('pd').value);
     if(!crossings.length){resEl.innerHTML='<span class="err">no X[...] crossings found</span>';return;}
     if(crossings.length>20){resEl.innerHTML='<span class="err">too many crossings (max 20 for 2^n states)</span>';return;}
-    const br=bracketFromPD(crossings);
-    let html='<span class="lbl">bracket ⟨K⟩ in A</span><div class="val">'+fmt(br,'A')+'</div>';
+    const wrong=document.getElementById('wrong').checked;
+    const br=bracketFromPD(crossings,wrong);
+    let html=(wrong?'<div class="val err" style="margin-bottom:1rem">wrong pairing: B joins i–k and j–l instead of i–l and j–k</div>':'')+'<span class="lbl">bracket ⟨K⟩ in A</span><div class="val">'+fmt(br,'A')+'</div>';
     if(w!==null){
       const V=jonesFromBracket(br,w);
+      const frac=[...V.keys()].some(k=>Math.abs(k-Math.round(k))>1e-9);
       html+='<span class="lbl">V(t), writhe w='+w+'</span><div class="val">'+fmt(V,'t')+'</div>';
+      if(frac)html+='<div class="val err">fractional powers of t — the pairing is wrong. a real knot gives integer exponents.</div>';
     } else {
       html+='<span class="lbl">V(t)</span><div class="val" style="color:var(--dim)">add a <code>w=</code> line to correct by writhe</div>';
     }
