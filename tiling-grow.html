@@ -142,7 +142,7 @@ function centralVerts(){
 // --- state ---
 let pents = [];   // each: {verts:[5 pts], id}
 let banked = 0;   // curvature degrees = currency
-let up = {auto:0, speed:0, reach:0}; // upgrade levels
+let up = {auto:0, speed:0, reach:0, workers:0}; // upgrade levels
 let mult = 1;     // prestige multiplier
 let CURV_PER_PENT = 720;
 const DISK_BASE = 0.92;
@@ -152,9 +152,11 @@ const UPGRADES = {
   auto:  {name:'auto-grower', desc:'grows a pentagon on its own', base:2500, scale:1.9},
   speed: {name:'faster growth', desc:'-12% cooldown each',        base:4000, scale:2.3},
   reach: {name:'expand the disk', desc:'fits more pentagons',      base:20000, scale:3.2},
+  workers: {name:'workers', desc:'each grows a pentagon too (unlocks at 8)', base:6000, scale:2.0, unlock:8},
 };
+function isLocked(k){ const u=UPGRADES[k]; return u.unlock && pents.length<u.unlock; }
 function upCost(k){ const u=UPGRADES[k]; return Math.floor(u.base*Math.pow(u.scale, up[k])); }
-function autoRate(){ return up.auto*0.5; }            // pents/sec
+function autoRate(){ return (up.auto+up.workers)*0.5; }  // pents/sec
 function cooldownMs(){ return 2000/(1+0.12*up.speed); }
 
 function save(){
@@ -168,7 +170,7 @@ function load(){
     const d=JSON.parse(raw);
     pents=d.pents.map((vs,i)=>({verts:vs,id:i}));
     banked=d.banked||0;
-    up=d.up||{auto:0,speed:0,reach:0}; mult=d.mult||1;
+    up=Object.assign({auto:0,speed:0,reach:0,workers:0}, d.up||{}); mult=d.mult||1;
     DISK_R=DISK_BASE+up.reach*0.006;
     // offline gain: auto-growers bank curvature while away
     const dt=(Date.now()-(d.t||Date.now()))/1000;
@@ -212,8 +214,12 @@ function draw(){
 function renderShop(){
   const sh=document.getElementById('shop');
   let h='';
-  for(const k of ['auto','speed','reach']){
+  for(const k of ['auto','speed','reach','workers']){
     const u=UPGRADES[k], c=upCost(k), can=banked>=c;
+    if(isLocked(k)){
+      h+=`<div class="stat" style="opacity:.4"><span>${u.name} <small style="color:#7d7490">locked</small><br><small style="color:#7d7490">grow to ${u.unlock} pentagons</small></span><button disabled>\u2014</button></div>`;
+      continue;
+    }
     h+=`<div class="stat"><span>${u.name} <small style="color:#7d7490">Lv${up[k]}</small><br><small style="color:#7d7490">${u.desc}</small></span>`+
        `<button data-buy="${k}" ${can?'':'disabled'}>${c}\u00b0</button></div>`;
   }
@@ -223,6 +229,7 @@ function renderShop(){
   });
 }
 function buy(k){
+  if(isLocked(k)) return;
   const c=upCost(k);
   if(banked<c) return;
   banked-=c; up[k]++;
@@ -280,7 +287,7 @@ document.getElementById('prestige').onclick=()=>{
   if(!confirm(`compactify? lose the tiling + upgrades, keep x${(mult+gain).toFixed(2)} multiplier`))return;
   mult=+(mult+gain).toFixed(2);
   pents=[{verts:centralVerts(),id:0}]; banked=CURV_PER_PENT;
-  up={auto:0,speed:0,reach:0}; DISK_R=DISK_BASE;
+  up={auto:0,speed:0,reach:0,workers:0}; DISK_R=DISK_BASE;
   save(); draw();
 };
 
