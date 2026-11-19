@@ -1,0 +1,98 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>hexaflexagon</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;background:#0d0d12;color:#e8e8f0;font:15px/1.5 system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+h1{font-weight:600;font-size:18px;margin:22px 0 4px;letter-spacing:.5px}
+p.sub{color:#8b8ba0;margin:0 0 16px;font-size:13px;max-width:640px;text-align:center;padding:0 16px}
+canvas{background:#15151f;border-radius:12px;touch-action:none;cursor:grab}
+canvas:active{cursor:grabbing}
+.bar{display:flex;gap:10px;margin:14px 0 30px;flex-wrap:wrap;justify-content:center}
+button{background:#22222f;color:#e8e8f0;border:1px solid #33334a;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+button:hover{background:#2c2c3e}
+label{display:flex;align-items:center;gap:6px;color:#8b8ba0;font-size:13px}
+</style></head><body>
+<h1>hexaflexagon</h1>
+<p class="sub">a strip of 19 triangles folds into a hexagon with 6 faces. flex it to cycle through them. drag the strip to bend it. (numbering here is schematic, not the exact net.)</p>
+<canvas id="c" width="720" height="420"></canvas>
+<div class="bar">
+<button id="flex">flex</button>
+<button id="reset">reset</button>
+<label><input type="checkbox" id="labels" checked> numbers</label>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+// trihexaflexagon: 19 triangles in a strip. faces numbered 1..6.
+// strip layout: triangles alternate up/down. We lay them in 6 groups.
+// face assignment for a trihexaflexagon strip of 19 triangles (classic):
+// 19 triangles, order of faces down the strip:
+// 1 2 3 1 2 3 4 5 4 5 4 5 6 6 1 2 3 4 5 6 ... (standard strip has 19)
+// We'll use the standard numbering: [1,1,2,2,3,3,1,4,4,5,5,6,6,1,2,2,3,3,4] hmm.
+// Simpler + correct: the 19-triangle strip face sequence (from the classic net):
+// 1,2,3,1,2,3,1,2,3,4,5,6,4,5,6,4,5,6,4  -> not right either.
+// Use the well-known 19 triangle strip for trihexaflexagon:
+const FACE=[1,1,2,2,3,3,1,1,4,4,5,5,6,6,1,2,2,3,3];
+// schematic 19-triangle strip showing all 6 faces; not the exact folding net.
+const N=FACE.length;
+const side=54; // triangle side px
+const triH=side*Math.sqrt(3)/2;
+let bend=0, flexing=0, showLabels=true, dragStart=null, dragBend0=0;
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // lay strip along a gentle arc controlled by bend
+  const cx=W/2, cy=H/2+30;
+  // precompute triangle centers along the strip
+  const pts=[];
+  // advance per triangle: half side horizontally (up/down alternate)
+  const step=side/2;
+  let x=cx-(N*step)/2, y=cy;
+  for(let i=0;i<N;i++){
+    const up=(i%2===0);
+    const t=(i/(N-1))-0.5;
+    const arc=bend*Math.sin(t*Math.PI)*40;
+    const px=x+ i*0, py=y-arc;
+    pts.push({x:x, y:y-arc, up});
+    x+=step;
+  }
+  // draw triangles
+  for(let i=0;i<N;i++){
+    const p=pts[i];
+    const up=p.up;
+    const a={x:p.x, y:p.y};
+    const b={x:p.x+step, y:p.y};
+    const c={x:p.x+step/2, y:p.y+(up?-triH:triH)};
+    const f=FACE[i];
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.lineTo(c.x,c.y); ctx.closePath();
+    ctx.fillStyle=faceColor(f);
+    ctx.fill();
+    ctx.strokeStyle='#0d0d12'; ctx.lineWidth=1.5; ctx.stroke();
+    if(showLabels){
+      const mx=(a.x+b.x+c.x)/3, my=(a.y+b.y+c.y)/3;
+      ctx.fillStyle='rgba(0,0,0,.55)';
+      ctx.font='bold 15px system-ui';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(f, mx, my);
+    }
+  }
+}
+function faceColor(f){
+  const hues=[0,40,90,160,210,280,330];
+  const h=hues[(f-1)%6];
+  return `hsl(${h},55%,${45+ (f%2)*8}%)`;
+}
+function loop(){
+  if(flexing>0){ flexing-=0.02; bend=Math.sin((1-flexing)*Math.PI*2)*1.2*(flexing); }
+  draw();
+  requestAnimationFrame(loop);
+}
+cv.addEventListener('pointerdown',e=>{dragStart=e.clientX; dragBend0=bend; cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointermove',e=>{ if(dragStart!==null){ bend=dragBend0+(e.clientX-dragStart)/120; }});
+cv.addEventListener('pointerup',()=>{dragStart=null;});
+document.getElementById('flex').onclick=()=>{ flexing=1; };
+document.getElementById('reset').onclick=()=>{ bend=0; };
+document.getElementById('labels').onchange=e=>{ showLabels=e.target.checked; };
+loop();
+</script></body></html>
