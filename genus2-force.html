@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>genus-2, relaxed</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a12;color:#cdd3e0;font-family:ui-monospace,Menlo,monospace;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+  canvas{display:block;cursor:grab}
+  canvas:active{cursor:grabbing}
+  .hud{position:fixed;left:14px;top:12px;font-size:12px;line-height:1.55;max-width:340px;opacity:.88;pointer-events:none}
+  .hud b{color:#e9c46a}
+  .hud code{color:#8ce99a}
+  .foot{position:fixed;left:14px;bottom:12px;font-size:11px;line-height:1.6;opacity:.6;max-width:360px}
+  a{color:#7fb3ff}
+</style>
+</head>
+<body>
+<div class="hud">
+  <b>genus-2 {5,4} map, force-directed</b><br>
+  the 10 vertices of the 8-pentagon double-torus map, relaxed in 3D: springs on the 20 edges (each wants equal length), all-pairs repulsion, a weak outward push so it doesn't collapse.<br>
+  <span style="opacity:.65">no symmetry constraint — this is the <i>naive</i> thing. drag to spin.</span>
+</div>
+<div class="foot">
+  compare <a href="genus2-3d.html">genus2-3d</a> (hand-shaped sketch) · why the naive relaxation can't find the clean symmetric embedding is the whole point of van Wijk's paper.
+</div>
+<div id="wrap"><canvas id="c"></canvas></div>
+<script>
+const DATA = {
+  verts: [[-2.498,0.112,0.627],[-2.328,1.024,0.054],[-1.309,0.598,0.720],[-1.585,0.021,-0.275],[-0.145,-0.346,-0.461],[0.132,0.236,0.532],[1.306,-0.616,-0.710],[2.456,-0.029,-0.666],[1.583,-0.038,0.285],[2.388,-0.963,-0.107]],
+  edges: [[0,1],[0,2],[2,3],[3,0],[1,3],[2,1],[3,4],[4,5],[5,2],[4,6],[6,7],[7,8],[8,5],[8,9],[9,6],[7,9]]
+};
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+let W,H;
+function resize(){ W=cv.width=innerWidth*devicePixelRatio; H=cv.height=innerHeight*devicePixelRatio; cv.style.width=innerWidth+'px'; cv.style.height=innerHeight+'px'; }
+addEventListener('resize',resize); resize();
+
+// center + scale
+let V=DATA.verts.map(v=>v.slice());
+let cx=0,cy=0,cz=0; for(const p of V){cx+=p[0];cy+=p[1];cz+=p[2];} cx/=V.length;cy/=V.length;cz/=V.length;
+for(const p of V){p[0]-=cx;p[1]-=cy;p[2]-=cz;}
+let mx=0; for(const p of V) mx=Math.max(mx,Math.hypot(...p));
+const SCALE = (Math.min(innerWidth,innerHeight)*0.42)/mx;
+
+let ax=0.5, ay=0.8;
+let dragging=false, lx=0, ly=0;
+cv.addEventListener('pointerdown',e=>{dragging=true;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointermove',e=>{ if(!dragging)return; ay+=(e.clientX-lx)*0.01; ax+=(e.clientY-ly)*0.01; lx=e.clientX; ly=e.clientY; });
+cv.addEventListener('pointerup',e=>{dragging=false;});
+
+function rot(p){
+  // rotate around Y then X
+  let [x,y,z]=p;
+  let cy=Math.cos(ay), sy=Math.sin(ay);
+  let x1=x*cy+z*sy, z1=-x*sy+z*cy;
+  let cx2=Math.cos(ax), sx=Math.sin(ax);
+  let y1=y*cx2 - z1*sx, z2=y*sx + z1*cx2;
+  return [x1,y1,z2];
+}
+
+function frame(t){
+  if(!dragging){ ay+=0.004; ax+=0.0012; }
+  ctx.clearRect(0,0,W,H);
+  const cxp=W/2, cyp=H/2;
+  const proj=V.map(p=>{
+    const r=rot(p);
+    const persp = 4/(4+r[2]*0.0+ (r[2])); // mild
+    return [cxp + r[0]*SCALE*(3.5/(3.5+r[2])), cyp + r[1]*SCALE*(3.5/(3.5+r[2])), r[2]];
+  });
+  // edges
+  const dp=Math.max(1,devicePixelRatio);
+  for(const [a,b] of DATA.edges){
+    const pa=proj[a], pb=proj[b];
+    const depth=(pa[2]+pb[2])/2;
+    const alpha=0.35 + 0.55*(0.5 - depth*0.12);
+    ctx.strokeStyle='rgba(120,180,255,'+Math.max(0.15,Math.min(0.95,alpha)).toFixed(2)+')';
+    ctx.lineWidth=1.6*dp;
+    ctx.beginPath(); ctx.moveTo(pa[0],pa[1]); ctx.lineTo(pb[0],pb[1]); ctx.stroke();
+  }
+  // vertices sorted by depth
+  const order=V.map((_,i)=>i).sort((i,j)=>proj[j][2]-proj[i][2]);
+  for(const i of order){
+    const p=proj[i];
+    const r=7*dp*(3.5/(3.5+p[2]));
+    ctx.beginPath(); ctx.arc(p[0],p[1],r,0,7);
+    ctx.fillStyle='#e9c46a'; ctx.fill();
+    ctx.fillStyle='#0a0a12'; ctx.font=(9*dp)+'px ui-monospace,monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(i, p[0], p[1]+0.5*dp);
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
