@@ -1,0 +1,54 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the dial</title>
+<style>
+body{background:#0d0d0f;color:#e8e4dc;font:16px/1.6 ui-monospace,monospace;max-width:820px;margin:0 auto;padding:2rem 1.2rem}
+h1{font-size:1.5rem;letter-spacing:.02em}
+a{color:#7ec8e3}
+.box{background:#111;border:1px solid #222;border-radius:8px;padding:1rem;margin:1.2rem 0}
+.box svg{max-width:100%;height:auto;display:block;margin:0 auto}
+p{color:#c9c4ba}
+.note{color:#8a857c;font-size:.9rem}
+b{color:#e3a07e}
+.ctrl{display:flex;align-items:center;gap:1rem;margin-top:1rem}
+input[type=range]{flex:1;accent-color:#e3a07e}
+button{background:#1a1a1e;color:#e8e4dc;border:1px solid #333;border-radius:6px;padding:.5rem 1rem;font:inherit;cursor:pointer}
+button:hover{border-color:#7ec8e3}
+#verdict{margin-top:1rem;font-size:1.05rem;min-height:1.6em}
+.ok{color:#7ee39e}
+.bad{color:#e37e7e}
+</style></head><body>
+<h1>the dial</h1>
+<p>no readout. rotate the crab about the white pin until the seam closes, then lock it in. the eye has to lose on its own — there's no number telling you when it's right.</p>
+<div class="box">
+<svg id="stage" xmlns="http://www.w3.org/2000/svg" viewBox="360 -60 200 200" width="400" height="400">
+<rect x="360" y="-60" width="200" height="200" fill="#111"/>
+<g stroke="#000" stroke-width="1.2" fill-opacity="0.85">
+<polygon points="440.00,0.00 480.00,0.00 520.00,40.00 520.00,80.00 480.00,120.00 440.00,120.00 400.00,80.00 400.00,40.00" fill="#7ec8e3"/>
+<polygon id="crab" points="360.00,40.00 320.00,0.00 280.00,0.00 280.00,-40.00 320.00,-40.00 360.00,-80.00 400.00,-80.00 440.00,-40.00 480.00,-40.00 480.00,0.00 440.00,0.00 400.00,40.00 400.00,80.00 360.00,80.00" fill="#e3a07e"/>
+</g>
+<circle cx="440" cy="0" r="4" fill="#fff"/>
+</svg>
+<div class="ctrl">
+<input id="dial" type="range" min="-20" max="20" step="0.1" value="-14">
+<button id="lock">lock it in</button>
+</div>
+<div id="verdict"></div>
+</div>
+<p class="note">the seam is the only witness. when the crab's prong slides off the trilobite's edge, a wedge opens at the top and the arm cuts in below. the dial starts well off. find zero by eye.</p>
+<p><a href="trilobite-teeth.html">&larr; the teeth</a> &nbsp; <a href="trilobite-crab.html">the whole patch</a> &nbsp; <a href="all.html">all the pages</a></p>
+<script>
+var crab=document.getElementById('crab');
+var dial=document.getElementById('dial');
+var verdict=document.getElementById('verdict');
+var TOL=1.0; // degrees, hidden
+function setAngle(a){ crab.setAttribute('transform','rotate('+a+' 440 0)'); }
+setAngle(parseFloat(dial.value));
+dial.addEventListener('input',function(){ setAngle(parseFloat(dial.value)); verdict.textContent=''; verdict.className=''; });
+document.getElementById('lock').addEventListener('click',function(){
+  var a=Math.abs(parseFloat(dial.value));
+  if(a<=TOL){ verdict.textContent='locked. the seam closed — you were within '+TOL+'° without seeing it.'; verdict.className='ok'; }
+  else { verdict.textContent='seam open. you were '+a.toFixed(1)+'° off — the eye forgave it, the fit did not.'; verdict.className='bad'; }
+});
+</script>
+</body></html>
