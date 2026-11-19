@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>straight skeleton by inward offsetting</title>
+<style>
+  :root { --bg:#14131a; --fg:#e8e4f0; --dim:#8a8498; --accent:#7fd1c8; --roof:#ff7a59; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:14px; }
+  header { padding:18px 22px 6px; }
+  h1 { font-size:17px; margin:0 0 4px; font-weight:600; }
+  .sub { color:var(--dim); font-size:12.5px; line-height:1.5; max-width:740px; }
+  .wrap { display:flex; gap:18px; padding:10px 22px 30px; flex-wrap:wrap; align-items:flex-start; }
+  canvas { background:#0e0d13; border:1px solid #2a2833; border-radius:8px; touch-action:none; cursor:crosshair; }
+  .panel { min-width:230px; }
+  .row { margin:10px 0; display:flex; gap:8px; flex-wrap:wrap; }
+  button { background:#23212c; color:var(--fg); border:1px solid #3a3746; border-radius:6px; padding:6px 11px; font:inherit; font-size:12.5px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.on { background:var(--accent); color:#14131a; border-color:var(--accent); }
+  .stat { color:var(--dim); font-size:12px; margin-top:14px; line-height:1.6; }
+  .stat b { color:var(--fg); }
+  .legend { display:flex; gap:14px; font-size:12px; color:var(--dim); margin-top:8px; flex-wrap:wrap; }
+  .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+</style>
+</head>
+<body>
+<header>
+  <h1>straight skeleton by inward offsetting</h1>
+  <p class="sub">the straight skeleton is the crease pattern of the <em>roof</em> you get by pushing every edge of a polygon inward at the same speed. each edge stays parallel to itself; each vertex slides along the angle bisector where its two edges meet. when two fronts collide (an edge shrinks to nothing) the collision point is a skeleton node. this page offsets the polygon by small time steps and records where the vertices go — the traced lines are the skeleton. lift each point by the time it was born and you have the roof; the skeleton <em>is</em> its ridge lines.<br><br><b>honest scope:</b> this only handles <b>convex</b> polygons. for a convex polygon the offset never splits, so per-vertex tracking is exactly the straight skeleton. a <em>concave</em> polygon needs <em>split events</em> (a reflex vertex runs into an edge and the polygon tears in two) — that's the hard part of the real algorithm and this page doesn't do it, so concave inputs would give wrong crossing lines. all the presets below are convex on purpose.</p>
+</header>
+<div class="wrap">
+  <canvas id="cv" width="560" height="520"></canvas>
+  <div class="panel">
+    <div class="row">
+      <button id="vFlat" class="on">flat skeleton</button>
+      <button id="vRoof">roof</button>
+    </div>
+    <div class="row">
+      <button id="reset">reset shape</button>
+      <button id="comb">comb shape</button>
+      <button id="star">star</button>
+    </div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--accent)"></span>skeleton</span>
+      <span><span class="dot" style="background:var(--roof)"></span>roof ridge</span>
+    </div>
+    <div class="stat" id="stat"></div>
+  </div>
+</div>
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+let poly = [
+  {x:110,y:130},{x:300,y:80},{x:470,y:170},{x:450,y:360},{x:300,y:450},{x:130,y:400}
+];
+
+let viewRoof = false;
+let drag = -1;
+let tracks = [];   // array of {pts:[{x,y,t}], parent}
+let nodes = [];    // skeleton nodes {x,y,t}
+
+// ---- geometry helpers ----
+function signedArea(p){ let a=0; for(let i=0,j=p.length-1;i<p.length;j=i++) a+=(p[j].x*p[i].y-p[i].x*p[j].y); return a/2; }
+
+// offset a simple polygon inward by distance d, returning new vertex list.
+// each edge moves inward (toward interior) by d; new vertex = intersection of the two offset edge lines.
+function offsetPoly(p, d){
+  const n=p.length;
+  const sgn = signedArea(p)>0 ? 1 : -1; // ccw positive
+  const edges=[];
+  for(let i=0;i<n;i++){
+    const a=p[i], b=p[(i+1)%n];
+    let dx=b.x-a.x, dy=b.y-a.y; const L=Math.hypot(dx,dy)||1; dx/=L; dy/=L;
+    // inward normal: rotate edge dir by -90 for ccw gives outward? adjust by sgn so we go interior
+    const nx = -dy*sgn, ny = dx*sgn; // inward normal
+    edges.push({ax:a.x+nx*d, ay:a.y+ny*d, dx, dy});
+  }
+  const out=[];
+  for(let i=0;i<n;i++){
+    const e1=edges[(i-1+n)%n], e2=edges[i];
+    // intersect line e1 (point e1.ax,e1.ay dir e1.dx,e1.dy) with e2
+    const p1x=e1.ax, p1y=e1.ay, d1x=e1.dx, d1y=e1.dy;
+    const p2x=e2.ax, p2y=e2.ay, d2x=e2.dx, d2y=e2.dy;
+    const den = d1x*d2y - d1y*d2x;
+    if(Math.abs(den) < 1e-9){ out.push({x:p2x,y:p2y}); continue; }
+    const t = ((p2x-p1x)*d2y - (p2y-p1y)*d2x)/den;
+    out.push({x:p1x+d1x*t, y:p1y+d1y*t});
+  }
+  return out;
+}
+
+// is the offset polygon still sane (area same sign as original, not collapsed)?
+let baseSign = 1;
+function polyOk(p){
+  if(p.length<3) return false;
+  const A = signedArea(p);
+  // once the offset polygon crosses zero area or flips sign, the fronts have collided
+  if(Math.sign(A) !== baseSign) return false;
+  if(Math.abs(A) < 6) return false;
+  return true;
+}
+
+// build the skeleton by time-stepping the offset
+function buildSkeleton(){
+  tracks = []; nodes = [];
+  baseSign = Math.sign(signedArea(poly)) || 1;
+  let cur = poly.map(v=>({x:v.x,y:v.y}));
+  const DT = 1.5;
+  let t = 0;
+  // seed tracks at each vertex
+  let live = cur.map((v,i)=>({x:v.x,y:v.y,t:0,id:i}));
+  const allTracks = live.map(v=>({pts:[{x:v.x,y:v.y,t:0}]}));
+  let guard = 0;
+  while(guard++ < 400){
+    const next = offsetPoly(cur, DT);
+    if(!polyOk(next)) break;
+    t += DT;
+    // match next vertices to current by index (same count) — record motion
+    if(next.length === cur.length){
+      for(let i=0;i<next.length;i++){
+        allTracks[i].pts.push({x:next[i].x, y:next[i].y, t});
+      }
+    }
+    cur = next;
+  }
+  // final collapse node = centroid of last poly
+  if(cur.length){
+    let cx=0, cy=0; for(const v of cur){cx+=v.x;cy+=v.y;} cx/=cur.length; cy/=cur.length;
+    nodes.push({x:cx,y:cy,t});
+    for(const tr of allTracks) tr.pts.push({x:cx,y:cy,t});
+  }
+  tracks = allTracks;
+  return t;
+}
+
+let maxT = 1;
+function recompute(){ maxT = buildSkeleton() || 1; }
+
+// ---- drawing ----
+function project(x,y,t){
+  // roof view: lift by time. simple oblique projection + scale
+  if(!viewRoof) return [x,y];
+  const z = (t / (maxT||1)) * 150;
+  const sx = x + z*0.42;
+  const sy = y - z*0.72;
+  return [sx, sy];
+}
+
+function drawPolyline(pts, color, width, alpha){
+  if(pts.length<2) return;
+  ctx.beginPath();
+  const [x0,y0]=project(pts[0].x,pts[0].y,pts[0].t);
+  ctx.moveTo(x0,y0);
+  for(let i=1;i<pts.length;i++){
+    const [x,y]=project(pts[i].x,pts[i].y,pts[i].t);
+    ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle=color; ctx.lineWidth=width; ctx.globalAlpha=alpha||1; ctx.stroke(); ctx.globalAlpha=1;
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const col = viewRoof ? 'var(--roof)' : 'var(--accent)';
+  const stroke = viewRoof ? '#ff7a59' : '#7fd1c8';
+
+  // roof faces (fill polygon at t=0 for roof base shading)
+  if(viewRoof){
+    // draw the original base faintly
+    ctx.beginPath();
+    const [x0,y0]=project(poly[0].x,poly[0].y,0); ctx.moveTo(x0,y0);
+    for(let i=1;i<poly.length;i++){ const [x,y]=project(poly[i].x,poly[i].y,0); ctx.lineTo(x,y); }
+    ctx.closePath(); ctx.fillStyle='rgba(255,122,89,0.05)'; ctx.fill();
+  }
+
+  // skeleton tracks
+  for(const tr of tracks){
+    drawPolyline(tr.pts, stroke, viewRoof?1.6:1.4, viewRoof?0.9:0.85);
+  }
+
+  // nodes
+  for(const nd of nodes){
+    const [x,y]=project(nd.x,nd.y,nd.t);
+    ctx.beginPath(); ctx.arc(x,y,3,0,7); ctx.fillStyle=stroke; ctx.fill();
+  }
+
+  // polygon outline (t=0)
+  ctx.beginPath();
+  const [px0,py0]=project(poly[0].x,poly[0].y,0); ctx.moveTo(px0,py0);
+  for(let i=1;i<poly.length;i++){ const [x,y]=project(poly[i].x,poly[i].y,0); ctx.lineTo(x,y); }
+  ctx.closePath(); ctx.strokeStyle='#e8e4f0'; ctx.lineWidth=1.6; ctx.stroke();
+
+  // vertex handles (only in flat view)
+  if(!viewRoof){
+    for(let i=0;i<poly.length;i++){
+      ctx.beginPath(); ctx.arc(poly[i].x,poly[i].y,5,0,7);
+      ctx.fillStyle = (i===drag)?'#7fd1c8':'#23212c'; ctx.fill();
+      ctx.strokeStyle='#7fd1c8'; ctx.lineWidth=1.4; ctx.stroke();
+    }
+  }
+
+  const s=document.getElementById('stat');
+  s.innerHTML = `vertices <b>${poly.length}</b><br>skeleton nodes <b>${nodes.length}</b><br>roof height <b>${maxT.toFixed(1)}</b><br><span style="color:#8a8498">${viewRoof?'roof view — ridge lines are the skeleton':'flat skeleton — drag vertices'}</span>`;
+}
+
+// ---- interaction ----
+function getXY(e){
+  const r=cv.getBoundingClientRect();
+  const cx=(e.touches?e.touches[0].clientX:e.clientX);
+  const cy=(e.touches?e.touches[0].clientY:e.clientY);
+  return [(cx-r.left)*W/r.width, (cy-r.top)*H/r.height];
+}
+function down(e){ const [x,y]=getXY(e); drag=-1; for(let i=0;i<poly.length;i++){ if(Math.hypot(poly[i].x-x,poly[i].y-y)<12){drag=i;break;} } if(drag>=0){e.preventDefault();} }
+function move(e){ if(drag<0)return; e.preventDefault(); const [x,y]=getXY(e); poly[drag].x=x; poly[drag].y=y; recompute(); draw(); }
+function up(){ drag=-1; draw(); }
+cv.addEventListener('mousedown',down); cv.addEventListener('mousemove',move); window.addEventListener('mouseup',up);
+cv.addEventListener('touchstart',down,{passive:false}); cv.addEventListener('touchmove',move,{passive:false}); cv.addEventListener('touchend',up);
+
+document.getElementById('vFlat').onclick=()=>{ viewRoof=false; document.getElementById('vFlat').classList.add('on'); document.getElementById('vRoof').classList.remove('on'); draw(); };
+document.getElementById('vRoof').onclick=()=>{ viewRoof=true; document.getElementById('vRoof').classList.add('on'); document.getElementById('vFlat').classList.remove('on'); draw(); };
+
+function regular(cx,cy,R,N,rot){ const p=[]; for(let i=0;i<N;i++){ const a=(rot||0)+i*2*Math.PI/N; p.push({x:cx+Math.cos(a)*R, y:cy+Math.sin(a)*R}); } return p; }
+document.getElementById('reset').onclick=()=>{ poly=[{x:110,y:130},{x:300,y:80},{x:470,y:170},{x:450,y:360},{x:300,y:450},{x:130,y:400}]; recompute(); draw(); };
+document.getElementById('comb').onclick=()=>{ poly=[{x:90,y:140},{x:470,y:140},{x:470,y:400},{x:90,y:400}]; recompute(); draw(); };
+document.getElementById('star').onclick=()=>{ poly=regular(280,270,180,5,-Math.PI/2); recompute(); draw(); };
+
+recompute();
+draw();
+</script>
+</body>
+</html>
