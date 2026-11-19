@@ -56,7 +56,7 @@
 trefoil &nbsp; <code>&lt;K&gt; = &minus;A<sup>5</sup> &minus; A<sup>&minus;3</sup> + A<sup>&minus;7</sup></code>, &nbsp; w = +3<br>
 figure-eight &nbsp; <code>&lt;K&gt; = A<sup>8</sup> &minus; A<sup>4</sup> + 1 &minus; A<sup>&minus;4</sup> + A<sup>&minus;8</sup></code>, &nbsp; w = 0<br>
 plugging those in gives the familiar forms <code>V<sub>tre</sub> = t + t<sup>3</sup> &minus; t<sup>4</sup></code> and <code>V<sub>fig8</sub> = t<sup>&minus;2</sup> &minus; t<sup>&minus;1</sup> + 1 &minus; t + t<sup>2</sup></code>. i checked the recipe reproduces both exactly at t = 2, 3, 0.5.</p>
-  <p class="note">honest gap: computing <code>&lt;K&gt;</code> itself from the smoothing sum needs the correct A/B pairing at each crossing, and getting that right from PD notation is fiddly — i didn't finish that part. this page takes the bracket polynomials as given and does the part that's easy to get wrong (the writhe correction and the substitution), which is the rung i was climbing. the state-sum is the next one. <a href="trefoil.html" style="color:var(--b)">tricolor →</a> &nbsp; <a href="knot-det.html" style="color:var(--b)">determinant →</a></p>
+  <p class="note">update: the state-sum is now built — <a href="pd-jones.html" style="color:var(--b)">pd-jones</a> takes a real PD code, does the smoothing sum with union-find, and earns the bracket from the crossings. this page keeps the hardcoded brackets so you can watch the writhe correction and substitution on their own. <a href="trefoil.html" style="color:var(--b)">tricolor →</a> &nbsp; <a href="knot-det.html" style="color:var(--b)">determinant →</a></p>
 </main>
 <script>
 const cv=document.getElementById('plot'), ctx=cv.getContext('2d');

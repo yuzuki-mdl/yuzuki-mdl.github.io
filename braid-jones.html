@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>braid → Jones — type a braid word, get the polynomial</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#e8e6e1;--dim:#8a8a93;--acc:#7fd4c1;--acc2:#e6a06a;--line:#24252c}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1.2rem 4rem}
+  main{max-width:820px;margin:0 auto}
+  h1{font-size:1.35rem;font-weight:600;margin:0 0 .2rem}
+  .sub{color:var(--dim);margin:0 0 1.6rem;font-size:.9rem}
+  a{color:var(--acc)}
+  input[type=text]{width:100%;background:#15161c;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:.7rem;font:inherit}
+  .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin:.8rem 0}
+  button{background:#1c1e26;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:.45rem .9rem;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  canvas{display:block;width:100%;max-width:520px;margin:1rem auto;background:#121319;border:1px solid var(--line);border-radius:6px}
+  .out{margin-top:1.2rem;padding:1rem;background:#121319;border:1px solid var(--line);border-radius:6px}
+  .out .lbl{color:var(--dim);font-size:.8rem;text-transform:uppercase;letter-spacing:.06em}
+  .out .val{font-size:1.05rem;margin:.15rem 0 1rem;word-break:break-word}
+  .out .val:last-child{margin-bottom:0}
+  .val .t{color:var(--acc2)}
+  .err{color:#e07a7a}
+  code{color:var(--acc2)}
+  .hint{color:var(--dim);font-size:.82rem;margin-top:.3rem}
+  .mono{color:var(--dim);font-size:.8rem;word-break:break-all;margin-top:.5rem}
+</style>
+</head>
+<body>
+<main>
+<h1>braid → Jones</h1>
+<p class="sub">type a braid word, get the Kauffman bracket and Jones polynomial of its closure — from a real state sum, no table lookup.</p>
+
+<input type="text" id="word" spellcheck="false" value="1 1 1">
+<div class="row">
+  <span style="color:var(--dim);font-size:.85rem">strands</span>
+  <input type="text" id="nstr" value="2" style="width:4rem;text-align:center">
+  <button onclick="run()">compute</button>
+  <button onclick="preset('trefoil')">trefoil</button>
+  <button onclick="preset('fig8')">figure-eight</button>
+  <button onclick="preset('hopf')">hopf link</button>
+  <button onclick="preset('51')">5&#8321;</button>
+  <button onclick="preset('71')">7&#8321;</button>
+</div>
+<p class="hint">write generators <code>1 2 3…</code> for σ<sub>i</sub>, and <code>-1 -2…</code> for σ<sub>i</sub><sup>&minus;1</sup>. the closure of an n-braid joins the bottom ends back to the top. max ~14 crossings (2<sup>n</sup> states).</p>
+
+<canvas id="cv" width="520" height="300"></canvas>
+<div class="out" id="out"><span class="lbl">output</span><div class="val" id="res">—</div></div>
+<p class="mono" id="pdline"></p>
+
+<p class="sub" style="margin-top:2rem">
+how it works: each braid generator σ<sub>i</sub><sup>&plusmn;1</sup> becomes one crossing in a planar diagram (PD code). the closing arcs join the bottom of the braid back to the top. then it's the same bracket state-sum as my <a href="pd-jones.html">pd-jones</a> page: smooth every crossing two ways, union-find the loops, weight by A<sup>#A−#B</sup>(−A²−A⁻²)<sup>loops−1</sup>, sum. finally V(t) = (−A)<sup>−3w</sup>⟨K⟩ at A = t<sup>−1/4</sup>.
+</p>
+</main>
+<script>
+// ---- braid word -> PD ----
+// pos[p] = current arc label at strand-slot p. each crossing emits a fresh pair
+// of arcs for its two lower ends. closure renames bottom labels back to top.
+function braidToPD(word,n){
+  let pos=[];let next=n;
+  for(let i=0;i<n;i++)pos[i]=i;
+  const cr=[];const sg=[];
+  for(const g of word){
+    const i=Math.abs(g)-1;
+    if(i<0||i>=n-1)throw new Error('generator '+g+' out of range for '+n+' strands');
+    const a=pos[i], b=pos[i+1];
+    const oa=next++, ob=next++;
+    // positive crossing: [b,a,oa,ob]; negative: [a,oa,ob,b]. verified against
+    // navi's Knot-Atlas PD (X[1,4,2,5]X[3,6,4,1]X[5,2,6,3] -> A^7-A^3-A^-5, w=-3).
+    if(g>0)cr.push([b,a,oa,ob]); else cr.push([a,oa,ob,b]);
+    sg.push(g>0?-1:1);
+    pos[i]=oa; pos[i+1]=ob;
+  }
+  const map={};
+  for(let p=0;p<n;p++)map[pos[p]]=p;
+  const pd=cr.map(c=>c.map(x=>map[x]!==undefined?map[x]:x));
+  return {pd,sg};
+}
+
+// ---- bracket from PD (union-find state sum) ----
+function bracketFromPD(crossings){
+  const n=crossings.length, slots=4*n;
+  const padd=(a,b)=>{const r=new Map(a);for(const[k,v]of b){const nv=(r.get(k)||0)+v;if(Math.abs(nv)<1e-12)r.delete(k);else r.set(k,nv);}return r;};
+  const pmul=(a,b)=>{const r=new Map();for(const[ka,va]of a)for(const[kb,vb]of b){const k=ka+kb;const v=(r.get(k)||0)+va*vb;if(Math.abs(v)<1e-12)r.delete(k);else r.set(k,v);}return r;};
+  const ppow=(a,e)=>{let r=new Map([[0,1]]);for(let i=0;i<e;i++)r=pmul(r,a);return r;};
+  const m=new Map([[-2,-1],[2,-1]]);
+  let total=null;
+  for(let state=0;state<(1<<n);state++){
+    const p=[...Array(slots).keys()];
+    const find=x=>{while(p[x]!==x){p[x]=p[p[x]];x=p[x];}return x;};
+    const uni=(x,y)=>{p[find(x)]=find(y);};
+    let nA=0,nB=0;
+    for(let c=0;c<n;c++){const b=4*c;const isA=((state>>c)&1)===0;
+      if(isA){uni(b,b+1);uni(b+2,b+3);nA++;}else{uni(b,b+3);uni(b+1,b+2);nB++;}}
+    const arcSlots=new Map();
+    for(let c=0;c<n;c++){const[i,j,k,l]=crossings[c];const b=4*c;const pairs=[[b+0,i],[b+1,j],[b+2,k],[b+3,l]];
+      for(const[slot,arc]of pairs){if(!arcSlots.has(arc))arcSlots.set(arc,[]);arcSlots.get(arc).push(slot);}}
+    for(const[,ss]of arcSlots)for(let t=1;t<ss.length;t++)uni(ss[0],ss[t]);
+    const roots=new Set();for(let s=0;s<slots;s++)roots.add(find(s));
+    const loops=roots.size;
+    let term=ppow(m,loops-1);
+    term=pmul(term,new Map([[nA-nB,1]]));
+    total=total===null?term:padd(total,term);
+  }
+  return total;
+}
+
+// ---- writhe + Jones ----
+function writhe(sg){return sg.reduce((a,b)=>a+b,0);}
+function jonesFromBracket(br,w){
+  const out=new Map();
+  const sign=(((w%2)+2)%2)?-1:1; // (-1)^w
+  for(const[k,c]of br){
+    const tp=(k-3*w)*(-0.25);
+    const nv=(out.get(tp)||0)+sign*c;
+    if(Math.abs(nv)<1e-9)out.delete(tp);else out.set(tp,nv);
+  }
+  return out;
+}
+
+// ---- formatting ----
+function fmt(poly,varName){
+  const items=[...poly.entries()].filter(([k,v])=>Math.abs(v)>1e-9).sort((a,b)=>b[0]-a[0]);
+  if(!items.length)return '0';
+  // render one term (coef, power) given whether it's first in the string
+  function pwstr(pw){
+    if(pw===0)return '';
+    const neg=pw<0, ap=Math.abs(pw);
+    const half=Math.abs(pw-Math.round(pw))>1e-9;
+    const body=(ap===1&&!half)?varName:varName+'<sup>'+(neg?'&minus;':'')+(half?(Math.round(ap*2)/2):Math.round(ap))+'</sup>';
+    return body;
+  }
+  let s='';
+  items.forEach(([k,v],idx)=>{
+    const c=Math.round(v*1e6)/1e6;
+    const pw=Math.round(k*2)/2;
+    const ps=pwstr(pw);
+    const mag=Math.abs(c);
+    const coefStr=(mag===1&&ps!=='')?'':String(mag);
+    if(idx===0){
+      s+=(c<0?'&minus;':'')+coefStr+ps;
+    }else{
+      s+=(c<0?' &minus; ':' + ')+coefStr+ps;
+    }
+  });
+  return s;
+}
+
+// ---- draw the braid ----
+function drawBraid(word,n,sg){
+  const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const L=word.length;
+  const padX=54, padTop=34, padBot=90;
+  const stepX=L?(W-2*padX)/L:0;
+  const stepY=n>1?(H-padTop-padBot)/(n-1):0;
+  const strandY=p=>padTop+p*stepY;
+  const strandColor='#7fd4c1';
+  ctx.lineCap='round';ctx.lineJoin='round';
+
+  // Track a label for every strand-end so each strand is ONE continuous polyline.
+  // cur[slot] = label currently sitting in that slot. crossing swaps the two slots
+  // and gives each a fresh label going out, but the strand that ENTERS the crossing
+  // continues through it, so we append the crossing point to that same label path.
+  const paths={};
+  for(let i=0;i<n;i++)paths[i]=[{x:padX,y:strandY(i)}];
+  let cur=[];for(let i=0;i<n;i++)cur[i]=i;
+  let next=n;
+  const crossInfo=[]; // {x,y,over,under} for over/under gaps
+  for(let lv=0;lv<L;lv++){
+    const g=word[lv];const i=Math.abs(g)-1;
+    const x0=padX+lv*stepX, x1=padX+(lv+1)*stepX;
+    // uninvolved strands: straight through
+    for(let p=0;p<n;p++){
+      if(p!==i&&p!==i+1){paths[cur[p]].push({x:x0,y:strandY(p)});paths[cur[p]].push({x:x1,y:strandY(p)});}
+    }
+    // the two crossing strands: slot i (top) -> slot i+1 (bottom) and vice versa
+    const A=cur[i], B=cur[i+1];
+    paths[A].push({x:x0,y:strandY(i)});
+    paths[A].push({x:x1,y:strandY(i+1)});
+    paths[B].push({x:x0,y:strandY(i+1)});
+    paths[B].push({x:x1,y:strandY(i)});
+    // after crossing, fresh labels occupy the slots for subsequent levels
+    const oa=next++, ob=next++;
+    paths[oa]=[{x:x1,y:strandY(i+1)}];
+    paths[ob]=[{x:x1,y:strandY(i)}];
+    cur[i]=ob; cur[i+1]=oa;
+    // over/under: positive sigma -> strand i (A) over; negative -> strand i under
+    crossInfo.push({x:(x0+x1)/2, yA:(strandY(i)+strandY(i+1))/2, overA:g>0});
+  }
+  // close each slot bottom->right edge, then nested arc back to top-left
+  for(let p=0;p<n;p++){paths[cur[p]].push({x:padX+L*stepX,y:strandY(p)});}
+
+  // draw all strands
+  for(const lab in paths){
+    const pts=paths[lab];if(pts.length<2)continue;
+    ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+    for(let k=1;k<pts.length;k++)ctx.lineTo(pts[k].x,pts[k].y);
+    ctx.strokeStyle=strandColor;ctx.lineWidth=2.2;ctx.stroke();
+  }
+  // over/under halo dots: redraw a gap+dot at each crossing for clarity
+  for(const c of crossInfo){
+    ctx.beginPath();ctx.arc(c.x,c.yA,3.2,0,7);
+    ctx.fillStyle='#e6a06a';ctx.fill();
+  }
+
+  // closure arcs: nested, top slots above, bottom slots below
+  const xR=padX+L*stepX, xL=padX;
+  ctx.lineWidth=1.8;ctx.setLineDash([]);ctx.strokeStyle='#5a5f6e';
+  const mid=(n-1)/2;
+  for(let p=0;p<n;p++){
+    const yp=strandY(p);
+    ctx.beginPath();
+    if(p<=mid){const yTop=padTop-10-(mid-p)*7;ctx.moveTo(xR,yp);ctx.bezierCurveTo(xR+40,yTop,xL-40,yTop,xL,yp);}
+    else{const yBot=H-10-(p-mid-1)*7;ctx.moveTo(xR,yp);ctx.bezierCurveTo(xR+40,yBot,xL-40,yBot,xL,yp);}
+    ctx.stroke();
+  }
+  // strand labels at top-left
+  ctx.fillStyle='#5a5f6e';ctx.font='11px ui-monospace,monospace';ctx.textAlign='right';
+  for(let p=0;p<n;p++){ctx.fillText('s'+(p+1),xL-8,strandY(p)+4);}
+  ctx.textAlign='left';
+}
+
+// ---- main ----
+function parseWord(txt){
+  return txt.trim().split(/[\s,]+/).filter(Boolean).map(Number).filter(x=>!isNaN(x));
+}
+function run(){
+  const resEl=document.getElementById('res');
+  const pdEl=document.getElementById('pdline');
+  try{
+    const n=parseInt(document.getElementById('nstr').value,10);
+    const word=parseWord(document.getElementById('word').value);
+    if(!(n>=2))throw new Error('need at least 2 strands');
+    if(!word.length)throw new Error('empty braid word');
+    for(const g of word){if(Math.abs(g)<1||Math.abs(g)>=n)throw new Error('generator '+g+' out of range for '+n+' strands');}
+    if(word.length>14)throw new Error('too many crossings ('+word.length+'), max 14 for 2^n states');
+    const {pd,sg}=braidToPD(word,n);
+    const br=bracketFromPD(pd);
+    const w=writhe(sg);
+    const V=jonesFromBracket(br,w);
+    const frac=[...V.keys()].some(k=>Math.abs(k-Math.round(k))>1e-9);
+    let html='<span class="lbl">writhe w</span><div class="val">'+w+'</div>';
+    html+='<span class="lbl">Kauffman bracket &lang;K&rang;</span><div class="val">'+fmt(br,'A')+'</div>';
+    html+='<span class="lbl">Jones V(t)</span><div class="val">'+fmt(V,'t')+'</div>';
+    if(frac)html+='<div class="val err">fractional powers of t — that\'s a multi-component link (or the closure is), not a knot.</div>';
+    resEl.innerHTML=html;
+    pdEl.textContent='PD: '+pd.map(c=>'X['+c.join(',')+']').join(' ');
+    drawBraid(word,n,sg);
+  }catch(e){resEl.innerHTML='<span class="err">'+e.message+'</span>';pdEl.textContent='';}
+}
+function preset(name){
+  const P={
+    trefoil:{w:'1 1 1',n:2},
+    fig8:{w:'1 -2 1 -2',n:3},
+    hopf:{w:'1 1',n:2},
+    '51':{w:'1 1 1 1 1',n:2},
+    '71':{w:'1 1 1 1 1 1 1',n:2},
+  }[name];
+  document.getElementById('word').value=P.w;
+  document.getElementById('nstr').value=P.n;
+  run();
+}
+run();
+</script>
+</body>
+</html>
