@@ -35,9 +35,9 @@
 how it works: the reduced Burau representation sends each braid generator &sigma;<sub>i</sub> to an (n&minus;1)&times;(n&minus;1) matrix over Laurent polynomials in t. multiply them out, take det(I&minus;f*), multiply by (1&minus;t)/(1&minus;t<sup>n</sup>), and out comes &Delta;(t) up to a unit. it's the classical pre-Jones route to a knot invariant.
 </p>
 <p class="sub">
-why it stops at 5 crossings: the Burau matrix size is n&minus;1, and this page inverts matrices up to 3&times;3 only (a general Laurent-polynomial matrix inverse is a fiddly exact-division problem). 6-crossing knots need 4-strand braids, so they'd need a 3&times;3 inverse — n=4. the <a href="braid-jones.html">braid&rarr;jones</a> page uses the Kauffman bracket instead and doesn't have that ceiling.
+the 6-crossing knots need 4-strand braids, which means a 3&times;3 Laurent-matrix inverse. that used to be the ceiling here; now it's a general cofactor inverse (adjugate over the determinant), so n=4 works. the one gotcha was the reduced-Burau middle generator: it acts on rows i&minus;2,i&minus;1,i, not i&minus;1,i &mdash; flip that and every 4-strand determinant comes out wrong (6<sub>1</sub> gave det 0 or 8 before the fix). the <a href="braid-jones.html">braid&rarr;jones</a> page uses the Kauffman bracket instead and doesn't have that ceiling.
 </p>
-<p class="sub">sanity: the determinant of a knot is |&Delta;(&minus;1)|. trefoil &rarr; 3, figure-eight &rarr; 5, 5<sub>1</sub> &rarr; 5, 5<sub>2</sub> &rarr; 7. all match the tables.</p>
+<p class="sub">sanity: the determinant of a knot is |&Delta;(&minus;1)|. trefoil &rarr; 3, figure-eight &rarr; 5, 5<sub>1</sub> &rarr; 5, 5<sub>2</sub> &rarr; 7, 6<sub>1</sub> &rarr; 9, 6<sub>2</sub> &rarr; 11, 6<sub>3</sub> &rarr; 13. all match the tables.</p>
 </main>
 <script>
 // ---- Laurent polynomials in t: Map exp->coef ----
@@ -48,9 +48,9 @@ const pscale=(a,s)=>{const r=new Map();for(const[k,v]of a)r.set(k,v*s);return r;
 const pshow=a=>{const e=[...a.entries()].sort((x,y)=>x[0]-y[0]);if(!e.length)return '0';return e.map(([k,v])=>{const co=v>0?'+':'\u2212';const av=Math.abs(v);const coef=(av===1&&k!==0)?'':av;const mono=k===0?'':(k===1?'t':`t<sup>${k}</sup>`);const term=(coef||mono)?`${coef}${mono}`:(k===0?'1':'');return `${co}${term}`;}).join(' ').replace(/^\+\s?/,'').replace(/^\u2212\s?/,'\u2212');};
 const matmul=(A,B)=>{const n=A.length,m=B[0].length,k=A[0].length;const C=[];for(let i=0;i<n;i++){C.push([]);for(let j=0;j<m;j++){let s=new Map();for(let l=0;l<k;l++)s=padd(s,pmul(A[i][l],B[l][j]));C[i].push(s);}}return C;};
 const eye=n=>{const M=[];for(let i=0;i<n;i++){M.push([]);for(let j=0;j<n;j++)M[i].push(i===j?P({0:1}):new Map());}return M;};
-function genPos(i,n){const d=n-1;const M=eye(d);if(n===2){M[0][0]=P({1:-1});return M;}if(i===1){M[0][0]=P({1:-1});M[0][1]=P({0:1});}else if(i===n-1){M[d-1][d-2]=P({1:1});M[d-1][d-1]=P({1:-1});}else{M[i-1][i]=new Map();M[i][i-1]=P({1:1});M[i][i]=P({1:-1});}return M;}
+function genPos(i,n){const d=n-1;const M=eye(d);if(n===2){M[0][0]=P({1:-1});return M;}if(i===1){M[0][0]=P({1:-1});M[0][1]=P({0:1});}else if(i===n-1){M[d-1][d-2]=P({1:1});M[d-1][d-1]=P({1:-1});}else{M[i-1][i-2]=P({1:1});M[i-1][i-1]=P({1:-1});M[i-1][i]=P({0:1});}return M;}
 function pinv(a){return new Map([...a].map(([k,v])=>[-k,v]));}
-function inv(M){const n=M.length;if(n===1)return [[pinv(M[0][0])]];if(n===2){const d=padd(pmul(M[0][0],M[1][1]),pscale(pmul(M[0][1],M[1][0]),-1));const id=pinv(d);return [[pmul(M[1][1],id), pscale(pmul(M[0][1],id),-1)],[pscale(pmul(M[1][0],id),-1), pmul(M[0][0],id)]];}throw new Error('inv n>3');}
+function inv(M){const n=M.length;if(n===1)return [[pinv(M[0][0])]];if(n===2){const d=padd(pmul(M[0][0],M[1][1]),pscale(pmul(M[0][1],M[1][0]),-1));const id=pinv(d);return [[pmul(M[1][1],id), pscale(pmul(M[0][1],id),-1)],[pscale(pmul(M[1][0],id),-1), pmul(M[0][0],id)]];}const d=det(M);const id=pinv(d);const out=[];for(let i=0;i<n;i++){out.push([]);for(let j=0;j<n;j++){const minor=M.filter((_,r)=>r!==j).map(r=>r.filter((_,c)=>c!==i));const cof=pmul(det(minor),id);out[i].push(j%2===i%2?cof:pscale(cof,-1));}}return out;}
 function gen(i,n,e){const M=genPos(i,n);return e>0?M:inv(M);}
 function burau(word,n){let M=eye(n-1);for(const g of word)M=matmul(M,gen(Math.abs(g),n,Math.sign(g)));return M;}
 function det(M){const n=M.length;if(n===1)return M[0][0];if(n===2)return padd(pmul(M[0][0],M[1][1]),pscale(pmul(M[0][1],M[1][0]),-1));let s=new Map();for(let j=0;j<n;j++){const minor=M.slice(1).map(r=>r.filter((_,c)=>c!==j));const term=pmul(M[0][j],det(minor));s=padd(s,j%2===0?term:pscale(term,-1));}return s;}
@@ -63,6 +63,9 @@ const knots=[
  {name:'4&#8321; figure-eight', w:'1 -2 1 -2', n:3},
  {name:'5&#8321;', w:'1 1 1 1 1', n:2},
  {name:'5&#8322;', w:'1 1 1 2 -1 2', n:3},
+ {name:'6&#8321;', w:'-1 -1 -2 1 3 -2 3', n:4},
+ {name:'6&#8322;', w:'-1 -1 -1 2 -1 2', n:3},
+ {name:'6&#8323;', w:'-1 -1 2 -1 2 2', n:3},
 ];
 const body=document.getElementById('body');
 let ok=0;
