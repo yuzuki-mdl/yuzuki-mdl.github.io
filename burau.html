@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>burau → Alexander — braid word to a matrix, then a polynomial</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#e8e6e1;--dim:#8a8a93;--acc:#7fd4c1;--acc2:#e6a06a;--line:#24252c}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1.2rem 4rem}
+  main{max-width:820px;margin:0 auto}
+  h1{font-size:1.35rem;font-weight:600;margin:0 0 .2rem}
+  .sub{color:var(--dim);margin:0 0 1.6rem;font-size:.9rem}
+  a{color:var(--acc)}
+  input[type=text]{width:100%;background:#15161c;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:.7rem;font:inherit}
+  .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin:.8rem 0}
+  button{background:#1c1e26;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:.45rem .9rem;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  .out{margin-top:1.2rem;padding:1rem;background:#121319;border:1px solid var(--line);border-radius:6px}
+  .out .lbl{color:var(--dim);font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;margin-top:.9rem}
+  .out .lbl:first-child{margin-top:0}
+  .out .val{font-size:1.05rem;margin:.15rem 0 .4rem;word-break:break-word}
+  .val .t{color:var(--acc2)}
+  .err{color:#e07a7a}
+  code{color:var(--acc2)}
+  .hint{color:var(--dim);font-size:.82rem;margin-top:.3rem}
+  table.mat{border-collapse:collapse;margin:.3rem 0}
+  table.mat td{padding:.25rem .7rem;text-align:center;border:1px solid var(--line);white-space:nowrap}
+</style>
+</head>
+<body>
+<main>
+<h1>burau → Alexander</h1>
+<p class="sub">type a braid word, get its reduced Burau matrix and the Alexander polynomial of the closure — the classical way, before Jones.</p>
+
+<input type="text" id="word" spellcheck="false" value="1 -2 1 -2">
+<div class="row">
+  <span style="color:var(--dim);font-size:.85rem">strands</span>
+  <input type="text" id="nstr" value="3" style="width:4rem;text-align:center">
+  <button onclick="run()">compute</button>
+  <button onclick="preset('trefoil')">trefoil</button>
+  <button onclick="preset('fig8')">figure-eight</button>
+  <button onclick="preset('hopf')">hopf link</button>
+  <button onclick="preset('51')">5&#8321;</button>
+  <button onclick="preset('unknot')">unknot</button>
+</div>
+<p class="hint">generators <code>1 2 3…</code> for σ<sub>i</sub>, <code>-1 -2…</code> for σ<sub>i</sub><sup>&minus;1</sup>. the Alexander polynomial is <code>Δ(t) ≐ (1&minus;t)/(1&minus;t<sup>n</sup>) · det(I &minus; f*)</code>, where <code>f*</code> is the reduced Burau matrix of the braid.</p>
+
+<div class="out" id="out"><span class="lbl">output</span><div class="val" id="res">&mdash;</div></div>
+
+<p class="sub" style="margin-top:2rem">
+how it works: the reduced Burau representation sends each braid generator σ<sub>i</sub> to an (n&minus;1)&times;(n&minus;1) matrix over Laurent polynomials Z[t,t<sup>&minus;1</sup>]: σ<sub>1</sub> &rarr; [[&minus;t,1],[0,1]], and for 2&le;i&le;n&minus;1 a 2&times;2 block [[1,0],[t,&minus;t]]. multiply the generators left to right, then take det(I&minus;f*) and multiply by (1&minus;t)/(1&minus;t<sup>n</sup>). the result is the Alexander polynomial up to a unit &plusmn;t<sup>k</sup>.
+</p>
+<p class="sub">
+this is the honest old route to a knot invariant. it's faithful for n=2,3 (Magnus&ndash;Peluso); for n&ge;5 it is <em>not</em> faithful (Bigelow, Long&ndash;Paton) &mdash; there are braids the matrices can't tell apart. n=4 was open for decades. the Jones polynomial (my <a href="braid-jones.html">braid&rarr;jones</a> page) came later and is strictly stronger on many knots.
+</p>
+</main>
+<script>
+// ---- Laurent polynomials in t: Map exp->coef ----
+const P=(o={})=>new Map(Object.entries(o).map(([k,v])=>[+k,v]));
+const padd=(a,b)=>{const r=new Map(a);for(const[k,v]of b){r.set(k,(r.get(k)||0)+v);if(r.get(k)===0)r.delete(k);}return r;};
+const pmul=(a,b)=>{const r=new Map();for(const[i,x]of a)for(const[j,y]of b){const e=i+j;r.set(e,(r.get(e)||0)+x*y);}for(const[k,v]of[...r])if(v===0)r.delete(k);return r;};
+const pscale=(a,s)=>{const r=new Map();for(const[k,v]of a)r.set(k,v*s);return r;};
+const pshow=a=>{const e=[...a.entries()].sort((x,y)=>x[0]-y[0]);if(!e.length)return '0';return e.map(([k,v])=>{
+  const co=v>0?'+':'\u2212';const av=Math.abs(v);
+  const coef=(av===1&&k!==0)?'':av;
+  const mono=k===0?'':(k===1?'t':`t<sup>${k}</sup>`);
+  const term=(coef||mono)?`${coef}${mono}`:(k===0?'1':'');
+  return `${co}${term}`;
+}).join(' ').replace(/^\+\s?/,'').replace(/^\u2212\s?/,'\u2212');};
+const matmul=(A,B)=>{const n=A.length,m=B[0].length,k=A[0].length;const C=[];for(let i=0;i<n;i++){C.push([]);for(let j=0;j<m;j++){let s=new Map();for(let l=0;l<k;l++)s=padd(s,pmul(A[i][l],B[l][j]));C[i].push(s);}}return C;};
+const eye=n=>{const M=[];for(let i=0;i<n;i++){M.push([]);for(let j=0;j<n;j++)M[i].push(i===j?P({0:1}):new Map());}return M;};
+
+function genPos(i,n){
+  const d=n-1;const M=eye(d);
+  if(n===2){M[0][0]=P({1:-1});return M;}
+  if(i===1){M[0][0]=P({1:-1});M[0][1]=P({0:1});}
+  else if(i===n-1){M[d-1][d-2]=P({1:1});M[d-1][d-1]=P({1:-1});}
+  else{M[i-1][i]=new Map();M[i][i-1]=P({1:1});M[i][i]=P({1:-1});}
+  return M;
+}
+function pinv(a){return new Map([...a].map(([k,v])=>[-k,v]));} // monomial inverse (det is a unit)
+function inv(M){
+  const n=M.length;
+  if(n===1)return [[pinv(M[0][0])]];
+  if(n===2){
+    const d=padd(pmul(M[0][0],M[1][1]),pscale(pmul(M[0][1],M[1][0]),-1));
+    const id=pinv(d);
+    return [[pmul(M[1][1],id), pscale(pmul(M[0][1],id),-1)],[pscale(pmul(M[1][0],id),-1), pmul(M[0][0],id)]];
+  }
+  throw new Error('inv only up to 2x2 (n=3)');
+}
+function gen(i,n,e){const M=genPos(i,n);return e>0?M:inv(M);}
+function burau(word,n){let M=eye(n-1);for(const g of word)M=matmul(M,gen(Math.abs(g),n,Math.sign(g)));return M;}
+function det(M){const n=M.length;if(n===1)return M[0][0];if(n===2)return padd(pmul(M[0][0],M[1][1]),pscale(pmul(M[0][1],M[1][0]),-1));let s=new Map();for(let j=0;j<n;j++){const minor=M.slice(1).map(r=>r.filter((_,c)=>c!==j));const term=pmul(M[0][j],det(minor));s=padd(s,j%2===0?term:pscale(term,-1));}return s;}
+function pdiv(a,b){const shift=(p)=>{const mn=Math.min(...p.keys());const r=new Map();for(const[k,v]of p)r.set(k-mn,v);return{p:r,sh:mn};};const A=shift(a),B=shift(b);let rem=new Map(A.p);const deg=p=>Math.max(...p.keys());const q=new Map();while(rem.size&&deg(rem)>=deg(B.p)){const d=deg(rem)-deg(B.p);const c=rem.get(deg(rem))/B.p.get(deg(B.p));q.set(d,(q.get(d)||0)+c);for(const[k,v]of B.p){const e=k+d;rem.set(e,(rem.get(e)||0)-c*v);if(rem.get(e)===0)rem.delete(e);}}const sh=A.sh-B.sh;const out=new Map();for(const[k,v]of q)out.set(k+sh,v);return out;}
+
+function run(){
+  const out=document.getElementById('out'),res=document.getElementById('res');
+  try{
+    const raw=document.getElementById('word').value.trim();
+    const n=parseInt(document.getElementById('nstr').value);
+    if(!(n>=2))throw new Error('strands must be >= 2');
+    const word=raw?raw.split(/\s+/).map(Number):[];
+    if(word.some(isNaN))throw new Error('bad braid word');
+    for(const g of word)if(Math.abs(g)>n-1)throw new Error('generator index too big for n='+n);
+    if(n>3)throw new Error('this page inverts matrices up to n=3 only — bigger braids need a general matrix inverse');
+    const B=burau(word,n);
+    const I=eye(n-1);
+    const M=B.map((r,i)=>r.map((p,j)=>padd(I[i][j],pscale(p,-1)))); // I - f*
+    const dd=det(M);
+    const num=pmul(dd,P({0:1,1:-1}));
+    const den=P({0:1,[n]:-1});
+    const alex=pdiv(num,den);
+    // render matrix
+    let mh='<table class="mat">';
+    for(let i=0;i<B.length;i++){mh+='<tr>';for(let j=0;j<B[i].length;j++)mh+='<td>'+pshow(B[i][j])+'</td>';mh+='</tr>';}
+    mh+='</table>';
+    res.innerHTML='<span class="lbl">reduced burau matrix  '+(n-1)+'&times;'+(n-1)+'</span>'+mh+
+      '<span class="lbl">det(I &minus; f*)</span><div class="val">'+pshow(dd)+'</div>'+
+      '<span class="lbl">Alexander polynomial  &Delta;(t)  (up to &plusmn;t<sup>k</sup>)</span><div class="val" style="font-size:1.25rem"><span class="t">'+pshow(alex)+'</span></div>';
+  }catch(e){
+    res.innerHTML='<span class="err">'+e.message+'</span>';
+  }
+}
+function preset(name){
+  const P={
+    trefoil:{w:'1 1 1',n:2},
+    fig8:{w:'1 -2 1 -2',n:3},
+    hopf:{w:'1 1',n:2},
+    '51':{w:'1 1 1 1 1',n:2},
+    unknot:{w:'1 2',n:3}
+  }[name];
+  document.getElementById('word').value=P.w;
+  document.getElementById('nstr').value=P.n;
+  run();
+}
+run();
+</script>
+</body>
+</html>
