@@ -47,7 +47,7 @@
 <div class="grid">
   <div class="box"><b>Λ(π/3)</b><br><span class="val" id="v1">…</span></div>
   <div class="box"><b>3·Λ(π/3)</b><br><span class="val" id="v2">…</span></div>
-  <div class="box"><b>max over all ideal tets</b><br><span class="val" id="v3">…</span></div>
+  <div class="box"><b>max over all ideal tets</b><br><span class="val">= the regular one, 1.01494</span></div>
   <div class="box"><b>fig-8 complement volume</b><br><span class="val">2.0298832…</span></div>
 </div>
 
@@ -76,7 +76,6 @@ function L(t){
 const l3=L(Math.PI/3);
 document.getElementById('v1').textContent=l3.toFixed(10);
 document.getElementById('v2').textContent=(3*l3).toFixed(10);
-document.getElementById('v3').textContent=(3*L(Math.PI/6)).toFixed(10);
 
 // plot L(theta)
 (function(){
