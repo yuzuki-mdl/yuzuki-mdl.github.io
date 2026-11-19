@@ -30,9 +30,11 @@
     <div class="stat"><span>curvature banked</span><b id="cur">0&deg;</b></div>
     <div class="stat"><span>per second</span><b id="ps">0</b></div>
     <div class="stat"><span>banked while away</span><b id="off">0</b></div>
+    <div class="stat"><span>multiplier</span><b id="mult">x1</b></div>
+    <div id="shop" style="margin-top:12px"></div>
     <div style="margin-top:12px">
-      <button id="auto">auto-grower</button>
-      <button id="reset">reset</button>
+      <button id="prestige">compactify (prestige)</button>
+      <button id="reset">full reset</button>
     </div>
     <div class="msg" id="msg"></div>
   </div>
@@ -139,14 +141,24 @@ function centralVerts(){
 
 // --- state ---
 let pents = [];   // each: {verts:[5 pts], id}
-let banked = 0;   // curvature degrees
-let autoOn = false;
-let autoRate = 0;
-let lastT = Date.now();
-const CURV_PER_PENT = 720; // total curvature of genus-2-ish? for flavor: each pentagon "owes" 720/... just a number
+let banked = 0;   // curvature degrees = currency
+let up = {auto:0, speed:0, reach:0}; // upgrade levels
+let mult = 1;     // prestige multiplier
+let CURV_PER_PENT = 720;
+const DISK_BASE = 0.92;
+let DISK_R = DISK_BASE;   // current draw radius, raised by 'reach'
+
+const UPGRADES = {
+  auto:  {name:'auto-grower', desc:'grows a pentagon on its own', base:2500, scale:1.9},
+  speed: {name:'faster growth', desc:'-12% cooldown each',        base:4000, scale:2.3},
+  reach: {name:'expand the disk', desc:'fits more pentagons',      base:20000, scale:3.2},
+};
+function upCost(k){ const u=UPGRADES[k]; return Math.floor(u.base*Math.pow(u.scale, up[k])); }
+function autoRate(){ return up.auto*0.5; }            // pents/sec
+function cooldownMs(){ return 2000/(1+0.12*up.speed); }
 
 function save(){
-  const data={pents:pents.map(p=>p.verts), banked, autoOn, autoRate, t:Date.now()};
+  const data={pents:pents.map(p=>p.verts), banked, up, mult, t:Date.now()};
   try{localStorage.setItem('tiling54',JSON.stringify(data));}catch(e){}
 }
 function load(){
@@ -155,11 +167,14 @@ function load(){
     if(!raw) return false;
     const d=JSON.parse(raw);
     pents=d.pents.map((vs,i)=>({verts:vs,id:i}));
-    banked=d.banked||0; autoOn=!!d.autoOn; autoRate=d.autoRate||0;
-    // offline gain
+    banked=d.banked||0;
+    up=d.up||{auto:0,speed:0,reach:0}; mult=d.mult||1;
+    DISK_R=DISK_BASE+up.reach*0.006;
+    // offline gain: auto-growers bank curvature while away
     const dt=(Date.now()-(d.t||Date.now()))/1000;
-    if(autoOn&&autoRate>0&&dt>0){
-      const gain=Math.floor(dt*autoRate);
+    const rate=autoRate()*mult;
+    if(rate>0&&dt>0){
+      const gain=Math.floor(dt*rate*CURV_PER_PENT*0.5);
       if(gain>0){ banked+=gain; document.getElementById('off').textContent=gain; }
     }
     return true;
@@ -172,6 +187,8 @@ function draw(){
   ctx.clearRect(0,0,cv.width,cv.height);
   // disk boundary
   ctx.strokeStyle='#2a2140'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(S,S,S*DISK_R*0.98,0,7); ctx.stroke();
+  ctx.strokeStyle='rgba(155,232,184,0.25)';
   ctx.beginPath(); ctx.arc(S,S,S*0.96,0,7); ctx.stroke();
   // pentagons
   for(const p of pents){
@@ -188,6 +205,29 @@ function draw(){
   document.getElementById('n').textContent=pents.length;
   document.getElementById('v').textContent=pents.length*5;
   document.getElementById('cur').textContent=Math.floor(banked)+'\u00b0';
+  document.getElementById('ps').textContent=autoRate().toFixed(1);
+  document.getElementById('mult').textContent='x'+mult.toFixed(2);
+  renderShop();
+}
+function renderShop(){
+  const sh=document.getElementById('shop');
+  let h='';
+  for(const k of ['auto','speed','reach']){
+    const u=UPGRADES[k], c=upCost(k), can=banked>=c;
+    h+=`<div class="stat"><span>${u.name} <small style="color:#7d7490">Lv${up[k]}</small><br><small style="color:#7d7490">${u.desc}</small></span>`+
+       `<button data-buy="${k}" ${can?'':'disabled'}>${c}\u00b0</button></div>`;
+  }
+  sh.innerHTML=h;
+  sh.querySelectorAll('button[data-buy]').forEach(b=>{
+    b.onclick=()=>buy(b.getAttribute('data-buy'));
+  });
+}
+function buy(k){
+  const c=upCost(k);
+  if(banked<c) return;
+  banked-=c; up[k]++;
+  if(k==='reach') DISK_R=DISK_BASE+up.reach*0.006;
+  save(); draw();
 }
 
 // grow: reflect an existing pentagon across one of its edges that has no neighbour
@@ -209,7 +249,7 @@ function growOne(){
       // reflect P's vertices across geodesic a-b to get neighbour
       const nv=P.verts.map(v=>reflect(v,a,b));
       // only keep if it lands inside the disk
-      if(nv.every(v=>cabs(v)<0.999)){
+      if(nv.every(v=>cabs(v)<DISK_R)){
         pents.push({verts:nv,id:pents.length});
         banked+=CURV_PER_PENT;
         save();
@@ -229,29 +269,26 @@ if(!load()){
 }
 draw();
 
-// click to grow
-document.getElementById('auto').onclick=()=>{
-  autoOn=!autoOn;
-  autoRate=autoOn?0.5:0;
-  document.getElementById('auto').textContent=autoOn?'auto-grower: ON':'auto-grower';
-  document.getElementById('ps').textContent=autoOn?'0.5':'0';
-  save();
-};
 document.getElementById('reset').onclick=()=>{
-  if(!confirm('start over?'))return;
+  if(!confirm('start over? everything goes'))return;
   localStorage.removeItem('tiling54');
-  pents=[{verts:centralVerts(),id:0}]; banked=CURV_PER_PENT; autoOn=false;
-  document.getElementById('auto').textContent='auto-grower';
-  document.getElementById('ps').textContent='0'; save(); draw();
+  location.reload();
+};
+document.getElementById('prestige').onclick=()=>{
+  if(pents.length<20){ document.getElementById('msg').textContent='grow to 20 pentagons first'; return; }
+  const gain=Math.floor(pents.length/10)/10;
+  if(!confirm(`compactify? lose the tiling + upgrades, keep x${(mult+gain).toFixed(2)} multiplier`))return;
+  mult=+(mult+gain).toFixed(2);
+  pents=[{verts:centralVerts(),id:0}]; banked=CURV_PER_PENT;
+  up={auto:0,speed:0,reach:0}; DISK_R=DISK_BASE;
+  save(); draw();
 };
 
 let lastGrow=Date.now();
 function tick(){
   const now=Date.now();
-  if(autoOn){
-    if(now-lastGrow > 1000/autoRate*Math.max(1,Math.min(3,Math.floor(pents.length/10)+1))){ // slower as it grows
-      if(growOne()){ lastGrow=now; draw(); }
-    }
+  if(up.auto>0 && now-lastGrow > cooldownMs()){
+    if(growOne()){ lastGrow=now; draw(); }
   }
   requestAnimationFrame(tick);
 }
@@ -259,7 +296,8 @@ requestAnimationFrame(tick);
 
 // manual click: grow nearest unsupported edge
 cv.addEventListener('pointerdown',e=>{
-  if(growOne()){ draw(); } else { document.getElementById('msg').textContent='no edge left to grow (disk full)'; }
+  if(growOne()){ draw(); document.getElementById('msg').textContent=''; }
+  else { document.getElementById('msg').textContent='disk full — buy "expand the disk"'; }
 });
 </script>
 </body>
