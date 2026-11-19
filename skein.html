@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Skein — rank one, and why</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#e8e6e1;--dim:#8a8a93;--acc:#7fd4c1;--acc2:#e6a06a;--line:#24252c;--red:#e07a7a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1.2rem 4rem}
+  main{max-width:880px;margin:0 auto}
+  h1{font-size:1.35rem;font-weight:600;margin:0 0 .2rem}
+  .sub{color:var(--dim);margin:0 0 1.6rem;font-size:.9rem}
+  a{color:var(--acc)}
+  button{background:#1c1e26;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:.45rem .9rem;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin:.8rem 0}
+  .tree{margin-top:1.2rem;font-size:.86rem}
+  .node{padding:.28rem .55rem;border-left:2px solid var(--line);margin:.15rem 0 .15rem 0;white-space:pre-wrap;word-break:break-word}
+  .node.leafA{border-color:var(--acc)}
+  .node.leafB{border-color:var(--acc2)}
+  .node.base{border-color:var(--dim)}
+  .lab{color:var(--dim)}
+  .cA{color:var(--acc)}
+  .cB{color:var(--acc2)}
+  .sum{margin-top:1.4rem;padding:1rem;background:#121319;border:1px solid var(--line);border-radius:6px}
+  .sum .lbl{color:var(--dim);font-size:.8rem;text-transform:uppercase;letter-spacing:.06em}
+  .sum .val{font-size:1.05rem;margin:.15rem 0 .8rem;word-break:break-word}
+  .sum .val:last-child{margin-bottom:0}
+  code{color:var(--acc2)}
+  .err{color:var(--red)}
+  .hint{color:var(--dim);font-size:.82rem;margin-top:.4rem}
+</style>
+</head>
+<body>
+<main>
+<h1>skein — rank one, and why</h1>
+<p class="sub">the kauffman bracket skein module of the 3-ball is <code>R = Z[A,A<sup>-1</sup>]</code>, rank one. every tangle collapses to a single number. this page shows the collapse: pick a crossing, smooth it both ways, recurse. the leaves are all circles — and a circle is just <code>δ = −A² − A⁻²</code>. add up the branches and the diagram is a number.</p>
+
+<div class="row">
+  <button onclick="run('trefoil')">trefoil</button>
+  <button onclick="run('fig8')">figure-eight</button>
+</div>
+
+<div class="tree" id="tree"></div>
+<div class="sum" id="sum"></div>
+
+<p class="sub" style="margin-top:2rem">
+why rank one? the skein relations are the whole story: <code>⟨unknot⟩ = 1</code>, <code>⟨L ⊔ ◯⟩ = δ⟨L⟩</code>, and <code>⟨X⟩ = A⟨A-smoothing⟩ + A⁻¹⟨B-smoothing⟩</code>. those three rules let you reduce any diagram by induction on crossing number. when the crossings run out you're left with disjoint circles, and each one multiplies by δ. no diagram can be more than a scalar. that's what "rank one" means — the module is a free module of rank one over R, and the single basis element is the empty diagram, value 1.
+<br><br>
+this is the same bracket as <a href="pd-jones.html">pd → jones</a>, but that page sums over all 2<sup>n</sup> states at once. here you watch it happen: one crossing at a time, A on the left branch, A⁻¹ on the right, until every branch is a number.
+</p>
+</main>
+<script>
+// polynomial in A: Map from exponent -> coefficient
+const padd=(a,b,s=1)=>{const r=new Map(a);for(const[k,v]of b){const nv=(r.get(k)||0)+s*v;if(Math.abs(nv)<1e-12)r.delete(k);else r.set(k,nv);}return r;};
+const pmul=(a,b)=>{const r=new Map();for(const[ka,va]of a)for(const[kb,vb]of b){const k=ka+kb;const v=(r.get(k)||0)+va*vb;if(Math.abs(v)<1e-12)r.delete(k);else r.set(k,v);}return r;};
+const ppow=(a,e)=>{let r=new Map([[0,1]]);for(let i=0;i<e;i++)r=pmul(r,a);return r;};
+const DELTA=new Map([[-2,-1],[2,-1]]); // -A^-2 - A^2
+
+// count loops in a diagram where some crossings are smoothed (A or B) and some are still crossings.
+// arcs are numbered; a smoothed crossing joins two pairs of arcs.
+// returns {loops, remaining: [crossing indices still unsmoothed]}
+function loopCount(crossings, smoothings){
+  // smoothings: Map crossing-index -> 'A' | 'B'
+  const n=crossings.length, slots=4*n;
+  const p=[...Array(slots).keys()];
+  const find=x=>{while(p[x]!==x){p[x]=p[p[x]];x=p[x];}return x;};
+  const uni=(x,y)=>{p[find(x)]=find(y);};
+  const arcSlots=new Map();
+  for(let c=0;c<n;c++){const[i,j,k,l]=crossings[c];const b=4*c;const pairs=[[b+0,i],[b+1,j],[b+2,k],[b+3,l]];for(const[slot,arc]of pairs){if(!arcSlots.has(arc))arcSlots.set(arc,[]);arcSlots.get(arc).push(slot);}}
+  // first union all slots that share an arc (these are the "wires")
+  for(const[,ss]of arcSlots)for(let t=1;t<ss.length;t++)uni(ss[0],ss[t]);
+  // then apply smoothings
+  const remaining=[];
+  for(let c=0;c<n;c++){
+    const b=4*c;
+    if(!smoothings.has(c)){remaining.push(c);continue;}
+    const s=smoothings.get(c);
+    if(s==='A'){uni(b,b+1);uni(b+2,b+3);}
+    else{uni(b,b+3);uni(b+1,b+2);} // B: i-l and j-k
+  }
+  const roots=new Set();for(let s=0;s<slots;s++)roots.add(find(s));
+  return {loops:roots.size, remaining};
+}
+
+// skein expansion: returns {poly, tree} where tree is a rendering structure
+function skeinExpand(crossings){
+  const tree=[];
+  function rec(smoothings, weight, depth){
+    const {loops, remaining}=loopCount(crossings, smoothings);
+    if(remaining.length===0){
+      // base: `loops` disjoint circles -> delta^(loops-1) (the -1 because the outermost is "1")
+      const term=ppow(DELTA, loops-1);
+      const withW=pmul(term, weight);
+      tree.push({depth, type:'base', loops, weight, term, withW});
+      return withW;
+    }
+    const c=remaining[0];
+    tree.push({depth, type:'split', c, weight, remaining:remaining.length});
+    const wA=pmul(weight, new Map([[1,1]]));   // A
+    const wB=pmul(weight, new Map([[-1,1]]));  // A^-1
+    const sA=new Map(smoothings); sA.set(c,'A');
+    const sB=new Map(smoothings); sB.set(c,'B');
+    const pA=rec(sA, wA, depth+1);
+    const pB=rec(sB, wB, depth+1);
+    return padd(pA,pB);
+  }
+  const total=rec(new Map(), new Map([[0,1]]), 0);
+  return {total, tree};
+}
+
+function fmt(poly){
+  const keys=[...poly.keys()].sort((a,b)=>a-b).filter(k=>Math.abs(poly.get(k))>1e-9);
+  if(!keys.length)return '0';
+  return keys.map(k=>{
+    const v=poly.get(k);
+    if(k===0)return String(v);
+    const e=k===1?'A':k===-1?'A<sup>-1</sup>':`A<sup>${k}</sup>`;
+    const coef=v===1?'':v===-1?'−':String(v);
+    return `${coef}${e}`;
+  }).join(' + ').replace(/\+ −/g,'− ').replace(/\+ (-?\d)/g,'+ $1');
+}
+
+const presets={
+  trefoil:{pd:[[1,4,2,5],[3,6,4,1],[5,2,6,3]]},
+  fig8:{pd:[[4,2,5,1],[8,6,1,5],[6,3,7,4],[2,7,3,8]]}
+};
+
+function run(name){
+  const p=presets[name];
+  const crossings=p.pd;
+  const treeEl=document.getElementById('tree');
+  const sumEl=document.getElementById('sum');
+  try{
+    const {total, tree}=skeinExpand(crossings);
+    let html='';
+    for(const t of tree){
+      const indent='  '.repeat(t.depth);
+      if(t.type==='split'){
+        html+=`<div class="node"><span class="lab">${indent}crossing X${t.c+1}</span>  →  <span class="cA">A·(A-smooth)</span>  +  <span class="cB">A⁻¹·(B-smooth)</span></div>`;
+      } else {
+        const cls=t.loops===1?'base':'leafA';
+        const termStr=fmt(t.term);
+        const wStr=fmt(t.weight);
+        const line=`${indent}→ ${t.loops} circle${t.loops===1?'':'s'}   δ^${t.loops-1} = ${termStr}   weight ${wStr}   = ${fmt(t.withW)}`;
+        html+=`<div class="node ${cls}">${line}</div>`;
+      }
+    }
+    treeEl.innerHTML=html;
+    sumEl.innerHTML=`<span class="lbl">⟨${name}⟩</span><div class="val">${fmt(total)}</div>
+      <span class="lbl">the whole diagram is one number</span>
+      <div class="val" style="color:var(--dim)">every branch ended in circles, every circle is δ, and the sum is a polynomial in A. rank one: no tangle escapes being a scalar.</div>`;
+  }catch(e){
+    treeEl.innerHTML='<span class="err">'+e.message+'</span>';
+    sumEl.innerHTML='';
+  }
+}
+run('trefoil');
+</script>
+</body>
+</html>
