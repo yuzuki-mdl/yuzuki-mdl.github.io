@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>writhe + twist = linking number</title>
+<style>
+  :root{--bg:#0d1117;--fg:#c9d1d9;--dim:#7d8590;--acc:#c98b3a;--blue:#58a6ff;--red:#f85149;--grn:#3fb950;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.5;padding:28px 16px 60px;}
+  main{max-width:720px;margin:0 auto;}
+  h1{font-size:20px;font-weight:600;margin:0 0 6px;}
+  p.sub{color:var(--dim);font-size:13px;margin:0 0 20px;max-width:620px;}
+  canvas{width:100%;height:auto;display:block;background:#080b10;border:1px solid #1c2733;border-radius:8px;touch-action:none;cursor:grab;}
+  canvas:active{cursor:grabbing;}
+  .row{display:flex;gap:14px;flex-wrap:wrap;margin:14px 0;}
+  .stat{background:#111a24;border:1px solid #1c2733;border-radius:8px;padding:10px 14px;font-size:13px;flex:1;min-width:120px;}
+  .stat .k{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.05em;}
+  .stat .v{font-size:20px;font-weight:600;margin-top:2px;}
+  .stat .v.acc{color:var(--acc);} .stat .v.blue{color:var(--blue);} .stat .v.grn{color:var(--grn);}
+  .slider{display:flex;align-items:center;gap:12px;margin:16px 0;}
+  input[type=range]{flex:1;accent-color:var(--acc);}
+  .slider label{color:var(--dim);font-size:13px;min-width:70px;}
+  .slider .val{color:var(--acc);font-weight:600;min-width:2ch;text-align:right;}
+  footer{color:var(--dim);font-size:12px;margin-top:26px;padding-top:16px;border-top:1px solid #1c2733;}
+  a{color:var(--blue);}
+  .note{color:var(--dim);font-size:12px;margin-top:10px;}
+</style></head><body><main>
+  <h1>writhe + twist = linking number</h1>
+  <p class="sub">a knot is a curve; a <b>ribbon</b> is a curve with a flat strip stuck to it. the strip's two edges are two closed loops. drag to rotate the view. twist the ribbon with the slider. the edges' linking number always equals <b>writhe + twist</b> — the călugăreanu–white identity, computed live by a gauss double integral.</p>
+  <canvas id="cv" width="680" height="440"></canvas>
+  <div class="row">
+    <div class="stat"><div class="k">writhe (gauss)</div><div class="v acc" id="wr">–</div></div>
+    <div class="stat"><div class="k">twist</div><div class="v blue" id="tw">0</div></div>
+    <div class="stat"><div class="k">writhe + twist</div><div class="v grn" id="sum">–</div></div>
+    <div class="stat"><div class="k">Lk of the two edges</div><div class="v" id="lk">–</div></div>
+  </div>
+  <div class="slider">
+    <label>twist</label>
+    <input type="range" id="sl" min="-3" max="3" step="1" value="0">
+    <span class="val" id="slv">0</span>
+  </div>
+  <div class="note">writhe is fixed by the knot's shape (the gauss integral over all cameras). twist is what you add by hand. the sum is the invariant — it's the linking number of the ribbon's two edges, and it can't be changed without cutting the band.</div>
+  <footer>
+    the core is a (2,3) torus knot. the normal field is parallel-transported around it, then rotated by the twist count. the two edges are the core pushed off by ±ε along that normal. linking number = (1/4π)∬ (r₁−r₂)·(dr₁×dr₂)/|r₁−r₂|³, computed over all pairs of segments — a real double integral, not read off a diagram.
+    <br><a href="camera-writhe.html">the crossing count needs a camera</a> · <a href="linking-number.html">linking number</a> · <a href="jones.html">the jones polynomial</a> · <a href="https://yuzuki-mdl.github.io/">yuzuki</a>
+  </footer>
+</main>
+<script>
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const W=cv.width, H=cv.height;
+const N=200;
+
+function trefoil(t){const R=2,r=0.85;return [(R+r*Math.cos(3*t))*Math.cos(2*t),(R+r*Math.cos(3*t))*Math.sin(2*t),r*Math.sin(3*t)];}
+function tang(t){const h=1e-3;const a=trefoil(t-h),b=trefoil(t+h);const d=[b[0]-a[0],b[1]-a[1],b[2]-a[2]];const n=Math.hypot(...d);return d.map(x=>x/n);}
+function sub(a,b){return [a[0]-b[0],a[1]-b[1],a[2]-b[2]];}
+function cross(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];}
+function dot(a,b){return a[0]*b[0]+a[1]*b[1]+a[2]*b[2];}
+function norm(a){const n=Math.hypot(...a);return a.map(x=>x/n);}
+
+// precompute core + tangents
+const P=[],T=[];
+for(let i=0;i<N;i++){const t=2*Math.PI*i/N;P.push(trefoil(t));T.push(tang(t));}
+
+// parallel-transport a base normal
+let n0=cross(T[0],[0,0,1]); if(Math.hypot(...n0)<1e-6)n0=cross(T[0],[1,0,0]); n0=norm(n0);
+const Ns=[n0];
+for(let i=1;i<N;i++){
+  const prev=Ns[i-1];const tp=dot(prev,T[i]);
+  Ns.push(norm([prev[0]-tp*T[i][0],prev[1]-tp*T[i][1],prev[2]-tp*T[i][2]]));
+}
+
+// gauss writhe of core (fixed)
+function gaussWr(pts){
+  let s=0;
+  for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+    if(i===j)continue;
+    const r=sub(pts[i],pts[j]);const d=Math.hypot(...r);
+    if(d<1e-9)continue;
+    const dri=sub(pts[(i+1)%N],pts[i]);
+    const drj=sub(pts[(j+1)%N],pts[j]);
+    s+=dot(cross(dri,drj),r)/(d*d*d);
+  }
+  return s/(4*Math.PI);
+}
+const WRITHE=gaussWr(P);
+
+function framing(twistTurns){
+  const out=[];
+  for(let i=0;i<N;i++){
+    const ang=2*Math.PI*twistTurns*i/N;
+    const b=cross(T[i],Ns[i]);const c=Math.cos(ang),s=Math.sin(ang);
+    out.push(norm([c*Ns[i][0]+s*b[0],c*Ns[i][1]+s*b[1],c*Ns[i][2]+s*b[2]]));
+  }
+  return out;
+}
+function lk(A,B){
+  let s=0;
+  for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+    const r=sub(A[i],B[j]);const d=Math.hypot(...r);
+    if(d<1e-9)continue;
+    const dai=sub(A[(i+1)%N],A[i]);
+    const dbj=sub(B[(j+1)%N],B[j]);
+    s+=dot(cross(dai,dbj),r)/(d*d*d);
+  }
+  return s/(4*Math.PI);
+}
+
+let twist=0, eps=0.09;
+let A=[],B=[],NRM=[];
+function rebuild(){
+  NRM=framing(twist);
+  A=P.map((p,i)=>[p[0]+eps*NRM[i][0],p[1]+eps*NRM[i][1],p[2]+eps*NRM[i][2]]);
+  B=P.map((p,i)=>[p[0]-eps*NRM[i][0],p[1]-eps*NRM[i][1],p[2]-eps*NRM[i][2]]);
+}
+
+// camera
+let yaw=0.6, pitch=0.5;
+function basis(){
+  const dir=[Math.cos(pitch)*Math.cos(yaw),Math.sin(pitch),Math.cos(pitch)*Math.sin(yaw)];
+  let a=[0,1,0]; if(Math.abs(dir[1])>0.95) a=[1,0,0];
+  let u=[a[1]*dir[2]-a[2]*dir[1],a[2]*dir[0]-a[0]*dir[2],a[0]*dir[1]-a[1]*dir[0]];
+  u=norm(u);
+  const v=[dir[1]*u[2]-dir[2]*u[1],dir[2]*u[0]-dir[0]*u[2],dir[0]*u[1]-dir[1]*u[0]];
+  return {dir,u,v};
+}
+function proj(pts){const {u,v}=basis();return pts.map(p=>({x:p[0]*u[0]+p[1]*u[1]+p[2]*u[2],y:p[0]*v[0]+p[1]*v[1]+p[2]*v[2]}));}
+
+function draw(){
+  const PA=proj(A), PB=proj(B), PC=proj(P);
+  // bounds from both edges
+  let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+  for(const p of PA.concat(PB)){minx=Math.min(minx,p.x);maxx=Math.max(maxx,p.x);miny=Math.min(miny,p.y);maxy=Math.max(maxy,p.y);}
+  const cx=(minx+maxx)/2, cy=(miny+maxy)/2, sc=Math.min(W/(maxx-minx),H/(maxy-miny))*0.78;
+  const tx=p=>[W/2+(p.x-cx)*sc, H/2-(p.y-cy)*sc];
+  ctx.clearRect(0,0,W,H);
+  // fill the ribbon: quads between A[i] and B[i]
+  for(let i=0;i<N;i++){
+    const j=(i+1)%N;
+    const [ax,ay]=tx(PA[i]),[bx,by]=tx(PB[i]),[cx2,cy2]=tx(PA[j]),[dx,dy]=tx(PB[j]);
+    ctx.beginPath();ctx.moveTo(ax,ay);ctx.lineTo(bx,by);ctx.lineTo(dx,dy);ctx.lineTo(cx2,cy2);ctx.closePath();
+    ctx.fillStyle='rgba(201,139,58,0.22)';ctx.fill();
+  }
+  // edge A blue, edge B red
+  for(const [pts,col] of [[PA,'#58a6ff'],[PB,'#f85149']]){
+    ctx.beginPath();
+    for(let i=0;i<N;i++){const [x,y]=tx(pts[i]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+    ctx.closePath();ctx.strokeStyle=col;ctx.lineWidth=1.6;ctx.stroke();
+  }
+  // core dashed
+  ctx.beginPath();
+  for(let i=0;i<N;i++){const [x,y]=tx(PC[i]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);}
+  ctx.closePath();ctx.strokeStyle='rgba(201,139,58,0.7)';ctx.lineWidth=1;ctx.setLineDash([3,4]);ctx.stroke();ctx.setLineDash([]);
+}
+
+function update(){
+  rebuild();
+  const L=lk(A,B);
+  document.getElementById('wr').textContent=WRITHE.toFixed(2);
+  document.getElementById('tw').textContent=twist;
+  document.getElementById('sum').textContent=(WRITHE+twist).toFixed(2);
+  document.getElementById('lk').textContent=L.toFixed(2);
+  draw();
+}
+
+// drag
+let dragging=false,lx=0,ly=0;
+cv.addEventListener('pointerdown',e=>{dragging=true;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId);});
+cv.addEventListener('pointermove',e=>{
+  if(!dragging)return;
+  yaw+=(e.clientX-lx)*0.01;pitch+=(e.clientY-ly)*0.01;
+  pitch=Math.max(-1.4,Math.min(1.4,pitch));
+  lx=e.clientX;ly=e.clientY;draw();
+});
+cv.addEventListener('pointerup',()=>{dragging=false;});
+cv.addEventListener('pointercancel',()=>{dragging=false;});
+
+document.getElementById('sl').addEventListener('input',e=>{
+  twist=parseInt(e.target.value,10);
+  document.getElementById('slv').textContent=twist;
+  update();
+});
+
+update();
+</script></body></html>
