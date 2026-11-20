@@ -20,7 +20,7 @@ html,body{margin:0;background:#060810;color:#dfe8ff;font-family:ui-monospace,Men
 <script>
 (()=>{
 const P=5,Q=4,RINGS=3;
-const rv=Math.tanh(Math.acosh(Math.cos(Math.PI/Q)/Math.sin(Math.PI/P))/2);
+const rv=Math.tanh(Math.acosh(1/Math.tan(Math.PI/P)/Math.tan(Math.PI/Q))/2);
 function centralVerts(){const v=[];for(let i=0;i<P;i++){const a=-Math.PI/2+2*Math.PI*i/P;v.push([rv*Math.cos(a),rv*Math.sin(a)]);}return v;}
 function gc(p1,p2){
 const [x1,y1]=p1,[x2,y2]=p2;

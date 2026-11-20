@@ -43,7 +43,7 @@
 </div>
 <script>
 const P=5,Q=4;
-const rv=Math.tanh(Math.acosh(Math.cos(Math.PI/Q)/Math.sin(Math.PI/P))/2);
+const rv=Math.tanh(Math.acosh(1/Math.tan(Math.PI/P)/Math.tan(Math.PI/Q))/2);
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
 const W=cv.width, H=cv.height, CX=W/2, CY=H/2, SCL=W*0.46;
 

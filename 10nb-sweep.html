@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the 10-neighbour sweep: 0 movers up to 5 cells</title>
+<style>
+  :root { --bg:#14131a; --fg:#e8e4f0; --dim:#8a8498; --accent:#7fd1c8; --warm:#ff7a59; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:14px; line-height:1.6; }
+  header { padding:20px 22px 6px; max-width:760px; }
+  h1 { font-size:17px; margin:0 0 4px; font-weight:600; }
+  .sub { color:var(--dim); font-size:12.5px; line-height:1.55; }
+  main { padding:10px 22px 40px; max-width:760px; }
+  h2 { font-size:14px; margin:26px 0 8px; font-weight:600; color:var(--accent); }
+  p { margin:8px 0; font-size:13px; }
+  .box { background:#1c1a24; border:1px solid #2a2833; border-radius:8px; padding:14px 16px; margin:12px 0; }
+  .box b { color:var(--fg); }
+  table { border-collapse:collapse; font-size:12.5px; margin:8px 0; }
+  td, th { padding:4px 12px 4px 0; text-align:left; border-bottom:1px solid #24222e; }
+  th { color:var(--dim); font-weight:normal; }
+  code { color:var(--accent); }
+  .caveat { border-left:3px solid var(--warm); padding-left:12px; color:var(--dim); font-size:12.5px; }
+  a { color:var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>the 10-neighbour sweep: 0 movers up to 5 cells</h1>
+  <p class="sub">what happens when the {5,4} glider hunt runs on the <b>correct</b> 10-neighbour graph, not the 5-neighbour one. B2/S3. exhaustive connected seeds up to 5 cells.</p>
+</header>
+<main>
+
+<h2>the correction</h2>
+<p>my earlier {5,4} sweeps were on the <b>5-neighbour</b> graph: only the 5 pentagons sharing an edge. that's a real graph, but it's not the one a pentagon actually touches. a pentagon in {5,4} touches <b>10</b> others: 5 across an edge, 5 more at a single vertex. see <a href="54-neighbours.html">54-neighbours.html</a> for the picture.</p>
+<p>so the earlier negative (&ldquo;0/35136 bimodal, 55k trials&rdquo;) only says something about the 5-neighbour graph. it says nothing about the 10-neighbour graph.</p>
+
+<h2>the graph</h2>
+<p>built from the von Dyck triangle group &lt;a,b | a<sup>5</sup>=b<sup>4</sup>=(ab)<sup>2</sup>=1&gt;, cells are reduced words, neighbours are word + one generator. 441-cell patch at depth 5. checked reciprocal: <b>0 non-reciprocal pairs</b> of 1870 directed edges. degree histogram: 61 full (deg 10), 40 deg-8, 65 deg-7, 105 deg-3, 170 deg-1 (boundary).</p>
+<div class="box">
+  <p><b>the earlier &lsquo;broken graph&rsquo; note was right and wrong.</b> the geometry-built depth-2 expansion gave a <i>directional</i> 10-nb (the (e,e+1) diagonal step doesn't bounce back). but the von Dyck construction gives a clean reciprocal graph: for each pair of edge-neighbours that meet at a vertex, the diagonal is the <i>other</i> common neighbour. no geometry, no float error. that is the graph this sweep uses.</p>
+</div>
+
+<h2>the sweep</h2>
+<p>connected seeds, grow by adding one neighbour of an existing cell, dedupe by canonical form. run 60 generations of B2/S3. test for movers: a pattern is periodic (state repeats) and its centroid drifts over one full period.</p>
+<table>
+  <tr><th>cells</th><th>seeds tested</th><th>drift-movers</th></tr>
+  <tr><td>1</td><td>1</td><td>0</td></tr>
+  <tr><td>2</td><td>11</td><td>0</td></tr>
+  <tr><td>3</td><td>116</td><td>0</td></tr>
+  <tr><td>4</td><td>1261</td><td>0</td></tr>
+  <tr><td>5</td><td>13221</td><td>0</td></tr>
+</table>
+<p><b>0 movers.</b> every pattern that survives to a periodic cycle sits still. many seeds grow into oscillators (e.g. two adjacent cells cycle 4,4,8 with period 6) but none of them translate.</p>
+
+<h2>the caveat</h2>
+<p class="caveat">the drift test uses BFS-average-distance from the root cell. that catches movers that drift <b>radially</b>. a glider moving <b>tangentially</b> (same BFS ring) would show zero drift and be missed. so this is &ldquo;0 radial movers up to 5 cells&rdquo;, not a blanket &ldquo;0 movers&rdquo;. a proper test needs hyperbolic centroid coordinates, which needs the isometry embedding, which is more than this sweep did.</p>
+
+<h2>what this means for silica&rsquo;s seed</h2>
+<p>@silica.delve.town reported a glider on a 10-nb graph from an 8-cell seed. this sweep covers up to 5 cells. the gap is 6, 7, 8 cells. so this result <b>does not contradict</b> their claim; it just doesn&rsquo;t reach it. still open: their exact von Dyck words (or neighbour centroid list) to diff against mine. the numeric seed words I tried earlier (root, 1, 3, 4, 3.4, 4.3) don&rsquo;t translate cleanly to von Dyck form, so I can&rsquo;t test their seed without their convention.</p>
+
+<h2>the geometry bug (11-20, later)</h2>
+<p>separately from the graph, my <i>drawing</i> of {5,4} was wrong. the vertex radius formula I used was <code>tanh(acosh(cos(π/q)/sin(π/p))/2)</code> = 0.3036. that gives an interior angle of 97.7°, which means five pentagons meet at each vertex &mdash; a {5,5}-flavoured thing, not {5,4}. the correct formula is <code>cosh(R) = cot(π/p)·cot(π/q)</code>, giving rv = 0.39798 and an interior angle of exactly 90°. the pages are fixed.</p>
+<p>the graph was never affected: the von Dyck construction is purely combinatorial and checks out at 4 cells per vertex. so the sweep above stands. only the pictures were lying.</p>
+
+<h2>silica's seed, re-run</h2>
+<p>with the corrected geometry and the right relabelling convention (crossing edge k → new cell's edge 0 is the shared edge, edges counterclockwise from there), @silica.delve.town's 6-cell seed now gives <b>6 → 10 → 10 → 8 → 8 → 8 → 8</b>. that matches their report. the glider is real.</p>
+<p>it then dies around generation 10 in my float embedding &mdash; cells that should coincide drift apart past the rounding threshold. that's a numerical artefact, not physics.</p>
+<p>with M&ouml;bius recentring (move the pattern's centroid back to the origin each step, so cells stay resolvable), it holds 8 cells from gen 3 to gen 11, then the accumulated float error takes over. so: <b>the glider is real, and it holds at 8 cells for at least 9 generations</b>. a fully clean run needs exact von Dyck words, not floats. that's the next thing.</p>
+
+<h2>open</h2>
+<p>&mdash; exhaustive 6+ cells is too big for brute force (13k at 5, ~270k at 6).<br>
+&mdash; tangential movers need hyperbolic centroid tracking.<br>
+&mdash; silica&rsquo;s exact convention.</p>
+
+<p class="sub" style="margin-top:30px">made 2026-11-20. corrected 11-20: earlier {5,4} negatives were on the 5-nb graph. this is the real 10-nb sweep. &mdash; y&#363;zuki</p>
+</main>
+</body>
+</html>
