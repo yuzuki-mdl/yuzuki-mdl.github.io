@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the 10 neighbours of a pentagon in {5,4}</title>
+<style>
+  :root { --bg:#14131a; --fg:#e8e4f0; --dim:#8a8498; --edge:#ff7a59; --vert:#7fd1c8; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:14px; }
+  header { padding:18px 22px 6px; }
+  h1 { font-size:17px; margin:0 0 4px; font-weight:600; }
+  .sub { color:var(--dim); font-size:12.5px; line-height:1.55; max-width:720px; }
+  .wrap { display:flex; gap:18px; padding:10px 22px 30px; flex-wrap:wrap; align-items:flex-start; }
+  canvas { background:#0e0d13; border:1px solid #2a2833; border-radius:8px; }
+  .panel { min-width:210px; }
+  .row { margin:10px 0; display:flex; gap:8px; flex-wrap:wrap; }
+  button { background:#23212c; color:var(--fg); border:1px solid #3a3746; border-radius:6px; padding:6px 11px; font:inherit; font-size:12.5px; cursor:pointer; }
+  button:hover { border-color:#5a5568; }
+  button.on { background:#2d2a3a; border-color:var(--vert); }
+  .k { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:6px; vertical-align:middle; }
+  .stat { color:var(--dim); font-size:12.5px; line-height:1.7; margin-top:10px; }
+  .stat b { color:var(--fg); }
+</style>
+</head>
+<body>
+<header>
+  <h1>the 10 neighbours of a pentagon in {5,4}</h1>
+  <p class="sub">each pentagon in the {5,4} tiling touches <b>10</b> other pentagons: <b>5</b> across an edge (they share a full side) and <b>5</b> across a vertex only (they meet at a corner). that is the 10-neighbour graph. a 5-neighbour graph uses only the edge-sharing ones. the difference matters — a rule can have gliders on one and not the other.</p>
+</header>
+<div class="wrap">
+  <canvas id="cv" width="640" height="640"></canvas>
+  <div class="panel">
+    <div class="row">
+      <button id="bEdge" class="on">edge neighbours</button>
+      <button id="bVert" class="on">vertex neighbours</button>
+    </div>
+    <div class="row">
+      <button id="bLabels">labels</button>
+    </div>
+    <div class="stat" id="stat"></div>
+  </div>
+</div>
+<script>
+const P=5,Q=4;
+const rv=Math.tanh(Math.acosh(Math.cos(Math.PI/Q)/Math.sin(Math.PI/P))/2);
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const W=cv.width, H=cv.height, CX=W/2, CY=H/2, SCL=W*0.46;
+
+function centralVerts(){const v=[];for(let i=0;i<P;i++){const a=-Math.PI/2+2*Math.PI*i/P;v.push([rv*Math.cos(a),rv*Math.sin(a)]);}return v;}
+function gc(p1,p2){const[x1,y1]=p1,[x2,y2]=p2;const b1=(1+x1*x1+y1*y1)/2,b2=(1+x2*x2+y2*y2)/2;const det=x1*y2-x2*y1;if(Math.abs(det)<1e-9)return null;const cx=(b1*y2-b2*y1)/det,cy=(x1*b2-x2*b1)/det;return{cx,cy,r:Math.hypot(cx-x1,cy-y1)};}
+function rp(pt,c){const dx=pt[0]-c.cx,dy=pt[1]-c.cy,d2=dx*dx+dy*dy;return[c.cx+c.r*c.r*dx/d2,c.cy+c.r*c.r*dy/d2];}
+function rpoly(vs,e){const p1=vs[e],p2=vs[(e+1)%P];const c=gc(p1,p2);if(c)return vs.map(v=>rp(v,c));const mx=p1[0]+p2[0],my=p1[1]+p2[1],d=Math.hypot(mx,my),ux=mx/d,uy=my/d;return vs.map(v=>{const dot=v[0]*ux+v[1]*uy;return[2*dot*ux-v[0],2*dot*uy-v[1]];});}
+function cen(vs){let x=0,y=0;for(const v of vs){x+=v[0];y+=v[1];}return[x/P,y/P];}
+
+const root=centralVerts();
+const edgeNbs=[]; for(let e=0;e<P;e++) edgeNbs.push(rpoly(root,e));
+const vertNbs=[]; for(let e=0;e<P;e++){let vs=rpoly(root,e); vs=rpoly(vs,(e+1)%P); vertNbs.push(vs);}
+
+let showEdge=true, showVert=true, labels=false;
+
+function toScreen(p){return [CX+p[0]*SCL, CY+p[1]*SCL];}
+function drawPoly(vs,fill,stroke,lw){
+  const pts=vs.map(toScreen);
+  ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]);
+  for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i][0],pts[i][1]);
+  ctx.closePath();
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||1.5;ctx.stroke();}
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // faint neighbours of neighbours for context
+  for(const nb of edgeNbs){for(let e=0;e<P;e++){drawPoly(rpoly(nb,e),null,'#1e1c26',1);}}
+  for(const nb of vertNbs){for(let e=0;e<P;e++){drawPoly(rpoly(nb,e),null,'#1e1c26',1);}}
+  if(showEdge) for(const nb of edgeNbs) drawPoly(nb,'rgba(255,122,89,0.13)','#ff7a59',2);
+  if(showVert) for(const nb of vertNbs) drawPoly(nb,'rgba(127,209,200,0.13)','#7fd1c8',2);
+  drawPoly(root,'rgba(232,228,240,0.12)','#e8e4f0',2.5);
+  // root centre dot
+  ctx.fillStyle='#e8e4f0'; ctx.beginPath(); ctx.arc(CX,CY,2.5,0,7); ctx.fill();
+  if(labels){
+    ctx.font='11px ui-monospace,monospace'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#ff7a59';
+    for(let e=0;e<P;e++){const c=cen(edgeNbs[e]);const [sx,sy]=toScreen(c);ctx.fillText('e'+e,sx,sy);}
+    ctx.fillStyle='#7fd1c8';
+    for(let e=0;e<P;e++){const c=cen(vertNbs[e]);const [sx,sy]=toScreen(c);ctx.fillText('v'+e,sx,sy);}
+  }
+  const n=(showEdge?5:0)+(showVert?5:0);
+  document.getElementById('stat').innerHTML=`<span class="k" style="background:#ff7a59"></span>edge-sharing: <b>${showEdge?5:0}</b><br><span class="k" style="background:#7fd1c8"></span>vertex-sharing: <b>${showVert?5:0}</b><br>total neighbours shown: <b>${n}</b>`;
+}
+
+document.getElementById('bEdge').onclick=()=>{showEdge=!showEdge;document.getElementById('bEdge').classList.toggle('on',showEdge);draw();};
+document.getElementById('bVert').onclick=()=>{showVert=!showVert;document.getElementById('bVert').classList.toggle('on',showVert);draw();};
+document.getElementById('bLabels').onclick=()=>{labels=!labels;document.getElementById('bLabels').classList.toggle('on',labels);draw();};
+draw();
+</script>
+</body>
+</html>
