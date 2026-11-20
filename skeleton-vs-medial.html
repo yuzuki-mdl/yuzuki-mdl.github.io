@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>straight skeleton vs medial axis — where the ridges part</title>
+<style>
+  :root { --bg:#14131a; --fg:#e8e4f0; --dim:#8a8498; --teal:#7fd1c8; --terra:#ff7a59; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family: ui-monospace, 'SF Mono', Menlo, monospace; font-size:14px; }
+  header { padding:18px 22px 6px; }
+  h1 { font-size:17px; margin:0 0 4px; font-weight:600; }
+  .sub { color:var(--dim); font-size:12.5px; line-height:1.55; max-width:760px; }
+  .sub b { color:var(--fg); }
+  .wrap { display:flex; gap:18px; padding:10px 22px 30px; flex-wrap:wrap; align-items:flex-start; }
+  canvas { background:#0e0d13; border:1px solid #2a2833; border-radius:8px; touch-action:none; cursor:crosshair; }
+  .panel { min-width:240px; }
+  .row { margin:10px 0; display:flex; gap:8px; flex-wrap:wrap; }
+  button { background:#23212c; color:var(--fg); border:1px solid #3a3746; border-radius:6px; padding:6px 11px; font:inherit; font-size:12.5px; cursor:pointer; }
+  button:hover { border-color:var(--teal); }
+  button.on { background:var(--teal); color:#14131a; border-color:var(--teal); }
+  .stat { color:var(--dim); font-size:12px; margin-top:14px; line-height:1.6; }
+  .stat b { color:var(--fg); }
+  .legend { display:flex; flex-direction:column; gap:6px; font-size:12px; color:var(--dim); margin-top:10px; }
+  .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:6px; vertical-align:middle; }
+</style>
+</head>
+<body>
+<header>
+  <h1>straight skeleton vs medial axis — where the ridges part</h1>
+  <p class="sub">two different things, drawn on the same polygon. the <b style="color:var(--teal)">medial axis</b> (teal) is the set of points with two or more nearest boundary points — the ridge of the distance field. the <b style="color:var(--terra)">straight skeleton</b> (terracotta) is the trace of the vertices as every edge slides inward at the same speed. on a <b>convex</b> polygon they are the same lines (Aichholzer et al. 1995), so the two colors sit on top of each other. add one <b>reflex</b> vertex and they part: the medial axis bends into a parabola around it, the skeleton keeps going straight until the wavefront tears in two. the divergence is exactly the reflex vertex, visible in one picture.<br><br><b>honest scope:</b> on the reflex case this page draws only the reflex vertex's straight bisector, not a full offset-traced skeleton — the full offsetting tears at the split event and would draw crossing lines that aren't a skeleton. the medial axis is computed the same way in both cases (distance-field ridge).</p>
+</header>
+<div class="wrap">
+  <canvas id="cv" width="560" height="520"></canvas>
+  <div class="panel">
+    <div class="row">
+      <button id="convex" class="on">convex pentagon</button>
+      <button id="notch">notched (1 reflex)</button>
+    </div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--teal)"></span>medial axis (distance-field ridge)</span>
+      <span><span class="dot" style="background:var(--terra)"></span>straight skeleton (offset trace)</span>
+    </div>
+    <div class="stat" id="stat"></div>
+  </div>
+</div>
+<script>
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const W=cv.width, H=cv.height;
+
+// ---- shapes ----
+const CONVEX=[{x:120,y:120},{x:360,y:70},{x:480,y:250},{x:340,y:450},{x:110,y:400}];
+// notched: same pentagon with a reflex vertex cut into the top edge
+const NOTCH=[{x:120,y:120},{x:230,y:240},{x:270,y:170},{x:360,y:70},{x:480,y:250},{x:340,y:450},{x:110,y:400}];
+let poly=CONVEX.map(v=>({...v}));
+
+// ---- geometry ----
+function signedArea(p){let a=0;for(let i=0,j=p.length-1;i<p.length;j=i++)a+=(p[j].x*p[i].y-p[i].x*p[j].y);return a/2;}
+function pointInPoly(px,py){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const xi=poly[i].x,yi=poly[i].y,xj=poly[j].x,yj=poly[j].y;if(((yi>py)!=(yj>py))&&(px<(xj-xi)*(py-yi)/(yj-yi)+xi))inside=!inside;}return inside;}
+
+// ----- straight skeleton by inward offsetting (convex-safe; splits ignored) -----
+function offsetPoly(p,d){
+  const n=p.length, sgn=signedArea(p)>0?1:-1;
+  const edges=[];
+  for(let i=0;i<n;i++){const a=p[i],b=p[(i+1)%n];let dx=b.x-a.x,dy=b.y-a.y;const L=Math.hypot(dx,dy)||1;dx/=L;dy/=L;const nx=-dy*sgn,ny=dx*sgn;edges.push({ax:a.x+nx*d,ay:a.y+ny*d,dx,dy});}
+  const out=[];
+  for(let i=0;i<n;i++){const e1=edges[(i-1+n)%n],e2=edges[i];const den=e1.dx*e2.dy-e1.dy*e2.dx;if(Math.abs(den)<1e-9){out.push({x:e2.ax,y:e2.ay});continue;}const t=((e2.ax-e1.ax)*e2.dy-(e2.ay-e1.ay)*e2.dx)/den;out.push({x:e1.ax+e1.dx*t,y:e1.ay+e1.dy*t});}
+  return out;
+}
+function segCross(a,b,c,d){const d1=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x),d2=(b.x-a.x)*(d.y-a.y)-(b.y-a.y)*(d.x-a.x),d3=(d.x-c.x)*(a.y-c.y)-(d.y-c.y)*(a.x-c.x),d4=(d.x-c.x)*(b.y-c.y)-(d.y-c.y)*(b.x-c.x);return((d1>0)!==(d2>0))&&((d3>0)!==(d4>0));}
+function selfIntersects(p){const n=p.length;for(let i=0;i<n;i++){for(let j=i+2;j<n;j++){if(i===0&&j===n-1)continue;if(segCross(p[i],p[(i+1)%n],p[j],p[(j+1)%n]))return true;}}return false;}
+function tracksCross(cur,next){const n=cur.length;for(let i=0;i<n;i++){for(let j=i+1;j<n;j++){if(segCross(cur[i],next[i],cur[j],next[j]))return true;}}return false;}
+function buildSkeleton(){
+  const baseSign=Math.sign(signedArea(poly))||1;
+  let cur=poly.map(v=>({x:v.x,y:v.y}));
+  const tracks=cur.map(v=>({pts:[{x:v.x,y:v.y}]}));
+  const DT=1.5; let guard=0;
+  while(guard++<500){
+    const next=offsetPoly(cur,DT);
+    const A=signedArea(next);
+    if(Math.sign(A)!==baseSign||Math.abs(A)<6) break;
+    if(tracksCross(cur,next)) break;   // split event: a vertex has run into an edge, stop honestly
+    if(next.length===cur.length){for(let i=0;i<next.length;i++)tracks[i].pts.push({x:next[i].x,y:next[i].y});}
+    cur=next;
+  }
+  if(cur.length){let cx=0,cy=0;for(const v of cur){cx+=v.x;cy+=v.y;}cx/=cur.length;cy/=cur.length;for(const tr of tracks)tr.pts.push({x:cx,y:cy});}
+  return tracks;
+}
+
+// ----- medial axis by distance-field ridge (sample-based) -----
+function sampleBoundary(perEdge){
+  const pts=[];
+  for(let i=0;i<poly.length;i++){const a=poly[i],b=poly[(i+1)%poly.length];for(let k=0;k<perEdge;k++){const t=k/perEdge;pts.push([a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t]);}}
+  return pts;
+}
+function medialRidge(){
+  const STEP=3, TOL=2.4, GAP=34, PER=60;
+  const bpts=sampleBoundary(PER);
+  const fw=Math.ceil(W/STEP), fh=Math.ceil(H/STEP);
+  const near=new Float32Array(fw*fh), far=new Float32Array(fw*fh);
+  for(let gy=0;gy<fh;gy++)for(let gx=0;gx<fw;gx++){
+    const x=gx*STEP,y=gy*STEP;
+    if(!pointInPoly(x,y)){near[gy*fw+gx]=-1;continue;}
+    let nb=Infinity,bi=-1;
+    for(let i=0;i<bpts.length;i++){const d=Math.hypot(x-bpts[i][0],y-bpts[i][1]);if(d<nb){nb=d;bi=i;}}
+    const nx=bpts[bi][0],ny=bpts[bi][1];
+    let fb=Infinity;
+    for(let i=0;i<bpts.length;i++){if(Math.hypot(bpts[i][0]-nx,bpts[i][1]-ny)<GAP)continue;const d=Math.hypot(x-bpts[i][0],y-bpts[i][1]);if(d<fb)fb=d;}
+    near[gy*fw+gx]=nb; far[gy*fw+gx]=fb;
+  }
+  const pts=[];
+  for(let gy=0;gy<fh;gy++)for(let gx=0;gx<fw;gx++){
+    const i=gy*fw+gx;
+    if(near[i]<0)continue;
+    if(Math.abs(near[i]-far[i])<TOL) pts.push([gx*STEP,gy*STEP]);
+  }
+  return pts;
+}
+
+// ---- draw ----
+let skel=[], ridge=[], bisector=null;
+function reflexVerts(){const out=[];const s=Math.sign(signedArea(poly));for(let i=0;i<poly.length;i++){const a=poly[(i-1+poly.length)%poly.length],b=poly[i],c=poly[(i+1)%poly.length];const cross=(b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x);if(cross*s<0)out.push(i);}return out;}
+function bisectorStub(vi){
+  // inward angle bisector from reflex vertex, until it hits an edge
+  const n=poly.length; const a=poly[(vi-1+n)%n], b=poly[vi], c=poly[(vi+1)%n];
+  let d1x=b.x-a.x,d1y=b.y-a.y; const L1=Math.hypot(d1x,d1y)||1; d1x/=L1;d1y/=L1;
+  let d2x=c.x-b.x,d2y=c.y-b.y; const L2=Math.hypot(d2x,d2y)||1; d2x/=L2;d2y/=L2;
+  // inward bisector direction: average of the two edge directions, flipped to point into the polygon
+  let bx=d1x+d2x, by=d1y+d2y; let L=Math.hypot(bx,by)||1; bx/=L;by/=L;
+  // ensure it points inside (test a point slightly along it)
+  const testX=b.x+bx*5, testY=b.y+by*5;
+  if(!pointInPoly(testX,testY)){bx=-bx;by=-by;}
+  // march until leaving polygon
+  let t=0, step=1;
+  while(t<2000){ const px=b.x+bx*(t+step), py=b.y+by*(t+step); if(!pointInPoly(px,py)) break; t+=step; }
+  return {from:{x:b.x,y:b.y}, to:{x:b.x+bx*t, y:b.y+by*t}};
+}
+function recompute(){ ridge=medialRidge(); const rv=reflexVerts(); if(rv.length){ skel=[]; bisector=bisectorStub(rv[0]); } else { skel=buildSkeleton(); bisector=null; } }
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // medial axis points
+  ctx.fillStyle='rgba(127,209,200,0.85)';
+  for(const [x,y] of ridge){ ctx.fillRect(x-1,y-1,2,2); }
+  // skeleton tracks (convex) or the single straight bisector (reflex)
+  ctx.strokeStyle='#ff7a59'; ctx.lineWidth=1.5;
+  if(bisector){
+    ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.moveTo(bisector.from.x,bisector.from.y); ctx.lineTo(bisector.to.x,bisector.to.y); ctx.stroke();
+    ctx.setLineDash([]);
+  } else {
+    for(const tr of skel){ if(tr.pts.length<2)continue; ctx.beginPath(); ctx.moveTo(tr.pts[0].x,tr.pts[0].y); for(let i=1;i<tr.pts.length;i++)ctx.lineTo(tr.pts[i].x,tr.pts[i].y); ctx.stroke(); }
+  }
+  // polygon outline
+  ctx.beginPath(); ctx.moveTo(poly[0].x,poly[0].y); for(let i=1;i<poly.length;i++)ctx.lineTo(poly[i].x,poly[i].y); ctx.closePath(); ctx.strokeStyle='#e8e4f0'; ctx.lineWidth=1.8; ctx.stroke();
+  // reflex vertices marked
+  for(let i=0;i<poly.length;i++){
+    const a=poly[(i-1+poly.length)%poly.length],b=poly[i],c=poly[(i+1)%poly.length];
+    const cross=(b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x);
+    if(cross*Math.sign(signedArea(poly))<0){ ctx.beginPath(); ctx.arc(b.x,b.y,6,0,7); ctx.strokeStyle='#ffd166'; ctx.lineWidth=2; ctx.stroke(); }
+  }
+  const note = bisector ? 'reflex vertex (yellow): the skeleton goes straight (dashed) while the medial axis bows around it' : 'convex: both traces are the same lines';
+  document.getElementById('stat').innerHTML=`vertices <b>${poly.length}</b><br>medial ridge samples <b>${ridge.length}</b><br>${bisector?'skeleton: <b>1 straight bisector</b>':'skeleton tracks <b>'+skel.length+'</b>'}<br><span style="color:#8a8498">${note}</span>`;
+}
+
+document.getElementById('convex').onclick=()=>{ poly=CONVEX.map(v=>({...v})); document.getElementById('convex').classList.add('on'); document.getElementById('notch').classList.remove('on'); recompute(); draw(); };
+document.getElementById('notch').onclick=()=>{ poly=NOTCH.map(v=>({...v})); document.getElementById('notch').classList.add('on'); document.getElementById('convex').classList.remove('on'); recompute(); draw(); };
+
+recompute(); draw();
+</script>
+</body>
+</html>
