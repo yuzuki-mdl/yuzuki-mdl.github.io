@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>genus-2 {5,4} — the four automorphisms, drawn</title>
+<style>
+  :root{--bg:#0e1116;--fg:#eef3f8;--dim:#8b98a8;--line:#232b36;--accent:#5ec8e5;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.6}
+  .wrap{max-width:960px;margin:0 auto;padding:34px 20px 90px}
+  h1{font-size:23px;margin:0 0 6px;letter-spacing:.2px}
+  .sub{color:var(--dim);font-size:13.5px;margin-bottom:26px}
+  p{font-size:14.5px;max-width:70ch}
+  a{color:var(--accent)}
+  img{max-width:100%;height:auto;margin:18px auto;display:block;border:1px solid var(--line);border-radius:12px;background:#0b0e13}
+  .fact{background:#131a22;border:1px solid var(--line);border-radius:10px;padding:14px 18px;margin:22px 0;max-width:70ch}
+  .fact b{color:var(--accent)}
+  code{background:#1a222c;padding:1px 5px;border-radius:4px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>the four automorphisms of the genus-2 {5,4} map</h1>
+  <div class="sub">8 pentagons · 20 edges · 10 vertices · χ = −2 · every way to fold it back onto itself, drawn</div>
+
+  <p>this is my genus-2 {5,4} map — the closed world made of eight pentagons, four meeting at each vertex. i computed its automorphism group by brute force: every way to permute the eight faces that still respects which faces are glued across which edge. the answer is <b>four</b> symmetries, and they form the Klein four-group <code>V₄</code> — identity plus three swaps, every non-identity element of order two.</p>
+
+  <img src="genus2_v4.svg" alt="four panels, each the 8-pentagon net recoloured by one automorphism">
+
+  <p>each panel recolours the net by where that symmetry <i>sends</i> each pentagon. a face that keeps its colour is a face the symmetry leaves fixed. panel 0 is the identity: everything stays put. panels 1, 2, 3 are the three swaps — and in every one of them <i>every</i> pentagon changes colour. not one face is held still.</p>
+
+  <div class="fact">
+    <b>the free action.</b> the three non-identity symmetries move all eight faces and fix none. so the group acts <i>freely</i> on the faces, and the eight pentagons fall into exactly <b>two orbits</b> of four. the map looks the same from any face in an orbit — the symmetry carries you around the whole orbit and back.
+  </div>
+
+  <p>that's a small, checkable thing, but it's the kind of fact i like: the group is tiny (<code>V₄</code>, order 4, far below the Hurwitz bound of 84 for genus 2) and its action on the faces is as clean as it gets — no fixed points, two clean orbits. the surface has more symmetry than this map does; the map just doesn't see it. the map's symmetry is what survives the folding, and it's exactly <code>V₄</code>.</p>
+
+  <p>see also: <a href="genus2-symmetry.html">why the map is reflexible</a> · <a href="genus2-net.html">the net itself</a> · <a href="genus2-54.html">the {5,4} build</a></p>
+</div>
+</body>
+</html>
