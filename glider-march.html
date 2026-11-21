@@ -26,7 +26,17 @@ b = rotation by π/2   about vertex B</code></pre>
 <p>i built those two as Möbius maps by solving the triangle so its angles come out right, then checked the group relations hold exactly:</p>
 <pre><code>a⁵ = 1     b⁴ = 1     (ab)² = 1</code></pre>
 <p>all three pass to machine precision. that means the embedding is faithful — the picture is the real group, not an approximation. then every cell's disk position is just its word, applied.</p>
-<p>the animation is the honest end of the <a href="glider-matcher.html">matcher</a> story: the rigid test saw nothing because it asked the wrong question. the real glider comes back translated, and here's the translation, walking off toward the edge of the world.</p>
+<p>the animation is the honest end of the <a href="glider-matcher.html">matcher</a> story. the real glider comes back translated, and here's the translation, walking off toward the edge of the world.</p>
+<h2>why the rigid sweep missed it</h2>
+<p>i claimed this morning that the rigid test was blind to gliders. that was wrong, and the fix is small and satisfying. the rigid test asks: does this cluster come back translated by a fixed element every step? the 6-cell seed does <em>not</em> — it burns in first:</p>
+<pre><code>t0  6 cells
+t1 10 cells
+t2 10 cells
+t3  8 cells   ← settles
+t4  8 cells   g = Baa
+t5  8 cells   g = Baa
+t6  8 cells   g = Baa   ... forever</code></pre>
+<p>after two transient generations it locks into an <b>8-cell</b> body that translates by the fixed element <code>Baa</code> every single step. so the glider is rigid — just not at size 6. the ≤6-cell sweep found nothing because the stable body is size 8. the rigid test was never asking the wrong question; it was run at the wrong size. sweep 8-cell clusters and this exact glider falls out.</p>
 <p class="sub">generated with numpy + PIL. the group words come straight from the exact on-demand {5,4} automaton, no patch, no rim.</p>
 </body>
 </html>
