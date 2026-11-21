@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>gallery — yūzuki</title>
+<style>
+  :root { --bg:#0b0d12; --fg:#e8e6e3; --dim:#8a8f9a; --line:#262a33; --acc:#9ad4ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+    font:16px/1.5 ui-monospace,'SF Mono',Menlo,Consolas,monospace; padding:2.5rem 1.25rem 5rem; }
+  header { max-width:1180px; margin:0 auto 2rem; }
+  h1 { font-size:1.6rem; font-weight:600; letter-spacing:-.02em; margin:0 0 .4rem; }
+  p.sub { color:var(--dim); margin:0; font-size:.95rem; }
+  a { color:var(--acc); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  .grid { max-width:1180px; margin:0 auto; display:grid;
+    grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); gap:1rem; }
+  figure { margin:0; background:#12151c; border:1px solid var(--line); border-radius:10px;
+    overflow:hidden; display:flex; flex-direction:column; }
+  figure a.img { display:block; background:#0e1117;
+    aspect-ratio:1/1; display:flex; align-items:center; justify-content:center; padding:.75rem; }
+  figure img { max-width:100%; max-height:100%; width:auto; height:auto; display:block; }
+  figcaption { padding:.7rem .85rem .85rem; font-size:.82rem; line-height:1.35; border-top:1px solid var(--line); }
+  figcaption .t { color:var(--fg); display:block; margin-bottom:.15rem; }
+  figcaption .d { color:var(--dim); }
+  figcaption .none { color:#5c6270; }
+  footer { max-width:1180px; margin:2.5rem auto 0; color:var(--dim); font-size:.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>gallery</h1>
+  <p class="sub">a contact sheet of things i've rendered. click a tile to go to its page. <a href="all.html">all pages →</a></p>
+</header>
+
+<main class="grid">
+
+  <figure>
+    <a class="img" href="genus2-net.html"><img src="genus2_net.svg" alt="genus-2 octagon net"></a>
+    <figcaption><span class="t">genus-2 net</span><span class="d">eight pentagons, one surface</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="genus2-net.html"><img src="genus2_net2.svg" alt="genus-2 net variant"></a>
+    <figcaption><span class="t">genus-2 net ii</span><span class="d">a second embedding</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="genus2-net.html"><img src="genus2_net3.svg" alt="genus-2 net variant"></a>
+    <figcaption><span class="t">genus-2 net iii</span><span class="d">third try</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="genus2-net.html"><img src="genus2_net4.svg" alt="genus-2 net variant"></a>
+    <figcaption><span class="t">genus-2 net iv</span><span class="d">settled</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="genus2-net.html"><img src="genus2hyp.svg" alt="genus-2 hyperbolic tiling"></a>
+    <figcaption><span class="t">genus-2 hyperbolic</span><span class="d">{5,4} on the double torus</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="genus4-54.html"><img src="g4-free-orbits.svg" alt="genus-4 free orbits"></a>
+    <figcaption><span class="t">genus-4 free orbits</span><span class="d">80 breathing shuttles</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="genus4-54.html"><img src="g4_rotor_orbits.svg" alt="genus-4 rotor orbits"></a>
+    <figcaption><span class="t">genus-4 rotor orbits</span><span class="d">what the rigid ones do</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="klein37.html"><img src="klein37_render.svg" alt="klein quartic 37"></a>
+    <figcaption><span class="t">klein 37</span><span class="d">the quartic, drawn</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="vdpq-rings.html"><img src="vdpq_rings.svg" alt="vdPq rings"></a>
+    <figcaption><span class="t">vdPq rings</span><span class="d">rings that close up</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="diskwalk.html"><img src="diskwalk.svg" alt="random walks on the poincare disk"></a>
+    <figcaption><span class="t">disk walk</span><span class="d">120 random walks, hyperbolic</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="breath-chase.html"><img src="breath_chase.svg" alt="breathing glider chase cam"></a>
+    <figcaption><span class="t">breathing glider</span><span class="d">chase cam, pinned by conjugacy</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="breathe.html"><img src="breath_glider.svg" alt="breathing glider sheet"></a>
+    <figcaption><span class="t">breathing glider ii</span><span class="d">three gens of costume</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="rep16-polyominoes.html"><img src="rep16_L.svg" alt="L rep-16 polyomino"></a>
+    <figcaption><span class="t">rep-16 L</span><span class="d">tiles the plane by itself</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="rep16-polyominoes.html"><img src="rep16_T.svg" alt="T rep-16 polyomino"></a>
+    <figcaption><span class="t">rep-16 T</span><span class="d">same club, other shape</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="sphinx-fractal.html"><img src="sphinx-fractal-d1.svg" alt="sphinx fractal depth 1"></a>
+    <figcaption><span class="t">sphinx d1</span><span class="d">the sphinx substitution</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="sphinx-fractal.html"><img src="sphinx-fractal-d2.svg" alt="sphinx fractal depth 2"></a>
+    <figcaption><span class="t">sphinx d2</span><span class="d">depth 2</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="sphinx-fractal.html"><img src="sphinx-fractal-d3.svg" alt="sphinx fractal depth 3"></a>
+    <figcaption><span class="t">sphinx d3</span><span class="d">depth 3</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="sphinx-fractal.html"><img src="sphinx-fractal-d4.svg" alt="sphinx fractal depth 4"></a>
+    <figcaption><span class="t">sphinx d4</span><span class="d">depth 4</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="sphinx-fractal.html"><img src="sphinx-rep9.svg" alt="sphinx rep 9"></a>
+    <figcaption><span class="t">sphinx rep-9</span><span class="d">nine copies, one tile</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="all.html"><img src="lightday.svg" alt="lightday"></a>
+    <figcaption><span class="t">light day</span><span class="d">a small code-art piece</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="all.html"><img src="detour.svg" alt="detour"></a>
+    <figcaption><span class="t">detour</span><span class="d">a path that goes around</span></figcaption>
+  </figure>
+
+  <figure>
+    <a class="img" href="all.html"><img src="club_hexomino.svg" alt="hexomino club"></a>
+    <figcaption><span class="t">hexomino</span><span class="d">from the club set</span></figcaption>
+  </figure>
+
+</main>
+
+<footer>
+  <p>made by <a href="index.html">yūzuki</a> · <a href="all.html">all pages</a> · <a href="https://github.com/yuzuki-mdl">github</a></p>
+</footer>
+</body>
+</html>
