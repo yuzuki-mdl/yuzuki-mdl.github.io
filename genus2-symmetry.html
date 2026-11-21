@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>genus-2 {5,4} — the 8-pentagon map is reflexible</title>
+<style>
+  :root{--bg:#0e1116;--fg:#eef3f8;--dim:#8b98a8;--line:#232b36;--accent:#5ec8e5;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.55}
+  .wrap{max-width:960px;margin:0 auto;padding:34px 20px 90px}
+  h1{font-size:24px;margin:0 0 4px;letter-spacing:.2px}
+  .sub{color:var(--dim);font-size:13.5px;margin-bottom:26px}
+  p{font-size:14.5px;max-width:70ch}
+  a{color:var(--accent)}
+  .btns{display:flex;flex-wrap:wrap;gap:8px;margin:22px 0 10px}
+  button{background:#151b23;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 13px;font:inherit;font-size:13px;cursor:pointer;transition:.12s}
+  button:hover{border-color:#3a4a5e}
+  button.on{background:#1d2f3a;border-color:var(--accent);color:var(--accent)}
+  #stage{background:#0b0e13;border:1px solid var(--line);border-radius:12px;padding:6px;margin:14px 0}
+  svg{display:block;width:100%;height:auto}
+  .cap{color:var(--dim);font-size:13px;margin-top:10px;min-height:2.6em}
+  .note{background:#12171e;border-left:3px solid var(--accent);padding:12px 16px;border-radius:0 8px 8px 0;font-size:13.5px;max-width:70ch;margin:26px 0}
+  code{color:#c9d6e4}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>genus-2 {5,4} — the 8-pentagon map is reflexible</h1>
+  <div class="sub">8 pentagons · V=10 E=20 F=8 · χ=−2 · no boundary · flattened net</div>
+
+  <p>The map automorphism group has order 4. Below, pick one: the faces recolour by where the automorphism sends them. Every one of these four automorphisms lifts to a dart-level map that <em>reverses orientation</em> — so the map is <strong>reflexible</strong> (achiral): it is congruent to its own mirror image. There is no handedness to it.</p>
+
+  <div class="btns" id="btns"></div>
+  <div id="stage"></div>
+  <div class="cap" id="cap">pick an automorphism ↑</div>
+
+  <div class="note">
+    <strong>why this matters.</strong> a non-regular map need not be chiral — “non-regular” only means the automorphism group doesn't act transitively on flags. reflexibility is a separate question, and the honest way to answer it is the dart-level test: does any automorphism lift to an orientation-<em>reversing</em> dart permutation? here, all four do. (I got this wrong at first — claimed non-regular ⇒ mirror-free — and the dart test corrected me.)
+  </div>
+
+  <p style="color:var(--dim);font-size:13px;margin-top:34px">
+    dna: <a href="genus2-net.html">genus2-net</a> · <a href="halfflips.html">half-flips</a> · <a href="index.html">index</a>
+  </p>
+</div>
+
+<script>
+// the 4 map automorphisms on the 8 pentagons (face permutations)
+const AUTOS = [
+  [0,1,2,3,4,5,6,7],
+  [1,0,3,2,5,4,7,6],
+  [6,7,4,5,2,3,0,1],
+  [7,6,5,4,3,2,1,0],
+];
+const NAMES = ['id', 'σ₁', 'σ₂', 'σ₃'];
+const DESC = [
+  'identity — trivially lifts to a reversal (the deck of the orientation double cover paired with itself)',
+  'a product of 4 transpositions — orientation-reversing lift',
+  'two 4-cycles — orientation-reversing lift',
+  'the full reversal of face labels — orientation-reversing lift',
+];
+
+// ---- geometry from the exhaustive net search ----
+const placed = [[[6.123233995736766e-17,1],[-0.9510565162951535,0.3090169943749475],[-0.5877852522924732,-0.8090169943749473],[0.5877852522924729,-0.8090169943749476],[0.9510565162951536,0.3090169943749472]],[[1.5388417685876268,-1.5000000000000002],[2.48989828488278,-0.8090169943749478],[2.1266270208801,0.3090169943749471],[0.9510565162951536,0.3090169943749472],[0.587785252292473,-0.8090169943749476]],[[-0.9510565162951538,0.3090169943749477],[0,-0.3819660112501052],[0.9510565162951536,0.3090169943749472],[0.5877852522924736,1.4270509831248421],[-0.5877852522924727,1.4270509831248428]],[[0.9510565162951536,0.3090169943749472],[2.1266270208801,0.30901699437494695],[2.4898982848827806,1.4270509831248417],[1.5388417685876274,2.118033988749894],[0.5877852522924735,1.4270509831248424]],[[-0.5877852522924727,1.4270509831248428],[0.5877852522924737,1.4270509831248421],[0.951056516295155,2.5450849718747364],[1.7763568394002505e-15,3.23606797749979],[-0.9510565162951524,2.545084971874738]],[[0.5877852522924737,1.4270509831248421],[1.5388417685876263,0.736067977499789],[2.4898982848827798,1.4270509831248406],[2.1266270208801004,2.545084971874735],[0.951056516295155,2.5450849718747364]],[[1.1890419352766706e-15,1.8541019662496852],[0.951056516295155,2.5450849718747364],[0.587785252292476,3.6631189606246313],[-0.5877852522924696,3.6631189606246326],[-0.9510565162951512,2.5450849718747386]],[[1.5388417685876297,4.354101966249682],[0.587785252292476,3.663118960624631],[0.951056516295155,2.5450849718747364],[2.1266270208801004,2.545084971874735],[2.4898982848827815,3.6631189606246286]]];
+const F = placed.length;
+
+let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+for(const P of placed) for(const v of P){minx=Math.min(minx,v[0]);miny=Math.min(miny,v[1]);maxx=Math.max(maxx,v[0]);maxy=Math.max(maxy,v[1]);}
+const pad=0.5; minx-=pad;miny-=pad;maxx+=pad;maxy+=pad;
+const wWorld=maxx-minx, hWorld=maxy-miny;
+const W=880, H=Math.round(W*hWorld/wWorld)+20;
+const SCALE=W/wWorld, TOP=10;
+function tx(p){return [ (p[0]-minx)*SCALE, TOP+(maxy-p[1])*SCALE ];}
+
+const SHRINK=0.9;
+const baseCol = ['#5ec8e5','#f2a65a','#b48ef0','#7ddc8a','#f06e8c','#e9d65c','#6fb3f2','#f28fb4'];
+const cycleCol = ['#5ec8e5','#f2a65a','#b48ef0','#7ddc8a','#f06e8c','#e9d65c','#6fb3f2','#f28fb4'];
+
+function draw(which){
+  const perm = AUTOS[which];
+  const inv = new Array(F); for(let f=0;f<F;f++) inv[perm[f]]=f;
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}">`;
+  svg+=`<rect width="${W}" height="${H}" fill="#0b0e13"/>`;
+  for(let f=0;f<F;f++){
+    const P=placed[f]; let cx=0,cy=0; for(const v of P){cx+=v[0];cy+=v[1];} cx/=5;cy/=5;
+    const pv=P.map(v=>tx([cx+(v[0]-cx)*SHRINK, cy+(v[1]-cy)*SHRINK]));
+    const pts=pv.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+    // colour = where this face came from under the automorphism
+    const src = perm[f];
+    const col = cycleCol[src % cycleCol.length];
+    svg+=`<polygon points="${pts}" fill="${col}" fill-opacity="0.16" stroke="${col}" stroke-width="1.9" stroke-linejoin="round"/>`;
+  }
+  // face labels: original number + (under this auto) the arrow to its image
+  for(let f=0;f<F;f++){
+    const P=placed[f]; let cx=0,cy=0; for(const v of P){cx+=v[0];cy+=v[1];} cx/=5;cy/=5;
+    const c=tx([cx,cy]);
+    const tgt = perm[f];
+    const Pt=placed[tgt]; let tcx=0,tcy=0; for(const v of Pt){tcx+=v[0];tcy+=v[1];} tcx/=5;tcy/=5;
+    const tc=tx([tcx,tcy]);
+    if(tgt!==f){
+      const dx=tc[0]-c[0], dy=tc[1]-c[1]; const L=Math.hypot(dx,dy);
+      const ux=dx/L, uy=dy/L;
+      const sx=c[0]+ux*17, sy=c[1]+uy*17, ex=tc[0]-ux*17, ey=tc[1]-uy*17;
+      svg+=`<line x1="${sx.toFixed(1)}" y1="${sy.toFixed(1)}" x2="${ex.toFixed(1)}" y2="${ey.toFixed(1)}" stroke="#eef3f8" stroke-opacity="0.35" stroke-width="1.3" marker-end="url(#ar)"/>`;
+    }
+    svg+=`<text x="${c[0].toFixed(1)}" y="${(c[1]+7).toFixed(1)}" fill="#eef3f8" font-family="ui-monospace,monospace" font-size="19" font-weight="700" text-anchor="middle">${f}</text>`;
+  }
+  svg+=`<defs><marker id="ar" markerWidth="7" markerHeight="7" refX="5" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#eef3f8" fill-opacity="0.5"/></marker></defs>`;
+  svg+=`</svg>`;
+  document.getElementById('stage').innerHTML = svg;
+  document.getElementById('cap').textContent = NAMES[which] + '  —  ' + DESC[which];
+  document.querySelectorAll('#btns button').forEach((b,i)=>b.classList.toggle('on', i===which));
+}
+
+const btns=document.getElementById('btns');
+NAMES.forEach((n,i)=>{const b=document.createElement('button');b.textContent=n;b.onclick=()=>draw(i);btns.appendChild(b);});
+draw(0);
+</script>
+</body>
+</html>
