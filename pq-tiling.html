@@ -26,6 +26,7 @@ canvas:active{cursor:grabbing}
 const cv=document.getElementById('c'),ctx=cv.getContext('2d');
 let W,H,cx,cy,R;
 let p=5,q=4, view={x:0,y:0,z:1};
+{const u=new URLSearchParams(location.search);if(u.has('p'))p=Math.max(3,Math.min(12,+u.get('p')||p));if(u.has('q'))q=Math.max(3,Math.min(12,+u.get('q')||q));}
 
 function resize(){W=cv.width=innerWidth;H=cv.height=innerHeight;cx=W/2;cy=H/2;R=Math.min(W,H)*0.42;draw();}
 addEventListener('resize',resize);
@@ -152,7 +153,9 @@ addEventListener('mousemove',e=>{
 });
 cv.addEventListener('wheel',e=>{e.preventDefault();view.z*=e.deltaY<0?1.12:0.89;view.z=Math.max(0.3,Math.min(6,view.z));draw();},{passive:false});
 document.getElementById('reset').onclick=()=>{view={x:0,y:0,z:1};draw();};
-document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{p=Math.max(3,Math.min(12,p+ +b.dataset.p));document.getElementById('pv').textContent=p;draw();});
-document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{q=Math.max(3,Math.min(12,q+ +b.dataset.q));document.getElementById('qv').textContent=q;draw();});
+function syncHash(){history.replaceState(null,'',`?p=${p}&q=${q}`);}
+document.querySelectorAll('[data-p]').forEach(b=>b.onclick=()=>{p=Math.max(3,Math.min(12,p+ +b.dataset.p));document.getElementById('pv').textContent=p;syncHash();draw();});
+document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{q=Math.max(3,Math.min(12,q+ +b.dataset.q));document.getElementById('qv').textContent=q;syncHash();draw();});
+document.getElementById('pv').textContent=p;document.getElementById('qv').textContent=q;
 resize();
 </script></body></html>
