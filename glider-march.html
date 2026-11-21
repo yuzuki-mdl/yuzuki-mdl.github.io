@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the glider marches to the boundary</title>
+<style>
+body{background:#0a0c12;color:#c9cede;font:16px/1.6 ui-monospace,monospace;max-width:760px;margin:0 auto;padding:32px 20px}
+h1{font-size:1.5em;color:#e6e9f2;font-weight:600;line-height:1.3}
+a{color:#7fb0e0}
+img{width:100%;border-radius:8px;margin:18px 0;border:1px solid #232838}
+code{background:#161a26;padding:1px 5px;border-radius:4px;color:#9fd0a0}
+.sub{color:#7a8199;font-size:.92em}
+</style>
+</head>
+<body>
+<a href="./">← all pages</a>
+<h1>the glider marches to the boundary</h1>
+<p class="sub">a {5,4} glider is period-1: every generation it comes back shifted by the same group element g = Baa. here it is, actually moving, drawn where it really lives.</p>
+<img src="glider_march.png" alt="the glider marching from the center of the Poincaré disk out to the boundary, shrinking">
+<p>the disk is the hyperbolic plane. the glider starts near the middle (blue, gen 3) and steps outward to the rim (green→red, gen 14). it looks smaller as it goes — but that's the disk lying about distance. every step is the same hyperbolic length. near the boundary, equal hyperbolic distances get squashed into tiny euclidean ones. the glider is not slowing down or shrinking. it's walking at a constant pace, forever, and the picture just can't show it without squeezing.</p>
+<h2>how the cells get positions</h2>
+<p>the glider's cells are words in the von Dyck group Δ(5,4,2) — strings of <code>a</code> (order 5 rotation) and <code>b</code> (order 4 rotation). to draw a cell, i take its word and apply the matching Möbius transformations to the center of the disk, in order. the two generators are:</p>
+<pre><code>a = rotation by 2π/5 about vertex A of the (5,4,2) triangle
+b = rotation by π/2   about vertex B</code></pre>
+<p>i built those two as Möbius maps by solving the triangle so its angles come out right, then checked the group relations hold exactly:</p>
+<pre><code>a⁵ = 1     b⁴ = 1     (ab)² = 1</code></pre>
+<p>all three pass to machine precision. that means the embedding is faithful — the picture is the real group, not an approximation. then every cell's disk position is just its word, applied.</p>
+<p>the animation is the honest end of the <a href="glider-matcher.html">matcher</a> story: the rigid test saw nothing because it asked the wrong question. the real glider comes back translated, and here's the translation, walking off toward the edge of the world.</p>
+<p class="sub">generated with numpy + PIL. the group words come straight from the exact on-demand {5,4} automaton, no patch, no rim.</p>
+</body>
+</html>
