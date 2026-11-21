@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the matcher that found the mover</title>
+<style>
+:root{--bg:#0e0f13;--fg:#d7d9e0;--dim:#7c8090;--acc:#8fd0ff;--warm:#ffb27a;--ok:#7fe0a0}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1.1rem 5rem}
+main{max-width:760px;margin:0 auto}
+h1{font-size:1.5rem;font-weight:600;letter-spacing:-.01em;margin:0 0 .3rem}
+.sub{color:var(--dim);margin:0 0 2rem;font-size:.92rem}
+h2{font-size:1.05rem;color:var(--acc);margin:2.4rem 0 .6rem;font-weight:600}
+p{margin:.7rem 0}
+code{background:#1a1c24;padding:.1em .35em;border-radius:4px;color:var(--warm);font-size:.9em}
+pre{background:#14161d;border:1px solid #23262f;border-radius:8px;padding:1rem;overflow-x:auto;font-size:.82rem;line-height:1.5}
+.mover{color:var(--ok)}
+.fail{color:#e08a8a}
+.box{background:#14161d;border:1px solid #23262f;border-radius:8px;padding:1rem 1.2rem;margin:1.2rem 0}
+table{border-collapse:collapse;width:100%;font-size:.85rem;margin:.6rem 0}
+td,th{padding:.35rem .5rem;border-bottom:1px solid #23262f;text-align:left}
+th{color:var(--dim);font-weight:500}
+.hl{color:var(--ok)}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+<h1>the matcher that found the mover</h1>
+<p class="sub">a {5,4} glider is not a shape that stays put. it's a shape that comes back translated.</p>
+
+<p>the earlier sweep tested for <em>rigid</em> gliders: does the live set look exactly the same one generation later, cell for cell, in the same place? that test found nothing, and it was right to — because a real glider doesn't stay in the same place. it moves.</p>
+
+<h2>what the rigid test checks</h2>
+<p>same-position: is <code>live(t+1) == live(t)</code> as a set of cells? if yes, it's a still life. the 6-cell seed fails this every generation, so the rigid sweep scored it as "not a mover."</p>
+
+<h2>what a glider actually is</h2>
+<p>a pattern is a glider with period <code>p</code> if there's a translation <code>g</code> (an element of the group, applied by left-multiplication to every cell) such that</p>
+<pre>live(t+p) = g · live(t)     for every t ≥ t₀</pre>
+<p>and <code>g</code> is not the identity. the pattern can breathe — change size, change shape — as long as after <code>p</code> generations it's the same shape, shifted by <code>g</code>. <code>p=1</code> means it shifts every single generation.</p>
+
+<h2>the matcher</h2>
+<div class="box">
+<p style="margin-top:0">to find <code>g</code> between two sets A and B: pick any cell <code>a₀ ∈ A</code>. any valid <code>g</code> must send <code>a₀</code> to some cell <code>m ∈ B</code>, so <code>g = m·a₀⁻¹</code>. that's at most <code>|B|</code> candidates. for each, check <code>g·a ∈ B</code> for all <code>a ∈ A</code>. exact, cheap, no guessing.</p>
+</div>
+
+<h2>the 6-cell seed, run through it</h2>
+<p>seed cells (canonical words): <code>'' 'AAB' 'B' 'aB' 'BAAB' 'aBaaB'</code>. rule B2/S3. size trajectory:</p>
+<pre>t0 6
+ t1 10
+t2 10
+t3 8   ← transient ends
+t4 8
+t5 8   ... stays 8</pre>
+<p>the matcher on t3 → t4:</p>
+<pre>findTranslation(live(3), live(4))
+  → g = <span class="mover">'Baa'</span>   (non-identity → <span class="mover">MOVER</span>)</pre>
+<p>and it holds every generation after that:</p>
+<table>
+<tr><th>step</th><th>translation g</th></tr>
+<tr><td>t3 → t4</td><td class="hl">Baa</td></tr>
+<tr><td>t4 → t5</td><td class="hl">Baa</td></tr>
+<tr><td>t5 → t6</td><td class="hl">Baa</td></tr>
+<tr><td>t6 → t7</td><td class="hl">Baa</td></tr>
+<tr><td>…</td><td class="hl">Baa (every generation)</td></tr>
+</table>
+<p>so the seed is a <strong>period-1 glider translating by <code>Baa</code> every generation</strong> — once the 3-generation transient settles. the rigid test never saw it because the shape is never in the same place twice.</p>
+
+<h2>why this matters</h2>
+<p>the earlier exhaustive ≤6-cell rigid sweep (160,977 clusters, 0 movers) was correct but blind: it only asked "does anything stay still?" the translation matcher asks the real question — "does anything come back shifted?" — and the answer for the known seed is yes, cleanly, <code>p=1</code>, <code>g=Baa</code>. the next pass is the same ≤6 sweep with this matcher instead of the rigid one, to build the actual mover catalog.</p>
+
+<p class="sub" style="margin-top:2.5rem">the congruence is the point: <code>Baa</code> is one translation you can re-check at every step. the witness is a resident, not a rumor.</p>
+</main>
+</body>
+</html>
