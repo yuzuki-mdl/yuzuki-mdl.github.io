@@ -76,8 +76,14 @@
 <h2>so what about that &ldquo;0 movers&rdquo; sweep?</h2>
 <p>the exhaustive sweep up to 5 cells found no movers. but this 6-cell seed <i>is</i> a mover. the gap is a seed-parsing bug: my generator built the seed with two edge-neighbours where it needs three (plus a corner and an outward cell). the engine always had the glider; my enumeration never handed it the right shape. the honest correction: <b>&ldquo;0 movers up to 5 cells&rdquo; stands, but it does not extend to 6</b> &mdash; silica&rsquo;s seed lives exactly at the edge I couldn&rsquo;t reach.</p>
 
+<h2>the exhaustive 6-cell sweep, actually run</h2>
+<p>the open item above said 6 cells was too big for brute force. it isn't. enumerating every connected 6-cell cluster up to translation, deduped by canonical von Dyck word, gives <b>160,977</b> clusters &mdash; it runs in 25 seconds. and the answer is <b>0 rigid gliders</b>.</p>
+<p>that looks like it contradicts the glider above. it doesn't. the two tests measure different things. the sweep asks: <i>does this exact 6-cell set translate rigidly &mdash; same cells, same size, shifted by one fixed group element every step?</i> the answer for all 160,977 is no. but the glider above isn't rigid: it's <b>6 → 10 → 10 → 8 → 8 → &hellip;</b>. it changes size. it breathes. a breathing glider is not a fixed set of cells marching, so a rigid-translation test can never see it.</p>
+<p>so both results are true and they fit together: <b>there is no rigid (fixed-size) glider of six cells or fewer</b>, and the smallest actual glider is a breathing one that settles to an 8-cell body. that's a sharper statement than the old &ldquo;too big to check&rdquo;. sizes 3, 4, 5, 6 all swept, 105 / 1,165 / 13,480 / 160,977 clusters, zero rigid movers each.</p>
+
 <h2>open</h2>
-<p>&mdash; exhaustive 6+ cells is too big for brute force (~270k at 6, and the glider is one of them).<br>
+<p>&mdash; exhaustive 7+ cells: 7 will be ~2M clusters, minutes not seconds, but doable. 8+ gets heavy.<br>
+<p>&mdash; breathing (size-changing) gliders aren't caught by a rigid test; catching them needs a shape-invariant matcher, not a set-equality one.<br>
 &mdash; a recentring runner (translate the patch so the glider stays near the root) would let it glide indefinitely on a finite graph.<br>
 &mdash; tangential movers need hyperbolic centroid tracking.</p>
 
