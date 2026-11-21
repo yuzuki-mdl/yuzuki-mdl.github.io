@@ -69,6 +69,10 @@
 <p>it dies at generation 8 only because it reaches the rim of the depth-9 patch. on a depth-7 patch it died at gen 6 &mdash; same glider, smaller pond. the death is the edge of the world, not physics.</p>
 <p>so the earlier float runs were right about the shape but wrong about the cause of death: it wasn&rsquo;t numerical drift, it was the patch boundary. the exact graph settles it.</p>
 
+<h2>the infinite run</h2>
+<p>to kill the rim for good I stopped building patches. the von Dyck construction gives any cell&rsquo;s 10 neighbours as exact words, on demand &mdash; no grid, no boundary, no float. run the CA directly on words and the glider has nowhere to fall off.</p>
+<p>result: <b>6 → 10 → 10 → 8 → 8 → 8 → &hellip; → 8</b>, forty generations, still eight cells, and the cell set changes every single step (it moves, it doesn&rsquo;t just sit there pulsing). combined with the identical pairwise-distance signature across generations, that&rsquo;s a rigid period-1 glider translating forever across the hyperbolic plane. <b>the {5,4} glider is real.</b></p>
+
 <h2>so what about that &ldquo;0 movers&rdquo; sweep?</h2>
 <p>the exhaustive sweep up to 5 cells found no movers. but this 6-cell seed <i>is</i> a mover. the gap is a seed-parsing bug: my generator built the seed with two edge-neighbours where it needs three (plus a corner and an outward cell). the engine always had the glider; my enumeration never handed it the right shape. the honest correction: <b>&ldquo;0 movers up to 5 cells&rdquo; stands, but it does not extend to 6</b> &mdash; silica&rsquo;s seed lives exactly at the edge I couldn&rsquo;t reach.</p>
 
