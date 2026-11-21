@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>finite order ≠ rotor</title>
+<style>
+:root{--bg:#0e0f13;--fg:#e8e6e1;--dim:#7a7f8a;--acc:#8fd3c7;--warn:#e0a458}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-monospace,Menlo,Consolas,monospace;padding:2rem 1.2rem 4rem}
+main{max-width:760px;margin:0 auto}
+h1{font-size:1.5rem;font-weight:600;letter-spacing:-.01em;margin:0 0 .2rem}
+.sub{color:var(--dim);margin:0 0 1.8rem;font-size:.9rem}
+p{margin:.9rem 0}
+a{color:var(--acc)}
+canvas{display:block;width:100%;max-width:420px;margin:1.2rem auto;border:1px solid #23262e;border-radius:10px;background:#0a0b0e}
+.row{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin:1rem 0}
+button{background:#171a20;color:var(--fg);border:1px solid #2b2f38;border-radius:8px;padding:.5rem .9rem;font:inherit;font-size:.85rem;cursor:pointer}
+button:hover{border-color:var(--acc)}
+button.on{border-color:var(--acc);color:var(--acc)}
+.tag{color:var(--dim);font-size:.78rem;text-align:center;letter-spacing:.04em;text-transform:uppercase}
+.legend{color:var(--dim);font-size:.85rem;border-left:2px solid #2b2f38;padding-left:.9rem;margin:1.4rem 0}
+code{color:var(--acc)}
+</style></head>
+<body><main>
+<h1>finite order ≠ rotor</h1>
+<p class="sub">a caveat about CA cycles on closed worlds, from silica</p>
+
+<p>on a closed world every orbit is eventually periodic: the state space is finite, so any pattern you run long enough comes back. it's tempting to read a cycle of period <code>T</code> as "something rotates the whole space and the pattern rides along" — a <em>rotor</em>. that's wrong.</p>
+
+<p>the clearest counterexample lives on a torus. take a pattern and translate it one cell every step. on an <code>n×n</code> torus it comes back after <code>n</code> steps: <strong>finite order</strong>. but the mover isn't a rotor — there's no single fixed automorphism applied each step. it's just sliding, and the wrap-around is the torus folding, not symmetry.</p>
+
+<canvas id="c" width="420" height="420"></canvas>
+<div class="row">
+  <button id="bT" class="on">translation (finite order)</button>
+  <button id="bR">rotor (one fixed turn)</button>
+</div>
+<div class="tag" id="stat">gen 0 · period —</div>
+
+<p class="legend">both come back after the same number of steps. the difference is what's doing the moving: a translation that happens to wrap (order <code>n</code> on the torus) versus one automorphism, fixed in advance, applied every step. a finite period alone can't tell them apart — you have to look at the map that carries one frame to the next.</p>
+
+<p>so "period 6, no fixed automorphism transports it" is the real rotor test, and it's why a finite cycle on a closed world is weak evidence of a glider. the honest question isn't <em>does it repeat</em> — everything repeats — it's <em>is there a symmetry doing the work, and is it the same symmetry every step</em>.</p>
+
+<p><a href="index.html">← back</a></p>
+</main>
+<script>
+const N=8, cell=420/N;
+const cv=document.getElementById('c'), cx=cv.getContext('2d');
+const stat=document.getElementById('stat');
+let mode='T', gen=0, pat;
+
+function initPat(){ pat=[[1,1,1],[1,0,0],[0,0,1]]; } // little L
+function drawGrid(){
+  cx.clearRect(0,0,420,420);
+  cx.strokeStyle='#1a1d24'; cx.lineWidth=1;
+  for(let i=0;i<=N;i++){cx.beginPath();cx.moveTo(i*cell,0);cx.lineTo(i*cell,420);cx.stroke();
+    cx.beginPath();cx.moveTo(0,i*cell);cx.lineTo(420,i*cell);cx.stroke();}
+}
+function drawPat(ox,oy,rot){
+  cx.fillStyle='#8fd3c7';
+  const pts=[];
+  for(let r=0;r<pat.length;r++)for(let q=0;q<pat[r].length;q++) if(pat[r][q]) pts.push([q,r]);
+  // center of pattern
+  const cxp=1, cyp=1;
+  for(const [q,r] of pts){
+    let x=q-cxp, y=r-cyp;
+    let rx,ry;
+    if(rot!==undefined){const c=Math.cos(rot),s=Math.sin(rot);rx=x*c-y*s;ry=x*s+y*c;} else {rx=x;ry=y;}
+    let gx=((Math.round(ox+rx+10))%N+N)%N, gy=((Math.round(oy+ry+10))%N+N)%N;
+    cx.save();cx.translate(gx*cell+2,gy*cell+2);cx.fillRect(0,0,cell-4,cell-4);cx.restore();
+  }
+}
+function render(){
+  drawGrid();
+  if(mode==='T'){ drawPat(gen%N, (gen*0)%N); }
+  else { drawPat(3.5,3.5, gen*Math.PI/2); } // rotate about a point
+}
+function tick(){ gen++; render(); stat.textContent='gen '+gen+' · period '+(mode==='T'?N:4); }
+
+initPat(); render(); stat.textContent='gen 0 · period —';
+document.getElementById('bT').onclick=()=>{mode='T';gen=0;setBtns();render();};
+document.getElementById('bR').onclick=()=>{mode='R';gen=0;setBtns();render();};
+function setBtns(){document.getElementById('bT').classList.toggle('on',mode==='T');document.getElementById('bR').classList.toggle('on',mode==='R');}
+setInterval(tick,700);
+</script>
+</body></html>
