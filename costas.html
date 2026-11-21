@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>costas arrays — dots with no repeats</title>
+<style>
+  :root{--bg:#0e0e12;--fg:#e6e6ea;--dim:#8a8a96;--accent:#7cc4ff;--bad:#ff6b6b;--good:#7dffa0;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,Menlo,Consolas,monospace;padding:24px;max-width:820px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  p.sub{color:var(--dim);margin:0 0 20px;font-size:13px}
+  .row{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+  label{color:var(--dim);font-size:13px}
+  select,input[type=range]{background:#1a1a22;color:var(--fg);border:1px solid #2c2c38;border-radius:6px;padding:4px 8px;font:inherit}
+  canvas{display:block;background:#12121a;border:1px solid #26262f;border-radius:8px;margin:0 auto}
+  .stat{margin-top:14px;font-size:13px;color:var(--dim)}
+  .stat b{color:var(--fg)}
+  .ok{color:var(--good)}
+  .no{color:var(--bad)}
+  .legend{font-size:12px;color:var(--dim);margin-top:8px}
+  a{color:var(--accent)}
+</style>
+</head>
+<body>
+<h1>costas arrays</h1>
+<p class="sub">n×n grid, one dot per row and column, and every displacement vector between two dots is unique. no two pairs of dots ever share the same (Δx, Δy).</p>
+
+<div class="row">
+  <label>construction
+    <select id="kind">
+      <option value="welch">welch (prime p)</option>
+      <option value="golomb">golomb (prime p)</option>
+      <option value="perm">random permutation</option>
+    </select>
+  </label>
+  <label>p <input id="p" type="range" min="3" max="97" step="1" value="11"><span id="pv">11</span></label>
+</div>
+
+<canvas id="c" width="480" height="480"></canvas>
+<div class="stat" id="stat"></div>
+<div class="legend">welch: dot at (i, g^i mod p), i=1..p-1. golomb: (i, g^i mod p) mapped to 0..p-2. only primes work; the slider snaps.</div>
+
+<script>
+const canvas=document.getElementById('c'),ctx=canvas.getContext('2d');
+const kindEl=document.getElementById('kind'),pEl=document.getElementById('p'),pv=document.getElementById('pv'),statEl=document.getElementById('stat');
+
+function isPrime(n){if(n<2)return false;for(let d=2;d*d<=n;d++)if(n%d===0)return false;return true;}
+function prevPrime(n){while(!isPrime(n))n--;return n;}
+function nextPrime(n){while(!isPrime(n))n++;return n;}
+function primitiveRoot(p){
+  if(p===2)return 1;
+  const phi=p-1;let factors=new Set();let m=phi;
+  for(let d=2;d*d<=m;d++){while(m%d===0){factors.add(d);m/=d;}}
+  if(m>1)factors.add(m);
+  for(let g=2;g<p;g++){let ok=true;for(const f of factors){if(modpow(g,phi/f,p)===1){ok=false;break;}}if(ok)return g;}
+  return null;
+}
+function modpow(b,e,m){let r=1;b%=m;while(e>0){if(e&1)r=(r*b)%m;b=(b*b)%m;e>>=1;}return r;}
+
+function welch(p){
+  const g=primitiveRoot(p);if(g===null)return null;
+  // dots (i, g^i mod p) for i=1..p-1 -> columns i-1, rows value
+  let pts=[];
+  let v=1;
+  for(let i=1;i<=p-1;i++){v=(v*g)%p;pts.push([i-1,v]);}
+  return {n:p-1,pts};
+}
+function golomb(p){
+  // golomb: g^i mod p, i=1..p-2, then subtract 1 -> order p-2
+  const g=primitiveRoot(p);if(g===null)return null;
+  let pts=[];let v=1;
+  for(let i=1;i<=p-2;i++){v=(v*g)%p;pts.push([i-1,(v-1+p)%p]);}
+  return {n:p-2,pts};
+}
+function randPerm(n){
+  let a=[...Array(n).keys()];
+  for(let i=n-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}
+  return {n,pts:a.map((r,c)=>[c,r])};
+}
+
+function check(arr){
+  const {n,pts}=arr;
+  const seen=new Map();let dup=null;
+  for(let i=0;i<pts.length;i++)for(let j=i+1;j<pts.length;j++){
+    const dx=pts[j][0]-pts[i][0],dy=pts[j][1]-pts[i][1];
+    const key=dx+','+dy;
+    if(seen.has(key)){dup=[seen.get(key),[pts[i],pts[j]]];}
+    else seen.set(key,[pts[i],pts[j]]);
+  }
+  return {ok:!dup,dup};
+}
+
+function draw(){
+  let p=+pEl.value;
+  if(kindEl.value!=='perm'){p=nextPrime(p);pEl.value=p;}
+  pv.textContent=p;
+  let arr;
+  if(kindEl.value==='welch')arr=welch(p);
+  else if(kindEl.value==='golomb')arr=golomb(p);
+  else arr=randPerm(Math.max(2,Math.min(40,p)));
+  if(!arr){statEl.textContent='no primitive root for p='+p;return;}
+  const {n,pts}=arr;
+  const W=canvas.width,H=canvas.height,pad=24,size=Math.min(W,H)-pad*2,cell=size/n;
+  ctx.clearRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle='#22222c';ctx.lineWidth=1;
+  for(let i=0;i<=n;i++){
+    ctx.beginPath();ctx.moveTo(pad+i*cell,pad);ctx.lineTo(pad+i*cell,pad+size);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(pad,pad+i*cell);ctx.lineTo(pad+size,pad+i*cell);ctx.stroke();
+  }
+  const res=check(arr);
+  // dots
+  for(const [c,r] of pts){
+    ctx.beginPath();
+    ctx.arc(pad+c*cell+cell/2,pad+r*cell+cell/2,Math.max(2,cell*0.28),0,7);
+    ctx.fillStyle=res.ok?'#7cc4ff':'#ff9b6b';
+    ctx.fill();
+  }
+  if(!res.ok&&res.dup){
+    // draw the two duplicate pairs in red + a line between each pair
+    for(const pr of res.dup){
+      ctx.strokeStyle='#ff6b6b';ctx.lineWidth=2;
+      ctx.beginPath();
+      ctx.moveTo(pad+pr[0][0]*cell+cell/2,pad+pr[0][1]*cell+cell/2);
+      ctx.lineTo(pad+pr[1][0]*cell+cell/2,pad+pr[1][1]*cell+cell/2);
+      ctx.stroke();
+    }
+  }
+  const pairs=n*(n-1)/2;
+  statEl.innerHTML=`order <b>${n}</b> · dots <b>${n}</b> · pairs <b>${pairs}</b> · `+
+    (res.ok?`<span class="ok">✓ costas — all ${pairs} displacement vectors distinct</span>`:
+    `<span class="no">✗ collision — two pairs share a displacement vector</span>`);
+}
+
+kindEl.addEventListener('change',draw);
+pEl.addEventListener('input',draw);
+draw();
+</script>
+</body>
+</html>
