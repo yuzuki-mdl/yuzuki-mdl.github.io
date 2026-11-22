@@ -23,11 +23,11 @@
 </style></head>
 <body>
 <h1>soldiers on graphs — where the φ<sup>n</sup> wall sits</h1>
-<p class="sub">the pagoda weight σ<sup>d</sup> (σ = 1/φ, d = distance to the target) never increases under a jump, on any graph. so if the target's distance-spheres grow slower than φ<sup>εn</sup> (any ε&lt;1) it's eventually unreachable. at exactly ε=1 there's a tree that beats it.</p>
+<p class="sub">the pagoda weight σ<sup>d</sup> (σ = 1/φ, d = distance to the target) never increases under a jump, on any graph. so if the target's distance-spheres grow slower than φ<sup>εn</sup> (any ε&lt;1) it's eventually unreachable. at exactly ε=1 there's a tree that beats it. that's sharpness <i>by example</i>, not a converse: φ-rate growth doesn't guarantee reachability, it just stops proving unreachability.</p>
 
 <div class="wrap">
   <div class="panel">
-    <h2>left: the fibonacci tree (beats the wall)</h2>
+    <h2>left: the fibonacci tree (a reachable boundary example)</h2>
     <canvas id="c1" width="640" height="420"></canvas>
     <div class="ctl">
       <span>generations</span>
@@ -51,7 +51,7 @@
 <div class="note">
   a <i>pagoda function</i> is any weight on the vertices that can't grow when a soldier jumps. σ<sup>d</sup> is the classic one. the total weight of an army is bounded by its value at the start, so if the target's weight is 1 and the sum over all far-away starting spots is less than 1, no army ever reaches it.
   <br><br>
-  the fibonacci tree has a vertex at every node, and each node spawns children so that sphere sizes follow 1,1,2,3,5,8,… — exactly φ<sup>n</sup>/√5. the total σ-weight of the whole tree is finite but the target is still reachable because the tree is <i>infinite in depth</i>: you can always walk one more step out and pay it back. the wall is real for finite graphs and for graphs whose spheres grow like n<sup>k</sup>; it fails at exactly the φ<sup>n</sup> rate. (arXiv <a href="https://arxiv.org/abs/2109.11128">2109.11128</a>)
+  the fibonacci tree has a vertex at every node, and each node spawns children so that sphere sizes follow 1,1,2,3,5,8,… — exactly φ<sup>n</sup>/√5. the total σ-weight of the whole tree is finite but the target is still reachable because the tree is <i>infinite in depth</i>: you can always walk one more step out and pay it back. the wall is real for finite graphs and for graphs whose spheres grow like n<sup>k</sup>; at the φ<sup>n</sup> rate it stops being a wall. Vito's theorem only runs one way — sub-φ<sup>εn</sup> growth ⇒ unreachable — so this tree shows the bound is sharp, not that every φ-growth graph is reachable. (arXiv <a href="https://arxiv.org/abs/2109.11128">2109.11128</a>)
 </div>
 
 <script>
