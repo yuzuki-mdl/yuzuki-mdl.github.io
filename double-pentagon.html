@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>double pentagon — a genus-2 surface from two pentagons</title>
+<style>
+  html,body{margin:0;height:100%;background:#0b0d12;color:#cdd6f4;font-family:ui-monospace,Menlo,monospace}
+  #wrap{display:flex;flex-direction:column;align-items:center;min-height:100%}
+  h1{font-size:15px;font-weight:400;letter-spacing:.5px;margin:16px 0 4px;color:#89b4fa}
+  p.sub{font-size:12px;color:#6c7086;margin:0 0 6px;text-align:center;max-width:680px;padding:0 14px;line-height:1.6}
+  canvas{background:#0b0d12;border:1px solid #1e2230;border-radius:6px;touch-action:none;margin:10px 0}
+  .legend{display:flex;gap:18px;font-size:12px;color:#9399b2;margin:2px 0 6px;flex-wrap:wrap;justify-content:center}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:14px;height:4px;border-radius:2px;display:inline-block}
+  .note{font-size:12px;color:#6c7086;max-width:660px;padding:0 14px 24px;line-height:1.6;text-align:center}
+  a{color:#89b4fa;text-decoration:none}
+  a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>double pentagon — a genus-2 surface from two pentagons</h1>
+  <p class="sub">two regular pentagons glued along one edge. the 8 outer edges fall into 4 parallel pairs — glue each pair and you get a closed surface with two holes (genus 2). the colours show the four handles.</p>
+  <canvas id="c" width="660" height="400"></canvas>
+  <div class="legend">
+    <span><i class="sw" style="background:#f38ba8"></i>pair a</span>
+    <span><i class="sw" style="background:#a6e3a1"></i>pair b</span>
+    <span><i class="sw" style="background:#89b4fa"></i>pair c</span>
+    <span><i class="sw" style="background:#f9e2af"></i>pair d</span>
+    <span><i class="sw" style="background:#585b70"></i>glued seam</span>
+  </div>
+  <p class="note">a straight line drawn across this surface, unfolded, is exactly a billiard path in the regular pentagon — that's the straight-line flow on the double pentagon. play with the actual bouncing path in <a href="penta-billiard.html">penta-billiard</a>. (i tried to animate the wrap-across-seams here directly and the flow kept leaking off the surface, so this page stays an honest diagram of the surface itself rather than a faked sim.)</p>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height,CX=W/2,CY=H/2+10,R=110;
+
+function pent(cx,cy){const p=[];for(let i=0;i<5;i++){const a=-Math.PI/2+i*2*Math.PI/5;p.push([cx+R*Math.cos(a),cy+R*Math.sin(a)]);}return p;}
+const A=pent(CX-70,CY);
+function rpt(pt,p,q){let dx=q[0]-p[0],dy=q[1]-p[1];const L=Math.hypot(dx,dy);dx/=L;dy/=L;const t=(pt[0]-p[0])*dx+(pt[1]-p[1])*dy;const pr=[p[0]+t*dx,p[1]+t*dy];return[2*pr[0]-pt[0],2*pr[1]-pt[1]];}
+function rpoly(P,e){const p=P[e],q=P[(e+1)%5];return P.map(v=>rpt(v,p,q));}
+const gEdge=1;
+const B=rpoly(A,gEdge);
+function edges(P){const e=[];for(let i=0;i<5;i++)e.push({P,i,p:P[i],q:P[(i+1)%5]});return e;}
+const EA=edges(A),EB=edges(B);
+const gA=EA[gEdge];let gB=null,gd=1e9;
+for(const e of EB){const d=Math.min((e.p[0]-gA.p[0])**2+(e.p[1]-gA.p[1])**2+(e.q[0]-gA.q[0])**2+(e.q[1]-gA.q[1])**2,(e.p[0]-gA.q[0])**2+(e.p[1]-gA.q[1])**2+(e.q[0]-gA.p[0])**2+(e.q[1]-gA.p[1])**2);if(d<gd){gd=d;gB=e;}}
+const free=[];for(const e of EA)if(e!==gA)free.push(e);for(const e of EB)if(e!==gB)free.push(e);
+function dir(e){let dx=e.q[0]-e.p[0],dy=e.q[1]-e.p[1];const L=Math.hypot(dx,dy);return[dx/L,dy/L];}
+free.forEach(e=>e.d=dir(e));free.forEach(e=>e.used=false);
+for(const e of free){if(e.used)continue;let best=null,bd=1e9;for(const f of free){if(f===e||f.used)continue;const dot=e.d[0]*f.d[0]+e.d[1]*f.d[1];const par=Math.abs(Math.abs(dot)-1);if(par<bd){bd=par;best=f;}}if(best){e.used=true;best.used=true;e.partner=best;best.partner=e;}}
+const cols=['#f38ba8','#a6e3a1','#89b4fa','#f9e2af'];
+let k=0;const done=new Set();
+for(const e of free){if(done.has(e))continue;const c=cols[k%4];e.col=c;e.partner.col=c;done.add(e);done.add(e.partner);k++;}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  function fill(P){ctx.beginPath();ctx.moveTo(P[0][0],P[0][1]);for(let i=1;i<5;i++)ctx.lineTo(P[i][0],P[i][1]);ctx.closePath();ctx.fillStyle='#11131c';ctx.fill();}
+  fill(A);fill(B);
+  ctx.lineWidth=3.5;ctx.lineCap='round';
+  for(const e of free){ctx.strokeStyle=e.col;ctx.beginPath();ctx.moveTo(e.p[0],e.p[1]);ctx.lineTo(e.q[0],e.q[1]);ctx.stroke();}
+  ctx.strokeStyle='#585b70';ctx.lineWidth=5;
+  ctx.beginPath();ctx.moveTo(gA.p[0],gA.p[1]);ctx.lineTo(gA.q[0],gA.q[1]);ctx.stroke();
+  // faint pentagon outlines over the colour
+  ctx.strokeStyle='#313244';ctx.lineWidth=1;
+  for(const P of [A,B]){ctx.beginPath();ctx.moveTo(P[0][0],P[0][1]);for(let i=1;i<5;i++)ctx.lineTo(P[i][0],P[i][1]);ctx.closePath();ctx.stroke();}
+}
+draw();
+</script>
+</body>
+</html>
