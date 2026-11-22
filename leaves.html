@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>leaves — l-systems</title>
+<style>
+  :root { --bg:#0d1410; --ink:#dfe9df; --dim:#7f9683; --acc:#8fd18f; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.5 ui-monospace,Menlo,Consolas,monospace; }
+  header { padding:18px 20px 6px; }
+  h1 { margin:0 0 4px; font-size:18px; font-weight:600; letter-spacing:.02em; }
+  p.sub { margin:0; color:var(--dim); max-width:62ch; }
+  .wrap { display:flex; flex-wrap:wrap; gap:18px; padding:14px 20px 30px; }
+  canvas { background:#101a13; border:1px solid #24352a; border-radius:8px; touch-action:none; }
+  .panel { min-width:240px; flex:1 1 260px; }
+  .row { margin:0 0 12px; }
+  label { display:block; color:var(--dim); font-size:12px; margin-bottom:2px; }
+  input[type=range] { width:100%; accent-color:var(--acc); }
+  .val { color:var(--acc); }
+  .btns { display:flex; flex-wrap:wrap; gap:6px; margin:6px 0 14px; }
+  button { background:#16241b; color:var(--ink); border:1px solid #2c4434; border-radius:6px; padding:6px 10px; font:inherit; font-size:12px; cursor:pointer; }
+  button:hover { border-color:var(--acc); }
+  button.on { background:#1f3526; border-color:var(--acc); color:var(--acc); }
+  .note { color:var(--dim); font-size:12px; border-top:1px solid #24352a; padding-top:10px; }
+  code { color:var(--acc); }
+</style>
+</head>
+<body>
+<header>
+  <h1>leaves</h1>
+  <p class="sub">a leaf is a rewriting rule that forgot where it started. each tip becomes two more tips, forever, until you stop it. drag the sliders and watch the shape breathe.</p>
+</header>
+<div class="wrap">
+  <canvas id="c" width="620" height="620"></canvas>
+  <div class="panel">
+    <div class="btns" id="presets"></div>
+
+    <div class="row"><label>branch angle <span class="val" id="vAng"></span></label><input id="ang" type="range" min="5" max="70" value="25" step="1"></div>
+    <div class="row"><label>shrink ratio <span class="val" id="vRat"></span></label><input id="rat" type="range" min="55" max="85" value="72" step="1"></div>
+    <div class="row"><label>depth <span class="val" id="vDep"></span></label><input id="dep" type="range" min="1" max="9" value="7" step="1"></div>
+    <div class="row"><label>lean <span class="val" id="vLean"></span></label><input id="lean" type="range" min="-30" max="30" value="0" step="1"></div>
+
+    <div class="note">
+      the classic: <code>F → F[+F]F[-F]F</code>. draw forward, <code>[</code> save the pen, <code>]</code> put it back. that bracket stack <em>is</em> the branching.
+    </div>
+  </div>
+</div>
+<script>
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+const $ = id => document.getElementById(id);
+
+const PRESETS = [
+  { name:'fern',   ang:25, rat:72, dep:8, lean:0,  rule:'F→F[+F]F[-F]F' },
+  { name:'leaf',   ang:40, rat:70, dep:6, lean:0,  rule:'F→F[+F][-F]F' },
+  { name:'palm',   ang:18, rat:78, dep:7, lean:0,  rule:'F→FF+[+F-F-F]-[-F+F+F]' },
+  { name:'willow', ang:12, rat:80, dep:8, lean:8,  rule:'F→F[+F]F[-F][F]' },
+];
+
+let state = { ang:25, rat:72, dep:7, lean:0 };
+
+function lsystem(depth) {
+  // axiom F; F -> F[+F]F[-F]F  (the fern rule, fixed)
+  let s = 'F';
+  for (let i=0;i<depth;i++) {
+    let n = '';
+    for (const ch of s) n += ch === 'F' ? 'F[+F]F[-F]F' : ch;
+    s = n;
+  }
+  return s;
+}
+
+function draw() {
+  const w = c.width, h = c.height;
+  ctx.clearRect(0,0,w,h);
+  const str = lsystem(state.dep);
+  const ang = state.ang * Math.PI/180;
+  const rat = state.rat/100;
+  const lean = state.lean * Math.PI/180;
+
+  // find a segment length that roughly fits: count F's, estimate depth span
+  const len0 = 4.2 * Math.pow(rat, state.dep-1) * 2.2;
+  const stack = [];
+  let x = w/2, y = h - 24, a = -Math.PI/2 + lean;
+  let len = len0;
+
+  ctx.lineWidth = 1.15;
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = '#8fd18f';
+  ctx.beginPath();
+  for (const ch of str) {
+    if (ch === 'F') {
+      const nx = x + Math.cos(a)*len, ny = y + Math.sin(a)*len;
+      ctx.moveTo(x,y); ctx.lineTo(nx,ny);
+      x = nx; y = ny;
+    } else if (ch === '+') { a += ang; }
+    else if (ch === '-') { a -= ang; }
+    else if (ch === '[') { stack.push({x,y,a,len}); len *= rat; }
+    else if (ch === ']') { const s = stack.pop(); x=s.x; y=s.y; a=s.a; len=s.len; }
+  }
+  ctx.stroke();
+}
+
+function sync() {
+  $('vAng').textContent = state.ang + '°';
+  $('vRat').textContent = state.rat + '%';
+  $('vDep').textContent = state.dep;
+  $('vLean').textContent = (state.lean>0?'+':'') + state.lean + '°';
+  $('ang').value = state.ang; $('rat').value = state.rat; $('dep').value = state.dep; $('lean').value = state.lean;
+}
+
+function render(){ sync(); draw(); }
+
+$('ang').oninput = e => { state.ang = +e.target.value; render(); };
+$('rat').oninput = e => { state.rat = +e.target.value; render(); };
+$('dep').oninput = e => { state.dep = +e.target.value; render(); };
+$('lean').oninput = e => { state.lean = +e.target.value; render(); };
+
+const pbox = $('presets');
+PRESETS.forEach(p => {
+  const b = document.createElement('button');
+  b.textContent = p.name;
+  b.onclick = () => {
+    state = { ang:p.ang, rat:p.rat, dep:p.dep, lean:p.lean };
+    [...pbox.children].forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    render();
+  };
+  pbox.appendChild(b);
+});
+pbox.children[0].classList.add('on');
+
+// click canvas to scatter a fresh lean
+c.onclick = () => { state.lean = Math.round((Math.random()*2-1)*20); render(); };
+
+render();
+</script>
+</body>
+</html>
