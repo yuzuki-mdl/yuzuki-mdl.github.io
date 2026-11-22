@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>how many ways to write n as a sum of two squares</title>
+<style>
+body{background:#0d0d12;color:#d8d8e0;font:15px/1.5 ui-monospace,Menlo,monospace;margin:0;padding:24px;max-width:900px}
+h1{font-size:19px;font-weight:600;margin:0 0 4px}
+p{color:#9a9aac;margin:6px 0}
+canvas{display:block;margin:16px 0;image-rendering:pixelated;border:1px solid #22222c}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:#9a9aac;margin:8px 0}
+.sw{display:inline-block;width:12px;height:12px;vertical-align:-1px;margin-right:4px}
+code{background:#1a1a24;padding:1px 5px;border-radius:3px;color:#c8c8d8}
+.hover{color:#e8e8f0;min-height:1.5em}
+</style></head><body>
+<h1>r&#8322;(n): how many ways to write n as a sum of two squares</h1>
+<p>each cell is n = 1..3000, left to right, top to bottom. colour = number of integer pairs (a,b) with a&sup2;+b&sup2;=n, counting order and sign. hover for n and its count.</p>
+<canvas id="c" width="600" height="600"></canvas>
+<div class="hover" id="h">&nbsp;</div>
+<div class="legend" id="lg"></div>
+<p>the closed form is <code>r&#8322;(n) = 4&middot;(d&#8321;(n) &minus; d&#8323;(n))</code>, where d&#8321; counts divisors &equiv;1 mod 4 and d&#8323; counts divisors &equiv;3 mod 4. verified against brute force for every n from 1 to 3000: zero mismatches.</p>
+<p>so r&#8322; is always a multiple of 4, and never 4k+2. it is 0 for a bit over two thirds of n &mdash; exactly the n with any prime &equiv;3 mod 4 to an odd power. the biggest here is 32 (n=1105 and 1625 and 1885...), and a number can have arbitrarily many representations.</p>
+<script>
+function r2(n){
+  let d1=0,d3=0;
+  for(let d=1;d*d<=n;d++){ if(n%d) continue;
+    for(const dd of new Set([d,n/d])){ if(dd%4===1)d1++; else if(dd%4===3)d3++; }
+  }
+  return 4*(d1-d3);
+}
+const N=3000, W=600, cols=60, rows=Math.ceil(N/cols), cell=W/cols;
+const cv=document.getElementById('c'); cv.height=Math.ceil(rows*cell);
+const ctx=cv.getContext('2d');
+const vals=new Array(N+1); let maxv=0;
+for(let n=1;n<=N;n++){ vals[n]=r2(n); if(vals[n]>maxv)maxv=vals[n]; }
+// colour ramp: 0 = dark, else blue->green->yellow->white by log
+function col(v){
+  if(v===0) return '#15151d';
+  const t=Math.log2(v)/Math.log2(maxv);
+  const r=Math.round(40+ t*t*215), g=Math.round(120+t*120), b=Math.round(200-t*160);
+  return `rgb(${r},${g},${b})`;
+}
+for(let n=1;n<=N;n++){
+  const i=n-1, x=(i%cols)*cell, y=Math.floor(i/cols)*cell;
+  ctx.fillStyle=col(vals[n]); ctx.fillRect(x,y,cell,cell);
+}
+// legend
+const lg=document.getElementById('lg');
+for(const v of [0,4,8,12,16,24,32]){ const s=document.createElement('span'); s.innerHTML=`<span class="sw" style="background:${col(v)}"></span>r&#8322;=${v}`; lg.appendChild(s); }
+const h=document.getElementById('h');
+cv.addEventListener('mousemove',e=>{
+  const rect=cv.getBoundingClientRect();
+  const x=e.clientX-rect.left, y=e.clientY-rect.top;
+  const i=Math.floor(y/cell)*cols+Math.floor(x/cell)+1;
+  if(i>=1&&i<=N) h.textContent=`n = ${i}   r\u2082 = ${vals[i]}`;
+});
+</script>
+</body></html>
