@@ -1,0 +1,99 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>sayab rule</title>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;background:#0b0b0d;color:#ddd;font:14px/1.5 ui-monospace,Menlo,monospace;display:flex;flex-direction:column;align-items:center;gap:12px;padding:20px}
+h1{font-size:16px;font-weight:500;margin:0;color:#fff}
+p{max-width:640px;margin:0;color:#9a9aa2;font-size:13px}
+canvas{image-rendering:pixelated;border:1px solid #23232a;background:#000;max-width:100%}
+.ctl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+button{background:#1a1a20;color:#ddd;border:1px solid #2e2e38;padding:6px 12px;border-radius:6px;font:inherit;cursor:pointer}
+button:hover{background:#24242c}
+.sel{color:#7fd;font-variant-numeric:tabular-nums}
+a{color:#6cf;text-decoration:none}
+</style></head><body>
+<h1>sayab-rule &mdash; 4-cell glider gun</h1>
+<p>an isotropic binary 2D cellular automaton (G&oacute;mez Soto &amp; Wuensche 2017). 131 of 512 Moore neighbourhoods map to 1. it holds the smallest reported glider gun in a 2D CA: <b>4 live cells</b> at its minimal phase, period 20, firing two diagonal glider streams. the pattern below is the gun from the authors' own RLE.</p>
+<div class=ctl>
+<button id=run>pause</button>
+<button id=step>step</button>
+<button id=reset>reset</button>
+<button id=slower>-</button><button id=faster>+</button>
+<span class=sel id=info></span>
+</div>
+<canvas id=c></canvas>
+<p style="font-size:11px;color:#666">rule table from matematicas.reduaz.mx/~jmgomez &middot; see also <a href="https://arxiv.org/abs/1709.02655">arXiv:1709.02655</a></p>
+<script>
+const ONES=new Set(5,10,17,20,21,35,38,39,40,50,57,65,68,69,78,80,81,84,87,91,93,98,109,114,117,119,130,137,140,147,152,156,160,181,200,201,213,214,221,228,257,258,259,260,262,263,264,268,269,272,277,278,280,283,284,288,290,297,298,302,303,304,308,309,314,319,320,323,325,330,333,337,339,340,342,344,345,347,351,352,353,357,364,365,368,375,378,381,382,384,385,389,392,394,395,398,402,405,414,415,418,419,420,423,424,433,437,440,443,444,448,449,454,459,463,464,468,470,471,477,482,487,488,489,494,498,499,501,505,508,511.split(',').map(Number));
+const RLE=`#CXRLE Pos=-7,-38 Gen=190
+x = 52, y = 94, rule = sayab
+50b2o$50b2o41$obo$2bo$o48$48b2o$48b2o!`;
+
+function parseRLE(s){
+  const cells=[];let x=0,y=0;
+  const body=s.split(/\n/).filter(l=>!l.startsWith('#')).join('').trim();
+  let num='';
+  for(const ch of body){
+    if(ch>='0'&&ch<='9'){num+=ch;continue;}
+    const n=num?parseInt(num):1;num='';
+    if(ch==='b'){x+=n;}
+    else if(ch==='o'){for(let i=0;i<n;i++)cells.push([x+i,y]);x+=n;}
+    else if(ch==='$'){y+=n;x=0;}
+    else if(ch==='!'){break;}
+  }
+  return cells;
+}
+
+const W=160,H=140;
+let grid=new Uint8Array(W*H);
+let gen=0,running=true,delay=90;
+function clear(){grid.fill(0);gen=0;}
+function stamp(cells,ox,oy){for(const[x,y]of cells){const gx=x+ox,gy=y+oy;if(gx>=0&&gx<W&&gy>=0&&gy<H)grid[gy*W+gx]=1;}}
+
+function step(){
+  const n=new Uint8Array(W*H);
+  const dx=[0,1,1,1,0,-1,-1,-1],dy=[-1,-1,0,1,1,1,0,-1];
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const i=y*W+x;
+    let bits=0;
+    for(let k=0;k<8;k++){
+      const xx=x+dx[k],yy=y+dy[k];
+      if(xx>=0&&xx<W&&yy>=0&&yy<H&&grid[yy*W+xx])bits|=(1<<k);
+    }
+    n[i]=ONES.has(grid[i]*256+bits)?1:0;
+  }
+  grid=n;gen++;
+}
+
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const sc=Math.max(2,Math.floor(560/W));
+cv.width=W*sc;cv.height=H*sc;
+function draw(){
+  ctx.fillStyle='#000';ctx.fillRect(0,0,cv.width,cv.height);
+  ctx.fillStyle='#fff';
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(grid[y*W+x])ctx.fillRect(x*sc,y*sc,sc,sc);
+  document.getElementById('info').textContent='gen '+gen;
+}
+
+const gun=parseRLE(RLE);
+const gx=Math.floor(W/2)-24,gy=Math.floor(H/2)-46;
+function reset(){clear();stamp(gun,gx,gy);draw();}
+
+let acc=0,last=performance.now();
+function loop(t){
+  const dt=t-last;last=t;
+  if(running){acc+=dt;while(acc>=delay){step();acc-=delay;}}
+  draw();
+  requestAnimationFrame(loop);
+}
+
+document.getElementById('run').onclick=e=>{running=!running;e.target.textContent=running?'pause':'run';};
+document.getElementById('step').onclick=()=>{step();draw();};
+document.getElementById('reset').onclick=reset;
+document.getElementById('faster').onclick=()=>{delay=Math.max(16,delay-30);};
+document.getElementById('slower').onclick=()=>{delay=Math.min(600,delay+30);};
+
+reset();
+requestAnimationFrame(loop);
+</script>
+</body></html>
