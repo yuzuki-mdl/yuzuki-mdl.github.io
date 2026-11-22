@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>closed world — walk the genus-2 map</title>
+<style>
+  :root{--bg:#0b0f17;--fg:#e8eef7;--dim:#6b7787;--accent:#7fd1c9;--trail:#f0a868;--gold:#ffd166}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+    font:15px/1.5 ui-monospace,Menlo,Consolas,monospace}
+  #wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;min-height:100%}
+  h1{font-size:16px;font-weight:600;margin:0}
+  h1 span{color:var(--dim);font-weight:400}
+  svg{width:min(88vw,560px);height:auto;background:#060a10;border:1px solid #1c2735;border-radius:12px;touch-action:manipulation}
+  #hud{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;font-size:13px;color:var(--dim)}
+  #hud b{color:var(--fg);font-weight:600}
+  #msg{min-height:1.4em;font-size:13px;color:var(--accent);text-align:center;max-width:560px}
+  .hint{font-size:12px;color:var(--dim);max-width:560px;text-align:center}
+  button{background:#16202e;color:var(--fg);border:1px solid #26333f;border-radius:8px;
+    padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  .face{cursor:pointer}
+  .face polygon{fill:#101823;stroke:#243040;stroke-width:1.5;transition:fill .12s}
+  .face:hover polygon{fill:#16202e}
+  .face.here polygon{fill:#3a2a12;stroke:var(--trail);stroke-width:2.5}
+  .face.visited polygon{fill:#152420}
+  .face.reach:hover polygon{fill:#1c2a36;stroke:var(--accent)}
+  .tok{fill:var(--trail);stroke:#0b0f17;stroke-width:2}
+  .lbl{font-size:11px;fill:var(--dim);text-anchor:middle;pointer-events:none;user-select:none}
+  .lbl.here{fill:var(--gold)}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>closed world <span>— walk the genus-2 {5,4} map</span></h1>
+  <svg id="net" viewBox="0 0 900 900" role="img" aria-label="eight pentagons you can walk between">
+    <g id="faces"></g>
+    <circle id="tok" class="tok" r="9" cx="0" cy="0"></circle>
+  </svg>
+  <div id="hud">
+    <span>steps <b id="steps">0</b></span>
+    <span>faces visited <b id="seen">1</b>/8</span>
+    <span id="loop"></span>
+  </div>
+  <div id="msg">you're on face 0. click a touching pentagon to step across that edge.</div>
+  <button id="reset">start over</button>
+  <div class="hint">8 pentagons, 20 edges, every edge glued to exactly one other — so there's no outside.
+    walk far enough in any direction and you come back. the trail counts how many of the 8 faces you've stood on;
+    find a walk that returns to a face you've already been on (it's easy — that's the whole point).</div>
+</div>
+<script>
+"use strict";
+// face f, side s (0..4) is glued to faceAdj[f][s].to, side .toSide
+const faceAdj = [[{side:0,to:1,toSide:0},{side:1,to:1,toSide:1},{side:2,to:2,toSide:0},{side:3,to:1,toSide:3},{side:4,to:2,toSide:1}],[{side:0,to:0,toSide:0},{side:1,to:0,toSide:1},{side:2,to:3,toSide:0},{side:3,to:0,toSide:3},{side:4,to:3,toSide:1}],[{side:0,to:0,toSide:2},{side:1,to:0,toSide:4},{side:2,to:3,toSide:4},{side:3,to:4,toSide:0},{side:4,to:3,toSide:2}],[{side:0,to:1,toSide:2},{side:1,to:1,toSide:4},{side:2,to:2,toSide:4},{side:3,to:5,toSide:0},{side:4,to:2,toSide:2}],[{side:0,to:2,toSide:3},{side:1,to:5,toSide:4},{side:2,to:6,toSide:0},{side:3,to:6,toSide:2},{side:4,to:5,toSide:1}],[{side:0,to:3,toSide:3},{side:1,to:4,toSide:4},{side:2,to:7,toSide:0},{side:3,to:7,toSide:2},{side:4,to:4,toSide:1}],[{side:0,to:4,toSide:2},{side:1,to:7,toSide:1},{side:2,to:4,toSide:3},{side:3,to:7,toSide:3},{side:4,to:7,toSide:4}],[{side:0,to:5,toSide:2},{side:1,to:6,toSide:1},{side:2,to:5,toSide:3},{side:3,to:6,toSide:3},{side:4,to:6,toSide:4}]];
+const cx=450,cy=440,R=300;
+const pos=[];
+for(let i=0;i<8;i++){const a=-Math.PI/2+i*2*Math.PI/8;pos.push([cx+R*Math.cos(a),cy+R*Math.sin(a)]);}
+const svgNS='http://www.w3.org/2000/svg';
+const gFaces=document.getElementById('faces');
+const tok=document.getElementById('tok');
+const HUD={steps:document.getElementById('steps'),seen:document.getElementById('seen'),loop:document.getElementById('loop'),msg:document.getElementById('msg')};
+const rPent=95;
+function pentPts(cx0,cy0,r){const p=[];for(let k=0;k<5;k++){const a=-Math.PI/2+k*2*Math.PI/5;p.push([cx0+r*Math.cos(a),cy0+r*Math.sin(a)]);}return p;}
+const faceEls=[];
+for(let f=0;f<8;f++){
+  const [x,y]=pos[f];const pts=pentPts(x,y,rPent);
+  const g=document.createElementNS(svgNS,'g');g.setAttribute('class','face');g.dataset.f=f;
+  const poly=document.createElementNS(svgNS,'polygon');
+  poly.setAttribute('points',pts.map(p=>p.join(',')).join(' '));
+  g.appendChild(poly);
+  const lbl=document.createElementNS(svgNS,'text');lbl.setAttribute('class','lbl');
+  lbl.setAttribute('x',x);lbl.setAttribute('y',y+4);lbl.textContent=f;g.appendChild(lbl);
+  gFaces.appendChild(g);faceEls.push(g);
+}
+// adjacency: which faces are reachable from a given face (dedupe the 5 sides)
+const nbrs=[];
+for(let f=0;f<8;f++){const s=new Set();for(const a of faceAdj[f])s.add(a.to);nbrs.push([...s]);}
+let here=0,steps=0,visited,target=null;
+function reset(){
+  here=0;steps=0;visited=new Set([0]);target=null;
+  HUD.msg.textContent="you're on face 0. click a touching pentagon to step across that edge.";
+  render();
+}
+function render(){
+  for(let f=0;f<8;f++){
+    const g=faceEls[f];g.className.baseVal='face';
+    const lbl=g.querySelector('.lbl');lbl.className.baseVal='lbl';
+    if(f===here){g.className.baseVal='face here';lbl.className.baseVal='lbl here';}
+    else if(visited.has(f)){g.className.baseVal='face visited';}
+    else if(nbrs[here].includes(f)){g.className.baseVal='face reach';}
+  }
+  tok.setAttribute('cx',pos[here][0]);tok.setAttribute('cy',pos[here][1]);
+  HUD.steps.textContent=steps;HUD.seen.textContent=visited.size;
+  if(target===here&&steps>0){HUD.loop.textContent='↺ back where you started';HUD.loop.style.color='var(--gold)';}
+  else if(visited.size===8){HUD.loop.textContent='you\'ve stood on all 8';HUD.loop.style.color='var(--accent)';}
+  else {HUD.loop.textContent='';}
+}
+for(let f=0;f<8;f++){
+  faceEls[f].addEventListener('click',()=>{
+    if(!nbrs[here].includes(f)){return;}
+    if(f===here)return;
+    const wasVisited=visited.has(f);
+    here=f;steps++;
+    if(!target)target=here; // remember first landed face to detect a real loop back
+    visited.add(f);
+    if(wasVisited&&steps>1){HUD.msg.textContent='loop! you came back to face '+f+' — the world has no edge to fall off.';}
+    else {HUD.msg.textContent='stepped to face '+f+'.';}
+    render();
+  });
+}
+document.getElementById('reset').addEventListener('click',reset);
+window.__closedworld={faceAdj,nbrs:()=>nbrs};
+reset();
+</script>
+</body>
+</html>
