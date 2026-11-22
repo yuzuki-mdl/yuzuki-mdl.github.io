@@ -1,0 +1,80 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>curve stitching — envelopes of lines</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+body{margin:0;background:#0e0e12;color:#dcdce6;font:14px/1.5 ui-monospace,monospace;display:flex;flex-direction:column;align-items:center}
+h1{font-weight:500;font-size:16px;letter-spacing:.04em;margin:18px 0 4px}
+.sub{color:#787888;max-width:640px;text-align:center;font-size:12px;margin:0 14px 14px}
+canvas{background:#0a0a0f;border-radius:8px;cursor:crosshair;touch-action:none}
+.row{display:flex;gap:14px;align-items:center;margin:12px 14px 24px;flex-wrap:wrap;justify-content:center}
+button{background:#1c1c26;color:#dcdce6;border:1px solid #33334a;border-radius:6px;padding:5px 11px;font:inherit;cursor:pointer}
+button:hover{background:#26263a}
+button.on{background:#3a2a5a;border-color:#7a5ac0}
+label{color:#8888a0;font-size:12px;display:flex;align-items:center;gap:6px}
+input[type=range]{width:120px}
+</style></head><body>
+<h1>curve stitching</h1>
+<div class="sub">lines between evenly spaced points — the curve that appears is the <em>envelope</em> of the family, and it isn't any of the lines. drag the sliders to change the rule.</div>
+<canvas id="c" width="640" height="640"></canvas>
+<div class="row">
+  <button data-mode="circle" class="on">circle</button>
+  <button data-mode="polygon">polygon</button>
+  <button data-mode="nested">nested</button>
+  <label>n <input id="n" type="range" min="2" max="60" value="36"><span id="nv">36</span></label>
+  <label>step <input id="k" type="range" min="1" max="30" value="11"><span id="kv">11</span></label>
+</div>
+<script>
+const c=document.getElementById('c'),g=c.getContext('2d');
+const W=640,H=640,CX=W/2,CY=H/2,R=280;
+let mode='circle', N=36, K=11;
+
+function pt(i,n,rad){const a=-Math.PI/2+2*Math.PI*i/n;return [CX+rad*Math.cos(a),CY+rad*Math.sin(a)];}
+
+function draw(){
+  g.fillStyle='#0a0a0f';g.fillRect(0,0,W,H);
+  g.lineWidth=1.1;
+  if(mode==='circle'){
+    g.strokeStyle='rgba(120,200,255,0.55)';
+    for(let i=0;i<N;i++){
+      const a=pt(i,N,R), b=pt((i+K)%N,N,R);
+      g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();
+    }
+  } else if(mode==='polygon'){
+    // lines from point i on one edge to point i on next edge — the classic cardioid/parabola family
+    // use two perpendicular sides of a square: from (i) on bottom to (i) on left
+    const side=R*1.7, x0=CX-side/2, y0=CY+side/2;
+    g.strokeStyle='rgba(255,180,120,0.5)';
+    for(let i=0;i<=N;i++){
+      const t=i/N;
+      const a=[x0+t*side, y0]; // bottom edge
+      const b=[x0, y0-t*side];  // left edge
+      g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();
+    }
+  } else {
+    // nested: chords of circle but each generation scales in
+    g.strokeStyle='rgba(200,160,255,0.45)';
+    const gens=8;
+    for(let j=0;j<gens;j++){
+      const r=R*(1-j/gens*0.85);
+      for(let i=0;i<N;i++){
+        const a=pt(i,N,r), b=pt((i+K)%N,r);
+        g.beginPath();g.moveTo(a[0],a[1]);g.lineTo(b[0],b[1]);g.stroke();
+      }
+    }
+  }
+  // the points themselves
+  g.fillStyle='#5a5a7a';
+  for(let i=0;i<N;i++){const a=pt(i,N,R);g.beginPath();g.arc(a[0],a[1],1.6,0,7);g.fill();}
+}
+
+function upd(){draw();}
+
+document.querySelectorAll('[data-mode]').forEach(b=>{
+  b.onclick=()=>{mode=b.dataset.mode;document.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('on',x===b));upd();};
+});
+const nIn=document.getElementById('n'),kIn=document.getElementById('k');
+nIn.oninput=()=>{N=+nIn.value;document.getElementById('nv').textContent=N;kIn.max=Math.max(1,Math.floor(N/2));upd();};
+kIn.oninput=()=>{K=+kIn.value;document.getElementById('kv').textContent=K;upd();};
+upd();
+</script>
+</body></html>
