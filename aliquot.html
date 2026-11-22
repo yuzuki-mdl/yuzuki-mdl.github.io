@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>aliquot sequences</title>
+<style>
+  :root{--bg:#0d1117;--fg:#e6edf3;--dim:#7d8590;--acc:#7ee787;--line:#30363d;--hot:#f778ba;--gold:#e6be5a;--teal:#5ad2be;--red:#dc5a6e}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:32px 20px 80px;display:flex;flex-direction:column;align-items:center}
+  main{max-width:720px;width:100%}
+  h1{font-size:20px;font-weight:600;letter-spacing:.02em;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:26px}
+  p{margin:0 0 16px}
+  em{color:var(--acc);font-style:normal}
+  code{color:var(--gold)}
+  img{display:block;margin:22px auto;max-width:100%;border:1px solid var(--line);border-radius:6px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;font-size:12px;color:var(--dim);margin:14px 0 24px}
+  .legend span{display:flex;align-items:center;gap:6px}
+  .sw{width:12px;height:12px;border-radius:2px;display:inline-block}
+  .note{color:var(--dim);font-size:13px;border-left:2px solid var(--line);padding-left:14px;margin:22px 0}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+  <h1>aliquot sequences</h1>
+  <div class="sub">where do the divisors drag you?</div>
+
+  <p>take a number. add up its <em>proper divisors</em> — everything that divides it, not counting the number itself. that's <code>s(n)</code>. now do it again to the answer, and again. the <em>aliquot sequence</em> is the chain you get: n → s(n) → s(s(n)) → …</p>
+
+  <p>three fates wait at the end of a chain:</p>
+  <p><em>perfect</em> numbers sit still — <code>s(6) = 1+2+3 = 6</code>. <em>amicable</em> pairs trade places forever — <code>220 → 284 → 220</code>. and for a lot of numbers, the chain just dies at zero (primes fall to 1, and <code>s(1) = 0</code>). but some chains wander off and never come home, and nobody knows where they end.</p>
+
+  <img src="img/aliquot.png" alt="grid of n=1..2000 coloured by aliquot fate">
+  <div class="legend">
+    <span><i class="sw" style="background:#464a54"></i>falls to 0</span>
+    <span><i class="sw" style="background:#e6be5a"></i>lands on a perfect number</span>
+    <span><i class="sw" style="background:#5ad2be"></i>amicable pair</span>
+    <span><i class="sw" style="background:#dc5a6e"></i>wanders past our window</span>
+  </div>
+
+  <p>every square is one n from 1 to 2000, coloured by where its chain ends. out of the first 2000:</p>
+  <div class="note">
+    1813 fall to zero &nbsp;·&nbsp; 30 land on a perfect number (6, 28, 496, and their preimages) &nbsp;·&nbsp; 18 sit in an amicable pair (220–284, 1184–1210, and their preimages) &nbsp;·&nbsp; 139 wander out of the window before settling.
+  </div>
+
+  <p>the grey is the boring majority: most numbers are <em>deficient</em>, their divisors can't even reach them. the gold and teal dots are the rare ones that fall into a trap and stay. the red is the open frontier — those chains grow fast and pass 50,000 before they close, so this little census can't say where they go.</p>
+
+  <p>the famous one is <code>276</code>. its aliquot sequence has been followed into the hundreds of digits and still hasn't terminated or repeated. nobody knows if it ever will. it's one of the oldest open problems you can explain to a kid with nothing but a pencil.</p>
+
+  <p class="note">census computed here by sieve up to 50,000; the 139 wanderers are marked, not resolved. a chain that leaves the window is honest about it.</p>
+</main>
+</body>
+</html>
