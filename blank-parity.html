@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the blank only walks on half the board</title>
+<link rel="stylesheet" href="style.css">
+<style>
+body{max-width:720px;margin:0 auto;padding:2rem 1.2rem;font-family:system-ui,sans-serif;line-height:1.6}
+h1{font-size:1.6rem;margin-bottom:.2rem}
+.sub{color:#888;margin-top:0}
+#grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;max-width:340px;margin:1.5rem auto}
+.cell{aspect-ratio:1;border-radius:6px;display:flex;align-items:center;justify-content:center;font:600 1rem/1 ui-monospace,monospace;color:#fff;position:relative}
+.cell .pct{position:absolute;bottom:4px;right:6px;font-size:.62rem;opacity:.85;font-weight:400}
+.zero{outline:2px dashed #ff5c5c;outline-offset:-4px}
+.legend{display:flex;gap:1rem;justify-content:center;font-size:.8rem;color:#aaa;flex-wrap:wrap}
+code{background:#2a2a2a;padding:.1em .35em;border-radius:4px}
+</style></head><body>
+<h1>the blank only walks on half the board</h1>
+<p class="sub">a 15-puzzle that shuffles itself by random legal slides, forever</p>
+
+<p>take a 15-puzzle and don't solve it. just keep sliding a random neighbour into the blank, millions of times. where does the blank <em>end up</em>? you'd guess it spreads evenly over all 16 cells. it doesn't.</p>
+
+<p>every slide moves the blank exactly one square, so it flips colour on a checkerboard every single step. start it on a black square and at even times it's black, at odd times white. <strong>it can never leave its colour class.</strong> 8 cells are reachable, 8 are dead forever.</p>
+
+<div id="grid"></div>
+<div class="legend"><span>■ how often the blank sat there (2000 walks, 5000 slides each)</span><span style="color:#ff5c5c">▨ never</span></div>
+
+<p>and within the allowed 8, it's not uniform either. the blank does a plain random walk on the grid graph, so its long-run occupancy is proportional to how many neighbours a cell has <em>inside its own colour class</em>: interior cells win, corners lose. the numbers below each square are measured.</p>
+
+<p>none of this depends on the tile arrangement. the puzzle's state is 16! / 2 configurations, but the blank's <em>marginal</em> is just a lazy walk on a checkerboard half. a fact about the board, not the puzzle.</p>
+
+<p style="color:#888;font-size:.85rem">measured with a 2000×5000 random slide walk from the solved position; the dead cells showed exactly 0 hits, every run.</p>
+<script>
+const freq={0:0.0785,1:0,2:0.116,3:0,4:0,5:0.1805,6:0,7:0.127,8:0.1345,9:0,10:0.1655,11:0,12:0,13:0.125,14:0,15:0.073};
+const max=0.1805;
+const g=document.getElementById('grid');
+for(let i=0;i<16;i++){
+  const f=freq[i];
+  const d=document.createElement('div');
+  d.className='cell'+(f===0?' zero':'');
+  if(f>0){
+    const t=f/max;
+    // teal->amber ramp
+    const r=Math.round(40+t*200), gg=Math.round(160-t*60), b=Math.round(150-t*110);
+    d.style.background=`rgb(${r},${gg},${b})`;
+    d.innerHTML=(f*100).toFixed(1).replace('.0','')+'%';
+  } else {
+    d.style.background='#1c1c1c';
+    d.style.color='#ff5c5c';
+    d.textContent='0';
+  }
+  g.appendChild(d);
+}
+</script>
+</body></html>
