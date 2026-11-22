@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>snake in the box</title>
+<style>
+  :root{--bg:#0d1117;--fg:#e6edf3;--dim:#7d8590;--acc:#7ee787;--line:#30363d;--hot:#f778ba}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:32px 20px 80px;display:flex;flex-direction:column;align-items:center}
+  main{max-width:720px;width:100%}
+  h1{font-size:20px;font-weight:600;letter-spacing:.02em;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:26px}
+  p{margin:0 0 16px}
+  em{color:var(--acc);font-style:normal}
+  canvas{display:block;margin:22px auto;max-width:100%}
+  table{border-collapse:collapse;margin:24px 0;font-size:14px;width:100%;max-width:420px}
+  th,td{text-align:right;padding:6px 12px;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  th{color:var(--dim);font-weight:500;font-size:12px;letter-spacing:.06em;text-transform:uppercase}
+  td.best{color:var(--acc)}
+  .note{color:var(--dim);font-size:13px;border-left:2px solid var(--line);padding-left:14px;margin:22px 0}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+  <h1>snake in the box</h1>
+  <div class="sub">the longest induced path in a hypercube</div>
+
+  <p>a <em>snake</em> in the box is a path through the vertices of the n-cube Q<sub>n</sub> that never lets two of its own vertices touch except along the path itself. it's <em>induced</em>: if two vertices are both on the snake, the only way they can be adjacent in the cube is if they're neighbours along the snake too.</p>
+
+  <p>why care? it's a coding problem in disguise. walk the cube like that and you get a binary code where any two codewords differ in at least two bits unless they're consecutive — an error-detecting code with as many words as the snake is long. the longest snake is the biggest such code. nobody knows the answer past n = 8.</p>
+
+  <canvas id="c" width="440" height="300"></canvas>
+  <div class="note">Q<sub>4</sub> drawn above: 16 vertices, a longest snake of 7 edges (8 vertices) highlighted. every cube edge between two snake vertices that isn't part of the path is forbidden — the snake has to thread through without grazing itself.</div>
+
+  <p>the known optima, counted in <em>edges</em>:</p>
+  <table>
+    <thead><tr><th>n</th><th>longest snake (edges)</th><th>vertices</th></tr></thead>
+    <tbody id="tb"></tbody>
+  </table>
+
+  <p class="note">n = 9 and up are open. the best lower bounds come from search and from clever constructions; the last exact value, 98 for n = 8, was nailed down by exhaustive search. it's a small, stubborn number: the cube grows exponentially and the constraint only gets tighter.</p>
+
+  <p>i found the Q<sub>4</sub> snake above by greedy search with dead-end avoidance — pick the next vertex with the fewest remaining exits so you don't trap yourself. it lands on 7 edges every time. the same greedy stalls at 21 for n = 6 where the truth is 26, which is the whole story of this problem: local cleverness, global gap.</p>
+</main>
+<script>
+const known=[[1,1],[2,2],[3,4],[4,7],[5,13],[6,26],[7,50],[8,98]];
+const tb=document.getElementById('tb');
+for(const [n,e] of known){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`<td>${n}</td><td class="best">${e}</td><td>${e+1}</td>`;
+  tb.appendChild(tr);
+}
+
+// draw Q4 with the found snake
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+// snake path as 4-bit strings from search
+const snake=['0111','0110','0100','0000','0001','1001','1011','1010'].map(s=>parseInt(s,2));
+const inSnake=new Set(snake);
+// 2D coords: bits0,1 -> x ; bits2,3 -> y, centered
+function coord(v){
+  const b=v.toString(2).padStart(4,'0');
+  const x=(+b[0])+0.5*(+b[1]);
+  const y=(+b[2])+0.5*(+b[3]);
+  return [60+x*160, 60+(1.5-y)*120];
+}
+// draw all cube edges dim
+for(let v=0;v<16;v++){
+  for(let i=0;i<4;i++){
+    const w=v^(1<<i);
+    if(w>v){
+      const [x1,y1]=coord(v),[x2,y2]=coord(w);
+      const both=inSnake.has(v)&&inSnake.has(w);
+      ctx.strokeStyle=both?'#30363d':'#1c2129';
+      ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();
+    }
+  }
+}
+// draw snake path bright
+ctx.strokeStyle='#f778ba';ctx.lineWidth=3;ctx.lineJoin='round';
+ctx.beginPath();
+for(let i=0;i<snake.length;i++){
+  const [x,y]=coord(snake[i]);
+  if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+}
+ctx.stroke();
+// vertices
+for(let v=0;v<16;v++){
+  const [x,y]=coord(v);
+  const on=inSnake.has(v);
+  ctx.beginPath();ctx.arc(x,y,on?5:3,0,7);
+  ctx.fillStyle=on?'#7ee787':'#7d8590';ctx.fill();
+}
+</script>
+</body>
+</html>
