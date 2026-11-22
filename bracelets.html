@@ -1,0 +1,77 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>bracelets</title>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<style>
+body{background:#0e0e12;color:#ddd;font:15px/1.5 ui-monospace,monospace;margin:0;padding:2rem;max-width:900px}
+h1{font-weight:400;font-size:1.3rem;color:#fff}
+a{color:#8ab4ff}
+.ctl{display:flex;gap:1.2rem;flex-wrap:wrap;margin:1.2rem 0;align-items:center}
+input[type=range]{width:180px;vertical-align:middle}
+.val{color:#9f9}
+.grid{display:flex;flex-wrap:wrap;gap:14px;margin-top:1.5rem}
+.cell{background:#17171f;border-radius:8px;padding:6px}
+.note{color:#888;font-size:13px;max-width:640px}
+b{color:#fff;font-weight:500}
+</style></head><body>
+<h1>necklaces &amp; bracelets</h1>
+<p class=note>a <b>necklace</b> is a string of beads you can rotate, but not flip. a <b>bracelet</b> you can also flip over. how many distinct ones are there with <b>n</b> beads in <b>k</b> colors? burnside's lemma counts the orbits: average the fixed points over every symmetry.</p>
+<div class=ctl>
+  <label>beads n = <span class=val id=vn>6</span><br><input id=sn type=range min=1 max=12 value=6></label>
+  <label>colors k = <span class=val id=vk>2</span><br><input id=sk type=range min=2 max=4 value=2></label>
+</div>
+<div class=ctl>
+  <span>necklaces: <b id=cn>–</b></span>
+  <span>bracelets: <b id=cb>–</b></span>
+</div>
+<div class=grid id=grid></div>
+<script>
+const gcd=(a,b)=>b?gcd(b,a%b):a;
+function necklaces(n,k){let s=0;for(let i=0;i<n;i++)s+=Math.pow(k,gcd(n,i));return s/n;}
+function bracelets(n,k){let rot=0;for(let i=0;i<n;i++)rot+=Math.pow(k,gcd(n,i));let ref;if(n%2)ref=n*Math.pow(k,(n+1)/2);else ref=(n/2)*(Math.pow(k,n/2)+Math.pow(k,n/2+1));return (rot+ref)/(2*n);}
+
+// enumerate all k-colorings, keep canonical reps under rotation / dihedral
+function reps(n,k,allowFlip){
+  const seen=new Set(), out=[];
+  const total=Math.pow(k,n);
+  for(let x=0;x<total;x++){
+    let a=[];let t=x;for(let i=0;i<n;i++){a.push(t%k);t=Math.floor(t/k);}
+    if(seen.has(a.join('')))continue;
+    // mark all rotations (and reflections)
+    for(let r=0;r<n;r++){
+      const rot=a.slice(r).concat(a.slice(0,r));
+      seen.add(rot.join(''));
+      if(allowFlip)seen.add(rot.slice().reverse().join(''));
+    }
+    out.push(a);
+  }
+  return out;
+}
+
+function draw(a,k){
+  const n=a.length, R=26, cx=34, cy=34;
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('width',cx*2);svg.setAttribute('height',cy*2);
+  const cols=['#e06c75','#98c379','#61afef','#e5c07b'];
+  for(let i=0;i<n;i++){
+    const ang=-Math.PI/2 + 2*Math.PI*i/n;
+    const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',cx+R*Math.cos(ang));c.setAttribute('cy',cy+R*Math.sin(ang));
+    c.setAttribute('r',5);c.setAttribute('fill',cols[a[i]%4]);
+    svg.appendChild(c);
+  }
+  const cel=document.createElement('div');cel.className='cell';cel.appendChild(svg);
+  return cel;
+}
+
+function update(){
+  const n=+sn.value, k=+sk.value;
+  vn.textContent=n;vk.textContent=k;
+  cn.textContent=necklaces(n,k);cb.textContent=bracelets(n,k);
+  const grid=document.getElementById('grid');grid.innerHTML='';
+  // show bracelets (fewer), cap at 200 for sanity
+  const b=reps(n,k,true);
+  for(const a of b.slice(0,200))grid.appendChild(draw(a,k));
+}
+sn.oninput=update;sk.oninput=update;update();
+</script>
+</body></html>
