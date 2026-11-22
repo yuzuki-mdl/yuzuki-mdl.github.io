@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tower of hanoi</title>
+<style>
+  :root { --bg:#0e0f13; --fg:#e6e6ea; --dim:#8a8a95; --peg:#3a3d4a; --disk:#6ea8fe; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.5 ui-monospace,Menlo,monospace; }
+  header { padding:22px 20px 6px; }
+  h1 { font-size:18px; margin:0 0 4px; font-weight:600; }
+  p.sub { color:var(--dim); margin:0; font-size:13px; }
+  .wrap { padding:16px 20px 40px; max-width:760px; }
+  .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:14px 0; }
+  button { background:#1b1d26; color:var(--fg); border:1px solid #2a2d3a; border-radius:6px; padding:6px 12px; font:inherit; cursor:pointer; }
+  button:hover { border-color:#4a4f66; }
+  button:disabled { opacity:.4; cursor:default; }
+  label { color:var(--dim); font-size:13px; }
+  input[type=range] { vertical-align:middle; }
+  canvas { width:100%; background:#12131a; border:1px solid #23262f; border-radius:8px; display:block; }
+  .stat { color:var(--dim); font-size:13px; margin-top:8px; }
+  .stat b { color:var(--fg); }
+</style>
+</head>
+<body>
+<header>
+  <h1>tower of hanoi</h1>
+  <p class="sub">move a tower of disks to another peg. never bigger on smaller. minimum moves = 2<sup>n</sup> − 1.</p>
+</header>
+<div class="wrap">
+  <div class="controls">
+    <label>disks <b id="dn">5</b></label>
+    <input id="disks" type="range" min="1" max="8" value="5">
+    <button id="play">play</button>
+    <button id="step">step</button>
+    <button id="reset">reset</button>
+  </div>
+  <canvas id="cv" width="720" height="320"></canvas>
+  <div class="stat" id="stat"></div>
+</div>
+<script>
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const DN = document.getElementById('dn'), disksEl = document.getElementById('disks');
+const statEl = document.getElementById('stat');
+const W = cv.width, H = cv.height;
+const PEGX = [W*0.2, W*0.5, W*0.8];
+const BASE = H - 26, POLE_TOP = 30, POLE_BOT = BASE;
+let n = 5;
+let pegs = [[],[],[]];
+let moves = [];
+let idx = 0;
+let playing = false;
+let timer = null;
+
+function buildMoves(k, from, to, via, out) {
+  if (k === 0) return;
+  buildMoves(k-1, from, via, to, out);
+  out.push([from, to]);
+  buildMoves(k-1, via, to, from, out);
+}
+
+function reset() {
+  n = +disksEl.value; DN.textContent = n;
+  pegs = [[],[],[]];
+  for (let i = n; i >= 1; i--) pegs[0].push(i);
+  moves = []; buildMoves(n, 0, 2, 1, moves);
+  idx = 0; playing = false; clearInterval(timer);
+  document.getElementById('play').textContent = 'play';
+  draw();
+}
+
+function doMove() {
+  if (idx >= moves.length) { playing = false; clearInterval(timer); document.getElementById('play').textContent='play'; return; }
+  const [a,b] = moves[idx++];
+  pegs[b].push(pegs[a].pop());
+  draw();
+}
+
+function draw() {
+  ctx.clearRect(0,0,W,H);
+  // base line
+  ctx.strokeStyle = '#3a3d4a'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(30, BASE+8); ctx.lineTo(W-30, BASE+8); ctx.stroke();
+  const maxD = n;
+  const diskH = Math.min(20, (BASE - POLE_TOP) / (n+1));
+  const maxW = (PEGX[1]-PEGX[0]) * 0.9;
+  for (let p = 0; p < 3; p++) {
+    // pole
+    ctx.strokeStyle = '#2a2d3a'; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.moveTo(PEGX[p], POLE_BOT); ctx.lineTo(PEGX[p], POLE_TOP); ctx.stroke();
+    // disks
+    for (let i = 0; i < pegs[p].length; i++) {
+      const d = pegs[p][i];
+      const w = maxW * (d / maxD);
+      const y = BASE - i * diskH;
+      const hue = 210 + d * 18;
+      ctx.fillStyle = `hsl(${hue % 360} 70% 62%)`;
+      ctx.beginPath();
+      const r = Math.min(diskH/2, w/2);
+      const x0 = PEGX[p]-w/2, y0 = y-diskH+2;
+      roundRect(ctx, x0, y0, w, diskH-3, Math.min(6, r));
+      ctx.fill();
+    }
+  }
+  statEl.innerHTML = `moves: <b>${idx}</b> / ${moves.length} &nbsp;·&nbsp; disks: <b>${n}</b> &nbsp;·&nbsp; 2<sup>${n}</sup>−1 = <b>${(2**n)-1}</b>`;
+}
+
+function roundRect(c,x,y,w,h,r){r=Math.min(r,h/2,w/2);c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath();}
+
+let speed = 320;
+document.getElementById('play').onclick = e => {
+  if (playing) { playing=false; clearInterval(timer); e.target.textContent='play'; return; }
+  if (idx >= moves.length) reset();
+  playing = true; e.target.textContent='pause';
+  timer = setInterval(doMove, speed);
+};
+document.getElementById('step').onclick = () => { if (idx < moves.length) doMove(); };
+document.getElementById('reset').onclick = reset;
+disksEl.oninput = reset;
+reset();
+</script>
+</body>
+</html>
