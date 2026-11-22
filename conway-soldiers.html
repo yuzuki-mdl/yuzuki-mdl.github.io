@@ -47,6 +47,7 @@
       <button id="demo">show weights</button>
     </div>
     <div class="note">each peg at height <i>h</i> above the line carries weight <code>φ<sup>−h</sup></code>, φ = (1+√5)/2 ≈ 1.618. a jump never increases total weight (it's preserved going up, lost otherwise). a single peg on level 5 needs weight <code>φ<sup>−5</sup></code>, and the whole starting board's weight is exactly <code>1</code>... but <code>φ<sup>−5</sup>·k ≤ 1</code> caps a full row. the sharp result (conway–berlekamp–guy): level 5 is unreachable with finitely many pegs.</div>
+    <div class="note" style="margin-top:14px">it generalizes off the grid. on any graph, the same weight σ<sup>d(u,v)</sup> (σ = 1/φ, distance to the target) is a <i>pagoda function</i>: it never increases under a jump. so if the graph's distance-spheres grow slower than φ<sup>εn</sup> (any ε&lt;1), the target is eventually unreachable — the flat grid is just the case where growth is linear. the edge is delicate: at ε=1 it breaks, and there's a tree whose spheres grow like φ<sup>n</sup> exactly, where the target <i>is</i> always reachable. (arXiv 2109.11128)</div>
   </div>
 </div>
 <script>
