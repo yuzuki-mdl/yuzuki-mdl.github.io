@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>calkin–wilf tree</title>
+<style>
+  :root{--bg:#0e1014;--fg:#e8e6e3;--dim:#7d8590;--acc:#7ab8ff;--acc2:#ffb86b;--line:#2a2f38}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+  header{padding:18px 22px 6px}
+  h1{margin:0;font-size:18px;font-weight:600;letter-spacing:.02em}
+  p.sub{margin:6px 0 0;color:var(--dim);max-width:70ch}
+  .wrap{padding:10px 22px 40px}
+  .ctrl{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin:14px 0 8px;color:var(--dim)}
+  input[type=range]{width:180px;accent-color:var(--acc)}
+  canvas{display:block;width:100%;max-width:1100px;background:#0b0d11;border:1px solid var(--line);border-radius:8px}
+  .legend{color:var(--dim);margin-top:10px;font-size:13px}
+  .legend b{color:var(--acc2);font-weight:600}
+  .seq{margin-top:18px;color:var(--dim);font-size:12px;line-height:1.9;max-width:1100px}
+  .seq b{color:var(--fg);font-weight:600}
+  .seq .num{color:var(--acc)}
+</style>
+</head>
+<body>
+<header>
+  <h1>calkin–wilf tree</h1>
+  <p class="sub">every positive rational appears exactly once. root 1/1; a node a/b has children a/(a+b) and (a+b)/b. read row by row, the numerators (and the denominators) are the stern diatomic sequence.</p>
+</header>
+<div class="wrap">
+  <div class="ctrl">
+    <label>depth <input id="d" type="range" min="0" max="6" value="4"></label>
+    <span id="dn">4</span>
+    <label><input id="seq" type="checkbox"> show stern diatomic s(n)</label>
+  </div>
+  <canvas id="c" width="1100" height="520"></canvas>
+  <div class="legend">node <b>a/b</b> &nbsp;·&nbsp; left child <b>a/(a+b)</b> &nbsp;·&nbsp; right child <b>(a+b)/b</b></div>
+  <div class="seq" id="seqout"></div>
+</div>
+<script>
+const cv=document.getElementById('c'), ctx=cv.getContext('2d');
+const dEl=document.getElementById('d'), dnEl=document.getElementById('dn');
+const seqChk=document.getElementById('seq'), seqOut=document.getElementById('seqout');
+
+// stern diatomic sequence s(0)=0,s(1)=1; s(2n)=s(n), s(2n+1)=s(n)+s(n+1)
+const N=1<<12; const s=new Array(N).fill(0); s[1]=1;
+for(let n=2;n<N;n++){ if(n%2===0) s[n]=s[n/2]; else s[n]=s[(n-1)/2]+s[(n+1)/2]; }
+
+// node index n (1-based, heap-style) has value s(n)/s(n+1)
+function val(n){ return [s[n], s[n+1]]; }
+
+function draw(){
+  const D=+dEl.value; dnEl.textContent=D;
+  const W=cv.width, H=cv.height;
+  ctx.clearRect(0,0,W,H);
+  const rows=D+1;
+  const padTop=34, padBot=26;
+  const rowH=(H-padTop-padBot)/Math.max(1,D);
+  const showSeq=seqChk.checked;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  // draw edges then nodes
+  for(let d=0; d<=D; d++){
+    const cnt=1<<d;
+    const y=padTop + d*rowH;
+    for(let k=0;k<cnt;k++){
+      const n=cnt+k; // heap index
+      const x=W*(k+0.5)/cnt;
+      // edges to children
+      if(d<D){
+        const cy=padTop+(d+1)*rowH;
+        const c2=cnt*2;
+        const lx=W*(2*k+0.5)/c2, rx=W*(2*k+1.5)/c2;
+        ctx.strokeStyle='#2a2f38'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(lx,cy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(rx,cy); ctx.stroke();
+      }
+    }
+  }
+  for(let d=0; d<=D; d++){
+    const cnt=1<<d;
+    const y=padTop + d*rowH;
+    const r=Math.max(9, Math.min(20, W/cnt/2.6));
+    for(let k=0;k<cnt;k++){
+      const n=cnt+k;
+      const x=W*(k+0.5)/cnt;
+      const [a,b]=val(n);
+      // node dot
+      ctx.beginPath(); ctx.arc(x,y,r,0,7);
+      ctx.fillStyle='#141a22'; ctx.fill();
+      ctx.strokeStyle='#3a4656'; ctx.lineWidth=1.2; ctx.stroke();
+      // label
+      const fs=Math.max(8, Math.min(15, W/cnt/3.2));
+      ctx.font='600 '+fs+'px ui-monospace,Menlo,monospace';
+      ctx.fillStyle='#e8e6e3';
+      if(fs>=9){
+        ctx.fillText(a,x,y-fs*0.15);
+        // fraction bar
+        const w=Math.max(8, ctx.measureText(a).width+4);
+        ctx.strokeStyle='#7ab8ff'; ctx.lineWidth=1;
+        ctx.beginPath(); ctx.moveTo(x-w/2,y+fs*0.55); ctx.lineTo(x+w/2,y+fs*0.55); ctx.stroke();
+        ctx.fillText(b,x,y+fs*1.25);
+      }
+    }
+  }
+  // sequence readout
+  if(showSeq){
+    let html='<b>breadth-first (row by row):</b><br>';
+    const parts=[];
+    for(let d=0; d<=D; d++){
+      const cnt=1<<d;
+      for(let k=0;k<cnt;k++){
+        const n=cnt+k; const [a,b]=val(n);
+        parts.push('<span class="num">'+a+'/'+b+'</span>');
+      }
+    }
+    html+=parts.join(' · ');
+    html+='<br><br><b>stern diatomic s(n)</b>, n=0..'+(2<<D)+':<br>';
+    const sp=[];
+    for(let i=0;i<(2<<D) && i<N;i++) sp.push(s[i]);
+    html+=sp.join(' ');
+    html+='<br><br>node n has value <b>s(n)/s(n+1)</b>.</div>';
+    seqOut.innerHTML=html;
+  } else {
+    seqOut.innerHTML='';
+  }
+}
+
+dEl.addEventListener('input',draw);
+seqChk.addEventListener('change',draw);
+draw();
+</script>
+</body>
+</html>
