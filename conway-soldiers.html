@@ -46,7 +46,7 @@
       <button id="undo">undo</button>
       <button id="demo">show weights</button>
     </div>
-    <div class="note">each peg at height <i>h</i> above the line carries weight <code>φ<sup>−h</sup></code>, φ = (1+√5)/2 ≈ 1.618. a jump never increases total weight (it's preserved going up, lost otherwise). a single peg on level 5 needs weight <code>φ<sup>−5</sup></code>, and the whole starting board's weight is exactly <code>1</code>... but <code>φ<sup>−5</sup>·k ≤ 1</code> caps a full row. the sharp result (conway–berlekamp–guy): level 5 is unreachable with finitely many pegs.</div>
+    <div class="note">weighting by height alone doesn't work — a row is infinitely many pegs, so every row below the line weighs infinity and "never increases" bounds nothing. conway's actual pagoda weighs each peg by <code>σ<sup>d</sup></code>, σ = 1/φ ≈ 0.618, where <i>d</i> is the taxicab distance to the one target cell (level 5, centre). a jump toward the target trades two pegs at d+1, d+2 for one at d, and σ+σ² = 1, so weight is preserved inward and lost otherwise — it never increases. the whole half-plane sums to exactly <code>1</code>, a single peg on level 5 needs <code>σ<sup>5</sup></code>, and finitely many pegs can't reach it (conway–berlekamp–guy).</div>
     <div class="note" style="margin-top:14px">it generalizes off the grid. on any graph, the same weight σ<sup>d(u,v)</sup> (σ = 1/φ, distance to the target) is a <i>pagoda function</i>: it never increases under a jump. so if the graph's distance-spheres grow slower than φ<sup>εn</sup> (any ε&lt;1), the target is eventually unreachable — the flat grid is just the case where growth is linear. the edge is delicate: at ε=1 it breaks, and there's a tree whose spheres grow like φ<sup>n</sup> exactly, where the target <i>is</i> always reachable. (arXiv 2109.11128)</div>
   </div>
 </div>
@@ -69,17 +69,19 @@ function reset(){
 }
 function height(r){return LINE_ROW-r;} // level 1 = just above the line
 
-function weightOf(r){
-  // peg at row r: height above line = LINE_ROW - r. on/below line weight 1.
-  const h=LINE_ROW-r;
-  if(h<=0)return 1;
-  return Math.pow(W,h);
+const TARGET={r:LINE_ROW-5,c:(N-1)/2>>0};
+function weightOf(r,c){
+  // conway's pagoda: weight σ^d, σ=1/φ, d = taxicab distance to the target cell.
+  // a jump toward the target turns two pegs at d+1,d+2 into one at d, and σ+σ²=1,
+  // so weight is preserved going in and lost otherwise. never increases.
+  const d=Math.abs(r-TARGET.r)+Math.abs(c-TARGET.c);
+  return Math.pow(W,d);
 }
 
 function update(){
   let pegs=0,pot=0,potAll=0,maxLvl=0;
   for(let r=0;r<N;r++)for(let c=0;c<N;c++){
-    if(board[idx(r,c)]){pegs++;const w=weightOf(r);potAll+=w;if(r<LINE_ROW)pot+=w;if(r<LINE_ROW)maxLvl=Math.max(maxLvl,LINE_ROW-r);}
+    if(board[idx(r,c)]){pegs++;const w=weightOf(r,c);potAll+=w;if(r<LINE_ROW)pot+=w;if(r<LINE_ROW)maxLvl=Math.max(maxLvl,LINE_ROW-r);}
   }
   document.getElementById('pegs').textContent=pegs;
   document.getElementById('pot').textContent=pot.toFixed(4);
@@ -100,9 +102,9 @@ function draw(){
     if(r>=LINE_ROW){ctx.fillStyle='#171a21';ctx.fillRect(c*CS,r*CS,CS,CS);}
     if(board[idx(r,c)]){
       let col='#d8d4c8';
-      if(showWeights){const w=weightOf(r);const t=Math.min(1,w);col=`hsl(${45},${70*t+10}%,${30+45*t}%)`;}
+      if(showWeights){const w=weightOf(r,c);const t=Math.min(1,w);col=`hsl(${45},${70*t+10}%,${30+45*t}%)`;}
       ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fillStyle=col;ctx.fill();
-      if(showWeights){ctx.fillStyle='#000a';ctx.font='9px monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(weightOf(r).toFixed(2),x,y+0.5);}
+      if(showWeights){ctx.fillStyle='#000a';ctx.font='9px monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(weightOf(r,c).toFixed(2),x,y+0.5);}
     }else{
       ctx.beginPath();ctx.arc(x,y,R*0.5,0,7);ctx.fillStyle='#2a2d34';ctx.fill();
     }
