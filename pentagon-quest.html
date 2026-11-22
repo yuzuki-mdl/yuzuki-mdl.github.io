@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pentagon quest — collect the eight seeds</title>
+<style>
+  :root{--bg:#0b0f17;--fg:#e8eef7;--dim:#6b7787;--accent:#7fd1c9;--trail:#f0a868;--gold:#ffd166;--seed:#9bf6a0}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+    font:15px/1.5 ui-monospace,Menlo,Consolas,monospace}
+  #wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:16px;min-height:100%}
+  h1{font-size:16px;font-weight:600;margin:0}
+  h1 span{color:var(--dim);font-weight:400}
+  svg{width:min(88vw,560px);height:auto;background:#060a10;border:1px solid #1c2735;border-radius:12px;touch-action:manipulation}
+  #hud{display:flex;gap:18px;flex-wrap:wrap;justify-content:center;font-size:13px;color:var(--dim)}
+  #hud b{color:var(--fg);font-weight:600}
+  #msg{min-height:1.4em;font-size:13px;color:var(--accent);text-align:center;max-width:560px}
+  .hint{font-size:12px;color:var(--dim);max-width:560px;text-align:center}
+  button{background:#16202e;color:var(--fg);border:1px solid #26333f;border-radius:8px;
+    padding:6px 12px;font:inherit;font-size:13px;cursor:pointer}
+  button:hover{border-color:var(--accent)}
+  .face{cursor:pointer}
+  .face polygon{fill:#101823;stroke:#243040;stroke-width:1.5;transition:fill .12s}
+  .face.reach:hover polygon{fill:#1c2a36;stroke:var(--accent)}
+  .face.here polygon{fill:#3a2a12;stroke:var(--trail);stroke-width:2.5}
+  .face.visited polygon{fill:#152420}
+  .face.dead{cursor:default}
+  .tok{fill:var(--trail);stroke:#0b0f17;stroke-width:2}
+  .lbl{font-size:11px;fill:var(--dim);text-anchor:middle;pointer-events:none;user-select:none}
+  .lbl.here{fill:var(--gold)}
+  .seed{fill:var(--seed);pointer-events:none}
+  .seed.hidden{display:none}
+  .seed.glow{filter:drop-shadow(0 0 5px var(--seed))}
+  #win{font-size:15px;color:var(--gold);font-weight:600;min-height:1.4em;text-align:center}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <h1>pentagon quest <span>— collect all eight seeds</span></h1>
+  <svg id="net" viewBox="0 0 900 900" role="img" aria-label="eight pentagons you can walk between">
+    <g id="faces"></g>
+    <g id="seeds"></g>
+    <circle id="tok" class="tok" r="9" cx="0" cy="0"></circle>
+  </svg>
+  <div id="hud">
+    <span>steps <b id="steps">0</b></span>
+    <span>seeds <b id="got">0</b>/8</span>
+    <span>par <b id="par">?</b></span>
+  </div>
+  <div id="msg">you're on a pentagon. click a touching pentagon to step across that edge. a seed glows on every face you can reach in one step.</div>
+  <div id="win"></div>
+  <button id="reset">new game</button>
+  <div class="hint">the world is closed: 8 pentagons, 20 edges, every edge glued to exactly one other. no outside, no dead ends.
+    step onto a face to pick up its seed. you win when all 8 are yours — the challenge is doing it in as few steps as possible.
+    par is the shortest walk that covers every face.</div>
+</div>
+<script>
+"use strict";
+const faceAdj = [[{side:0,to:1,toSide:0},{side:1,to:1,toSide:1},{side:2,to:2,toSide:0},{side:3,to:1,toSide:3},{side:4,to:2,toSide:1}],[{side:0,to:0,toSide:0},{side:1,to:0,toSide:1},{side:2,to:3,toSide:0},{side:3,to:0,toSide:3},{side:4,to:3,toSide:1}],[{side:0,to:0,toSide:2},{side:1,to:0,toSide:4},{side:2,to:3,toSide:4},{side:3,to:4,toSide:0},{side:4,to:3,toSide:2}],[{side:0,to:1,toSide:2},{side:1,to:1,toSide:4},{side:2,to:2,toSide:4},{side:3,to:5,toSide:0},{side:4,to:2,toSide:2}],[{side:0,to:2,toSide:3},{side:1,to:5,toSide:4},{side:2,to:6,toSide:0},{side:3,to:6,toSide:2},{side:4,to:5,toSide:1}],[{side:0,to:3,toSide:3},{side:1,to:4,toSide:4},{side:2,to:7,toSide:0},{side:3,to:7,toSide:2},{side:4,to:4,toSide:1}],[{side:0,to:4,toSide:2},{side:1,to:7,toSide:1},{side:2,to:4,toSide:3},{side:3,to:7,toSide:3},{side:4,to:7,toSide:4}],[{side:0,to:5,toSide:2},{side:1,to:6,toSide:1},{side:2,to:5,toSide:3},{side:3,to:6,toSide:3},{side:4,to:6,toSide:4}]];
+const cx=450,cy=440,R=300;
+const pos=[];
+for(let i=0;i<8;i++){const a=-Math.PI/2+i*2*Math.PI/8;pos.push([cx+R*Math.cos(a),cy+R*Math.sin(a)]);}
+const svgNS='http://www.w3.org/2000/svg';
+const gFaces=document.getElementById('faces');
+const gSeeds=document.getElementById('seeds');
+const tok=document.getElementById('tok');
+const HUD={steps:document.getElementById('steps'),got:document.getElementById('got'),par:document.getElementById('par'),msg:document.getElementById('msg'),win:document.getElementById('win')};
+const rPent=95;
+function pentPts(cx0,cy0,r){const p=[];for(let k=0;k<5;k++){const a=-Math.PI/2+k*2*Math.PI/5;p.push([cx0+r*Math.cos(a),cy0+r*Math.sin(a)]);}return p;}
+const faceEls=[];
+for(let f=0;f<8;f++){
+  const [x,y]=pos[f];const pts=pentPts(x,y,rPent);
+  const g=document.createElementNS(svgNS,'g');g.setAttribute('class','face');g.dataset.f=f;
+  const poly=document.createElementNS(svgNS,'polygon');
+  poly.setAttribute('points',pts.map(p=>p.join(',')).join(' '));
+  g.appendChild(poly);
+  const lbl=document.createElementNS(svgNS,'text');lbl.setAttribute('class','lbl');
+  lbl.setAttribute('x',x);lbl.setAttribute('y',y+4);lbl.textContent='';g.appendChild(lbl);
+  gFaces.appendChild(g);faceEls.push(g);
+}
+const seedEls=[];
+for(let f=0;f<8;f++){
+  const [x,y]=pos[f];
+  const c=document.createElementNS(svgNS,'circle');c.setAttribute('class','seed hidden');c.setAttribute('r','8');
+  c.setAttribute('cx',x);c.setAttribute('cy',y-30);
+  gSeeds.appendChild(c);seedEls.push(c);
+}
+const nbrs=[];
+for(let f=0;f<8;f++){const s=new Set();for(const a of faceAdj[f])s.add(a.to);nbrs.push([...s]);}
+// par: shortest walk from each start? we fix start=0. BFS over (face,mask).
+function computePar(start){
+  const full=255;
+  const seen=new Set();
+  let frontier=[[start,1<<start,0]];
+  seen.add(start*256+(1<<start));
+  while(frontier.length){
+    const next=[];
+    for(const [f,mask,d] of frontier){
+      if(mask===full)return d;
+      for(const n of nbrs[f]){
+        const nm=mask|(1<<n);
+        const key=n*256+nm;
+        if(seen.has(key))continue;
+        seen.add(key);next.push([n,nm,d+1]);
+      }
+    }
+    frontier=next;
+  }
+  return -1;
+}
+const par=computePar(0);
+let here=0,steps=0,got=0,visited,alive;
+function reset(){
+  here=0;steps=0;got=1;visited=new Set([0]);alive=true;
+  HUD.win.textContent='';
+  HUD.par.textContent=par;
+  for(const s of seedEls)s.classList.add('hidden');
+  render();
+  HUD.msg.textContent="you're on face 0. its seed is yours. step to a neighbour.";
+}
+function render(){
+  for(let f=0;f<8;f++){
+    const g=faceEls[f];g.className.baseVal='face';
+    const lbl=g.querySelector('.lbl');lbl.className.baseVal='lbl';
+    if(f===here){g.classList.add('here');lbl.classList.add('here');lbl.textContent='you';}
+    else if(visited.has(f)){g.classList.add('visited');lbl.textContent=String(f);}
+    else lbl.textContent=String(f);
+    if(!alive&&f!==here)g.classList.add('dead');
+  }
+  for(let f=0;f<8;f++){
+    const s=seedEls[f];
+    s.classList.remove('glow');
+    if(visited.has(f)){s.classList.add('hidden');}
+    else if(nbrs[here].includes(f)){s.classList.remove('hidden');s.classList.add('glow');}
+    else s.classList.add('hidden');
+  }
+  const [x,y]=pos[here];
+  tok.setAttribute('cx',x);tok.setAttribute('cy',y);
+  HUD.steps.textContent=steps;HUD.got.textContent=got;
+}
+for(let f=0;f<8;f++){
+  faceEls[f].addEventListener('click',()=>{
+    if(!alive)return;
+    if(!nbrs[here].includes(f))return;
+    const first=!visited.has(f);
+    here=f;steps++;
+    if(first){visited.add(f);got++;}
+    render();
+    if(got>=8){
+      alive=false;
+      render();
+      HUD.win.textContent='all eight seeds — '+steps+' steps. par is '+par+(steps<=par?' — perfect!':(steps-par)+' over par');
+      HUD.msg.textContent='you closed the loop and took everything. new game?';
+    } else if(nbrs[here].every(n=>visited.has(n))&&got<8){
+      HUD.msg.textContent="hm, every face next to you is already picked. you can still walk back over them.";
+    }
+  });
+}
+document.getElementById('reset').addEventListener('click',reset);
+reset();
+</script>
+</body>
+</html>
