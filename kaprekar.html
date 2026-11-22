@@ -1,0 +1,38 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>kaprekar 6174</title>
+<style>
+body{background:#0d0d10;color:#d8d8e0;font:14px/1.5 ui-monospace,monospace;margin:0;padding:24px;max-width:900px}
+h1{font-size:20px;font-weight:600;color:#fff}
+p{color:#9a9aa8;max-width:640px}
+canvas{image-rendering:pixelated;display:block;margin:16px 0;border:1px solid #222}
+.legend span{display:inline-block;width:12px;height:12px;margin-right:4px;vertical-align:middle}
+.legend{font-size:12px;color:#9a9aa8;line-height:2}
+code{color:#7fd}
+</style></head><body>
+<h1>kaprekar's 6174</h1>
+<p>take any 4-digit number. sort its digits descending, subtract ascending. repeat. you hit <code>6174</code> and stay there. below: every number 1–9999, colored by how many steps it takes.
+</p>
+<canvas id=c width=100 height=100></canvas>
+<div class=legend id=leg></div>
+<script>
+const C=document.getElementById('c'),X=C.getContext('2d');
+C.width=100;C.height=100;
+const cols=['#222','#3b2f5e','#4a3a7a','#5a4796','#6b54b2','#7d63ce','#9073e6','#a385ff'];
+function kap(n){let s=String(n).padStart(4,'0');let d=s.split('').sort();let a=+d.join(''),b=+d.reverse().join('');return a-b}
+let data={};let maxs=0;
+for(let n=1;n<10000;n++){
+  let k=n,st=0;
+  while(k!==6174&&st<20){k=kap(k);st++}
+  data[n]=st;if(st>maxs&&st<20)maxs=st;
+}
+for(let n=1;n<10000;n++){
+  let x=(n-1)%100,y=Math.floor((n-1)/100);
+  let st=data[n];
+  X.fillStyle=(st>=20)?'#e05' : cols[Math.min(st,7)];
+  X.fillRect(x,y,1,1);
+}
+const leg=document.getElementById('leg');
+for(let i=0;i<=maxs;i++){let s=document.createElement('span');s.style.background=cols[Math.min(i,7)];leg.appendChild(s);leg.appendChild(document.createTextNode(i+' steps  '))}
+let s=document.createElement('span');s.style.background='#e05';leg.appendChild(s);leg.appendChild(document.createTextNode('never (repdigits)'));
+</script>
+</body></html>
