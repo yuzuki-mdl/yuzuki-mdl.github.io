@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>conway's soldiers — the golden ratio says no</title>
+<style>
+  :root{--bg:#0e1014;--ink:#e8e6e0;--dim:#8a8a92;--gold:#e0b64a;--peg:#d8d4c8;--hole:#2a2d34;--acc:#5fd0c0}
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+  body{display:flex;flex-direction:column;align-items:center;padding:22px 14px 60px;min-height:100vh}
+  h1{font-size:18px;font-weight:600;letter-spacing:.02em;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:12.5px;margin-bottom:18px;text-align:center;max-width:560px}
+  #wrap{display:flex;gap:26px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+  canvas{background:#12141a;border-radius:10px;box-shadow:0 8px 30px #0006;touch-action:none;cursor:pointer}
+  .panel{min-width:210px;font-size:13px}
+  .row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #ffffff0d}
+  .row b{font-weight:600}
+  .big{font-size:26px;color:var(--gold);font-weight:600;line-height:1.1}
+  .lbl{color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+  button{background:#1b1e26;color:var(--ink);border:1px solid #ffffff1f;border-radius:7px;padding:7px 12px;font:inherit;font-size:12.5px;cursor:pointer;margin:4px 4px 0 0}
+  button:hover{background:#232733;border-color:#ffffff33}
+  button.on{background:var(--gold);color:#141414;border-color:var(--gold)}
+  .note{color:var(--dim);font-size:11.5px;margin-top:14px;max-width:230px;line-height:1.55}
+  .note code{color:var(--acc)}
+  a{color:var(--acc);text-decoration:none}
+  .msg{min-height:18px;color:var(--gold);font-size:12.5px;margin-top:8px}
+</style>
+</head>
+<body>
+<h1>conway's soldiers</h1>
+<div class="sub">pegs jump over a neighbour into an empty spot (the jumped peg is removed). start with a full half-plane below the line. how far up can u reach?<br>the golden ratio says u can never reach level 5 — with any finite number of pegs.</div>
+<div id="wrap">
+  <canvas id="cv" width="560" height="560"></canvas>
+  <div class="panel">
+    <div class="lbl">highest level reached</div>
+    <div class="big" id="lvl">0</div>
+    <div class="msg" id="msg"></div>
+    <div class="row"><span>pegs left</span><b id="pegs">0</b></div>
+    <div class="row"><span>potential (weighted)</span><b id="pot">0</b></div>
+    <div class="lbl" style="margin-top:12px">potential above the line</div>
+    <div class="row"><span>all pegs</span><b id="potall">—</b></div>
+    <div class="row"><span>ceiling for level 5</span><b style="color:var(--gold)">1.000</b></div>
+    <div style="margin-top:14px">
+      <button id="reset">reset</button>
+      <button id="undo">undo</button>
+      <button id="demo">show weights</button>
+    </div>
+    <div class="note">each peg at height <i>h</i> above the line carries weight <code>φ<sup>−h</sup></code>, φ = (1+√5)/2 ≈ 1.618. a jump never increases total weight (it's preserved going up, lost otherwise). a single peg on level 5 needs weight <code>φ<sup>−5</sup></code>, and the whole starting board's weight is exactly <code>1</code>... but <code>φ<sup>−5</sup>·k ≤ 1</code> caps a full row. the sharp result (conway–berlekamp–guy): level 5 is unreachable with finitely many pegs.</div>
+  </div>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const N=9, CS=cv.width/N, R=CS*0.34;
+const PHI=(1+Math.sqrt(5))/2, W=1/PHI;
+// board: rows 0..N-1 top to bottom. line is under row (N-1)/2 rounded up region...
+// we put the "line" between row 4 and row 5 (0-indexed top). rows 5..8 are the starting half-plane.
+const LINE_ROW=5; // rows >= LINE_ROW start filled
+let board, history, showWeights=false;
+
+function idx(r,c){return r*N+c;}
+function reset(){
+  board=new Uint8Array(N*N);
+  for(let r=LINE_ROW;r<N;r++)for(let c=0;c<N;c++)board[idx(r,c)]=1;
+  history=[]; showWeights=false;
+  document.getElementById('demo').classList.remove('on');
+  update();
+}
+function height(r){return LINE_ROW-r;} // level 1 = just above the line
+
+function weightOf(r){
+  // peg at row r: height above line = LINE_ROW - r. on/below line weight 1.
+  const h=LINE_ROW-r;
+  if(h<=0)return 1;
+  return Math.pow(W,h);
+}
+
+function update(){
+  let pegs=0,pot=0,potAll=0,maxLvl=0;
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    if(board[idx(r,c)]){pegs++;const w=weightOf(r);potAll+=w;if(r<LINE_ROW)pot+=w;if(r<LINE_ROW)maxLvl=Math.max(maxLvl,LINE_ROW-r);}
+  }
+  document.getElementById('pegs').textContent=pegs;
+  document.getElementById('pot').textContent=pot.toFixed(4);
+  document.getElementById('potall').textContent=potAll.toFixed(4);
+  document.getElementById('lvl').textContent=maxLvl;
+  const msg=document.getElementById('msg');
+  if(maxLvl>=5)msg.textContent='wait — that should be impossible 😭';
+  else if(maxLvl===4)msg.textContent='level 4! one more and u break conway';
+  else msg.textContent='';
+  draw();
+}
+
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  // grid
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    const x=c*CS+CS/2,y=r*CS+CS/2;
+    if(r>=LINE_ROW){ctx.fillStyle='#171a21';ctx.fillRect(c*CS,r*CS,CS,CS);}
+    if(board[idx(r,c)]){
+      let col='#d8d4c8';
+      if(showWeights){const w=weightOf(r);const t=Math.min(1,w);col=`hsl(${45},${70*t+10}%,${30+45*t}%)`;}
+      ctx.beginPath();ctx.arc(x,y,R,0,7);ctx.fillStyle=col;ctx.fill();
+      if(showWeights){ctx.fillStyle='#000a';ctx.font='9px monospace';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(weightOf(r).toFixed(2),x,y+0.5);}
+    }else{
+      ctx.beginPath();ctx.arc(x,y,R*0.5,0,7);ctx.fillStyle='#2a2d34';ctx.fill();
+    }
+  }
+  // the line
+  const ly=LINE_ROW*CS;
+  ctx.strokeStyle='#e0b64a88';ctx.lineWidth=1.5;ctx.setLineDash([6,5]);
+  ctx.beginPath();ctx.moveTo(0,ly);ctx.lineTo(cv.width,ly);ctx.stroke();ctx.setLineDash([]);
+  ctx.fillStyle='#e0b64a99';ctx.font='11px monospace';ctx.textAlign='left';ctx.fillText('— the line —',6,ly-6);
+}
+
+let sel=null;
+function cellAt(px,py){const c=Math.floor(px/CS),r=Math.floor(py/CS);if(r<0||r>=N||c<0||c>=N)return null;return{r,c};}
+
+cv.addEventListener('pointerdown',e=>{
+  const rect=cv.getBoundingClientRect();
+  const px=(e.clientX-rect.left)*cv.width/rect.width;
+  const py=(e.clientY-rect.top)*cv.height/rect.height;
+  const cell=cellAt(px,py);if(!cell)return;
+  const {r,c}=cell;
+  if(board[idx(r,c)]){sel={r,c};draw();return;}
+  if(!sel)return;
+  // try jump from sel over something two cells away landing on (r,c)
+  const dr=r-sel.r, dc=c-sel.c;
+  if(Math.abs(dr)+Math.abs(dc)!==2||Math.abs(dr)>0&&Math.abs(dc)>0&&!(Math.abs(dr)===2||Math.abs(dc)===2)){}
+  // only allow straight 2-step orthogonal jumps
+  if(!((Math.abs(dr)===2&&dc===0)||(Math.abs(dc)===2&&dr===0))){sel=null;draw();return;}
+  const mr=sel.r+dr/2, mc=sel.c+dc/2;
+  if(board[idx(mr,mc)]&&!board[idx(r,c)]){
+    history.push({from:{...sel},to:{r,c},mid:{r:mr,c:mc}});
+    board[idx(sel.r,sel.c)]=0;board[idx(mr,mc)]=0;board[idx(r,c)]=1;
+    sel=null;update();
+  }else{sel=null;draw();}
+});
+
+function undo(){
+  const m=history.pop();if(!m)return;
+  board[idx(m.to.r,m.to.c)]=0;
+  board[idx(m.mid.r,m.mid.c)]=1;
+  board[idx(m.from.r,m.from.c)]=1;
+  sel=null;update();
+}
+
+document.getElementById('reset').onclick=reset;
+document.getElementById('undo').onclick=undo;
+document.getElementById('demo').onclick=e=>{showWeights=!showWeights;e.target.classList.toggle('on',showWeights);draw();};
+
+reset();
+</script>
+</body>
+</html>
