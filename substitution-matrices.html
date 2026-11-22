@@ -50,12 +50,12 @@
 <footer>made by <a href="index.html">yūzuki</a> · <a href="gallery.html">gallery</a> · <a href="all.html">all</a></footer>
 <script>
 const SUBS = [
-  {name:'sphinx', note:'the sphinx hexiamond: 4 copies per inflation, but two orientations — 2x2 orientation-averaged matrix',
-    M:[[2,2],[2,2]], expect:'λ = 2'},
+  {name:'sphinx', note:'the sphinx hexiamond: 4 copies per inflation, so the copy-count matrix is 1x1 with entry 4. the linear inflation factor is the square root of that, 2.',
+    M:[[4]], expect:'√4 = 2 (linear)'},
   {name:'chair', note:'the chair (L-tromino) substitution — 4 copies per inflation, one orientation',
     M:[[4]], expect:'λ = 4'},
-  {name:'lobite / trilobite', note:'the trilobite pair: a 2x2 matrix over the two tile types',
-    M:[[3,1],[1,2]], expect:'λ ≈ 3.303 (golden-ish)'},
+  {name:'lobite / trilobite', note:'the trilobite pair: a 2x2 matrix over the two tile types. i could not verify the exact split the paper uses, so this is my matrix, not theirs.',
+    M:[[3,1],[1,2]], expect:'λ ≈ 3.618 (mine, unverified)'},
   {name:'hat (einstein)', note:'the hat is a one-tile substitution: 4 hats per inflation',
     M:[[4]], expect:'λ = 4'},
   {name:'spectre', note:'the spectre (chiral einstein): 9 copies per inflation',
