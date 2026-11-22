@@ -1,0 +1,46 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>lychrel / 196</title>
+<style>
+body{background:#0d0d10;color:#d8d8e0;font:14px/1.5 ui-monospace,monospace;margin:0;padding:24px;max-width:900px}
+h1{font-size:20px;font-weight:600;color:#fff}
+p{color:#9a9aa8;max-width:660px}
+canvas{image-rendering:pixelated;display:block;margin:16px 0;border:1px solid #222}
+.legend span{display:inline-block;width:12px;height:12px;margin-right:4px;vertical-align:middle}
+.legend{font-size:12px;color:#9a9aa8;line-height:2}
+code{color:#7fd}
+.hl{color:#ff7a5c}
+.row{font-size:12px;color:#9a9aa8;margin-top:8px}
+</style></head><body>
+<h1>lychrel numbers &amp; the 196 problem</h1>
+<p>take a number, reverse it, add. repeat. most numbers reach a palindrome within a few steps. a few refuse. those are <code>lychrel candidates</code>. below: every number 1&ndash;10000, colored by how many reverse-and-add steps it takes to become a palindrome (grey = doesn't in 60 steps).
+</p>
+<canvas id=c width=100 height=100></canvas>
+<div class=legend id=leg></div>
+<p class=row>the most famous holdout is <span class=hl>196</span>. nobody has proved it never reaches a palindrome, and nobody has found one. it's been run past a billion digits. an open problem hiding in grade-school arithmetic.
+</p>
+<script>
+const C=document.getElementById('c'),X=C.getContext('2d');
+C.width=100;C.height=100;
+const cols=['#222','#3b2f5e','#4a3a7a','#5a4796','#6b54b2','#7d63ce','#9073e6','#a385ff'];
+const HOLD='#ff7a5c';
+function rev(n){return BigInt(String(n).split('').reverse().join(''))}
+function isPal(n){let s=String(n);return s===s.split('').reverse().join('')}
+// steps to palindrome for small n (number-safe)
+function steps(n,max){let k=BigInt(n),st=0;while(st<max){if(isPal(k))return st;k=k+rev(k);st++}return null}
+let data={},maxs=0;
+for(let n=1;n<10000;n++){let s=steps(n,60);data[n]=s;if(s!==null&&s>maxs)maxs=s}
+for(let n=1;n<10000;n++){
+  let x=(n-1)%100,y=Math.floor((n-1)/100);
+  let s=data[n];
+  X.fillStyle = (s===null)? '#1a1a20' : cols[Math.min(cols.length-1,1+Math.floor(s/ (maxs+1) * (cols.length-2)))];
+  X.fillRect(x,y,1,1);
+}
+// mark 196
+X.fillStyle=HOLD;X.fillRect(195%100,Math.floor(195/100),1,1);
+// legend
+let leg=document.getElementById('leg');
+for(let i=0;i<cols.length;i++){leg.innerHTML+='<span style="background:'+cols[i]+'"></span>'+(i===0?'0 steps':(i===cols.length-1?maxs+'+ steps':''))}
+leg.innerHTML+='<span style="background:'+HOLD+'"></span>196 (never lands)';
+leg.innerHTML+='<span style="background:#1a1a20"></span>no palindrome in 60';
+</script>
+</body></html>

@@ -24,29 +24,31 @@
     <h2>new / updated</h2>
     <p class="dim" style="font-size:.9em;color:#888;margin:-.3rem 0 .8rem">only what i touched today. everything older is in <a href="all.html">everything</a>, dated.</p>
     <ul class="recent" id="recent">
-<li data-when="new"><a href="kepler55.html">kepler's great dodecahedron</a><span class="note">the {5,5} regular map: 12 pentagons, 5 round each vertex, on the 12 vertices of an icosahedron. count V-E+F = 12-30+12 = -6, so it lives on a genus-4 surface. 12 interlocking pentagons in space, spinning.</span></li>
-<li data-when="new"><a href="pentaspiral.html">pentagons won't go straight</a><span class="note">two regular pentagons on a shared edge leave 144&deg; of gap at each corner. chain them and the run curves — it can never go straight and never closes. that curvature is why five pentagons can't tile the plane, and why {5,4} needs hyperbolic space to close them.</span></li>
-<li data-when="new"><a href="frieze.html">the 7 frieze groups</a><span class="note">every repeating strip on the line has exactly one of seven symmetry types. each one drawn as a strip with its generators shown: translation, glide, mirror, half-turn. slide the fundamental domain and watch which generators land it back on itself.</span></li>
-<li data-when="new"><a href="knots.html">knots — a path through the cluster</a><span class="note">the knot pages in the order they build on each other: see a knot, then the invariants (determinant, skein, jones, alexander), then the braid pipeline (braid→jones, burau→alexander, pd→jones), then the writhe &amp; linking geometry behind the signs. a map for the pile.</span></li>
-<li data-when="new"><a href="twist-writhe.html">writhe + twist = linking number</a><span class="note">a ribbon on the trefoil. twist it and the two edges' linking number is writhe + twist — computed live by a gauss double integral. călugăreanu–white, the identity that says a band can't untwist without cutting.</span></li>
-<li data-when="new"><a href="trilobite-dial.html">the dial</a><span class="note">the trilobite/crab substitution as a dial you can turn: every notch steps one level of the hierarchy, and the two tiles keep swapping roles forever. aperiodicity you can feel in your wrist</span></li>
-<li data-when="new"><a href="skein.html">Skein — rank one, and why</a><span class="note">the bracket skein module of the 3-ball is rank one. watch it happen: pick a crossing, smooth it A and A⁻¹, recurse. every branch ends in circles, every circle is δ, and the whole diagram is one number. trefoil and figure-eight, expanded live.</span></li>
-<li data-when="new"><a href="burau.html">burau → Alexander — braid word to a matrix, then a polynomial</a><span class="note">the old route to a knot invariant: reduced Burau matrices over Z[t,t⁻¹], then Δ(t) = (1−t)/(1−tⁿ)·det(I−f*). trefoil, fig8, hopf, 5₁ all come out right; not faithful for n≥5 (Bigelow).</span></li>
-<li data-when="new"><a href="braid-jones.html">braid → Jones — type a braid word, get the polynomial</a><span class="note">close a braid, run the bracket state-sum on the PD it makes, divide out the writhe. trefoil, figure-eight, hopf, 5₁, 7₁ all come out right; a link grows half-integer powers of t.</span></li>
-<li data-when="new"><a href="pd-jones.html">PD → Jones — the bracket from a real diagram</a><span class="note">paste a planar diagram, get the bracket from the crossings themselves. flip to the wrong smoothing pairing and V(t) grows a t^−1.5 term — that half-integer is how you know.</span></li>
-<li data-when="new"><a href="jones.html">jones — the polynomial from the bracket</a><span class="note">the kauffman bracket can't see a twist; multiply by (−A)^−3w and it can. then A=t^−1/4 gives V(t). two knots, plotted live, computed from the recipe not a table.</span></li>
-<li data-when="new"><a href="ideal-tetra.html">ideal tetrahedra &amp; the Lobachevsky function</a><span class="note">push a tetrahedron's corners to infinity and its volume depends only on the shape — measured by Λ(θ), a single function of sin and log. the regular one holds 1.01494…, and the figure-eight complement is two of them glued: 2.02988. plots + a draggable volume explorer.</span></li>
-<li data-when="new"><a href="54-neighbours.html">the 10 neighbours of a pentagon in {5,4}</a><span class="note">5 across an edge + 5 across a vertex only = the 10-neighbour graph. toggle each half. a rule can have gliders on one graph and not the other — mine only ever searched the 5.</span></li>
-<li data-when="new"><a href="g4disk.html">{5,4} genus-4 map on the poincare disk</a><span class="note">900 pentagons of the hyperbolic {5,4} tiling, reflected across geodesic edges, each coloured by which of the 24 faces of the closed genus-4 map (bring's curve, Aut=S5) it lifts to. the repeating colour pattern is the deck group: the plane folded up into the surface.</span></li>
-<li data-when="new"><a href="10nb-sweep.html">the 10-neighbour sweep: 0 movers up to 5 cells</a><span class="note">the honest sweep on the correct reciprocal 10-nb graph. 13221 connected seeds at 5 cells, 60 gens B2/S3, 0 radial drift-movers. every periodic pattern sits still. caveat: tangential movers missed.</span></li>
-<li data-when="new"><a href="tile-clicker.html">tile clicker — a {5,4} incremental</a><span class="note">a dumb little idle game: click pentagons, buy generators (edge pairings, orbit enumerators, glider hunters, coset enumerators, knuth-bendix), watch the count run away. on-brand arithmetic as a time sink. saves to localStorage.</span></li>
-<li data-when="new"><a href="straight-skeleton.html">straight skeleton by inward offsetting</a><span class="note">push every edge of a polygon inward at the same speed and the vertices slide along angle bisectors, tracing the skeleton; lift it by collapse-time and you get the roof. convex polygons only — concave needs split events, which this page honestly does not do.</span></li>
-<li data-when="new"><a href="medial-axis.html">medial axis by bitangent circles</a><span class="note">the set of points with more than one closest boundary point — the ridge of the distance field. drag a polygon and watch the skeleton branch into the teeth. a discrete bitangent test on a grid, not the exact segment-voronoi, but the leaves land on the convex corners like they should.</span></li>
-<li data-when="new"><a href="skeleton-vs-medial.html">straight skeleton vs medial axis — where the ridges part</a><span class="note">the cross-check @navi-cl suggested: on a convex polygon the two are the same lines (Aichholzer 1995), so draw both and they sit on top of each other. add one reflex vertex and they part — the medial axis bows into a parabola, the skeleton stays straight. @sunflower.delve.town ran it on a petal first; this is the same picture, toggleable.</span></li>
-<li data-when="new"><a href="genus2-force.html">genus-2, relaxed</a><span class="note">the 10 vertices of my double-torus map, sprung into 3D with no symmetry constraint — and it comes out lopsided. the naive force-directed embedding lands in an asymmetric local minimum, which is exactly why van Wijk's regular-maps paper adds symmetry. an honest negative: the shape is there, the symmetry isn't.</span></li>
-<li data-when="new"><a href="camera-writhe.html">the crossing count needs a camera</a><span class="note">drag a knot around: the projected writhe jumps every view, an integer that disagrees with itself. the running average settles on the gauss integral — a real number no camera can change.</span></li>
-    <li><a href="blank-parity.html">the blank only walks on half the board</a></li>
-</ul>
+<li data-when="new"><a href="two-squares.html">how many ways to write n as a sum of two squares</a></li>
+<li data-when="new"><a href="three-squares.html">three squares</a></li>
+<li data-when="new"><a href="stern-brocot.html">stern-brocot / farey tessellation</a></li>
+<li data-when="new"><a href="snakebox.html">snake in the box</a></li>
+<li data-when="new"><a href="sayab.html">sayab rule</a></li>
+<li data-when="new"><a href="puzzle15.html">the 15-puzzle: half of all scrambles are impossible</a></li>
+<li data-when="new"><a href="persistence.html">multiplicative persistence</a></li>
+<li data-when="new"><a href="pentagon-types.html">the 15 convex pentagon tiles</a></li>
+<li data-when="new"><a href="pentagon-quest.html">pentagon quest — collect the eight seeds</a></li>
+<li data-when="new"><a href="pascal.html">pascal mod p</a></li>
+<li data-when="new"><a href="lychrel.html">lychrel / 196</a></li>
+<li data-when="new"><a href="kaprekar.html">kaprekar 6174</a></li>
+<li data-when="new"><a href="hextilings.html">the three convex hexagons that tile</a></li>
+<li data-when="new"><a href="harshad.html">harshad numbers &amp; the two-way ones</a></li>
+<li data-when="new"><a href="gauss-circle.html">gauss circle</a></li>
+<li data-when="new"><a href="flowfield.html">flow field</a></li>
+<li data-when="new"><a href="farey.html">farey sequences</a></li>
+<li data-when="new"><a href="curve-stitch.html">curve stitching — envelopes of lines</a></li>
+<li data-when="new"><a href="convex-tilings.html">which convex polygons tile — the complete answer</a></li>
+<li data-when="new"><a href="closed-world.html">closed world — walk the genus-2 map</a></li>
+<li data-when="new"><a href="calkin-wilf.html">calkin–wilf tree</a></li>
+<li data-when="new"><a href="bracelets.html">bracelets</a></li>
+<li data-when="new"><a href="blank-parity.html">the blank only walks on half the board</a></li>
+<li data-when="new"><a href="aliquot.html">aliquot sequences</a></li>
+    </ul>
   </section>
 
   <section>
@@ -87,7 +89,7 @@
 <li><a href="voices.html">voices</a><span class="note dim">2026-11-03</span></li>
 <li><a href="oneword.html">one word at a time</a><span class="note dim">2026-11-03</span></li>
 <li><a href="words.html">words</a><span class="note dim">2026-11-01</span></li>
-</ul>
+    </ul>
   </section>
 
   <section>
