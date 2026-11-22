@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>harshad numbers &amp; the two-way ones</title>
+<style>
+  :root{--bg:#0e1014;--fg:#e8e6e0;--dim:#8a8f98;--acc:#7fd1c0;--acc2:#e0a86a;--pal:#c58be0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:2rem 1.2rem 4rem}
+  main{max-width:960px;margin:0 auto}
+  h1{font-size:1.5rem;font-weight:600;margin:0 0 .2rem}
+  .sub{color:var(--dim);margin:0 0 1.6rem}
+  p{max-width:62ch}
+  a{color:var(--acc)}
+  .legend{display:flex;gap:1.2rem;flex-wrap:wrap;margin:1.4rem 0;font-size:.85rem;color:var(--dim)}
+  .legend span{display:inline-flex;align-items:center;gap:.4rem}
+  .sw{width:.9rem;height:.9rem;border-radius:2px;display:inline-block}
+  canvas{width:100%;height:auto;display:block;border-radius:6px;background:#14161b;margin:1rem 0}
+  .stats{display:flex;gap:1.5rem;flex-wrap:wrap;margin:1.2rem 0;font-size:.9rem}
+  .stats b{color:var(--acc);font-weight:600}
+  code{background:#1c1f26;padding:.1rem .35rem;border-radius:4px;font-size:.85em}
+  .note{color:var(--dim);font-size:.85rem;margin-top:2rem;border-top:1px solid #23262e;padding-top:1rem}
+</style>
+</head>
+<body>
+<main>
+<h1>harshad numbers &amp; the two-way ones</h1>
+<p class="sub">a number is <b>harshad</b> (or niven) if it's divisible by the sum of its digits. a number is <b>two-way</b> if it <i>and</i> its reverse are both harshad.</p>
+
+<p>12 is two-way: digit sum 3, and 3 divides 12. reversed, 21 has digit sum 3, and 3 divides 21. 13 is not: digit sum 4, and 4 doesn't divide 13. a reversed number drops leading zeros, so 120 reads back as 21.</p>
+
+<div class="legend">
+  <span><i class="sw" style="background:#2a2e37"></i> neither</span>
+  <span><i class="sw" style="background:var(--acc)"></i> harshad only</span>
+  <span><i class="sw" style="background:var(--acc2)"></i> two-way</span>
+  <span><i class="sw" style="background:var(--pal)"></i> two-way &amp; palindromic</span>
+</div>
+
+<canvas id="c"></canvas>
+
+<div class="stats" id="stats"></div>
+
+<p>the <b>palindromic two-way</b> numbers (purple) are the ones that are their own reverse <i>and</i> harshad: a number whose digit sum divides it and whose mirror is itself. only 25 of them below 3000.</p>
+
+<div class="note">
+  this page answers a Cloud Brain puzzle (2026-W47): how many two-way numbers from 1 to 3000? the grid is 1..3000, one cell each, row-major, 60 per row.
+  the count is <b id="twcount"></b>.
+</div>
+</main>
+<script>
+const N=3000, PER=60;
+function ds(n){let s=0;while(n){s+=n%10;n=(n/10)|0}return s}
+function harsh(n){return n%ds(n)===0}
+function rev(n){return +String(n).split('').reverse().join('')}
+function twoway(n){const r=rev(n);return harsh(n)&&r>0&&r%ds(r)===0}
+function pal(n){return String(n)===String(n).split('').reverse().join('')}
+
+const rows=Math.ceil(N/PER);
+const cell=14, gap=2, pad=2;
+const W=PER*(cell+gap)+pad*2, H=rows*(cell+gap)+pad*2;
+const c=document.getElementById('c');
+c.width=W*2; c.height=H*2;
+const ctx=c.getContext('2d');
+ctx.scale(2,2);
+ctx.fillStyle='#14161b'; ctx.fillRect(0,0,W,H);
+
+const C={none:'#2a2e37',harsh:'#7fd1c0',two:'#e0a86a',pal:'#c58be0'};
+let cnt={harsh:0,two:0,pal:0};
+for(let n=1;n<=N;n++){
+  const i=n-1, x=pad+(i%PER)*(cell+gap), y=pad+Math.floor(i/PER)*(cell+gap);
+  let col;
+  if(pal(n)&&twoway(n)){col=C.pal;cnt.pal++;}
+  else if(twoway(n)){col=C.two;cnt.two++;}
+  else if(harsh(n)){col=C.harsh;cnt.harsh++;}
+  else col=C.none;
+  ctx.fillStyle=col;
+  ctx.fillRect(x,y,cell,cell);
+}
+const total=Object.values(cnt).reduce((a,b)=>a+b,0);
+document.getElementById('stats').innerHTML=
+  `<span><b>${cnt.harsh}</b> harshad only</span>`+
+  `<span><b>${cnt.two}</b> two-way (non-pal)</span>`+
+  `<span><b>${cnt.pal}</b> two-way palindromic</span>`+
+  `<span><b>${cnt.harsh+cnt.two+cnt.pal}</b> harshad total</span>`;
+document.getElementById('twcount').textContent=(cnt.two+cnt.pal);
+</script>
+</body>
+</html>
