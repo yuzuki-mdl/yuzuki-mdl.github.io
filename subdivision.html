@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>cut the corners off</title>
+<style>
+  :root{--bg:#0b0d10;--fg:#e8e6e3;--dim:#8a8f98;--acc:#ffd166;--acc2:#7ec8e3}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;display:flex;flex-direction:column;min-height:100vh}
+  header{padding:16px 20px 6px}
+  h1{font-size:16px;margin:0 0 4px;font-weight:600}
+  p{margin:0;color:var(--dim);font-size:13px;max-width:64ch}
+  .stage{flex:1;display:flex;align-items:center;justify-content:center;padding:10px}
+  canvas{max-width:100%;max-height:70vh;display:block;border-radius:10px;background:#05060a;touch-action:none}
+  .controls{display:flex;flex-wrap:wrap;gap:14px 22px;padding:14px 20px 22px;align-items:center}
+  label{display:flex;flex-direction:column;font-size:11px;color:var(--dim);gap:4px;text-transform:uppercase;letter-spacing:.06em}
+  input[type=range]{width:130px;accent-color:var(--acc)}
+  .val{color:var(--acc);font-variant-numeric:tabular-nums}
+  button{background:none;border:1px solid #333;color:var(--fg);font:inherit;padding:6px 12px;border-radius:8px;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  button.on{border-color:var(--acc);color:var(--acc)}
+  .seg{display:flex;gap:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>cut the corners off</h1>
+  <p>a polygon, and a rule for replacing it with a bigger polygon. do it over and over and the shape smooths out. <b>chaikin</b> cuts every corner (the curve misses the points). <b>four-point</b> keeps them on the curve and invents new ones between. drag the points.</p>
+</header>
+<div class="stage"><canvas id="c" width="720" height="560"></canvas></div>
+<div class="controls">
+  <div class="seg">
+    <button id="bChaikin" class="on">chaikin</button>
+    <button id="bFour">four-point</button>
+    <button id="bBez">de casteljau</button>
+  </div>
+  <label>iterations <span class="val" id="vIter">0</span>
+    <input type="range" id="iter" min="0" max="7" value="0" step="1">
+  </label>
+  <button id="reset">reset points</button>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+let mode='chaikin', iter=0;
+
+// control polygon: closed loop of points in canvas coords
+let P0; const N=7;
+function reset(){
+  P0=[];
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.34;
+  for(let i=0;i<N;i++){
+    const a=-Math.PI/2 + i*2*Math.PI/N;
+    const r=R*(0.75+0.5*Math.abs(Math.sin(i*1.7+0.6)));
+    P0.push([cx+r*Math.cos(a), cy+r*Math.sin(a)]);
+  }
+}
+reset();
+
+// --- subdivision schemes (closed polygon) ---
+function chaikin(P){
+  const out=[];
+  for(let i=0;i<P.length;i++){
+    const a=P[i], b=P[(i+1)%P.length];
+    out.push([0.75*a[0]+0.25*b[0], 0.75*a[1]+0.25*b[1]]);
+    out.push([0.25*a[0]+0.75*b[0], 0.25*a[1]+0.75*b[1]]);
+  }
+  return out;
+}
+function fourPoint(P){
+  const n=P.length, out=[];
+  for(let i=0;i<n;i++){
+    const p0=P[(i-1+n)%n], p1=P[i], p2=P[(i+1)%n], p3=P[(i+2)%n];
+    out.push(p1);
+    // midpoint with the 4-point stencil: 1/16(-p0 + 9p1 + 9p2 - p3)... applied to edge p1p2
+    const mx=(p1[0]+p2[0])/2, my=(p1[1]+p2[1])/2;
+    const ox=(-p0[0]+9*p1[0]+9*p2[0]-p3[0])/16, oy=(-p0[1]+9*p1[1]+9*p2[1]-p3[1])/16;
+    out.push([ox,oy]);
+  }
+  return out;
+}
+function bezierPoly(P){
+  // de casteljau on the closed control polygon -> dense polyline
+  const n=P.length, out=[], M=80;
+  for(let s=0;s<M;s++){
+    const t=s/M;
+    let Q=P.map(p=>[p[0],p[1]]);
+    while(Q.length>1){
+      const R=[];
+      for(let i=0;i<Q.length-1;i++){
+        R.push([(1-t)*Q[i][0]+t*Q[i+1][0], (1-t)*Q[i][1]+t*Q[i+1][1]]);
+      }
+      Q=R;
+    }
+    out.push(Q[0]);
+  }
+  return out;
+}
+
+function drawPoly(P,color,width){
+  ctx.strokeStyle=color; ctx.lineWidth=width; ctx.beginPath();
+  ctx.moveTo(P[0][0],P[0][1]);
+  for(let i=1;i<P.length;i++) ctx.lineTo(P[i][0],P[i][1]);
+  ctx.closePath(); ctx.stroke();
+}
+
+function render(){
+  ctx.clearRect(0,0,W,H);
+  // control polygon faint
+  drawPoly(P0,'#2a2f38',1.2);
+  // control points
+  for(const p of P0){ ctx.fillStyle='#4a5260'; ctx.beginPath(); ctx.arc(p[0],p[1],3.5,0,7); ctx.fill(); }
+
+  let P=P0.map(p=>[p[0],p[1]]);
+  if(mode==='bezier'){
+    P=bezierPoly(P0);
+    drawPoly(P,'#7ec8e3',2);
+  } else {
+    for(let k=0;k<iter;k++) P = (mode==='chaikin')?chaikin(P):fourPoint(P);
+    if(P.length>2) drawPoly(P,'#ffd166',1.6);
+  }
+  document.getElementById('vIter').textContent = (mode==='bezier')?'∞':iter;
+}
+
+// --- interaction: drag control points ---
+let drag=-1;
+cv.addEventListener('pointerdown',e=>{
+  const r=cv.getBoundingClientRect();
+  const x=(e.clientX-r.left)*W/r.width, y=(e.clientY-r.top)*H/r.height;
+  let best=-1,bd=18*18;
+  for(let i=0;i<P0.length;i++){const dx=P0[i][0]-x,dy=P0[i][1]-y,d=dx*dx+dy*dy; if(d<bd){bd=d;best=i;}}
+  drag=best;
+  if(drag>=0) cv.setPointerCapture(e.pointerId);
+});
+cv.addEventListener('pointermove',e=>{
+  if(drag<0)return;
+  const r=cv.getBoundingClientRect();
+  P0[drag]=[(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height];
+  render();
+});
+cv.addEventListener('pointerup',()=>drag=-1);
+
+// --- controls ---
+const bC=document.getElementById('bChaikin'),bF=document.getElementById('bFour'),bB=document.getElementById('bBez');
+function setMode(m){mode=m;bC.classList.toggle('on',m==='chaikin');bF.classList.toggle('on',m==='four');bB.classList.toggle('on',m==='bezier');render();}
+bC.onclick=()=>setMode('chaikin');
+bF.onclick=()=>setMode('four');
+bB.onclick=()=>setMode('bezier');
+document.getElementById('iter').oninput=e=>{iter=+e.target.value;render();};
+document.getElementById('reset').onclick=()=>{reset();render();};
+render();
+</script>
+</body>
+</html>
