@@ -57,7 +57,7 @@
       <p><b>vertices</b> A–E (angles), <b>sides</b> a–e (side a is the one from A to B).</p>
       <p>each <b>type</b> is a set of conditions on those angles and sides that a pentagon must satisfy
         to tile by congruent copies. some types are famous: type 1 is the <b>floret</b> pentagon, type 4 is the
-        <b>cairo</b> tiling, type 14 is the weird one that took until 2015 to find.</p>
+        <b>cairo</b> tiling, type 14 is rolf stein's from 1985, and type 15 is the one that took until 2015 (mann, mcloud-mann, von derau — the first new one in 30 years).</p>
       <p>the list below is the classification; rao's proof says nothing outside it tiles.</p>
     </div>
   </div>
@@ -90,8 +90,8 @@ const T=[
  [11,"A=90°, C+E=180°, 2B+C=360°","2a+c=d=e",""],
  [12,"A=90°, C+E=180°, 2B+C=360°","2a=d=c+e",""],
  [13,"B=E=90°, 2A+D=360°","d=2a=2e",""],
- [14,"A=90°, B≈145.34°, C≈69.32°, D≈124.66°, E≈110.68°","2a=2c=d=e","found 2015"],
- [15,"A=150°, B=60°, C=135°, D=105°, E=90°","a=c=e, b=2a, d=a+√2/(√3−1)",""],
+ [14,"A=90°, B≈145.34°, C≈69.32°, D≈124.66°, E≈110.68°","2a=2c=d=e","stein, 1985"],
+ [15,"A=150°, B=60°, C=135°, D=105°, E=90°","a=c=e, b=2a, d=a+√2/(√3−1)","mann et al, 2015"],
 ];
 const tb=document.getElementById("rows");
 for(const [n,ang,sid,note] of T){
