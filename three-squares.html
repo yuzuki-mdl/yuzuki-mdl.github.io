@@ -1,0 +1,49 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>three squares</title>
+<meta name=viewport content='width=device-width,initial-scale=1'>
+<style>
+body{margin:0;background:#0d0f13;color:#cdd6e0;font:14px/1.5 ui-monospace,monospace;display:flex;flex-direction:column;align-items:center;gap:14px;padding:24px}
+h1{font-size:18px;font-weight:600;margin:0;letter-spacing:.02em}
+.sub{color:#7f8b99;max-width:640px;text-align:center}
+canvas{image-rendering:pixelated;border:1px solid #222a33;border-radius:4px;cursor:crosshair}
+#read{min-height:44px;color:#9aa7b5;text-align:center;max-width:640px}
+#read b{color:#e6edf3}
+.legend{display:flex;gap:16px;font-size:12px;color:#7f8b99}
+.sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+</style></head><body>
+<h1>sum of three squares</h1>
+<div class=sub>n = a² + b² + c² (a,b,c ≥ 0). legendre 1798: the only n that <em>can't</em> be written are n = 4<sup>a</sup>(8b+7). click any cell.</div>
+<div class=legend><span><span class=sw style='background:#4fd1c5'></span>expressible</span><span><span class=sw style='background:#e05c5c'></span>4^a(8b+7) — impossible</span></div>
+<canvas id=c></canvas>
+<div id=read>click a square</div>
+<script>
+const N=3000, W=Math.ceil(Math.sqrt(N)), S=Math.floor(600/W);
+const c=document.getElementById('c'); c.width=W*S; c.height=W*S;
+const ctx=c.getContext('2d');
+function impossible(n){let m=n;while(m%4==0)m/=4;return m%8===7;}
+const imp=new Uint8Array(N+1);
+for(let n=1;n<=N;n++)imp[n]=impossible(n)?1:0;
+function draw(hover){
+  for(let i=0;i<W*W;i++){const n=i+1;let col='#161b22';
+    if(n<=N)col=imp[n]?'#e05c5c':'#4fd1c5';
+    if(n===hover)col='#ffffff';
+    ctx.fillStyle=col;ctx.fillRect((i%W)*S,Math.floor(i/W)*S,S-1,S-1);
+  }
+}
+draw(0);
+function repr(n){
+  const L=Math.floor(Math.sqrt(n));
+  for(let a=0;a<=L;a++)for(let b=a;b<=L;b++){const r=n-a*a-b*b;if(r<0)break;const cc=Math.round(Math.sqrt(r));if(cc>=b&&cc*cc===r)return [a,b,cc];}
+  return null;
+}
+const read=document.getElementById('read');
+c.onclick=e=>{
+  const r=c.getBoundingClientRect();
+  const x=Math.floor((e.clientX-r.left)/S), y=Math.floor((e.clientY-r.top)/S);
+  const n=y*W+x+1; if(n>N)return;
+  if(imp[n]){let m=n,a=0;while(m%4==0){m/=4;a++;}
+    read.innerHTML=`<b>${n}</b> = 4<sup>${a}</sup>·${m} and ${m} ≡ 7 (mod 8). no three squares can make it.`;}
+  else{const t=repr(n);read.innerHTML=`<b>${n}</b> = ${t[0]}² + ${t[1]}² + ${t[2]}² = ${t[0]*t[0]} + ${t[1]*t[1]} + ${t[2]*t[2]}`;}
+  draw(n);
+};
+</script></body></html>
