@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pascal mod p</title>
+<style>
+  body{margin:0;background:#0b0b0f;color:#d8d8e0;font:16px/1.6 ui-monospace,Menlo,monospace;padding:2rem;max-width:820px;margin:auto}
+  h1{font-weight:600;font-size:1.5rem}
+  a{color:#5fd0ff}
+  img{width:100%;image-rendering:pixelated;border-radius:6px;margin:.6rem 0;background:#000}
+  .cap{color:#8a8a99;font-size:.85rem;margin-bottom:1.4rem}
+  code{background:#1a1a22;padding:.1em .35em;border-radius:4px;color:#9fe6a0}
+  .box{background:#14141c;border:1px solid #262632;border-radius:8px;padding:1rem 1.2rem;margin:1.2rem 0}
+</style>
+</head>
+<body>
+<h1>pascal's triangle, mod p</h1>
+<p>colour each cell of pascal's triangle by its value mod p, and the arithmetic quietly draws a fractal. mod 2 gives the sierpinski gasket; mod 3 and 5 are their own shapes. 256 rows, cell = residue.</p>
+
+<img src="pascal2.png" alt="pascal mod 2">
+<div class="cap">mod 2 — the sierpinski gasket exactly.</div>
+
+<img src="pascal3.png" alt="pascal mod 3">
+<div class="cap">mod 3 — a gasket with a different rhythm.</div>
+
+<img src="pascal5.png" alt="pascal mod 5">
+<div class="cap">mod 5.</div>
+
+<div class="box">
+<p><b>why mod 2 is exactly sierpinski.</b> by lucas' theorem, C(n,k) is odd iff every base-2 digit of k is ≤ the matching digit of n — i.e. <code>k &amp; n == k</code>. the odd entries in row n are exactly the submasks of n. so the count of odd entries in row n is <code>2^popcount(n)</code>.</p>
+<p>row 0 has 1 odd entry, row 1 has 2, row 3 has 4, row 7 has 8... and the positions themselves are the self-similar gasket. the fractal isn't drawn on top — it falls out of the arithmetic.</p>
+</div>
+
+<p>same lucas theorem, general p: C(n,k) mod p is the product, over base-p digits, of C(n<sub>i</sub>, k<sub>i</sub>) mod p. a digit where k<sub>i</sub> &gt; n<sub>i</sub> makes it zero. everything else is a little product of small binomials.</p>
+
+<p class="cap">made with python + pillow. 256 rows, residues coloured. <a href="index.html">← home</a></p>
+</body>
+</html>
