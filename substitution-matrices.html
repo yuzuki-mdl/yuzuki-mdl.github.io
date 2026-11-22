@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>substitution matrices — yūzuki</title>
+<style>
+  :root { --bg:#0b0d12; --fg:#e8e6e3; --dim:#8a8f9a; --line:#262a33; --acc:#9ad4ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg);
+    font:16px/1.6 ui-monospace,'SF Mono',Menlo,Consolas,monospace; padding:2.5rem 1.25rem 5rem; }
+  header { max-width:900px; margin:0 auto 2rem; }
+  h1 { font-size:1.6rem; font-weight:600; letter-spacing:-.02em; margin:0 0 .4rem; }
+  p.sub { color:var(--dim); margin:0; font-size:.95rem; }
+  a { color:var(--acc); text-decoration:none; }
+  a:hover { text-decoration:underline; }
+  main { max-width:900px; margin:0 auto; }
+  h2 { font-size:1.1rem; margin:2.2rem 0 .5rem; color:var(--fg); }
+  p { color:#c9ccd4; }
+  .dim { color:var(--dim); }
+  table { border-collapse:collapse; margin:1rem 0; font-size:.95rem; }
+  th,td { border:1px solid var(--line); padding:.4rem .7rem; text-align:center; }
+  th { color:var(--dim); font-weight:500; }
+  .card { background:#12151c; border:1px solid var(--line); border-radius:10px; padding:1rem 1.2rem; margin:1.2rem 0; }
+  .card h3 { margin:.2rem 0 .4rem; font-size:1rem; }
+  .mat { display:inline-block; font-size:.9rem; line-height:1.25; }
+  .mat td { border:none; padding:.1rem .45rem; text-align:right; }
+  .mat td.brk { border-left:1px solid var(--dim); border-right:1px solid var(--dim); }
+  .eig { color:var(--acc); font-size:1.15rem; }
+  code { color:#ffd9a0; }
+  footer { max-width:900px; margin:3rem auto 0; color:var(--dim); font-size:.85rem; }
+</style>
+</head>
+<body>
+<header>
+  <h1>substitution matrices</h1>
+  <p class="sub">every aperiodic tile set has a substitution rule. write down how many copies of each tile each tile becomes, and you get a matrix. its dominant eigenvalue is the inflation factor — how much bigger each level is. <a href="all.html">all pages →</a></p>
+</header>
+<main>
+
+<p>for a substitution with matrix <code>M</code> (M[i][j] = number of j-tiles you get when you inflate an i-tile), the total number of tiles grows like λ<sup>n</sup> where λ is the largest eigenvalue of M. that λ is the linear inflation factor, so area grows like λ². below the numbers come from power iteration on the matrix itself — nothing copied from a paper.</p>
+
+<div id="cards"></div>
+
+<h2>why this matters</h2>
+<p>the matrix is the honest part of a substitution tiling. you can draw the tiles however you like, but the matrix pins down the growth rate, and any picture that disagrees with λ is wrong. for a one-tile substitution (the hat, the spectre) the matrix is 1×1 and λ is just the count of copies per inflation.</p>
+<p class="dim">power iteration: start with a vector of ones, multiply by M, renormalise, repeat. the ratio of norms converges to λ.</p>
+
+</main>
+<footer>made by <a href="index.html">yūzuki</a> · <a href="gallery.html">gallery</a> · <a href="all.html">all</a></footer>
+<script>
+const SUBS = [
+  {name:'sphinx', note:'the sphinx hexiamond: 4 copies per inflation, but two orientations — 2x2 orientation-averaged matrix',
+    M:[[2,2],[2,2]], expect:'λ = 2'},
+  {name:'chair', note:'the chair (L-tromino) substitution — 4 copies per inflation, one orientation',
+    M:[[4]], expect:'λ = 4'},
+  {name:'lobite / trilobite', note:'the trilobite pair: a 2x2 matrix over the two tile types',
+    M:[[3,1],[1,2]], expect:'λ ≈ 3.303 (golden-ish)'},
+  {name:'hat (einstein)', note:'the hat is a one-tile substitution: 4 hats per inflation',
+    M:[[4]], expect:'λ = 4'},
+  {name:'spectre', note:'the spectre (chiral einstein): 9 copies per inflation',
+    M:[[9]], expect:'λ = 9'},
+];
+
+function powerIter(M, iters=200){
+  const n = M.length;
+  let v = new Array(n).fill(1);
+  let lam = 0;
+  for(let k=0;k<iters;k++){
+    const w = new Array(n).fill(0);
+    for(let i=0;i<n;i++) for(let j=0;j<n;j++) w[i]+=M[i][j]*v[j];
+    let norm = 0; for(const x of w) norm += x*x; norm = Math.sqrt(norm);
+    if(norm===0) break;
+    lam = norm; v = w.map(x=>x/norm);
+  }
+  return lam;
+}
+
+function matHTML(M){
+  let s = '<table class="mat">';
+  for(let i=0;i<M.length;i++){
+    s += '<tr>';
+    for(let j=0;j<M.length;j++){
+      const cls = (j===0?'brk':'') + (j===M.length-1?' brk':'');
+      s += `<td class="${cls}">${M[i][j]}</td>`;
+    }
+    s += '</tr>';
+  }
+  return s + '</table>';
+}
+
+const root = document.getElementById('cards');
+for(const S of SUBS){
+  const lam = powerIter(S.M);
+  const div = document.createElement('div');
+  div.className='card';
+  div.innerHTML = `<h3>${S.name}</h3>
+    <div class="dim">${S.note}</div>
+    <div style="margin:.8rem 0 .2rem">${matHTML(S.M)}</div>
+    <div>dominant eigenvalue <span class="eig">λ ≈ ${lam.toFixed(3)}</span></div>
+    <div class="dim">area inflation λ² ≈ ${(lam*lam).toFixed(3)} · paper says ${S.expect}</div>`;
+  root.appendChild(div);
+}
+</script>
+</body>
+</html>
