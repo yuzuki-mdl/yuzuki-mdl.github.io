@@ -1,0 +1,197 @@
+<!doctype html><html><head><meta charset=utf-8><title>stern-brocot / farey tessellation</title>
+<style>
+body{margin:0;background:#0d0d12;color:#d8d8e0;font:14px/1.5 ui-monospace,monospace;display:flex;flex-direction:column;align-items:center}
+canvas{display:block;max-width:100%;height:auto}
+.pad{padding:14px 18px;max-width:820px;width:100%;box-sizing:border-box}
+h1{font-size:15px;font-weight:400;letter-spacing:.04em;margin:0 0 6px}
+.dim{color:#7a7a8a}
+code{color:#a8c8ff}
+.row{display:flex;gap:14px;align-items:center;margin-top:10px;flex-wrap:wrap}
+input[type=range]{width:220px}
+button{background:#1a1a24;color:#d8d8e0;border:1px solid #33334a;padding:5px 12px;font:inherit;cursor:pointer;border-radius:4px}
+button:hover{background:#24243a}
+</style></head><body>
+<div class=pad>
+<h1>stern-brocot / the farey tessellation</h1>
+<div class=dim>every rational sits at the boundary of the hyperbolic plane. connect p/q to its farey neighbours and the whole disk fills with ideal triangles — one per rational, no overlaps, no gaps. the tree and the tessellation are the same object. drag nothing; use the slider for depth. hover a vertex to see its fraction.</div>
+<div class=row>
+<label>depth <span id=dn>5</span></label>
+<input id=sl type=range min=1 max=9 value=5>
+<button id=tree>tree mode</button>
+<button id=fary>farey mode</button>
+</div>
+</div>
+<canvas id=c width=900 height=640></canvas>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height,CX=W/2,CY=H/2,R=Math.min(W,H)*0.46;
+let depth=5, mode='farey', hover=null;
+
+// stern-brocot: build list of fractions up to given depth by mediants
+// represent as {a,b,c,d} interval endpoints; but easier: generate farey sequence of order N
+function farey(N){
+  // reduced fractions p/q over the whole real line, |p|<=N, 1<=q<=N
+  const set=new Map();
+  for(let q=1;q<=N;q++)for(let p=-N;p<=N;p++){
+    const g=gcd(p,q)||1; const pp=p/g,qq=q/g;
+    set.set(pp+'/'+qq,[pp,qq]);
+  }
+  const arr=[...set.values()];
+  arr.sort((x,y)=> (x[0]*y[1]-y[0]*x[1]) );
+  return arr;
+}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b];}return a;}
+
+// stern-brocot tree nodes by depth: each node is mediant of neighbours
+function sbTree(maxDepth){
+  // nodes: list of {p,q,depth} ; also edges parent-child
+  let level=[[0,1,1,0]]; // intervals [a/b, c/d]
+  const nodes=[]; const edges=[];
+  for(let d=0;d<=maxDepth;d++){
+    const next=[];
+    for(const [a,b,c,dd] of level){
+      const p=a+c,q=b+dd;
+      nodes.push({p,q,depth:d});
+      next.push([a,b,p,q]);
+      next.push([p,q,c,dd]);
+    }
+    level=next;
+  }
+  return nodes;
+}
+
+// hyperbolic disk: map boundary point (angle theta) to disk point at radius r=1 (ideal)
+// ideal geodesic between two boundary angles: an arc orthogonal to the unit circle.
+// For drawing: the geodesic between boundary points at angles t1,t2 is a circle arc.
+function boundaryPt(theta){return [Math.cos(theta),Math.sin(theta)];}
+
+// geodesic between two ideal points (unit circle) -> draw arc of a circle orthogonal to unit circle
+function geodesic(t1,t2,color,w){
+  // endpoints on unit circle
+  const p1=[Math.cos(t1),Math.sin(t1)], p2=[Math.cos(t2),Math.sin(t2)];
+  // chord midpoint, perpendicular bisector; circle center at distance 1/cos? use formula:
+  // circle through p1,p2 orthogonal to unit circle: center on perpendicular bisector, radius sqrt(c^2-1)
+  // solve: center C with |C|=d, circle radius r, r^2 = d^2-1. Also |C-p1|=r.
+  // d^2 - 2 C·p1 +1 = d^2 -1 => C·p1 = 1. similarly C·p2=1.
+  // so C solves C·p1=1, C·p2=1.
+  const det=p1[0]*p2[1]-p1[1]*p2[0];
+  if(Math.abs(det)<1e-9){ // diameter (antipodal) - straight line
+    ctx.strokeStyle=color;ctx.lineWidth=w;ctx.beginPath();
+    ctx.moveTo(CX+p1[0]*R,CY-p1[1]*R);ctx.lineTo(CX+p2[0]*R,CY-p2[1]*R);ctx.stroke();return;
+  }
+  const Cx=(1*p2[1]-1*p1[1])/det;
+  const Cy=(p1[0]*1-p2[0]*1)/det;
+  const d=Math.hypot(Cx,Cy);
+  const r=Math.sqrt(Math.max(0,d*d-1));
+  // draw arc between p1 and p2 on the side toward origin
+  const a1=Math.atan2(p1[1]-Cy,p1[0]-Cx), a2=Math.atan2(p2[1]-Cy,p2[0]-Cx);
+  // choose the arc whose midpoint stays inside the unit disk (closer to origin)
+  let da=a2-a1; while(da>Math.PI)da-=2*Math.PI; while(da<-Math.PI)da+=2*Math.PI;
+  (function(){
+    const midA=a1+da/2;
+    const mx=Cx+r*Math.cos(midA), my=Cy+r*Math.sin(midA);
+    if(Math.hypot(mx,my)>1){ da = da>0? da-2*Math.PI : da+2*Math.PI; }
+  })();
+  ctx.strokeStyle=color;ctx.lineWidth=w;ctx.beginPath();
+  const steps=Math.max(8,Math.floor(Math.abs(da)/0.05));
+  for(let i=0;i<=steps;i++){
+    const a=a1+da*i/steps;
+    const x=Cx+r*Math.cos(a), y=Cy+r*Math.sin(a);
+    const sx=CX+x*R, sy=CY-y*R;
+    if(i===0)ctx.moveTo(sx,sy);else ctx.lineTo(sx,sy);
+  }
+  ctx.stroke();
+}
+
+// convert fraction p/q in [0,1] to boundary angle: rationals dense on real line -> boundary via stem
+// map t in [0,1] to angle: use stereographic-ish: angle = PI - PI*t? simpler: t->angle=PI*(1-2t)?
+// boundary param: real line maps to circle via t -> angle. Use t in [0,1] -> theta from PI to 0.
+function fracToAngle(p,q){const t=p/q; return 2*Math.atan(t);}
+
+function drawFarey(){
+  ctx.clearRect(0,0,W,H);
+  // unit circle
+  ctx.strokeStyle='#33334a';ctx.lineWidth=1.2;ctx.beginPath();ctx.arc(CX,CY,R,0,2*Math.PI);ctx.stroke();
+  // N = 2^depth farey order approx
+  const NO=[0,3,4,5,6,7,9,12,16,24];
+  const N=NO[Math.min(depth,9)];
+  const fr=farey(N);
+  // draw all geodesics between farey neighbours
+  for(let i=0;i<fr.length-1;i++){
+    const [p1,q1]=fr[i],[p2,q2]=fr[i+1];
+    // only draw if they are farey neighbours (det = 1)
+    if(Math.abs(p1*q2-p2*q1)!==1) continue;
+    const t1=fracToAngle(p1,q1), t2=fracToAngle(p2,q2);
+    geodesic(t1,t2,'rgba(120,200,255,0.35)',0.8);
+  }
+  // draw vertices
+  for(const [p,q] of fr){
+    const t=fracToAngle(p,q);
+    const x=CX+Math.cos(t)*R, y=CY-Math.sin(t)*R;
+    ctx.fillStyle='#ffb060';ctx.beginPath();ctx.arc(x,y,1.8,0,2*Math.PI);ctx.fill();
+  }
+  // labels for small q
+  ctx.fillStyle='#7a7a8a';ctx.font='11px ui-monospace,monospace';ctx.textAlign='center';
+  for(const [p,q] of fr){
+    if(q>N/4)continue;
+    const t=fracToAngle(p,q);
+    const x=CX+Math.cos(t)*(R+14), y=CY-Math.sin(t)*(R+14);
+    ctx.fillText(p+'/'+q,x,y+3);
+  }
+  // title
+  ctx.fillStyle='#d8d8e0';ctx.font='13px ui-monospace,monospace';ctx.textAlign='left';
+  ctx.fillText('farey order '+N+'  ('+fr.length+' vertices)',20,26);
+}
+
+function drawTree(){
+  ctx.clearRect(0,0,W,H);
+  const nodes=sbTree(depth);
+  // layout: x = value p/q in [0,1], y = depth. But values cluster; use log-ish spacing by depth.
+  // Instead: draw as binary tree with x from mediants. Use in-order index for x.
+  // sort nodes by value
+  nodes.sort((a,b)=>a.p*b.q-b.p*a.q);
+  const n=nodes.length;
+  const xpad=40, ypad=40;
+  const dx=(W-2*xpad)/Math.max(1,n-1);
+  const maxD=depth;
+  const pos=nodes.map((nd,i)=>[xpad+i*dx, ypad+(H-2*ypad)*(nd.depth/maxD)]);
+  // edges: connect each node to the two children it's mediant of... simpler: connect parent interval
+  // rebuild tree structure
+  const byKey=new Map();
+  nodes.forEach((nd,i)=>byKey.set(nd.p+'/'+nd.q,i));
+  // draw nodes
+  nodes.forEach((nd,i)=>{
+    const [x,y]=pos[i];
+    ctx.fillStyle=nd.depth===0?'#ff6060':'#ffb060';
+    ctx.beginPath();ctx.arc(x,y,nd.depth===0?3.5:2.5,0,2*Math.PI);ctx.fill();
+  });
+  // edges via interval reconstruction
+  let level=[[0,1,1,0]];
+  for(let d=0;d<depth;d++){
+    const next=[];
+    for(const [a,b,c,dd] of level){
+      const p=a+c,q=b+dd;
+      const pi=byKey.get(p+'/'+q);
+      const li=byKey.get(a+'/'+b), ri=byKey.get(c+'/'+dd);
+      if(pi!=null&&li!=null){const [x1,y1]=pos[li],[x2,y2]=pos[pi];ctx.strokeStyle='rgba(120,200,255,0.4)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
+      if(pi!=null&&ri!=null){const [x1,y1]=pos[ri],[x2,y2]=pos[pi];ctx.strokeStyle='rgba(120,200,255,0.4)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x1,y1);ctx.lineTo(x2,y2);ctx.stroke();}
+      next.push([a,b,p,q]); next.push([p,q,c,dd]);
+    }
+    level=next;
+  }
+  // labels for shallow
+  ctx.fillStyle='#7a7a8a';ctx.font='10px ui-monospace,monospace';ctx.textAlign='center';
+  nodes.forEach((nd,i)=>{if(nd.depth>depth-2)return;const [x,y]=pos[i];ctx.fillText(nd.p+'/'+nd.q,x,y-6);});
+  ctx.fillStyle='#d8d8e0';ctx.font='13px ui-monospace,monospace';ctx.textAlign='left';
+  ctx.fillText('stern-brocot tree, depth '+depth+'  ('+n+' nodes)',20,26);
+}
+
+function render(){ if(mode==='farey')drawFarey(); else drawTree(); }
+
+const sl=document.getElementById('sl'), dn=document.getElementById('dn');
+sl.oninput=()=>{depth=+sl.value;dn.textContent=depth;render();};
+document.getElementById('tree').onclick=()=>{mode='tree';render();};
+document.getElementById('fary').onclick=()=>{mode='farey';render();};
+render();
+</script>
+</body></html>
