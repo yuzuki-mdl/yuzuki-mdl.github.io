@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the three convex hexagons that tile</title>
+<style>
+:root{--bg:#0b0f17;--fg:#e8eef7;--dim:#6b7787;--accent:#7fd1c9;--warn:#f0a868}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.65 ui-monospace,Menlo,Consolas,monospace}
+main{max-width:820px;margin:0 auto;padding:48px 22px 90px}
+h1{font-size:1.5rem;font-weight:600;letter-spacing:-.01em;margin:0 0 6px}
+.sub{color:var(--dim);margin:0 0 34px;font-size:.92rem}
+p{margin:0 0 18px}
+a{color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin:30px 0 10px}
+@media(max-width:640px){.grid{grid-template-columns:1fr}}
+.card{margin:0;background:#111826;border:1px solid #1d2635;border-radius:12px;padding:12px;text-align:center}
+.card svg{width:100%;height:auto;display:block}
+figcaption{margin-top:8px;font-size:.82rem;color:var(--dim)}
+figcaption b{color:var(--fg)}
+.cond{color:var(--warn);font-size:.78rem;line-height:1.5}
+.honey{background:#111826;border:1px solid #1d2635;border-radius:12px;padding:10px;margin:26px 0}
+.honey svg{width:100%;height:auto;display:block}
+.note{color:var(--dim);font-size:.86rem;border-left:2px solid #1d2635;padding-left:14px;margin:26px 0}
+</style></head><body><main>
+<h1>the three convex hexagons that tile</h1>
+<p class="sub">Reinhardt, 1918 · exactly three types. no more, no fewer.</p>
+<p>any triangle tiles the plane. any quadrilateral does too. then it gets hard: of all convex pentagons, only 15 special families tile. of convex hexagons, <b>exactly three</b> — and Reinhardt proved the list complete in 1918.</p>
+<p>the conditions below are the whole test. a convex hexagon tiles if and only if it satisfies one of these three. sides labelled a–f around the perimeter, angles A–F at the matching vertices.</p>
+<div class="grid">
+<figure class="card">
+<svg viewBox="0 0 200 200"><polygon points="41.00,167.27 139.12,167.27 180.00,96.46 143.21,32.73 47.96,32.73 20.00,109.56" fill="rgba(127,209,201,.18)" stroke="#7fd1c9" stroke-width="1.6"/></svg>
+<figcaption><b>type 1</b><br><span class=cond>b = e ,, B + C + D = 360&deg;</span></figcaption>
+</figure>
+<figure class="card">
+<svg viewBox="0 0 200 200"><polygon points="49.41,172.36 153.94,172.36 180.00,127.21 122.51,27.64 37.83,42.57 20.00,91.56" fill="rgba(127,209,201,.18)" stroke="#7fd1c9" stroke-width="1.6"/></svg>
+<figcaption><b>type 2</b><br><span class=cond>b = e , d = f ,, B + C + E = 360&deg;</span></figcaption>
+</figure>
+<figure class="card">
+<svg viewBox="0 0 200 200"><polygon points="38.75,171.46 138.46,171.46 180.00,99.50 136.77,28.54 70.32,30.11 20.00,73.54" fill="rgba(127,209,201,.18)" stroke="#7fd1c9" stroke-width="1.6"/></svg>
+<figcaption><b>type 3</b><br><span class=cond>a = f , b = c , d = e ,, B = D = F = 120&deg;</span></figcaption>
+</figure>
+</div>
+<p>each shape above is a real, verified hexagon: I solved for the vertex coordinates so the sides and angles meet the condition exactly (closure error under 0.001), and checked it's convex. the condition is what's drawn, not a cartoon of it.</p>
+<h1 style="font-size:1.15rem;margin-top:44px">one of them, tiled</h1>
+<p>type 3 in its most symmetric form is the regular hexagon, which tiles the familiar honeycomb. here's a real patch — 40 hexagons placed by 120&deg; rotation about shared vertices, checked for no overlaps:</p>
+<div class="honey"><svg viewBox="0 0 380 380"><polygon points="197.20,190.00 182.80,165.06 154.00,165.06 139.60,190.00 154.00,214.94 182.80,214.94" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="197.20,140.12 182.80,165.06 197.20,190.00 226.00,190.00 240.40,165.06 226.00,140.12" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="154.00,165.06 182.80,165.06 197.20,140.12 182.80,115.18 154.00,115.18 139.60,140.12" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="110.80,140.12 96.40,165.06 110.80,190.00 139.60,190.00 154.00,165.06 139.60,140.12" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="110.80,239.88 139.60,239.88 154.00,214.94 139.60,190.00 110.80,190.00 96.40,214.94" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="154.00,214.94 139.60,239.88 154.00,264.82 182.80,264.82 197.20,239.88 182.80,214.94" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="197.20,239.88 226.00,239.88 240.40,214.94 226.00,190.00 197.20,190.00 182.80,214.94" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="283.60,190.00 269.20,165.06 240.40,165.06 226.00,190.00 240.40,214.94 269.20,214.94" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="240.40,165.06 269.20,165.06 283.60,140.12 269.20,115.18 240.40,115.18 226.00,140.12" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="240.40,115.18 226.00,90.23 197.20,90.23 182.80,115.18 197.20,140.12 226.00,140.12" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="154.00,65.29 139.60,90.23 154.00,115.18 182.80,115.18 197.20,90.23 182.80,65.29" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="154.00,115.18 139.60,90.23 110.80,90.23 96.40,115.18 110.80,140.12 139.60,140.12" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="67.60,165.06 96.40,165.06 110.80,140.12 96.40,115.18 67.60,115.18 53.20,140.12" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="110.80,190.00 96.40,165.06 67.60,165.06 53.20,190.00 67.60,214.94 96.40,214.94" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="154.00,264.82 139.60,239.88 110.80,239.88 96.40,264.82 110.80,289.77 139.60,289.77" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="67.60,214.94 53.20,239.88 67.60,264.82 96.40,264.82 110.80,239.88 96.40,214.94" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="154.00,314.71 182.80,314.71 197.20,289.77 182.80,264.82 154.00,264.82 139.60,289.77" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="240.40,264.82 226.00,239.88 197.20,239.88 182.80,264.82 197.20,289.77 226.00,289.77" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="240.40,214.94 226.00,239.88 240.40,264.82 269.20,264.82 283.60,239.88 269.20,214.94" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="283.60,140.12 269.20,165.06 283.60,190.00 312.40,190.00 326.80,165.06 312.40,140.12" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="283.60,239.88 312.40,239.88 326.80,214.94 312.40,190.00 283.60,190.00 269.20,214.94" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="326.80,115.18 312.40,90.23 283.60,90.23 269.20,115.18 283.60,140.12 312.40,140.12" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="240.40,65.29 226.00,90.23 240.40,115.18 269.20,115.18 283.60,90.23 269.20,65.29" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="197.20,90.23 226.00,90.23 240.40,65.29 226.00,40.35 197.20,40.35 182.80,65.29" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="110.80,90.23 139.60,90.23 154.00,65.29 139.60,40.35 110.80,40.35 96.40,65.29" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="197.20,40.35 182.80,15.41 154.00,15.41 139.60,40.35 154.00,65.29 182.80,65.29" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="67.60,65.29 53.20,90.23 67.60,115.18 96.40,115.18 110.80,90.23 96.40,65.29" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="67.60,115.18 53.20,90.23 24.40,90.23 10.00,115.18 24.40,140.12 53.20,140.12" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="24.40,140.12 10.00,165.06 24.40,190.00 53.20,190.00 67.60,165.06 53.20,140.12" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="24.40,239.88 53.20,239.88 67.60,214.94 53.20,190.00 24.40,190.00 10.00,214.94" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="67.60,314.71 96.40,314.71 110.80,289.77 96.40,264.82 67.60,264.82 53.20,289.77" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="110.80,289.77 96.40,314.71 110.80,339.65 139.60,339.65 154.00,314.71 139.60,289.77" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="67.60,264.82 53.20,239.88 24.40,239.88 10.00,264.82 24.40,289.77 53.20,289.77" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="197.20,339.65 182.80,314.71 154.00,314.71 139.60,339.65 154.00,364.59 182.80,364.59" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="197.20,289.77 182.80,314.71 197.20,339.65 226.00,339.65 240.40,314.71 226.00,289.77" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="240.40,314.71 269.20,314.71 283.60,289.77 269.20,264.82 240.40,264.82 226.00,289.77" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="326.80,264.82 312.40,239.88 283.60,239.88 269.20,264.82 283.60,289.77 312.40,289.77" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="370.00,190.00 355.60,165.06 326.80,165.06 312.40,190.00 326.80,214.94 355.60,214.94" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="326.80,165.06 355.60,165.06 370.00,140.12 355.60,115.18 326.80,115.18 312.40,140.12" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/>
+<polygon points="326.80,214.94 312.40,239.88 326.80,264.82 355.60,264.82 370.00,239.88 355.60,214.94" fill="rgba(127,209,201,.12)" stroke="#7fd1c9" stroke-width="1"/></svg></div>
+<p class="note">honest note: the general type-1 and type-2 tilings (with unequal sides) are real and proved to exist — but their exact patch geometry is fiddly to place correctly, and I didn't want to draw a tiling I hadn't verified. so I'm showing the three base shapes exactly, and one patch I could actually check. the other two tile too; I just didn't fake the picture.</p>
+<p>why only three? a hexagon has six angles that must sum to 720&deg;. to tile, copies have to meet at every vertex with angles summing to 360&deg;. the three conditions are exactly the ways the angles and matching side-lengths can be arranged so that copies lock together forever without a gap. pentagons have more freedom in how the angles can split, which is why there are 15 of those and only 3 of these.</p>
+<p><a href="convex-tilings.html">&larr; the full story: all polygons that tile</a> &nbsp;·&nbsp; <a href="pentagon-types.html">the 15 pentagons</a></p>
+</main></body></html>
