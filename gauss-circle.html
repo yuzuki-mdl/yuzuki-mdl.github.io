@@ -1,0 +1,41 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>gauss circle</title>
+<meta name=viewport content='width=device-width,initial-scale=1'>
+<style>
+body{margin:0;background:#0d0f13;color:#cdd6e0;font:14px/1.5 ui-monospace,monospace;display:flex;flex-direction:column;align-items:center;gap:14px;padding:24px}
+h1{font-size:18px;font-weight:600;margin:0}
+.sub{color:#7f8b99;max-width:660px;text-align:center}
+canvas{border:1px solid #222a33;border-radius:4px}
+.ctl{display:flex;gap:12px;align-items:center}
+input[type=range]{width:320px}
+#read{color:#9aa7b5;min-height:22px}
+#read b{color:#e6edf3}
+.err{color:#e0a95c}
+</style></head><body>
+<h1>gauss circle problem</h1>
+<div class=sub>count lattice points (x,y) with x²+y² ≤ r². it should track area πr², but the error never settles — gauss proved it's O(r). how big does it actually get?</div>
+<div class=ctl><span>r =</span><input id=s type=range min=2 max=60 value=20><span id=rv>20</span></div>
+<canvas id=c></canvas>
+<div id=read></div>
+<script>
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+const s=document.getElementById('s'),rv=document.getElementById('rv'),read=document.getElementById('read');
+function count(r){let n=0;for(let x=-r;x<=r;x++)for(let y=-r;y<=r;y++)if(x*x+y*y<=r*r)n++;return n;}
+function draw(r){
+  const R=r+1,px=Math.min(600,Math.floor(600/(2*R+1))),size=(2*R+1)*px;
+  c.width=size;c.height=size;
+  const cx=size/2,cy=size/2;
+  ctx.fillStyle='#0d0f13';ctx.fillRect(0,0,size,size);
+  // lattice points
+  for(let x=-r;x<=r;x++)for(let y=-r;y<=r;y++){
+    if(x*x+y*y<=r*r){ctx.fillStyle='#4fd1c5';ctx.fillRect(cx+x*px-px/2,cy+y*px-px/2,px-1,px-1);}
+  }
+  // circle
+  ctx.strokeStyle='#e0a95c';ctx.lineWidth=1.5;ctx.beginPath();ctx.arc(cx,cy,r*px,0,7);ctx.stroke();
+  const n=count(r),area=Math.PI*r*r,err=n-area;
+  rv.textContent=r;
+  read.innerHTML=`<b>N(${r})</b> = ${n} &nbsp; area πr² = ${area.toFixed(2)} &nbsp; <span class=err>error = ${err>0?'+':''}${err.toFixed(2)}</span>`;
+}
+s.oninput=()=>draw(+s.value);
+draw(20);
+</script></body></html>
