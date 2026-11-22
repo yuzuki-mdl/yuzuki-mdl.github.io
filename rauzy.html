@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rauzy fractal — tribonacci</title>
+<style>
+  :root{color-scheme:dark}
+  html,body{margin:0;height:100%;background:#0b0e14;color:#cdd6f4;
+    font:14px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+  #wrap{display:flex;height:100%;flex-direction:column}
+  header{padding:14px 18px 6px}
+  h1{margin:0;font-size:16px;font-weight:600;letter-spacing:.02em}
+  p{margin:4px 0 0;color:#7f8aa8;max-width:62ch}
+  canvas{flex:1;display:block;width:100%;min-height:0}
+  #bar{display:flex;gap:14px;align-items:center;padding:8px 18px;flex-wrap:wrap;
+    color:#7f8aa8;border-top:1px solid #1b2030}
+  button{background:#1b2030;color:#cdd6f4;border:1px solid #2a3350;border-radius:6px;
+    padding:4px 10px;font:inherit;cursor:pointer}
+  button:hover{background:#232a40}
+  label{display:flex;gap:6px;align-items:center}
+  input[type=range]{accent-color:#89b4fa;width:120px}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <h1>rauzy fractal · tribonacci</h1>
+    <p>the substitution a→ab, b→ac, c→a has a Pisot eigenvalue (the plastic constant ρ≈1.3247).
+    project the abelianized points onto a contracting plane and the density of visits fills three
+    self-similar subtiles that tile the plane aperiodically. drag to pan, scroll to zoom.</p>
+  </header>
+  <canvas id="c"></canvas>
+  <div id="bar">
+    <label>depth <input id="d" type="range" min="6" max="16" value="13"><span id="dv">13</span></label>
+    <label><input id="sub" type="checkbox" checked> colour subtiles</label>
+    <button id="reset">reset view</button>
+    <span id="stat"></span>
+  </div>
+</div>
+<script>
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+
+// substitution a->ab, b->ac, c->a  (tribonacci / plastic constant)
+const SUB = { a:'ab', b:'ac', c:'a' };
+
+// the Pisot eigenvalue rho of x^3 = x + 1, and a left eigenvector for the
+// contracting 2-plane. we build the projection numerically.
+const rho = 1.324717957244746; // plastic constant
+// eigenvector of the transpose for eigenvalue rho: (rho^2, rho, 1)/norm-ish
+// contracting plane is the orthogonal complement in the 3-dim abelianization.
+// basis vectors of the (real) contracting 2-plane:
+const v1 = [Math.cos(0), 0, 0]; // placeholder, overwritten below
+
+// Instead of symbolic work, build the projection matrix from the left
+// eigenvectors of the substitution matrix M = [[1,1,0],[1,0,1],[0,1,0]] (cols = images).
+// M acts on counts. eigenvalues: rho, and two complex conjugates.
+const M = [[1,1,0],[1,0,1],[0,1,0]];
+
+// power iteration to get the dominant left eigenvector for rho
+function dominantLeft(mat){
+  let v = [1,1,1];
+  for(let k=0;k<200;k++){
+    // v^T M  => new_v[j] = sum_i v[i]*M[i][j]
+    const nv=[0,0,0];
+    for(let i=0;i<3;i++) for(let j=0;j<3;j++) nv[j]+=v[i]*mat[i][j];
+    const s=Math.hypot(...nv); v=nv.map(x=>x/s);
+  }
+  return v;
+}
+const uStar = dominantLeft(M); // left eigenvector, eigenvalue rho
+
+// the contracting plane is orthogonal to uStar in R^3 (the abelianized space).
+// pick two orthonormal vectors spanning it.
+function orthoBasis(n){
+  // find a vector not parallel to n
+  let a = Math.abs(n[0])<0.9 ? [1,0,0] : [0,1,0];
+  // e1 = a - (a·n)n
+  const dot=(x,y)=>x[0]*y[0]+x[1]*y[1]+x[2]*y[2];
+  let e1=a.map((x,i)=>x-dot(a,n)*n[i]);
+  const l1=Math.hypot(...e1); e1=e1.map(x=>x/l1);
+  // e2 = n x e1
+  const e2=[n[1]*e1[2]-n[2]*e1[1], n[2]*e1[0]-n[0]*e1[2], n[0]*e1[1]-n[1]*e1[0]];
+  return [e1,e2];
+}
+const [E1,E2] = orthoBasis(uStar);
+
+// project an integer count-vector (x,y,z) onto the contracting plane
+function proj(v){
+  const d1=v[0]*E1[0]+v[1]*E1[1]+v[2]*E1[2];
+  const d2=v[0]*E2[0]+v[1]*E2[1]+v[2]*E2[2];
+  return [d1,d2];
+}
+
+// generate the substitution and record projected positions of every prefix
+// (i.e. cumulative counts) up to given depth. keep 3 subtile colours.
+function build(depth){
+  // iterative: each letter expands. track cumulative count vector at each
+  // position along the (huge) word, but we only need the set of abelianized
+  // positions visited — that's exactly what fills the rauzy fractal.
+  // depths 13-16 => 3^16 ~ 43M is too big; we cap total length.
+  let word = ['a'];
+  const cap = 400000;
+  for(let d=0; d<depth; d++){
+    const nw=[];
+    let len=0;
+    for(const ch of word){
+      const img=SUB[ch];
+      for(const c of img){ nw.push(c); len++; }
+      if(len>cap) break;
+    }
+    word=nw;
+    if(word.length>cap) break;
+  }
+  const pts=[]; // [x,y,type]
+  const cnt=[0,0,0];
+  const idx={a:0,b:1,c:2};
+  for(const ch of word){
+    const p=proj(cnt);
+    pts.push([p[0],p[1],idx[ch]]);
+    cnt[idx[ch]]++;
+  }
+  return {pts, len:word.length};
+}
+
+// view state
+let view = {ox:0, oy:0, scale:1};
+let data = null, depth=13;
+
+function fit(){
+  if(!data||!data.pts.length) return;
+  let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+  for(const [x,y] of data.pts){
+    if(x<minx)minx=x; if(x>maxx)maxx=x;
+    if(y<miny)miny=y; if(y>maxy)maxy=y;
+  }
+  const w=cv.width, h=cv.height;
+  const pad=0.06;
+  const sx=(w*(1-2*pad))/(maxx-minx||1);
+  const sy=(h*(1-2*pad))/(maxy-miny||1);
+  const s=Math.min(sx,sy);
+  view.scale=s;
+  view.ox = w/2 - ((minx+maxx)/2)*s;
+  view.oy = h/2 + ((miny+maxy)/2)*s; // y flipped below
+}
+
+function resize(){
+  const r = cv.getBoundingClientRect();
+  const dpr = window.devicePixelRatio||1;
+  cv.width = Math.max(1,Math.round(r.width*dpr));
+  cv.height = Math.max(1,Math.round(r.height*dpr));
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+
+const COLORS = ['#89b4fa','#f9a8d4','#a6e3a1'];
+
+function draw(){
+  const w = cv.width/(window.devicePixelRatio||1);
+  const h = cv.height/(window.devicePixelRatio||1);
+  ctx.clearRect(0,0,w,h);
+  if(!data) return;
+  const useSub = document.getElementById('sub').checked;
+  const s = view.scale, ox=view.ox, oy=view.oy;
+  // dot size scales a bit with zoom
+  const r = Math.max(0.6, Math.min(2.2, s*0.9));
+  // group by colour for fewer state changes
+  const buckets = useSub ? [[],[],[]] : [[],];
+  for(const [x,y,t] of data.pts){
+    const px = ox + x*s;
+    const py = oy - y*s;
+    if(px<-4||px>w+4||py<-4||py>h+4) continue;
+    if(useSub) buckets[t].push(px,py); else buckets[0].push(px,py);
+  }
+  const cols = useSub ? COLORS : ['#cdd6f4'];
+  for(let b=0;b<buckets.length;b++){
+    const arr=buckets[b];
+    ctx.fillStyle=cols[b];
+    ctx.globalAlpha = useSub ? 0.85 : 0.7;
+    for(let i=0;i<arr.length;i+=2){
+      ctx.beginPath();
+      ctx.arc(arr[i],arr[i+1],r,0,6.2832);
+      ctx.fill();
+    }
+  }
+  ctx.globalAlpha=1;
+}
+
+function rebuild(){
+  depth = +document.getElementById('d').value;
+  document.getElementById('dv').textContent = depth;
+  data = build(depth);
+  document.getElementById('stat').textContent = data.len.toLocaleString()+' points';
+  fit();
+  draw();
+}
+
+// interaction
+document.getElementById('d').addEventListener('input', rebuild);
+document.getElementById('sub').addEventListener('change', draw);
+document.getElementById('reset').addEventListener('click', ()=>{ fit(); draw(); });
+
+let drag=null;
+cv.addEventListener('pointerdown',e=>{ drag={x:e.clientX,y:e.clientY,ox:view.ox,oy:view.oy}; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  view.ox = drag.ox + (e.clientX-drag.x);
+  view.oy = drag.oy + (e.clientY-drag.y);
+  draw();
+});
+cv.addEventListener('pointerup',()=>{ drag=null; });
+cv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const r=cv.getBoundingClientRect();
+  const mx=e.clientX-r.left, my=e.clientY-r.top;
+  const k = e.deltaY<0 ? 1.12 : 1/1.12;
+  view.ox = mx + (view.ox-mx)*k;
+  view.oy = my + (view.oy-my)*k;
+  view.scale *= k;
+  draw();
+},{passive:false});
+
+window.addEventListener('resize', resize);
+resize();
+rebuild();
+</script>
+</body>
+</html>
