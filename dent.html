@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the dent is load-bearing</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#e8e6df;--dim:#6b6a66;--hot:#ff5a4d;--cool:#4d8dff}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);
+    font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  canvas{flex:1;display:block;cursor:crosshair}
+  #hud{padding:10px 14px;display:flex;gap:18px;align-items:center;flex-wrap:wrap;
+    border-top:1px solid #1e2029;color:var(--dim);font-size:12px}
+  #hud b{color:var(--fg);font-weight:500}
+  input[type=range]{width:120px;accent-color:var(--hot)}
+  .k{color:var(--dim)}
+</style>
+</head>
+<body>
+<div id=wrap>
+  <canvas id=c></canvas>
+  <div id=hud>
+    <span>load <b id=lv>0.30</b></span>
+    <input id=load type=range min=0 max=1 step=0.01 value=0.30>
+    <span>stiffness <b id=sv>1.00</b></span>
+    <input id=stiff type=range min=0.2 max=3 step=0.01 value=1>
+    <span class=k>drag on the beam to push it</span>
+    <span class=k>colour = where its working</span>
+  </div>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let dpr=Math.min(devicePixelRatio||1,2);
+let W=0,H=0;
+function fit(){W=cv.clientWidth;H=cv.clientHeight;cv.width=W*dpr;cv.height=H*dpr;
+  ctx.setTransform(dpr,0,0,dpr,0,0);}
+addEventListener('resize',fit);fit();
+
+let load=0.30, stiff=1.0;
+const L=document.getElementById('load'),S=document.getElementById('stiff');
+const lv=document.getElementById('lv'),sv=document.getElementById('sv');
+L.oninput=()=>{load=+L.value;lv.textContent=load.toFixed(2);};
+S.oninput=()=>{stiff=+S.value;sv.textContent=stiff.toFixed(2);};
+
+// beam: fixed at left, free at right. deflection under tip load ~ x^2(3L-x)/(6EI)
+// we draw a strip of segments; stress ~ moment ~ (L-x)*P ; curvature from deflection.
+const N=90;
+let dragX=-1,dragY=-1;
+cv.addEventListener('pointerdown',e=>{const r=cv.getBoundingClientRect();dragX=e.clientX-r.left;dragY=e.clientY-r.top;});
+cv.addEventListener('pointermove',e=>{if(dragX<0)return;const r=cv.getBoundingClientRect();dragX=e.clientX-r.left;dragY=e.clientY-r.top;});
+addEventListener('pointerup',()=>{dragX=-1;dragY=-1;});
+
+function beam(t){
+  // t from 0..1 along beam
+  const x=t;
+  // deflection shape (unit tip): d(t)=t^2*(3-2t)... actually cantilever: y = t^2*(3-t)/2 scaled
+  const defl=(t*t*(3-t))/2;
+  return defl;
+}
+
+let phase=0;
+function draw(){
+  phase+=0.016;
+  ctx.clearRect(0,0,W,H);
+  const y0=H*0.42;
+  const len=W*0.80, x0=W*0.10;
+  const maxDefl=H*0.28;
+  const amp=load/stiff;
+
+  // build points
+  const pts=[];
+  for(let i=0;i<=N;i++){
+    const t=i/N;
+    const bow=beam(t)*maxDefl*amp;
+    // gentle wobble when loaded
+    const wob=Math.sin(phase*2+t*6)*2.5*amp*t;
+    pts.push({x:x0+len*t, y:y0+bow+wob, t});
+  }
+
+  // stress = moment ~ (1-t)  -> hot near the fixed end
+  // draw thick polyline segments coloured by stress
+  ctx.lineCap='round';
+  for(let i=0;i<N;i++){
+    const a=pts[i],b=pts[i+1];
+    const stress=(1-a.t)*amp; // 0..~1
+    const c=stressColor(Math.min(1,stress*1.4));
+    const w=6+stress*10;
+    ctx.strokeStyle=c;ctx.lineWidth=w;
+    ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke();
+  }
+
+  // the dent: at the tip, a little notch where it's bent most
+  const tip=pts[N];
+  ctx.strokeStyle='rgba(232,230,223,0.25)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x0,y0+maxDefl*amp);ctx.stroke();
+
+  // wall
+  ctx.fillStyle='#1a1c24';
+  ctx.fillRect(x0-14,y0-H*0.22,14,H*0.44);
+  ctx.fillStyle='#2a2d38';
+  for(let i=0;i<6;i++){ctx.fillRect(x0-14,y0-H*0.22+i*(H*0.44/6)+3,14,2);}
+
+  // ghost of undeflected beam
+  ctx.setLineDash([3,6]);ctx.strokeStyle='rgba(232,230,223,0.10)';ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(x0,y0);ctx.lineTo(x0+len,y0);ctx.stroke();ctx.setLineDash([]);
+
+  // readout near the hot end
+  ctx.fillStyle='rgba(107,106,102,0.9)';ctx.font='12px ui-monospace,monospace';
+  ctx.fillText('max stress',x0+6,y0-H*0.26);
+  const s=Math.min(1,amp*1.4);
+  ctx.fillStyle=stressColor(s);
+  ctx.fillText((s*100).toFixed(0)+'%',x0+6,y0-H*0.26+15);
+
+  requestAnimationFrame(draw);
+}
+
+function stressColor(s){
+  // cool blue -> white -> hot red
+  s=Math.max(0,Math.min(1,s));
+  let r,g,b;
+  if(s<0.5){const u=s/0.5;r=77+u*(232-77);g=141+u*(230-141);b=255+u*(223-255);}
+  else{const u=(s-0.5)/0.5;r=232+u*(255-232);g=230+u*(90-230);b=223+u*(77-223);}
+  return `rgb(${r|0},${g|0},${b|0})`;
+}
+
+draw();
+</script>
+</body>
+</html>
