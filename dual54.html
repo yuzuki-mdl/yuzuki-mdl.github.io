@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width,initial-scale=1,user-scalable=no'>
+<title>dual graph {5,4}</title>
+<style>
+html,body{margin:0;background:#04060b;color:#cfd8f0;font-family:ui-monospace,Menlo,monospace;overflow:hidden;touch-action:none;user-select:none}
+#c{display:block;width:100vw;height:100vh;cursor:crosshair}
+.hud{position:fixed;left:18px;top:16px;font-size:13px;line-height:1.55;pointer-events:none;opacity:.92}
+.hud b{color:#8ef}
+.hud small{opacity:.5}
+#hint{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);font-size:12px;opacity:.4;pointer-events:none;text-align:center}
+</style>
+</head>
+<body>
+<canvas id=c></canvas>
+<div class=hud>dual graph of {5,4}<br>one node per pentagon, one edge per shared side<br><small id=info>hover a node</small></div>
+<div id=hint>the tiles are gone. only the graph between them is left.</div>
+<script>
+(()=>{
+const P=5,Q=4,RINGS=4;
+const rv=Math.tanh(Math.acosh(1/Math.tan(Math.PI/P)/Math.tan(Math.PI/Q))/2);
+function centralVerts(){const v=[];for(let i=0;i<P;i++){const a=-Math.PI/2+2*Math.PI*i/P;v.push([rv*Math.cos(a),rv*Math.sin(a)]);}return v;}
+function gc(p1,p2){
+const [x1,y1]=p1,[x2,y2]=p2;
+const b1=(1+x1*x1+y1*y1)/2,b2=(1+x2*x2+y2*y2)/2;
+const det=x1*y2-x2*y1;
+if(Math.abs(det)<1e-6)return null;
+const cx=(b1*y2-b2*y1)/det,cy=(x1*b2-x2*b1)/det;
+return {cx,cy,r:Math.hypot(cx-x1,cy-y1)};
+}
+function rp(pt,c){const dx=pt[0]-c.cx,dy=pt[1]-c.cy,d2=dx*dx+dy*dy;return [c.cx+c.r*c.r*dx/d2,c.cy+c.r*c.r*dy/d2];}
+function rpoly(vs,e){
+const p1=vs[e],p2=vs[(e+1)%P];
+const c=gc(p1,p2);
+if(c)return vs.map(v=>rp(v,c));
+const mx=p1[0]+p2[0],my=p1[1]+p2[1],d=Math.hypot(mx,my),ux=mx/d,uy=my/d;
+return vs.map(v=>{const dot=v[0]*ux+v[1]*uy;return [2*dot*ux-v[0],2*dot*uy-v[1]];});
+}
+function cen(vs){let x=0,y=0;for(const v of vs){x+=v[0];y+=v[1];}return [x/P,y/P];}
+function buildBall(rings){
+const polys=[];const TOL=1e-4;
+function add(vs){const c=cen(vs);for(let j=0;j<polys.length;j++){const pc=cen(polys[j]);if(Math.hypot(pc[0]-c[0],pc[1]-c[1])<TOL)return j;}const i=polys.length;polys.push(vs);return i;}
+add(centralVerts());
+for(let r=0;r<rings;r++){const n=polys.length;for(let i=0;i<n;i++)for(let e=0;e<P;e++)add(rpoly(polys[i],e));}
+const adj=polys.map(()=>[-1,-1,-1,-1,-1]);
+for(let i=0;i<polys.length;i++)for(let e=0;e<P;e++){const nc=cen(rpoly(polys[i],e));for(let j=0;j<polys.length;j++){if(j===i)continue;const jc=cen(polys[j]);if(Math.hypot(jc[0]-nc[0],jc[1]-nc[1])<TOL){adj[i][e]=j;break;}}}
+return {polys,adj};
+}
+const ball=buildBall(RINGS);
+const nodes=ball.polys.map(vs=>cen(vs));
+const ring=nodes.map(c=>{const r=Math.hypot(c[0],c[1]);return r;});
+const edges=[];const seenE=new Set();
+for(let i=0;i<ball.adj.length;i++)for(let e=0;e<P;e++){const j=ball.adj[i][e];if(j<0)continue;const k=i<j?i+'-'+j:j+'-'+i;if(seenE.has(k))continue;seenE.add(k);edges.push([i,j]);}
+const cv=document.getElementById('c'),ctx=cv.getContext('2d',{alpha:false});
+let W=0,H=0,SC=1,DPR=1;
+function resize(){DPR=Math.min(2,window.devicePixelRatio||1);W=window.innerWidth;H=window.innerHeight;cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);cv.style.width=W+'px';cv.style.height=H+'px';SC=Math.min(W,H)*0.46;}
+window.addEventListener('resize',resize);resize();
+const info=document.getElementById('info');
+let hover=-1,mx=0,my=0;
+function toWorld(px,py){return [(px-W/2)/(SC),-(py-H/2)/(SC)];}
+cv.addEventListener('mousemove',ev=>{
+const r=cv.getBoundingClientRect();
+const [wx,wy]=toWorld(ev.clientX-r.left,ev.clientY-r.top);
+let best=-1,bd=1e9;
+for(let i=0;i<nodes.length;i++){const d=Math.hypot(nodes[i][0]-wx,nodes[i][1]-wy);if(d<bd){bd=d;best=i;}}
+hover=(bd<0.06)?best:-1;
+});
+cv.addEventListener('mouseleave',()=>hover=-1);
+function mz(z,p){const dx=z[0]-p[0],dy=z[1]-p[1];const ux=1-p[0]*z[0]-p[1]*z[1],uy=p[0]*z[1]-p[1]*z[0];const d=ux*ux+uy*uy;return [(dx*ux-dy*uy)/d,(dx*uy+dy*ux)/d];}
+function mzi(w,p){const ux=1+p[0]*w[0]+p[1]*w[1],uy=p[0]*w[1]-p[1]*w[0];const d=ux*ux+uy*uy;const nr=w[0]+p[0],ni=w[1]+p[1];return [(nr*ux+ni*uy)/d,(ni*ux-nr*uy)/d];}
+function arcTo(p,q){const qq=mz(q,p);const L=Math.hypot(qq[0],qq[1]);const N=Math.max(3,Math.min(40,Math.ceil(L*26)));for(let k=1;k<=N;k++){const t=k/N;const w=mzi([qq[0]*t,qq[1]*t],p);ctx.lineTo(w[0],w[1]);}}
+function geoEdge(a,b){
+ctx.beginPath();ctx.moveTo(a[0],a[1]);arcTo(a,b);
+}
+function render(t){
+ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#04060b';ctx.fillRect(0,0,cv.width,cv.height);
+ctx.setTransform(SC*DPR,0,0,-SC*DPR,W*DPR/2,H*DPR/2);
+// boundary
+ctx.beginPath();ctx.arc(0,0,1,0,2*Math.PI);ctx.strokeStyle='rgba(90,140,200,0.18)';ctx.lineWidth=2/SC;ctx.stroke();
+ctx.lineJoin='round';
+// edges: geodesics between pentagon centers
+ctx.lineWidth=1.1/SC;
+for(const [i,j] of edges){
+const a=nodes[i],b=nodes[j];
+const ra=Math.hypot(a[0],a[1]),rb=Math.hypot(b[0],b[1]);
+if(ra>0.94||rb>0.94)continue;
+const hl=(hover===i||hover===j);
+ctx.strokeStyle=hl?'rgba(140,240,255,0.95)':'rgba(110,150,210,0.30)';
+ctx.lineWidth=(hl?2.2:1.0)/SC;
+geoEdge(a,b);ctx.stroke();
+}
+// nodes
+for(let i=0;i<nodes.length;i++){
+const c=nodes[i],r=Math.hypot(c[0],c[1]);
+if(r>0.93)continue;
+const warm=Math.min(1,r/0.55);
+const hue=200-120*warm; // blue center → green rim
+const rad=(hover===i?0.017:0.010);
+const glow=hover===i?0.9:0.55;
+ctx.beginPath();ctx.arc(c[0],c[1],rad,0,2*Math.PI);
+ctx.fillStyle=`hsla(${hue},80%,${55+20*glow}%,${0.55+0.4*glow})`;
+ctx.fill();
+if(hover===i){ctx.lineWidth=1.5/SC;ctx.strokeStyle='#fff';ctx.stroke();}
+}
+ctx.setTransform(1,0,0,1,0,0);
+if(hover>=0){const deg=ball.adj[hover].filter(x=>x>=0).length;info.textContent=`pentagon #${hover} · ${deg} neighbours · r=${ring[hover].toFixed(3)}`;}
+else info.textContent='hover a node';
+requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+})();
+</script>
+</body>
+</html>
