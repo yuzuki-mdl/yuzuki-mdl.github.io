@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>cistern</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  body{margin:0;background:#080b10;color:#cfd8e3;font-family:system-ui,sans-serif}
+  .wrap{max-width:900px;margin:0 auto;padding:18px}
+  h1{font-weight:400;letter-spacing:.04em;font-size:1.3em;margin:.2em 0}
+  p{line-height:1.55;color:#9fb0c4;font-size:.95em}
+  canvas{width:100%;display:block;border-radius:6px;background:#04060a;cursor:crosshair}
+  .hint{font-size:.82em;color:#5f7089;margin-top:8px}
+  .row{display:flex;gap:14px;align-items:center;margin:10px 0;flex-wrap:wrap}
+  button{background:#132234;color:#cfe4ff;border:1px solid #1e3a55;border-radius:5px;padding:6px 12px;font:inherit;cursor:pointer}
+  button:hover{background:#1a2f47}
+  .stat{font-family:ui-monospace,monospace;color:#7fd6a8}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>the cistern under the cellar</h1>
+  <p>Istanbul has several hundred ancient cisterns under it. The largest, the Basilica Cistern, was forgotten for about a thousand years — known only to the people who lowered buckets through holes in their own cellars and got water back. A Frenchman, Gyllius, recorded it in 1565: he was rowed between the columns, and could see fish under the boat. You have a hole in your floor. Lower the bucket.</p>
+  <div class="row">
+    <button id="drop">lower the bucket</button>
+    <button id="new">another cellar</button>
+    <span class="stat" id="read"></span>
+  </div>
+  <canvas id="c"></canvas>
+  <div class="hint">click the canvas to lower the bucket where you clicked. the water level is what the bucket brings back.</div>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const readEl=document.getElementById('read');
+let W,H,dpr,cistern,bucket;
+
+function build(){
+  const cols=[];
+  const nCols=5+Math.floor(Math.random()*5);
+  for(let i=0;i<nCols;i++){
+    cols.push({
+      x:0.12+0.76*(i/(nCols-1))+(Math.random()-0.5)*0.04,
+      w:0.035+Math.random()*0.02,
+      h:0.30+Math.random()*0.22
+    });
+  }
+  // water level: fraction of the cistern's depth, random per cellar
+  const water=0.30+Math.random()*0.45;
+  // floor unevenness
+  const floor=[];
+  for(let i=0;i<=20;i++) floor.push(0.90+0.03*Math.sin(i*1.3+Math.random()*3));
+  cistern={cols,water,floor};
+  bucket=null;
+  readEl.textContent='';
+}
+
+function fit(){
+  dpr=window.devicePixelRatio||1;
+  W=cv.clientWidth; H=Math.round(W*0.62);
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const ceilY=H*0.06;
+  const floorY=H*0.94;
+  const depth=floorY-ceilY;
+  // cellar floor / hole
+  ctx.fillStyle='#0d1420';
+  ctx.fillRect(0,0,W,ceilY);
+  // hole edges
+  const holeW=Math.min(70,W*0.14);
+  const holeX=W/2;
+  ctx.fillStyle='#0d1420';
+  ctx.fillRect(holeX-holeW/2,0,holeW,ceilY);
+  ctx.strokeStyle='#243a52'; ctx.lineWidth=2;
+  ctx.beginPath();ctx.moveTo(holeX-holeW/2,ceilY);ctx.lineTo(0,ceilY);ctx.moveTo(holeX+holeW/2,ceilY);ctx.lineTo(W,ceilY);ctx.stroke();
+
+  // cistern walls
+  ctx.fillStyle='#0a1018';
+  ctx.fillRect(0,ceilY,W,depth);
+
+  // water
+  const waterY=ceilY+depth*cistern.water;
+  const g=ctx.createLinearGradient(0,waterY,0,floorY);
+  g.addColorStop(0,'rgba(40,90,120,0.55)');
+  g.addColorStop(1,'rgba(10,30,50,0.85)');
+  ctx.fillStyle=g;
+  // uneven floor line
+  ctx.beginPath();
+  ctx.moveTo(0,waterY);
+  for(let i=0;i<=20;i++){
+    const x=W*i/20; ctx.lineTo(x,waterY+Math.sin(i*0.7+performance.now()*0.0006)*2);
+  }
+  ctx.lineTo(W,floorY);
+  for(let i=20;i>=0;i--){
+    const x=W*i/20; ctx.lineTo(x,ceilY+depth*cistern.floor[i]);
+  }
+  ctx.closePath(); ctx.fill();
+
+  // water surface shimmer
+  ctx.strokeStyle='rgba(120,190,220,0.35)';ctx.lineWidth=1;
+  ctx.beginPath();
+  for(let x=0;x<=W;x+=6){
+    const y=waterY+Math.sin(x*0.04+performance.now()*0.0012)*2.5;
+    x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+
+  // columns
+  for(const c of cistern.cols){
+    const cx=c.x*W, cw=c.w*W;
+    const top=ceilY+depth*(1-c.h);
+    ctx.fillStyle='#131c28';
+    ctx.fillRect(cx-cw/2,top,cw,floorY-top);
+    ctx.fillStyle='#1b2736';
+    ctx.fillRect(cx-cw/2,top,cw*0.35,floorY-top);
+    // capital
+    ctx.fillStyle='#1e2c3d';
+    ctx.fillRect(cx-cw*0.8,top,cw*1.6,cw*0.4);
+    // submerged tint
+    if(top<waterY){
+      ctx.fillStyle='rgba(30,80,110,0.25)';
+      ctx.fillRect(cx-cw/2,waterY,cw,floorY-waterY);
+    }
+  }
+
+  // fish
+  const t=performance.now()*0.0004;
+  ctx.fillStyle='rgba(150,200,220,0.5)';
+  for(let i=0;i<6;i++){
+    const fx=(W*((i*0.17+t)%1));
+    const fy=waterY+ (floorY-waterY)*(0.35+0.4*Math.abs(Math.sin(i*2+t*3)));
+    ctx.beginPath();ctx.ellipse(fx,fy,6,2.2,0,0,7);ctx.fill();
+  }
+
+  // bucket
+  if(bucket){
+    const bx=holeX; // bucket hangs from hole
+    const by=bucket.y;
+    ctx.strokeStyle='#3a4f66';ctx.lineWidth=1.5;
+    ctx.beginPath();ctx.moveTo(bx,0);ctx.lineTo(bx,by);ctx.stroke();
+    ctx.fillStyle='#4a3a28';
+    ctx.fillRect(bx-13,by,26,22);
+    ctx.strokeStyle='#6b563c';ctx.lineWidth=2;
+    ctx.strokeRect(bx-13,by,26,22);
+    ctx.beginPath();ctx.arc(bx,by,13,Math.PI,0);ctx.stroke();
+    // water in bucket when submerged
+    if(by+22>waterY){
+      ctx.fillStyle='rgba(60,140,180,0.7)';
+      const lvl=Math.max(by+2,waterY);
+      ctx.fillRect(bx-11,Math.min(lvl,by+20),22,by+20-Math.min(lvl,by+20));
+    }
+  }
+
+  // readout of depth
+  if(bucket && bucket.reading!=null){
+    readEl.textContent='bucket came up full — water at '+Math.round(bucket.reading*100)+'% of the shaft';
+  }
+}
+
+function lower(targetFrac){
+  const ceilY=H*0.06, floorY=H*0.94, depth=floorY-ceilY;
+  const waterY=ceilY+depth*cistern.water;
+  let y=0;
+  bucket={y:0,reading:null};
+  const stop=y; // start at top
+  const target=waterY+8; // go just under the surface
+  const t0=performance.now();
+  function step(){
+    const p=Math.min(1,(performance.now()-t0)/1400);
+    bucket.y=(target)*(p<0.5?p*2:(2-p*2)); // down then up
+    if(p>=0.5 && bucket.reading==null){
+      bucket.reading=cistern.water;
+    }
+    if(p<1){requestAnimationFrame(step);}
+    else {bucket.y=0;}
+  }
+  step();
+}
+
+function loop(){draw();requestAnimationFrame(loop);}
+
+cv.addEventListener('click',()=>{lower();});
+document.getElementById('drop').addEventListener('click',()=>lower());
+document.getElementById('new').addEventListener('click',()=>{build();});
+window.addEventListener('resize',()=>{fit();});
+
+build();fit();loop();
+</script>
+</body>
+</html>
