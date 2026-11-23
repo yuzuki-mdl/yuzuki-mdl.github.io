@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>site roulette</title>
+<style>
+  :root { --bg:#0f0f12; --fg:#e8e6df; --dim:#8a877c; --hot:#ffcf5c; }
+  html,body { margin:0; height:100%; }
+  body {
+    background:var(--bg); color:var(--fg);
+    font:16px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:1.6rem; padding:2rem; text-align:center;
+  }
+  h1 { font-size:1rem; font-weight:400; letter-spacing:.25em; text-transform:uppercase; color:var(--dim); margin:0; }
+  #slot {
+    font-size:clamp(1.6rem,6vw,3rem); font-weight:700; color:var(--hot);
+    min-height:1.2em; letter-spacing:.02em; word-break:break-all;
+  }
+  #slot.spin { animation:jitter .08s infinite; }
+  @keyframes jitter { 50% { transform:translateY(1px); opacity:.75; } }
+  button {
+    background:none; border:1px solid var(--dim); color:var(--fg);
+    font:inherit; padding:.6rem 1.4rem; border-radius:6px; cursor:pointer;
+    letter-spacing:.1em; text-transform:uppercase; font-size:.8rem;
+    transition:border-color .15s,color .15s;
+  }
+  button:hover { border-color:var(--hot); color:var(--hot); }
+  #meta { color:var(--dim); font-size:.8rem; min-height:1.2em; }
+  a { color:var(--hot); }
+  footer { color:var(--dim); font-size:.72rem; }
+</style>
+</head>
+<body>
+<h1>505 pages, one roll</h1>
+<div id="slot">&nbsp;</div>
+<div id="meta">&nbsp;</div>
+<button id="go">roll</button>
+<footer>a spin of my own site · <a href="all.html">all pages</a> · <a href="index.html">home</a></footer>
+<script>
+const PAGES = "10nb-sweep,10print,2048,54-horocycles,54-neighbours,67,about-ai,alexander-table,aliquot,all,ant,ants,aperiodic,apollonian,archipelago,archive,attractor-music,attractor,babygiant,basinmap,bd93,beatbox,benford,bertrand,bf,blank-parity,bloom,boids,bolza,bored,boy,boys,bracelets,braess,braid-jones,braille-cat,braille,breath-chase,breathe,breeder,briansbrain,brinicle,buffon,burau,c60-flip,c60-transport,ca-music,ca-sound,caatlas,calkin-wilf,camera-writhe,casserole,cayley-ball,cayley,chair,chair44,chaosdrag,chart,chase,chess,chladni,cistern,city,closed-world,cloth,collatz,colorhear,cone-render,cone,connect4,contrast,convex-tilings,conway-soldiers,coset-enum,costas,crawler,creatures,csaszar,cubenets,curvature-life,curvature,curve-stitch,curvewalk,curvresid,dead-ends,dent,dessin,dessin2,dessin3,differential,dimple,diskwalk,dla-time,dla,domino,double-pentagon,drawwave,drifting-pendulum,drop,dual54,duality,dungeon,dust,eca-lattice,epicycles,euclidean-rhythm,evoloop,evolve,exceptional,farey,ferrofluid,fifteen,finite-order-not-rotor,fire,fireflies,flame,flow,flowfield,foam,fog54,forage,ford-circles,friendship,frieze,g4disk,gallery,galton,garden,gasketfractal,gauss-circle,genus-ladder,genus2-3d,genus2-54,genus2-force,genus2-hyp,genus2-map,genus2-net-obstruction,genus2-net,genus2-net2,genus2-net3,genus2-regular-maps,genus2-seams,genus2-symmetry,genus2-v4,genus2-walk,genus2maps,genus4-3d,genus4-54,genus4-dual,gimbal,glider-march,glider-matcher,gomboc,goodstein,grammar,gravitysand,halfflips,halfflips68,hanoi,happy-ending,harmonograph-2,harmonograph,harshad,hat-tiler,hat,heawood,hexaflexagon,hexiamonds,hexlife,hextilings,honestmould,hopf,horocycles,hough,hum,hurwitz,hyp10,hyp10life,hyp54,hyp54glider,hyp54life,hypca,hyperbolic-crochet,hyperbolic-kaleido,hyperbolic-neighbors,hyperbolic,hyperbolic54,hypercube,hypermaze,hyperslime,hyperuniform,hypglide,hyptruchet,hypwall,hypwaves,ibfv,ideal-tetra,ifs,index,inscribed-square,invert,jelly,jones,julia,kakeya,kaprekar,kb,kepler55,klein37,knights-tour,knot-det,knots,ladder,langton,leaves,lenia,life,life3d,lightday,lightning,limitset,linking-number,lobite,locked-paths,lockpick,logos-ca,lonely-runner,looksay,lose,lsystem,lychrel,magiceye,magnet,magpend,majority,mandelbrot,mapiso120,marchingcubes,marks,maze-solve,maze,medial-axis,median,meow,metaballs,mines,modular-horocycles,moon,mould-net,mould-notes,mould,napkin,nbrcount,negatives,no-three-in-line,norton,notes,one-rule,onecurve,onehundred,oneline,onerule,oneword,opaque,orbits,padic,parrondo,particlelife,pascal,pathfind-watch,pathfind,paws,pd-jones,peanut-butter,peg,pendulum,penrose-grid,penrose,penta-billiard,pentagame,pentagon-linkage,pentagon-quest,pentagon-types,pentagons,pentagrid,pentaspiral,persistence,phantomjam,phase-coherence,phase,physarum-cut,physarum-flow,physarum-index,physarum-lag,physarum-maze,physarum,picross,pinscreen,pixelsort,plinko,poemachine,poincare-geodesic,polycubes,polyhexes,polyiamonds,polyominoes,pond,potato-paradox,potato,powderbox,pq-sweep-all,pq-sweep,pq-tiling,prisoners,punch,pursuit,puzzle15,rabbit,radio,radius-reach,ragdoll,rain,rauzy,raycast,raymarch,rd,reaction,recaman,regrow-ledger,rep-n-polyiamonds,rep-tile-club,rep16-polyominoes,rep4-gallery,rep4-polyominoes,rep9-polyiamonds,reversible,rewrite,rhombille-fib,ripples,room,rule110-story,rule110,rule30,rule90,rupert,sand,sandpile,sayab,shiftingmaze,signal,simpson,singing-dunes,single-tile,singletile,sitemap,siteswap,skein,skeleton-vs-medial,sky,slime-tsp,slime,snake,snakebox,snark,soft,sokoban,soldiers-graphs,sortrace,sparse-cost,sparse-life,sparse54,spectre-coords,spectre,sphinx-fractal,sphinx,spiral,spiro,stack,staleprobe,stern-brocot,stir,straight-skeleton,sturmian,subdivision,substitution-matrices,sweep-that-lied,sweep5,sweep6,swing,synth,szilassi,tc-fail,tetris,theremin,three-squares,tidemap,tile-clicker,tiling-grow,tinylang-bytecode,tinylang-debug,tinylang,tornado,torus-knot,torus-mould,trefoil,trianglegroup,trichotomy,trilobite-crab,trilobite-dial,trilobite-teeth,truchet-flow,truchet,ttt,turing,turmite,turnbias,turning-number,twist-writhe,two-envelopes,two-squares,typing,ulam,undecidable,van-eck,vanwijk,vd54-infinite,vdpq-rings,vdpq93,vdsim,vdsparse,verity,vertex-debt,voices,vondyck,voronoi,wake54,wall,wang,weights,wfc,why-no-gliders,wind,window,wireworld,wordbomb,words".split(",");
+
+const slot = document.getElementById('slot');
+const meta = document.getElementById('meta');
+const go = document.getElementById('go');
+let spinning = false;
+
+function roll() {
+  if (spinning) return;
+  spinning = true;
+  go.disabled = true;
+  slot.classList.add('spin');
+  meta.textContent = '\u00a0';
+  const steps = 18 + Math.floor(Math.random()*12);
+  let i = 0;
+  const tick = () => {
+    const p = PAGES[Math.floor(Math.random()*PAGES.length)];
+    slot.textContent = p;
+    i++;
+    if (i < steps) {
+      setTimeout(tick, 40 + i*i*0.9);
+    } else {
+      const pick = PAGES[Math.floor(Math.random()*PAGES.length)];
+      slot.textContent = pick;
+      slot.classList.remove('spin');
+      meta.innerHTML = 'landed on <a href="' + pick + '.html">' + pick + '.html</a> \u2014 go on';
+      spinning = false;
+      go.disabled = false;
+    }
+  };
+  tick();
+}
+
+go.addEventListener('click', roll);
+document.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); roll(); } });
+</script>
+</body>
+</html>
