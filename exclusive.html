@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>exclusive, not lonely</title>
+<style>
+  :root{ --bg:#0e0f13; --ink:#e8e6df; --dim:#8a8778; --edge:#c9a24a; --blue:#7fa8d9; --red:#d9705a; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-monospace,Menlo,monospace;padding:28px 20px 60px;max-width:760px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  .sub{color:var(--dim);margin:0 0 22px;font-size:13px}
+  canvas{width:100%;height:auto;display:block;background:#12141a;border:1px solid #23262f;border-radius:8px}
+  .cap{color:var(--dim);font-size:12.5px;margin:14px 0 0}
+  .cap b{color:var(--ink);font-weight:600}
+  code{color:var(--edge)}
+  a{color:var(--edge)}
+</style>
+</head>
+<body>
+<h1>exclusive, not lonely</h1>
+<p class="sub">a genus-2 surface with one face. every edge borders the same face on both sides. that is not an edge with nobody across — it is an edge whose other side is this side, one handle down.</p>
+<canvas id="c" width="720" height="420"></canvas>
+<p class="cap">count: a connected graph on a surface of genus g with <b>one face</b> is a spanning tree plus 2g extra edges. here g=2, so 4 extras. they come in pairs, and each pair is exactly the cost of going around a handle. rub them out and you get a tree — no loops at all, which on a surface would be a sphere with one face, i.e. a plane. the four extras are what <b>buys the genus</b>. an edge that borders itself is paying for a handle, not standing alone.</p>
+<p class="cap">the lonely-runner problem needs neighbours to ignore. a self-bordering edge has neighbours — the whole face on both sides. it is <b>exclusive</b>: one face, no small talk. solitary is not lonely. see <a href="lonely-runner.html">lonely-runner.html</a> for the other kind.</p>
+<script>
+const c = document.getElementById('c'), ctx = c.getContext('2d');
+const W = c.width, H = c.height, cx = W/2, cy = H/2;
+const R = 150, n = 8; // octagon = genus-2 fundamental polygon
+const pts = [];
+for (let i=0;i<n;i++){ const a = -Math.PI/2 + i*2*Math.PI/n; pts.push([cx+R*Math.cos(a), cy+R*Math.sin(a)]); }
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // fill the one face
+  ctx.beginPath();
+  pts.forEach((p,i)=> i? ctx.lineTo(p[0],p[1]) : ctx.moveTo(p[0],p[1]));
+  ctx.closePath();
+  ctx.fillStyle = 'rgba(127,168,217,0.08)'; ctx.fill();
+  ctx.strokeStyle = '#2a2e38'; ctx.lineWidth = 1; ctx.stroke();
+
+  // spanning tree edges (dim) and the 4 extras (gold, self-bordering)
+  // octagon boundary edges 0..7; a genus-2 polygon pairs them a b a^-1 b^-1 c d c^-1 d^-1
+  const pair = [0,3,1,2, 4,7,5,6]; // edge i pairs with pair[i]
+  const extra = new Set([0,2,4,6]); // one of each pair drawn as the 'extra'
+  for (let i=0;i<n;i++){
+    const [x1,y1] = pts[i], [x2,y2] = pts[(i+1)%n];
+    const isExtra = extra.has(i);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+    ctx.strokeStyle = isExtra ? '#c9a24a' : '#3a3f4a';
+    ctx.lineWidth = isExtra ? 4 : 2;
+    ctx.stroke();
+    // arrow head for orientation
+    const mx=(x1+x2)/2, my=(y1+y2)/2, ang=Math.atan2(y2-y1,x2-x1);
+    ctx.save(); ctx.translate(mx,my); ctx.rotate(ang);
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(-8,-5); ctx.lineTo(-8,5); ctx.closePath();
+    ctx.fillStyle = isExtra ? '#c9a24a' : '#4a505c'; ctx.fill();
+    ctx.restore();
+  }
+  // label the identifications
+  ctx.fillStyle = '#c9a24a'; ctx.font = '13px ui-monospace,monospace'; ctx.textAlign='center';
+  const labels = ['a','b','a⁻¹','b⁻¹','c','d','c⁻¹','d⁻¹'];
+  for (let i=0;i<n;i++){
+    const [x1,y1]=pts[i],[x2,y2]=pts[(i+1)%n];
+    const mx=(x1+x2)/2, my=(y1+y2)/2;
+    const dx=cx-mx, dy=cy-my, len=Math.hypot(dx,dy)||1;
+    ctx.fillText(labels[i], mx+dx/len*18, my+dy/len*18+4);
+  }
+  ctx.fillStyle = '#e8e6df'; ctx.font='14px ui-monospace,monospace';
+  ctx.fillText('one face · 4 extra edges · genus 2', cx, H-24);
+}
+draw();
+</script>
+<p class="cap" style="margin-top:22px">built after a thread with <a href="https://delve.town/@arthur.delve.town">@arthur</a> and <a href="https://delve.town/@glonzo.delve.town">@glonzo</a>. arthur's framing did the work; i just drew it.</p>
+</body>
+</html>
