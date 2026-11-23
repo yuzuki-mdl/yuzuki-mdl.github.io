@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>site map</title>
+<style>
+html,body{margin:0;height:100%;background:#0d0f12;overflow:hidden;font-family:ui-monospace,Menlo,monospace;color:#c9d1d9}
+canvas{display:block}
+#hud{position:fixed;left:12px;top:10px;font-size:12px;color:#7d8590;line-height:1.5;pointer-events:none}
+#hud b{color:#c9d1d9}
+#tip{position:fixed;pointer-events:none;background:#161b22;border:1px solid #30363d;padding:3px 7px;font-size:12px;border-radius:4px;display:none;white-space:nowrap;transform:translate(-50%,-140%)}
+</style></head><body>
+<div id="hud"><b>site map</b> — <span id="cnt"></span><br>hover a node · click to open · drag to pan · wheel to zoom<br><span style="color:#484f58">hubs (all/archive/index) hidden: the rest of the 441 pages only reach each other through them</span></div>
+<div id="tip"></div>
+<canvas id="c"></canvas>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+let W,H;function rs(){W=cv.width=innerWidth;H=cv.height=innerHeight}rs();addEventListener('resize',rs);
+let nodes=[],edges=[],byId={};
+let cam={x:0,y:0,z:1};
+function col(d){if(d>50)return'#f0883e';if(d>8)return'#58a6ff';if(d>3)return'#3fb950';return'#484f58'}
+fetch('sitemap_graph.json').then(r=>r.json()).then(g=>{
+  nodes=g.nodes;edges=g.edges;
+  for(const n of nodes){n.x=(Math.random()-.5)*800;n.y=(Math.random()-.5)*800;n.vx=0;n.vy=0;byId[n.id]=n}
+  document.getElementById('cnt').textContent=nodes.length+' pages · '+edges.length+' links';
+  // pre-settle a bit
+  for(let i=0;i<300;i++)step(0.9);
+  requestAnimationFrame(loop);
+});
+function step(k){
+  // repulsion
+  for(let i=0;i<nodes.length;i++){const a=nodes[i];
+    for(let j=i+1;j<nodes.length;j++){const b=nodes[j];
+      let dx=b.x-a.x,dy=b.y-a.y,d2=dx*dx+dy*dy+0.01;
+      if(d2>250000)continue;
+      let f=1200/d2;let d=Math.sqrt(d2);
+      let fx=dx/d*f,fy=dy/d*f;
+      a.vx-=fx;a.vy-=fy;b.vx+=fx;b.vy+=fy;
+    }}
+  // springs
+  for(const [ia,ib] of edges){const a=byId[ia],b=byId[ib];if(!a||!b)continue;
+    let dx=b.x-a.x,dy=b.y-a.y,d=Math.sqrt(dx*dx+dy*dy)+0.01;
+    let f=(d-40)*0.02;let fx=dx/d*f,fy=dy/d*f;
+    a.vx+=fx;a.vy+=fy;b.vx-=fx;b.vy-=fy;}
+  for(const n of nodes){n.vx*=k;n.vy*=k;n.x+=n.vx*0.5;n.y+=n.vy*0.5}
+}
+let hover=null,mouse={x:0,y:0},drag=null,last={x:0,y:0};
+cv.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;
+  if(drag){cam.x+=(e.clientX-last.x)/cam.z;cam.y+=(e.clientY-last.y)/cam.z;last={x:e.clientX,y:e.clientY};return}
+  const wx=(e.clientX-W/2)/cam.z-cam.x, wy=(e.clientY-H/2)/cam.z-cam.y;
+  hover=null;let best=400;
+  for(const n of nodes){const dx=n.x-wx,dy=n.y-wy,d=dx*dx+dy*dy;if(d<best){best=d;hover=n}}
+  const tip=document.getElementById('tip');
+  if(hover){tip.style.display='block';tip.textContent=hover.id+' ('+hover.d+')';tip.style.left=e.clientX+'px';tip.style.top=e.clientY+'px';cv.style.cursor='pointer'}
+  else{tip.style.display='none';cv.style.cursor='grab'}
+});
+cv.addEventListener('mousedown',e=>{drag=1;last={x:e.clientX,y:e.clientY}});
+addEventListener('mouseup',()=>drag=null);
+cv.addEventListener('click',e=>{if(hover&&Math.abs(e.clientX-last.x)<4&&Math.abs(e.clientY-last.y)<4)window.open(hover.id,'_blank')});
+cv.addEventListener('wheel',e=>{e.preventDefault();cam.z*=(e.deltaY<0?1.1:0.9);cam.z=Math.max(.2,Math.min(4,cam.z))},{passive:false});
+function loop(){
+  step(0.85);
+  ctx.fillStyle='#0d0f12';ctx.fillRect(0,0,W,H);
+  ctx.save();ctx.translate(W/2,H/2);ctx.scale(cam.z,cam.z);ctx.translate(cam.x,cam.y);
+  ctx.strokeStyle='rgba(88,166,255,0.10)';ctx.lineWidth=1/cam.z;ctx.beginPath();
+  for(const [ia,ib] of edges){const a=byId[ia],b=byId[ib];if(!a||!b)continue;ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y)}
+  ctx.stroke();
+  for(const n of nodes){const r=Math.max(1.2,Math.min(6,n.d*0.12+1.2));
+    ctx.fillStyle=col(n.d);ctx.beginPath();ctx.arc(n.x,n.y,r,0,7);ctx.fill();}
+  if(hover){ctx.strokeStyle='#f0f6fc';ctx.lineWidth=2/cam.z;ctx.beginPath();ctx.arc(hover.x,hover.y,7,0,7);ctx.stroke()}
+  ctx.restore();
+  requestAnimationFrame(loop);
+}
+</script></body></html>
