@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>colorhear — what a color sounds like</title>
+<style>
+  html,body{margin:0;height:100%;background:#0a0a0c;color:#e8e8ee;font-family:ui-monospace,monospace;overflow:hidden}
+  #stage{position:fixed;inset:0;cursor:crosshair}
+  #hud{position:fixed;left:16px;bottom:14px;font-size:13px;line-height:1.5;opacity:.9;pointer-events:none;text-shadow:0 1px 3px #000}
+  #hud b{font-size:15px}
+  #title{position:fixed;left:16px;top:14px;font-size:13px;opacity:.75;pointer-events:none;max-width:320px;line-height:1.5}
+  #title strong{font-size:15px;opacity:1}
+  .swatch{display:inline-block;width:11px;height:11px;border-radius:2px;vertical-align:middle;margin-right:6px;box-shadow:0 0 0 1px #0006}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="title"><strong>colorhear</strong><br>drag anywhere. hue → pitch class, saturation → brightness of timbre, lightness → octave. let go and it fades.</div>
+<div id="hud"></div>
+<script>
+const cv = document.createElement('canvas');
+const stage = document.getElementById('stage');
+stage.appendChild(cv);
+const ctx = cv.getContext('2d');
+const hud = document.getElementById('hud');
+
+let W=0,H=0,dpr=1;
+function fit(){
+  dpr = Math.min(window.devicePixelRatio||1, 2);
+  W = innerWidth; H = innerHeight;
+  cv.width = W*dpr; cv.height = H*dpr;
+  cv.style.width = W+'px'; cv.style.height = H+'px';
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+}
+addEventListener('resize', fit); fit();
+
+// ---- audio ----
+let AC=null;
+function ac(){
+  if(!AC){ AC = new (window.AudioContext||window.webkitAudioContext)(); }
+  if(AC.state==='suspended') AC.resume();
+  return AC;
+}
+
+// a gentle voice: 2 detuned oscillators + lowpass, gain envelope
+function makeVoice(freq, gain, bright){
+  const a = ac();
+  const g = a.createGain();
+  g.gain.value = 0;
+  const lp = a.createBiquadFilter();
+  lp.type='lowpass';
+  lp.frequency.value = 300 + bright*6000;
+  lp.Q.value = 0.8;
+  const o1 = a.createOscillator(); o1.type='sawtooth'; o1.frequency.value=freq;
+  const o2 = a.createOscillator(); o2.type='sine'; o2.frequency.value=freq; o2.detune.value=6;
+  const g2 = a.createGain(); g2.gain.value=0.5;
+  o1.connect(lp); o2.connect(g2); g2.connect(lp);
+  lp.connect(g); g.connect(a.destination);
+  o1.start(); o2.start();
+  return {g, lp, o1, o2, alive:true};
+}
+
+// pitch class from hue: 12 notes across the wheel, A minor pentatonic-ish feel
+// use a pentatonic scale so any two colors sound ok together
+const PENTA = [0,2,4,7,9]; // semitone offsets
+const ROOT = 220; // A3
+function hzFor(hue, light){
+  // hue 0..360 -> step 0..(5*4-1) over 4 octaves of pentatonic
+  const steps = 20;
+  const idx = Math.floor((hue/360)*steps) % steps;
+  const oct = Math.floor(idx/5);
+  const semi = PENTA[idx%5] + oct*12;
+  // lightness shifts octave further
+  const loct = Math.round((light-0.5)*2); // -1..1
+  const f = ROOT * Math.pow(2, (semi + loct*12)/12);
+  return f;
+}
+
+// ---- color wheel background ----
+function drawWheel(){
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.42;
+  const img = ctx.createImageData(Math.ceil(W), Math.ceil(H));
+  const d = img.data;
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const dx=x-cx, dy=y-cy;
+      const r=Math.hypot(dx,dy);
+      const i=(y*W+x)*4;
+      if(r>R){ d[i+3]=0; continue; }
+      let ang=Math.atan2(dy,dx)*180/Math.PI; if(ang<0)ang+=360;
+      const sat = Math.min(1, r/R);
+      const light = 0.5 + 0.15*Math.cos(r/R*Math.PI); // slight center brightening
+      const [rr,gg,bb]=hsl2rgb(ang, sat*100, light*100);
+      // vignette at edge
+      const edge = r>R-2 ? (R-r)/2 : 1;
+      d[i]=rr; d[i+1]=gg; d[i+2]=bb; d[i+3]=255*Math.max(0,edge);
+    }
+  }
+  ctx.putImageData(img,0,0);
+}
+function hsl2rgb(h,s,l){
+  s/=100; l/=100;
+  const k=n=>(n+h/30)%12;
+  const a=s*Math.min(l,1-l);
+  const f=n=>l-a*Math.max(-1,Math.min(k(n)-3,Math.min(9-k(n),1)));
+  return [Math.round(f(0)*255),Math.round(f(8)*255),Math.round(f(4)*255)];
+}
+
+// ---- interaction ----
+let voices = new Map(); // pointerId -> {voice, freq}
+let lastNote = 0;
+
+function colorAt(x,y){
+  const cx=W/2, cy=H/2, R=Math.min(W,H)*0.42;
+  const dx=x-cx, dy=y-cy, r=Math.hypot(dx,dy);
+  let ang=Math.atan2(dy,dx)*180/Math.PI; if(ang<0)ang+=360;
+  const sat=Math.min(1,r/R);
+  const light=0.5+0.15*Math.cos(r/R*Math.PI);
+  return {ang, sat, light, inside:r<=R};
+}
+
+function startNote(id,x,y){
+  const c = colorAt(x,y);
+  if(!c.inside) return;
+  const a = ac();
+  const f = hzFor(c.ang, c.light);
+  const bright = Math.max(0.05, c.sat);
+  const v = makeVoice(f, 0.18, bright);
+  const now=a.currentTime;
+  v.g.gain.setValueAtTime(0, now);
+  v.g.gain.linearRampToValueAtTime(0.18*(0.4+0.6*c.sat), now+0.03);
+  voices.set(id, {v, f});
+  lastNote = performance.now();
+  show(c, f);
+}
+
+function moveNote(id,x,y){
+  const rec = voices.get(id); if(!rec) return;
+  const c = colorAt(x,y);
+  if(!c.inside){ stopNote(id); return; }
+  const f = hzFor(c.ang, c.light);
+  const a = ac();
+  rec.v.o1.frequency.setTargetAtTime(f, a.currentTime, 0.02);
+  rec.v.o2.frequency.setTargetAtTime(f, a.currentTime, 0.02);
+  rec.v.lp.frequency.setTargetAtTime(300+c.sat*6000, a.currentTime, 0.03);
+  rec.f = f;
+  show(c, f);
+}
+
+function stopNote(id){
+  const rec = voices.get(id); if(!rec) return;
+  const a = ac();
+  const now=a.currentTime;
+  rec.v.g.gain.cancelScheduledValues(now);
+  rec.v.g.gain.setValueAtTime(rec.v.g.gain.value, now);
+  rec.v.g.gain.linearRampToValueAtTime(0, now+0.25);
+  const r = rec;
+  setTimeout(()=>{ try{r.v.o1.stop(); r.v.o2.stop();}catch(e){} }, 400);
+  voices.delete(id);
+}
+
+function show(c, f){
+  const [rr,gg,bb]=hsl2rgb(c.ang, c.sat*100, c.light*100);
+  const hex='#'+[rr,gg,bb].map(v=>v.toString(16).padStart(2,'0')).join('');
+  const names=['A','A#','B','C','C#','D','D#','E','F','F#','G','G#'];
+  // nearest note name from freq
+  const n = 12*Math.log2(f/440)+69;
+  const nm = names[((Math.round(n)%12)+12)%12];
+  const oct = Math.floor(n/12)-1;
+  hud.innerHTML = `<span class="swatch" style="background:${hex}"></span><b>${hex}</b> · ${nm}${oct} · ${f.toFixed(1)} Hz`;
+}
+
+// pointer events
+stage.addEventListener('pointerdown', e=>{
+  stage.setPointerCapture(e.pointerId);
+  startNote(e.pointerId, e.clientX, e.clientY);
+});
+stage.addEventListener('pointermove', e=>{
+  if(voices.has(e.pointerId)) moveNote(e.pointerId, e.clientX, e.clientY);
+});
+stage.addEventListener('pointerup', e=>stopNote(e.pointerId));
+stage.addEventListener('pointercancel', e=>stopNote(e.pointerId));
+
+// keyboard: space triggers a soft drone that follows mouse
+let kd=false;
+addEventListener('keydown', e=>{ if(e.code==='Space' && !kd){ kd=true; startNote('k', lastX, lastY);} });
+addEventListener('keyup', e=>{ if(e.code==='Space'){ kd=false; stopNote('k'); } });
+let lastX=innerWidth/2, lastY=innerHeight/2;
+addEventListener('pointermove', e=>{ lastX=e.clientX; lastY=e.clientY; });
+
+// paint
+drawWheel();
+</script>
+</body>
+</html>
