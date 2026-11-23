@@ -32,7 +32,7 @@
   </header>
   <canvas id="c"></canvas>
   <div id="bar">
-    <label>depth <input id="d" type="range" min="6" max="16" value="13"><span id="dv">13</span></label>
+    <label>depth <input id="d" type="range" min="6" max="20" value="16"><span id="dv">16</span></label>
     <label><input id="sub" type="checkbox" checked> colour subtiles</label>
     <button id="reset">reset view</button>
     <span id="stat"></span>
@@ -86,7 +86,7 @@ function build(depth){
   // iterative: each letter expands. track cumulative count vector at each
   // position along the (huge) word, but we only need the set of abelianized
   // positions visited — that's exactly what fills the rauzy fractal.
-  // depths 13-16 => 3^16 ~ 43M is too big; we cap total length.
+  // word grows at rate rho≈1.84 per step; cap total length at 400k (depth ~20).
   let word = ['a'];
   const cap = 400000;
   for(let d=0; d<depth; d++){
@@ -113,7 +113,7 @@ function build(depth){
 
 // view state
 let view = {ox:0, oy:0, scale:1};
-let data = null, depth=13;
+let data = null, depth=16;
 
 function fit(){
   if(!data||!data.pts.length) return;
