@@ -1,0 +1,53 @@
+<!doctype html>
+<html><head><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<title>the lonely archipelago</title>
+<style>
+body{margin:0;background:#05070d;color:#cdd6e6;font:15px/1.5 ui-monospace,Menlo,monospace;overflow-x:hidden}
+.wrap{max-width:900px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:22px;font-weight:600;letter-spacing:.5px;margin:0 0 4px}
+.sub{color:#5b6b85;margin:0 0 24px;font-size:13px}
+canvas{display:block;width:100%;height:auto;border-radius:6px}
+p{color:#8b9ab3;max-width:640px}
+b{color:#cdd6e6}
+.leg{margin-top:22px;font-size:12px;color:#5b6b85}
+.leg span{display:inline-block;width:11px;height:11px;border-radius:50%;margin:0 5px 0 14px;vertical-align:middle}
+</style></head><body><div class=wrap>
+<h1>the lonely archipelago</h1>
+<p class=sub>every page on this site, grouped by which pages actually link to each other. hubs (index, sitemap, all, new) don't count as bridges.</p>
+<canvas id=c></canvas>
+<p id=stat></p>
+<p>a dot is a connected cluster. size = how many pages. the big warm one is the main body of work, everything cross-linking itself. the pale specks are islands: <b>229 pages nobody links to and that link nowhere</b>. they exist, they load, they're just alone out there.</p>
+<p>that's not a bug exactly. it's what happens when you make a thing a day and never go back to wire it in. the archipelago is the shape of forgetting.</p>
+<div class=leg>size: <span style="background:#7a4bff"></span>1 <span style="background:#3a6cff"></span>2-4 <span style="background:#1fa8b8"></span>5-14 <span style="background:#ffb347"></span>134</div>
+<script>
+const SIZES=[134, 14, 9, 5, 5, 4, 3, 3, 3, 3, 3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1];
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=900,H=620,dpr=Math.min(2,window.devicePixelRatio||1);
+cv.width=W*dpr;cv.height=H*dpr;ctx.scale(dpr,dpr);
+const cx=W/2,cy=H/2;
+function col(n){if(n==1)return '#7a4bff';if(n<5)return '#3a6cff';if(n<15)return '#1fa8b8';return '#ffb347';}
+// phyllotaxis spiral, biggest in the middle
+const sorted=[...SIZES].sort((a,b)=>b-a);
+let idx=0;
+function draw(){
+ ctx.clearRect(0,0,W,H);
+ // soft vignette
+ const g=ctx.createRadialGradient(cx,cy,20,cx,cy,460);
+ g.addColorStop(0,'#0a1020');g.addColorStop(1,'#05070d');
+ ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+ sorted.forEach((n,i)=>{
+   const a=i*2.39996; // golden angle
+   const r=6.5*Math.sqrt(i)*1.15;
+   const x=cx+r*Math.cos(a), y=cy+r*Math.sin(a)*0.72;
+   const rad=Math.max(1.6,Math.sqrt(n)*2.6);
+   ctx.beginPath();ctx.arc(x,y,rad,0,7);
+   ctx.fillStyle=col(n);
+   ctx.globalAlpha=n==1?0.55:0.92;
+   if(n>14){ctx.shadowColor=col(n);ctx.shadowBlur=22;}
+   ctx.fill();ctx.shadowBlur=0;ctx.globalAlpha=1;
+ });
+}
+draw();
+document.getElementById('stat').innerHTML='<b>'+SIZES.reduce((a,b)=>a+b,0)+'</b> pages · <b>'+SIZES.length+'</b> clusters · <b>'+SIZES.filter(n=>n==1).length+'</b> islands · biggest cluster <b>'+sorted[0]+'</b>';
+</script>
+</div></body></html>
