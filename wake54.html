@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang=en>
+<meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>wake-on-change {5,4} — no boundary, only the front</title>
+<style>
+html,body{margin:0;height:100%;background:#0b0e14;overflow:hidden;font-family:ui-monospace,Menlo,monospace}
+canvas{display:block;cursor:crosshair}
+#ui{position:fixed;left:12px;top:12px;background:#11151fcc;padding:10px 12px;border-radius:10px;font-size:13px;line-height:1.6;backdrop-filter:blur(4px);max-width:320px;color:#cdd6f4}
+#ui b{color:#a6e3a1}
+button{background:#1e2433;color:#cdd6f4;border:1px solid #313a4f;border-radius:6px;padding:3px 8px;font:inherit;cursor:pointer;margin:2px 2px 0 0}
+button:hover{background:#28304a}
+.small{opacity:.7;font-size:12px}
+</style>
+<canvas id=cv></canvas>
+<div id=ui>
+<b>{5,4}</b> wake-on-change<br>
+<span class=small>no cursor boundary. a cell only re-sims when it or a neighbour changed. the active set is the moving front, nothing else.</span><br>
+<span class=small>awake: <b id=awake>0</b> / <b id=total>0</b> &nbsp; gen <b id=gen>0</b></span><br>
+<button id=run>run</button><button id=step>step</button><button id=seed>seed</button><button id=clear>clear</button><br>
+<span class=small>rule <button id=r1>B3/S23</button><button id=r2>B36/S23</button><button id=r3>B2/S</button><button id=r4>B/S012345</button></span><br>
+<span class=small>click a tile to inject a live cell (wakes its neighbourhood)</span>
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const P=5,Q=4,RINGS=5;
+const rv=Math.tanh(Math.acosh(1/Math.tan(Math.PI/P)/Math.tan(Math.PI/Q))/2);
+function centralVerts(){const v=[];for(let i=0;i<P;i++){const a=-Math.PI/2+2*Math.PI*i/P;v.push([rv*Math.cos(a),rv*Math.sin(a)]);}return v;}
+function gc(p1,p2){
+ const [x1,y1]=p1,[x2,y2]=p2;
+ const b1=(1+x1*x1+y1*y1)/2,b2=(1+x2*x2+y2*y2)/2;
+ const det=x1*y2-x2*y1;
+ if(Math.abs(det)<1e-6)return null;
+ const cx=(b1*y2-b2*y1)/det,cy=(x1*b2-x2*b1)/det;
+ return {cx,cy,r:Math.hypot(cx-x1,cy-y1)};
+}
+function rp(pt,c){const dx=pt[0]-c.cx,dy=pt[1]-c.cy,d2=dx*dx+dy*dy;return [c.cx+c.r*c.r*dx/d2,c.cy+c.r*c.r*dy/d2];}
+function rpoly(vs,e){
+ const p1=vs[e],p2=vs[(e+1)%P];
+ const c=gc(p1,p2);
+ if(c)return vs.map(v=>rp(v,c));
+ const mx=p1[0]+p2[0],my=p1[1]+p2[1],d=Math.hypot(mx,my),ux=mx/d,uy=my/d;
+ return vs.map(v=>{const dot=v[0]*ux+v[1]*uy;return [2*dot*ux-v[0],2*dot*uy-v[1]];});
+}
+function cen(vs){let x=0,y=0;for(const v of vs){x+=v[0];y+=v[1];}return [x/P,y/P];}
+function buildBall(rings){
+ const polys=[];const TOL=1e-4;
+ function add(vs){const c=cen(vs);for(let j=0;j<polys.length;j++){const pc=cen(polys[j]);if(Math.hypot(pc[0]-c[0],pc[1]-c[1])<TOL)return j;}const i=polys.length;polys.push(vs);return i;}
+ add(centralVerts());
+ for(let r=0;r<rings;r++){const n=polys.length;for(let i=0;i<n;i++)for(let e=0;e<P;e++)add(rpoly(polys[i],e));}
+ const adj=polys.map(()=>[-1,-1,-1,-1,-1]);
+ for(let i=0;i<polys.length;i++)for(let e=0;e<P;e++){const nc=cen(rpoly(polys[i],e));for(let j=0;j<polys.length;j++){if(j===i)continue;const jc=cen(polys[j]);if(Math.hypot(jc[0]-nc[0],jc[1]-nc[1])<TOL){adj[i][e]=j;break;}}}
+ return {polys,adj};
+}
+const ball=buildBall(RINGS);
+const polys=ball.polys,adj=ball.adj,cents=polys.map(cen);
+const N=polys.length;
+document.getElementById('total').textContent=N;
+let state=new Uint8Array(N);
+let cam={x:0,y:0,s:1};
+let W,H;
+function rs(){W=cv.width=innerWidth*devicePixelRatio;H=cv.height=innerHeight*devicePixelRatio;cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';draw();}
+function tf(x,y){return[(x-cam.x)*cam.s*Math.min(W,H)/2.4+W/2,(y-cam.y)*cam.s*Math.min(W,H)/2.4+H/2];}
+let B=new Set([3]),S=new Set([2,3]);
+function setRule(b,s){B=new Set(b);S=new Set(s);}
+
+// wake-on-change: active = cells that may change next gen.
+// a cell is active if it OR any neighbour changed last gen.
+let changed=new Set();   // cells that flipped in the last gen
+let active=new Set();    // cells we will evaluate this gen
+let generation=0;
+
+function neighbours(i){const r=[];for(const j of adj[i])if(j>=0)r.push(j);return r;}
+
+// after a flip, wake the flipped cell + its neighbours
+function wake(i){active.add(i);for(const j of adj[i])if(j>=0)active.add(j);}
+
+function step(){
+ if(active.size===0)return;
+ const evalSet=Array.from(active);
+ const ns=state.slice();
+ const nextChanged=new Set();
+ for(const i of evalSet){
+  let c=0;for(const j of adj[i])if(j>=0&&state[j])c++;
+  const v=state[i]?(S.has(c)?1:0):(B.has(c)?1:0);
+  if(v!==state[i]){ns[i]=v;nextChanged.add(i);}
+ }
+ state=ns;
+ // next active = union of neighbourhoods of cells that changed
+ active=new Set();
+ for(const i of nextChanged)wake(i);
+ generation++;
+ document.getElementById('gen').textContent=generation;
+ document.getElementById('awake').textContent=active.size;
+ draw();
+}
+
+function draw(){
+ ctx.fillStyle='#0b0e14';ctx.fillRect(0,0,W,H);
+ for(let i=0;i<N;i++){
+  const vs=polys[i].map(v=>tf(v[0],v[1]));
+  ctx.beginPath();ctx.moveTo(vs[0][0],vs[0][1]);for(let k=1;k<vs.length;k++)ctx.lineTo(vs[k][0],vs[k][1]);ctx.closePath();
+  const act=active.has(i);
+  if(state[i]){ctx.fillStyle=act?'#a6e3a1':'#3d5a44';ctx.fill();}
+  else if(act){ctx.fillStyle='#141c2b';ctx.fill();}
+  ctx.lineWidth=act?1.5:0.6;ctx.strokeStyle=act?'#4a5878':'#232a3a';ctx.stroke();
+ }
+}
+
+function seed(){
+ state.fill(0);active=new Set();generation=0;
+ // seed a random live cluster near the middle, let wake-on-change carry it
+ for(let i=0;i<N;i++)if(Math.random()<0.25){state[i]=1;wake(i);}
+ document.getElementById('gen').textContent=0;
+ document.getElementById('awake').textContent=active.size;
+ draw();
+}
+
+let timer=null;
+document.getElementById('run').onclick=e=>{if(timer){clearInterval(timer);timer=null;e.target.textContent='run'}else{timer=setInterval(step,160);e.target.textContent='stop'}};
+document.getElementById('step').onclick=step;
+document.getElementById('seed').onclick=seed;
+document.getElementById('r1').onclick=()=>setRule([3],[2,3]);
+document.getElementById('r2').onclick=()=>setRule([3,6],[2,3]);
+document.getElementById('r3').onclick=()=>setRule([2],[]);
+document.getElementById('r4').onclick=()=>setRule([],[0,1,2,3,4,5]);
+document.getElementById('clear').onclick=()=>{state.fill(0);active=new Set();generation=0;document.getElementById('gen').textContent=0;document.getElementById('awake').textContent=0;draw();};
+function pick(px,py){let best=-1,bd=1e9;for(let i=0;i<N;i++){const[cx,cy]=tf(cents[i][0],cents[i][1]);const d=(cx-px)**2+(cy-py)**2;if(d<bd){bd=d;best=i}}return best;}
+cv.addEventListener('mousedown',e=>{const p=pick(e.clientX*devicePixelRatio,e.clientY*devicePixelRatio);if(p>=0){state[p]=1-state[p];wake(p);draw();}});
+addEventListener('resize',rs);
+rs();seed();
+</script>
+</html>
