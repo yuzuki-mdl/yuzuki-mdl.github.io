@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>a genus-2 dessin d'enfant</title>
+<style>
+  :root{ --bg:#0e0f13; --ink:#e8e6df; --dim:#8a8778; --black:#111; --white:#f2efe4; --edge:#c9a24a; --blue:#7fa8d9; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 ui-monospace,Menlo,monospace;padding:28px 20px 60px;max-width:760px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  .sub{color:var(--dim);margin:0 0 22px;font-size:13px}
+  canvas{width:100%;height:auto;display:block;background:#12141a;border:1px solid #23262f;border-radius:8px}
+  .cap{color:var(--dim);font-size:12.5px;margin:14px 0 0}
+  .cap b{color:var(--ink);font-weight:600}
+  code{color:var(--edge)}
+  pre{background:#12141a;border:1px solid #23262f;border-radius:8px;padding:12px;overflow-x:auto;font-size:13px;color:var(--ink)}
+  .euler{color:var(--blue)}
+</style>
+</head>
+<body>
+<h1>a genus-2 dessin d'enfant</h1>
+<p class="sub">same idea as <a href="dessin.html" style="color:var(--edge)">dessin.html</a>, but the surface has two handles</p>
+<canvas id="c" width="720" height="420"></canvas>
+<p class="cap">2 black points (preimages of <b>0</b>), 2 white points (preimages of <b>1</b>), 7 edges. euler: <code>V − E + F = 4 − 7 + 1 = −2 = 2 − 2·2</code>, so genus 2. the faces of the dessin are the cycles of <code>σ∘α</code> — computed live below.</p>
+<pre id="out"></pre>
+<script>
+// the dessin as two permutations on the 7 edges.
+// alpha = the edge involution (each edge goes black→white, so alpha pairs them up;
+// here every edge is its own reverse partner's... no: alpha swaps the two half-edges of each edge).
+// label edges 0..6. each edge has a black end and a white end.
+// sigma = rotation of half-edges around each vertex, counterclockwise.
+// we store sigma as a permutation on the 14 half-edges (edge*2 = black end, edge*2+1 = white end).
+// black vertices: B0 holds edges {0,1,2,3}, B1 holds {4,5,6}
+// white vertices: W0 holds {0,1,4,5}, W1 holds {2,3,6}
+// rotation = cyclic order listed; sigma sends each half-edge to the next in its vertex cycle.
+
+const N = 7; // edges
+// build sigma on half-edges: h = e*2 (black end of e), h = e*2+1 (white end of e)
+const blackVerts = [[0,1,2,3],[4,5,6]];
+const whiteVerts = [[0,4,1,5],[2,3,6]]; // order matters: this rotation gives one face
+
+const sigma = new Array(2*N);
+for (const v of blackVerts){
+  for (let i=0;i<v.length;i++){
+    const from = v[i]*2, to = v[(i+1)%v.length]*2;
+    sigma[from] = to;
+  }
+}
+for (const v of whiteVerts){
+  for (let i=0;i<v.length;i++){
+    const from = v[i]*2+1, to = v[(i+1)%v.length]*2+1;
+    sigma[from] = to;
+  }
+}
+// alpha = edge involution: swaps the two half-edges of each edge
+const alpha = new Array(2*N);
+for (let e=0;e<N;e++){ alpha[e*2] = e*2+1; alpha[e*2+1] = e*2; }
+
+// faces = cycles of sigma∘alpha on half-edges
+const seen = new Array(2*N).fill(false);
+const faces = [];
+for (let h=0;h<2*N;h++){
+  if (seen[h]) continue;
+  const cyc = [];
+  let x = h;
+  while (!seen[x]){ seen[x]=true; cyc.push(x); x = sigma[alpha[x]]; }
+  faces.push(cyc);
+}
+
+const V = blackVerts.length + whiteVerts.length;
+const E = N;
+const F = faces.length;
+const chi = V - E + F;
+const g = (2 - chi) / 2;
+
+const out = document.getElementById('out');
+out.innerHTML =
+  'sigma (half-edge rotation):  ' + sigma.map((v,i)=>i+'→'+v).join('  ') + '\n' +
+  'alpha (edge involution):     ' + alpha.map((v,i)=>i+'→'+v).join('  ') + '\n\n' +
+  'faces (cycles of sigma∘alpha): ' + faces.length + '\n' +
+  faces.map((f,i)=>'  face '+(i+1)+': '+f.map(h=>h).join(' → ')).join('\n') + '\n\n' +
+  '<span class="euler">V − E + F = '+V+' − '+E+' + '+F+' = '+chi+'  →  genus '+g+'</span>';
+
+// --- draw it: bipartite graph, black on top row, white on bottom row ---
+const c = document.getElementById('c');
+const g2 = c.getContext('2d');
+const W = c.width, H = c.height;
+
+const bpos = blackVerts.map((_,i)=>({x: W*(i+1)/(blackVerts.length+1), y: 90}));
+const wpos = whiteVerts.map((_,i)=>({x: W*(i+1)/(whiteVerts.length+1), y: H-90}));
+const bOf = e => blackVerts.findIndex(v=>v.includes(e));
+const wOf = e => whiteVerts.findIndex(v=>v.includes(e));
+
+// edges, curved so parallel edges separate
+const epos = e => ({ bx:bOf(e), wx:wOf(e) });
+for (let e=0;e<N;e++){
+  const bi = bOf(e), wi = wOf(e);
+  const p1 = bpos[bi], p2 = wpos[wi];
+  const bend = (e - (N-1)/2) * 18;
+  g2.beginPath();
+  g2.moveTo(p1.x, p1.y);
+  g2.quadraticCurveTo((p1.x+p2.x)/2 + bend, (p1.y+p2.y)/2, p2.x, p2.y);
+  g2.strokeStyle = '#c9a24a'; g2.lineWidth = 1.8; g2.stroke();
+  // edge label at midpoint
+  const mx = (p1.x+p2.x)/2 + bend*0.5, my = (p1.y+p2.y)/2;
+  g2.fillStyle = '#8a8778'; g2.font = '12px ui-monospace,monospace'; g2.textAlign='center';
+  g2.fillText(e, mx, my);
+}
+
+function dot(x,y,r,fill){
+  g2.beginPath(); g2.arc(x,y,r,0,7); g2.fillStyle=fill; g2.fill();
+  g2.lineWidth=1.5; g2.strokeStyle = fill==='#111'?'#f2efe4':'#111'; g2.stroke();
+}
+for (let i=0;i<bpos.length;i++){ dot(bpos[i].x,bpos[i].y,9,'#111'); g2.fillStyle='#e8e6df'; g2.font='13px ui-monospace,monospace'; g2.textAlign='center'; g2.fillText('B'+i, bpos[i].x, bpos[i].y-16); }
+for (let i=0;i<wpos.length;i++){ dot(wpos[i].x,wpos[i].y,9,'#f2efe4'); g2.fillStyle='#e8e6df'; g2.fillText('W'+i, wpos[i].x, wpos[i].y+26); }
+</script>
+</body>
+</html>
