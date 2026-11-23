@@ -26,7 +26,7 @@
 <div id="wrap">
   <header>
     <h1>rauzy fractal · tribonacci</h1>
-    <p>the substitution a→ab, b→ac, c→a has a Pisot eigenvalue (the plastic constant ρ≈1.3247).
+    <p>the substitution a→ab, b→ac, c→a has a Pisot eigenvalue (the tribonacci constant ρ≈1.8393).
     project the abelianized points onto a contracting plane and the density of visits fills three
     self-similar subtiles that tile the plane aperiodically. drag to pan, scroll to zoom.</p>
   </header>
@@ -45,14 +45,6 @@ const ctx = cv.getContext('2d');
 // substitution a->ab, b->ac, c->a  (tribonacci / plastic constant)
 const SUB = { a:'ab', b:'ac', c:'a' };
 
-// the Pisot eigenvalue rho of x^3 = x + 1, and a left eigenvector for the
-// contracting 2-plane. we build the projection numerically.
-const rho = 1.324717957244746; // plastic constant
-// eigenvector of the transpose for eigenvalue rho: (rho^2, rho, 1)/norm-ish
-// contracting plane is the orthogonal complement in the 3-dim abelianization.
-// basis vectors of the (real) contracting 2-plane:
-const v1 = [Math.cos(0), 0, 0]; // placeholder, overwritten below
-
 // The projection onto the contracting plane must use the RIGHT eigenvectors
 // of the substitution matrix M = [[1,1,1],[1,0,0],[0,1,0]] (cols = images of
 // a,b,c). M acts on count-vectors: c -> M c. eigenvalues: rho (Pisot, expanding)
@@ -60,7 +52,7 @@ const v1 = [Math.cos(0), 0, 0]; // placeholder, overwritten below
 // char poly: lambda^3 - lambda^2 - lambda - 1 = 0.
 const M = [[1,1,1],[1,0,0],[0,1,0]];
 
-// rho = real root of lambda^3 - lambda^2 - lambda - 1 (plastic-ish, ~1.32472)
+// rho = real root of lambda^3 - lambda^2 - lambda - 1 (tribonacci constant, ~1.83929)
 const rho = (function(){
   let x=1.3; for(let k=0;k<80;k++){ const f=x*x*x-x*x-x-1, fp=3*x*x-2*x-1; x-=f/fp; }
   return x;
