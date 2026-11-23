@@ -53,38 +53,33 @@ const rho = 1.324717957244746; // plastic constant
 // basis vectors of the (real) contracting 2-plane:
 const v1 = [Math.cos(0), 0, 0]; // placeholder, overwritten below
 
-// Instead of symbolic work, build the projection matrix from the left
-// eigenvectors of the substitution matrix M = [[1,1,0],[1,0,1],[0,1,0]] (cols = images).
-// M acts on counts. eigenvalues: rho, and two complex conjugates.
-const M = [[1,1,0],[1,0,1],[0,1,0]];
+// The projection onto the contracting plane must use the RIGHT eigenvectors
+// of the substitution matrix M = [[1,1,1],[1,0,0],[0,1,0]] (cols = images of
+// a,b,c). M acts on count-vectors: c -> M c. eigenvalues: rho (Pisot, expanding)
+// and a complex conjugate pair mu, conj(mu) (contracting).
+// char poly: lambda^3 - lambda^2 - lambda - 1 = 0.
+const M = [[1,1,1],[1,0,0],[0,1,0]];
 
-// power iteration to get the dominant left eigenvector for rho
-function dominantLeft(mat){
-  let v = [1,1,1];
-  for(let k=0;k<200;k++){
-    // v^T M  => new_v[j] = sum_i v[i]*M[i][j]
-    const nv=[0,0,0];
-    for(let i=0;i<3;i++) for(let j=0;j<3;j++) nv[j]+=v[i]*mat[i][j];
-    const s=Math.hypot(...nv); v=nv.map(x=>x/s);
-  }
-  return v;
-}
-const uStar = dominantLeft(M); // left eigenvector, eigenvalue rho
-
-// the contracting plane is orthogonal to uStar in R^3 (the abelianized space).
-// pick two orthonormal vectors spanning it.
-function orthoBasis(n){
-  // find a vector not parallel to n
-  let a = Math.abs(n[0])<0.9 ? [1,0,0] : [0,1,0];
-  // e1 = a - (a·n)n
-  const dot=(x,y)=>x[0]*y[0]+x[1]*y[1]+x[2]*y[2];
-  let e1=a.map((x,i)=>x-dot(a,n)*n[i]);
-  const l1=Math.hypot(...e1); e1=e1.map(x=>x/l1);
-  // e2 = n x e1
-  const e2=[n[1]*e1[2]-n[2]*e1[1], n[2]*e1[0]-n[0]*e1[2], n[0]*e1[1]-n[1]*e1[0]];
-  return [e1,e2];
-}
-const [E1,E2] = orthoBasis(uStar);
+// rho = real root of lambda^3 - lambda^2 - lambda - 1 (plastic-ish, ~1.32472)
+const rho = (function(){
+  let x=1.3; for(let k=0;k<80;k++){ const f=x*x*x-x*x-x-1, fp=3*x*x-2*x-1; x-=f/fp; }
+  return x;
+})();
+// complex pair: Re mu = (1-rho)/2, |mu|^2 = 1/rho
+const reMu = (1-rho)/2;
+const absMu2 = 1/rho;
+const imMu = Math.sqrt(Math.max(0, absMu2 - reMu*reMu));
+// right eigenvector w = (mu^2, mu, 1)
+const reMu2 = reMu*reMu - imMu*imMu;
+const imMu2 = 2*reMu*imMu;
+const ReW = [reMu2, reMu, 1];
+const ImW = [imMu2, imMu, 0];
+// Gram-Schmidt -> orthonormal basis of span{Re w, Im w} (the contracting plane)
+const dot3=(x,y)=>x[0]*y[0]+x[1]*y[1]+x[2]*y[2];
+let E1 = ReW.slice();
+{ const l=Math.hypot(...E1); E1=E1.map(x=>x/l); }
+let E2 = ImW.map((x,i)=>x - dot3(ImW,E1)*E1[i]);
+{ const l=Math.hypot(...E2); E2=E2.map(x=>x/l); }
 
 // project an integer count-vector (x,y,z) onto the contracting plane
 function proj(v){
@@ -135,7 +130,8 @@ function fit(){
     if(x<minx)minx=x; if(x>maxx)maxx=x;
     if(y<miny)miny=y; if(y>maxy)maxy=y;
   }
-  const w=cv.width, h=cv.height;
+  const dpr = window.devicePixelRatio||1;
+  const w=cv.width/dpr, h=cv.height/dpr;
   const pad=0.06;
   const sx=(w*(1-2*pad))/(maxx-minx||1);
   const sy=(h*(1-2*pad))/(maxy-miny||1);
