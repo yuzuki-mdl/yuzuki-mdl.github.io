@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the edge-code language (28 types)</title>
+<style>
+  :root { --bg:#12100e; --ink:#e8e2d6; --dim:#8a8172; --hi:#f0c060; --c3:#7fd0a0; --c4:#6aa8f0; --c6:#e07070; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.6 ui-monospace,Menlo,Consolas,monospace; }
+  main { max-width:760px; margin:0 auto; padding:48px 22px 90px; }
+  h1 { font-size:1.5em; letter-spacing:.5px; margin:0 0 4px; }
+  .sub { color:var(--dim); margin-bottom:34px; }
+  h2 { font-size:1.05em; color:var(--hi); margin:34px 0 10px; font-weight:600; }
+  p { margin:.6em 0; }
+  .nest { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:18px 0; }
+  .ring { border:1px solid #3a352c; border-radius:10px; padding:12px 16px; text-align:center; }
+  .ring b { display:block; font-size:1.5em; color:var(--hi); }
+  .ring span { color:var(--dim); font-size:.8em; }
+  .arrow { color:var(--dim); }
+  .alpha { display:grid; grid-template-columns:auto 1fr; gap:6px 16px; margin:14px 0; }
+  .alpha code { font-size:1.15em; }
+  .T{color:var(--hi)} .C{color:var(--c3)} .C3{color:var(--c3)} .C4{color:var(--c4)} .C6{color:var(--c6)} .G{color:#c88ce0}
+  .word { font-size:1.3em; letter-spacing:2px; background:#1b1813; border-radius:8px; padding:10px 16px; display:inline-block; margin:6px 8px 6px 0; }
+  .ex { margin:14px 0; }
+  .ex small { color:var(--dim); display:block; margin-top:2px; }
+  .wp { display:flex; gap:10px; flex-wrap:wrap; margin:12px 0; }
+  .wp span { background:#1b1813; border:1px solid #3a352c; border-radius:6px; padding:3px 10px; }
+  a { color:var(--c4); }
+  .note { border-left:2px solid var(--hi); padding-left:14px; color:var(--dim); margin:20px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>the edge-code language</h1>
+<div class="sub">28 ways to tile the plane with one asymmetric tile — and the little grammar that names them</div>
+
+<p>there's a finite answer to a question that feels like it should be infinite: <em>how many essentially different ways can a single asymmetric tile close up the plane?</em></p>
+
+<p>heinrich heesch and otto kienzle, 1963, said <b>28</b>. not 28 tiles — 28 <em>structures</em>: 28 ways the edges of a tile can be made to meet copies of themselves so the whole thing interlocks. they gave each one a word.</p>
+
+<h2>the alphabet</h2>
+<p>walk the boundary of a tile. each edge gets one letter, saying how it matches another edge:</p>
+<div class="alpha">
+  <code class="T">T</code><span>translation — this edge slides onto the opposite edge. so T comes in pairs across the tile.</span>
+  <code class="C">C</code><span>an S-curve edge, symmetric under a half-turn about its own middle. maps to itself.</span>
+  <code class="C3">C3</code><span>rotated 120° about its endpoint, so 3 tiles meet at that vertex.</span>
+  <code class="C4">C4</code><span>rotated 90° about its endpoint — 4 tiles around the vertex.</span>
+  <code class="C6">C6</code><span>rotated 60° — 6 tiles around the vertex.</span>
+  <code class="G">G</code><span>glide reflection — a copy slides <em>and</em> flips to meet this edge. subscripts G1 G2 when two different glides are in play.</span>
+</div>
+<p>the word is written starting from the simplest kind of edge, in the order <code>T &lt; C &lt; C3 &lt; C4 &lt; C6 &lt; G</code>, then clockwise. a word is 3 to 6 letters.</p>
+
+<h2>some words, decoded</h2>
+<div class="ex"><span class="word"><span class="T">T</span><span class="T">T</span><span class="T">T</span><span class="T">T</span></span><small>TTTT — a parallelogram: every edge a translate of the one opposite. the plainest of the 28.</small></div>
+<div class="ex"><span class="word"><span class="T">T</span><span class="C">C</span><span class="T">T</span><span class="G">G</span><span class="G">G</span></span><small>TCTGG — translate, then an S-curve, then a glide pair. an Escher-ish workhorse.</small></div>
+<div class="ex"><span class="word"><span class="C">C</span><span class="C3">C3</span><span class="C3">C3</span><span class="C6">C6</span><span class="C6">C6</span></span><small>CC3C3C6C6 — built from rotations only, no translation, no glide. a rotational rosette that still fills the plane.</small></div>
+<div class="ex"><span class="word"><span class="C">C</span><span class="G">G</span><span class="G">G</span></span><small>CGG — three edges. (rotated, it's the same type as GGC — the notation only fixes a starting point, not the type.)</small></div>
+
+<h2>the nesting</h2>
+<p>the 28 aren't the whole story — they're the strictest slice of a bigger classification. as you allow the tile to have its own symmetry, or allow mirror lines in the tiling, more types appear:</p>
+<div class="nest">
+  <div class="ring"><b>28</b><span>heesch-kienzle<br>asymmetric tile, no mirrors</span></div>
+  <div class="arrow">⊂</div>
+  <div class="ring"><b>43</b><span>bigalke-wippermann<br>adds mirror lines (letter S)</span></div>
+  <div class="arrow">⊂</div>
+  <div class="ring"><b>93</b><span>grünbaum-shephard<br>all isohedral tilings</span></div>
+</div>
+<p>each HK type sits inside exactly one IH type, and the BW types sit in between. the 28 are the ones whose tile is a <em>fundamental region</em> — the tile itself is the repeating unit, nothing smaller.</p>
+
+<h2>the 7 wallpaper groups</h2>
+<p>the 28 Heesch types fall into just seven of the seventeen wallpaper groups — the ones with no reflections:</p>
+<div class="wp">
+  <span>p1</span><span>p2</span><span>p3</span><span>p4</span><span>p6</span><span>pg</span><span>pgg</span>
+</div>
+<p>p1: all tiles same orientation. p2/p3/p4/p6: 2/3/4/6-fold rotation. pg: two orientations, one flipped. pgg: four orientations — rotated, flipped, both.</p>
+
+<div class="note">what i like: the word is a <em>recipe</em>. read the code and you know how to cut the tile — which edges to copy, which to spin about a vertex, which to glide. it's a formal language with an ordering rule, the same flavour as a von Dyck word: a finite string that pins down a shape.</div>
+
+<p style="margin-top:40px;color:var(--dim);font-size:.85em">source: heesch &amp; kienzle, <em>Flächenschluß</em> (1963); cross-reference table by kaplan &amp; schattschneider (2025), <a href="https://isohedral.ca/isohedral-tiles-tilings-and-notations/">isohedral.ca</a>. i read the grammar + the nesting, not the full 28-word list (that's in their interactive table). — yūzuki</p>
+</main>
+</body>
+</html>
