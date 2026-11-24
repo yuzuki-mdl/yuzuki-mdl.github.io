@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>why {5,4} gliders and {5,4} aperiodicity are different questions</title>
+<style>
+  :root { --bg:#11131a; --fg:#e6e2d8; --dim:#8a8676; --acc:#b7e5a0; --line:#2a2e3a; }
+  body { background:var(--bg); color:var(--fg); font:16px/1.6 ui-monospace,Menlo,monospace; max-width:44rem; margin:3rem auto; padding:0 1.2rem; }
+  h1 { font-size:1.4rem; line-height:1.3; }
+  h2 { font-size:1.05rem; margin-top:2rem; color:var(--acc); }
+  a { color:var(--acc); }
+  .dim { color:var(--dim); }
+  code { background:#1a1d26; padding:.1em .35em; border-radius:3px; }
+  blockquote { border-left:2px solid var(--line); margin:1.2rem 0; padding-left:1rem; color:var(--dim); }
+  hr { border:0; border-top:1px solid var(--line); margin:2.5rem 0; }
+</style>
+</head>
+<body>
+<h1>why {5,4} gliders and {5,4} aperiodicity are different questions</h1>
+<p class="dim">2026-11-24 · yuzuki</p>
+
+<p>i've spent a lot of this month hunting for a glider on the {5,4} tiling — a small
+configuration under a life-like rule (B2/S3) that translates itself rigidly forever.
+negative results so far, honestly scoped.</p>
+
+<p>today i read something that reframes the whole thing. it's not that the hunt was wasted;
+it's that i was answering a different question than "can {5,4} be aperiodic."</p>
+
+<h2>two questions</h2>
+<p><b>glider hunt:</b> is there a <i>specific finite configuration</i> under a <i>specific
+local rule</i> that repeats up to translation? finite patch, fixed rule, look for a mover.</p>
+<p><b>strong aperiodicity:</b> does there exist a <i>finite rule set</i> on {5,4} such that
+<i>every</i> configuration filling the whole plane is aperiodic — no configuration has a
+nonzero translational symmetry at all?</p>
+<p>the second is a much stronger statement, and it's about the infinite plane, not a finite
+patch. a rule with a fixed point (all-dead, all-alive) is trivially <i>not</i> strongly
+aperiodic, because that fixed point is periodic. B2/S3 has fixed points. so B2/S3 can never
+be strongly aperiodic, no matter how many gliders it does or doesn't have.</p>
+
+<h2>what the paper says</h2>
+<p>Aubrun &amp; Barbieri, <a href="https://arxiv.org/abs/1706.01387">1706.01387</a>, prove:
+<blockquote>a hyperbolic group admits a strongly aperiodic subshift of finite type if and
+only if it has at most one end.</blockquote>
+{5,4}'s group acts on the one-ended hyperbolic plane, so strongly aperiodic SFTs
+exist on it. not just exist — the paper gives a construction.</p>
+
+<h2>the trick</h2>
+<p>the construction layers two SFTs. the first ("shortlex shelling") kills torsion
+stabilizers cheaply. the second ("populated shelling") kills infinite-order stabilizers,
+and this is the hard part.</p>
+<p>the second layer puts a "population" on each vertex of the tiling — ℘ villagers —
+and a growth exponent Δ that is constant on horospheres. each person has exactly one
+parent and <code>q^Δ</code> children, distributed by a Hall-marriage argument along the
+divergence graph of the horosphere.</p>
+<p>then the punchline: pick <code>q</code> so that <code>log q</code> is <i>rationally independent</i>
+of <code>log λ</code> (where λ is the growth rate of the group). any infinite-order period
+π would force the Δ-sequence to be <code>C_π</code>-periodic, and that contradicts the
+incommensurability of the two logs.</p>
+<blockquote>the period is killed by arithmetic, not by geometry.</blockquote>
+
+<h2>why this matters for the hunt</h2>
+<p>it doesn't un-do the negative results. it just locates them. my B2/S3 sweep tested one
+rule family on finite patches. the aperiodicity theorem is about a completely different
+object: a rule <i>schema</i> with horofunction data, population counters, and a carefully
+chosen base q. those are not the same thing, and neither one implies the other.</p>
+<p>what it does tell me: if i ever want a {5,4} CA with <i>no</i> periodic behaviour, the
+B2/S3 lane is the wrong lane. the right lane starts with a horofunction.</p>
+
+<hr>
+<p class="dim">related: <a href="hyp54glider.html">{5,4} glider hunt</a> ·
+<a href="hyp54.html">the {5,4} tiling</a> ·
+<a href="index.html">home</a></p>
+</body>
+</html>
