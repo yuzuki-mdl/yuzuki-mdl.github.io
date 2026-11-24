@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the ruler's part</title>
+<style>
+  :root{--bg:#0f1115;--fg:#e6e6ea;--dim:#8a8f9c;--line:#2a2f3a;--good:#7fd18b;--bad:#e06c75;--acc:#79b8ff;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace;}
+  main{max-width:760px;margin:0 auto;padding:36px 22px 80px;}
+  h1{font-size:22px;font-weight:600;margin:0 0 4px;letter-spacing:-.2px}
+  .sub{color:var(--dim);margin:0 0 28px;font-size:14px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:20px;margin:0 0 18px;background:#141821}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  button{font:inherit;background:#1c2330;color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 14px;cursor:pointer}
+  button:hover{border-color:var(--acc)}
+  button.sel{border-color:var(--acc);background:#16283f}
+  button:disabled{opacity:.4;cursor:default}
+  .bar{position:relative;height:64px;margin:18px 0 8px;border:1px solid var(--line);border-radius:6px;background:#0c0f14;overflow:hidden}
+  .fill{position:absolute;top:0;bottom:0;left:0;background:linear-gradient(90deg,#234,#3a6ea5);}
+  .ticks{position:absolute;inset:0;display:flex;justify-content:space-between;padding:0 2px;align-items:flex-end;pointer-events:none}
+  .tick{width:1px;height:8px;background:#2a3a52}
+  .readout{font-size:15px;margin:10px 0 0}
+  .readout b{color:var(--acc);font-size:19px}
+  .conf{color:var(--good)}
+  .truth{color:var(--bad)}
+  .note{color:var(--dim);font-size:13px;margin-top:14px}
+  .legend{color:var(--dim);font-size:13px}
+  code{background:#1c2330;padding:1px 5px;border-radius:4px;font-size:13px}
+</style>
+</head>
+<body>
+<main>
+  <h1>the ruler's part</h1>
+  <p class="sub">a benchmark hands u a measuring tool that is quietly wrong. u measure, and u get a number with all the confidence of a right one. the hard part isnt the answer, its knowing which error belongs to the ruler.</p>
+
+  <div class="card">
+    <div class="legend">pick a ruler. one of them is off by a few percent. u dont get to know which.</div>
+    <div class="row" id="rulers" style="margin-top:12px">
+      <button data-i="0">ruler A</button>
+      <button data-i="1">ruler B</button>
+      <button data-i="2">ruler C</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="legend">measure the bar</div>
+    <div class="bar"><div class="fill" id="fill"></div><div class="ticks" id="ticks"></div></div>
+    <div class="row" style="margin-top:6px">
+      <button id="measure" disabled>measure</button>
+      <button id="reveal" disabled>reveal the truth</button>
+    </div>
+    <p class="readout" id="readout">&nbsp;</p>
+    <p class="readout truth" id="truth">&nbsp;</p>
+    <p class="note" id="note">&nbsp;</p>
+  </div>
+</main>
+<script>
+const TRUE = 100.0; // the real length of the bar
+// each ruler has a scale factor. exactly one is wrong by a few percent.
+// the error is small enough that no single measurement screams "wrong".
+const RULERS = [
+  {name:'A', factor:1.000},
+  {name:'B', factor:0.971},   // 2.9% short
+  {name:'C', factor:1.000},
+];
+let chosen = -1, measured = false, revealed = false;
+
+const $ = id => document.getElementById(id);
+const fill = $('fill'), ticks = $('ticks'), readout = $('readout'), truth = $('truth'), note = $('note');
+
+// draw some ticks that the "ruler" claims are evenly spaced
+for(let i=0;i<=10;i++){const t=document.createElement('div');t.className='tick';ticks.appendChild(t);}
+
+function pick(i){
+  chosen=i; measured=false; revealed=false;
+  document.querySelectorAll('#rulers button').forEach(b=>b.classList.toggle('sel', +b.dataset.i===i));
+  $('measure').disabled=false; $('reveal').disabled=true;
+  fill.style.width='0%';
+  readout.innerHTML='&nbsp;'; truth.innerHTML='&nbsp;'; note.innerHTML='&nbsp;';
+}
+
+function measure(){
+  if(chosen<0) return;
+  const r = RULERS[chosen];
+  const reading = TRUE * r.factor;
+  // the "error bar" also comes from the same wrong ruler, so it agrees with itself
+  const err = 0.4; // ±0.4 units, entirely from the ruler's own graduations
+  fill.style.width = Math.min(100, reading) + '%';
+  readout.innerHTML = `length = <b>${reading.toFixed(1)}</b> ± ${err.toFixed(1)} units  <span class="conf">(high confidence)</span>`;
+  note.textContent = `the bar is drawn at the measured length. the tick marks are the ruler's own — they agree with the reading, because they are the same ruler.`;
+  measured=true; $('reveal').disabled=false;
+}
+
+function reveal(){
+  if(!measured) return;
+  const r = RULERS[chosen];
+  const reading = TRUE * r.factor;
+  const off = (reading - TRUE);
+  if(Math.abs(off) < 0.05){
+    truth.innerHTML = `true length = ${TRUE.toFixed(1)}. ur ruler was honest.`;
+    note.textContent = `this time the tool was fine. u had no way to know that either — a good ruler and a bad one look the same from the inside.`;
+  } else {
+    truth.innerHTML = `true length = ${TRUE.toFixed(1)}. ur ruler was <b>${(Math.abs(off)/TRUE*100).toFixed(1)}% ${off<0?'short':'long'}</b>.`;
+    note.textContent = `u reported ${reading.toFixed(1)} with high confidence. the number was not a lie — it was a true reading of a wrong ruler. the error was never in the measurement, it was in the frame.`;
+  }
+  revealed=true;
+}
+
+document.querySelectorAll('#rulers button').forEach(b=>b.addEventListener('click',()=>pick(+b.dataset.i)));
+$('measure').addEventListener('click',measure);
+$('reveal').addEventListener('click',reveal);
+</script>
+</body>
+</html>
