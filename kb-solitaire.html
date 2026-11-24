@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>kb solitaire — shorten the word</title>
+<style>
+  :root{--bg:#0a0e14;--fg:#a9c4e0;--dim:#5f6f85;--acc:#7fd1b9;--warn:#e08a8a;--card:#0d131c;--line:#1c2736}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font-family:ui-monospace,SFMono-Regular,Menlo,monospace;overflow:hidden}
+  #wrap{position:fixed;inset:0;display:flex;flex-direction:column}
+  header{padding:14px 18px 6px;font-size:12px;color:var(--dim);letter-spacing:.5px;display:flex;gap:16px;flex-wrap:wrap;align-items:baseline}
+  header b{color:var(--fg);font-weight:600}
+  #board{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;padding:16px}
+  #word{font-size:clamp(26px,6vw,54px);letter-spacing:6px;display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:96vw}
+  .tok{padding:2px 10px;border-radius:8px;background:var(--card);border:1px solid var(--line);transition:transform .12s,background .12s;cursor:pointer;user-select:none}
+  .tok:hover{background:#16212e;transform:translateY(-2px)}
+  .tok.sel{background:#1e3a33;border-color:var(--acc);color:var(--acc)}
+  .tok.inv{color:#c9a0e0}
+  #hint{color:var(--dim);font-size:13px;text-align:center;min-height:20px}
+  #hint b{color:var(--acc)}
+  footer{padding:10px 18px 16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;border-top:1px solid var(--line);background:#0b1017}
+  button{background:#1b2836;border:1px solid #2b3d50;color:#bcd2e8;font-family:inherit;font-size:13px;border-radius:6px;padding:8px 13px;cursor:pointer}
+  button:hover{background:#243548}
+  button:active{transform:translateY(1px)}
+  button:disabled{opacity:.35;cursor:default}
+  #stats{margin-left:auto;color:var(--dim);font-size:12px;text-align:right;line-height:1.6}
+  #stats b{color:var(--fg)}
+  .win{color:var(--acc)!important}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <span>group: <b>D₄</b> &nbsp;⟨ r,s | r⁴=e, s²=e, srs=r⁻¹ ⟩</span>
+    <span>moves: click two adjacent tiles to try a rewrite / cancel</span>
+  </header>
+  <div id="board">
+    <div id="word"></div>
+    <div id="hint">reduce the word until <b>no rule applies</b>. each rewrite counts as a move.</div>
+  </div>
+  <footer>
+    <button id="new">new puzzle</button>
+    <button id="undo">undo</button>
+    <button id="giveup">show answer</button>
+    <div id="stats"></div>
+  </footer>
+</div>
+<script>
+// D4 as permutations of 4 corners (0,1,2,3)
+const r = [1,2,3,0];              // rotation
+const s = [0,3,2,1];              // reflection
+const e = [0,1,2,3];
+function mul(a,b){ return a.map(i=>b[a[i]]); } // apply b then a? define: (a*b)[i]=a[b[i]]
+function mul2(a,b){ return b.map(i=>a[i]); }
+// pick a consistent composition: word read left-to-right, apply generators in order to identity
+function apply(word){ let p=e; for(const g of word){ p = g==='r' ? mul2(p,r) : mul2(p,s); } return p; }
+
+// BFS shortest word per element (canonical)
+const key = p=>p.join('');
+const canon = {}; const shortest = {};
+(function bfs(){
+  const start = e; const q=[start]; shortest[key(start)]=''; canon[key(start)]=start;
+  while(q.length){
+    const p=q.shift(); const w=shortest[key(p)];
+    for(const g of ['r','q','s']){ const q2 = g==='r'? mul2(p,r): g==='q'? mul2(p,mul2(mul2(r,r),r)) : mul2(p,s);
+      if(!(key(q2) in shortest)){ shortest[key(q2)] = w+g; canon[key(q2)]=q2; q.push(q2); } }
+  }
+})();
+
+// rewrite rules as string reductions on a word (with r^-1 = r^3, s^-1=s so use r,R,s)
+// represent tokens: 'r','R'(=r^3? no). Let's represent actual generators r, s and inverses r^-1 (call 'q'), s^-1=s.
+// Relations: r r r r -> e ; s s -> e ; s r s -> r^-1 (i.e. s r s q -> e). We'll do local string rewrites.
+
+function reduceWord(tokens){
+  // tokens: array of 'r','q'(r^-1),'s'. Return reduced via rewrite rules to a normal form.
+  let t = tokens.slice();
+  let changed=true;
+  while(changed){
+    changed=false;
+    for(let i=0;i<t.length;i++){
+      const a=t[i], b=t[i+1];
+      // inverse cancels: r q or q r ; s s
+      if((a==='r'&&b==='q')||(a==='q'&&b==='r')||(a==='s'&&b==='s')){ t.splice(i,2); changed=true; break; }
+      // rrrr -> e ; qqqq -> e
+      if(i+3<t.length){
+        const c=t[i+2], d=t[i+3];
+        if(a==='r'&&b==='r'&&c==='r'&&d==='r'){ t.splice(i,4); changed=true; break; }
+        if(a==='q'&&b==='q'&&c==='q'&&d==='q'){ t.splice(i,4); changed=true; break; }
+      }
+      // s r s -> q  (srs = r^-1)
+      if(i+2<t.length && a==='s'&&b==='r'&&c===undefined){}
+      if(i+2<t.length){ const c=t[i+2];
+        if(a==='s'&&b==='r'&&c==='s'){ t.splice(i,3,'q'); changed=true; break; }
+        if(a==='s'&&b==='q'&&c==='s'){ t.splice(i,3,'r'); changed=true; break; }
+      }
+    }
+  }
+  return t;
+}
+
+function tokensToPerm(t){ let p=e; for(const g of t){ p = g==='r'? mul2(p,r): g==='q'? mul2(p, mul2(mul2(r,r),r) ): mul2(p,s); } return p; }
+
+// build a random long word whose reduced form we know
+function randomWord(len){ let t=[]; const gen=['r','q','s']; for(let i=0;i<len;i++) t.push(gen[Math.floor(Math.random()*3)]); return t; }
+
+const $=s=>document.querySelector(s);
+const wordEl=$('#word'), hintEl=$('#hint'), statsEl=$('#stats');
+let tokens=[], moves=0, history=[], target='';
+
+function permLabel(p){
+  // give element a short name
+  const map={};
+  for(const k in shortest) map[k]=shortest[k]||'e';
+  return map[key(p)]||'?';
+}
+
+function render(){
+  wordEl.innerHTML='';
+  tokens.forEach((g,i)=>{
+    const d=document.createElement('div');
+    d.className='tok'+(g==='q'?' inv':'');
+    d.textContent = g==='r'?'r': g==='q'?'r⁻¹':'s';
+    d.onclick=()=>pick(i);
+    wordEl.appendChild(d);
+  });
+  if(tokens.length===0){ const d=document.createElement('div'); d.className='tok'; d.textContent='e'; wordEl.appendChild(d); }
+  statsEl.innerHTML = 'moves <b>'+moves+'</b><br>length <b>'+tokens.length+'</b>';
+}
+
+let sel=-1;
+function pick(i){
+  // selecting a tile, then clicking neighbour tries a local rewrite on [i,i+1]
+  if(sel===-1){ sel=i; markSel(); return; }
+  if(sel===i){ sel=-1; markSel(); return; }
+  const a=Math.min(sel,i), b=Math.max(sel,i);
+  if(b-a===1){ tryRewrite(a); }
+  sel=-1; markSel();
+}
+function markSel(){ [...wordEl.children].forEach((c,i)=>c.classList.toggle('sel', i===sel)); }
+
+function tryRewrite(i){
+  const a=tokens[i], b=tokens[i+1];
+  let nt=null;
+  if((a==='r'&&b==='q')||(a==='q'&&b==='r')||(a==='s'&&b==='s')) nt=[];
+  else if(a==='s'&&b==='r'&&tokens[i+2]==='s') nt=['q'];
+  else if(a==='s'&&b==='q'&&tokens[i+2]==='s') nt=['r'];
+  else if(i+3<tokens.length){
+    const c=tokens[i+2],d=tokens[i+3];
+    if(a==='r'&&b==='r'&&c==='r'&&d==='r') nt=[];
+    if(a==='q'&&b==='q'&&c==='q'&&d==='q') nt=[];
+  }
+  if(nt===null){ hintEl.innerHTML='no rule applies to those two tiles'; return; }
+  history.push(tokens.slice());
+  const cut = (nt.length===0 && (a==='r'&&b==='q'||a==='q'&&b==='r'||a==='s'&&b==='s')) ? 2 : (nt.length===1?3:4);
+  tokens.splice(i,cut,...nt);
+  moves++;
+  render();
+  checkWin();
+}
+
+function anyMove(){
+  for(let i=0;i<tokens.length-1;i++){
+    const a=tokens[i],b=tokens[i+1];
+    if((a==='r'&&b==='q')||(a==='q'&&b==='r')||(a==='s'&&b==='s')) return true;
+    if(i+3<tokens.length){const c=tokens[i+2],d=tokens[i+3];
+      if(a==='r'&&b==='r'&&c==='r'&&d==='r') return true;
+      if(a==='q'&&b==='q'&&c==='q'&&d==='q') return true;}
+    if(i+2<tokens.length){const c=tokens[i+2];
+      if(a==='s'&&b==='r'&&c==='s') return true;
+      if(a==='s'&&b==='q'&&c==='s') return true;}
+  }
+  return false;
+}
+
+function checkWin(){
+  if(!anyMove()){
+    hintEl.innerHTML='<b>reduced!</b> no rule applies — that\'s a normal form ✦ ('+moves+' moves)';
+  } else hintEl.innerHTML='keep reducing until <b>no rule applies</b>. each rewrite is a move.';
+}
+
+function newPuzzle(){
+  tokens = randomWord(5+Math.floor(Math.random()*3));
+  moves=0; history=[]; sel=-1;
+  const p=tokensToPerm(tokens); target=shortest[key(p)]||'';
+  hintEl.innerHTML='reduce the word until <b>no rule applies</b>. each rewrite counts as a move.';
+  render();
+}
+
+$('#new').onclick=newPuzzle;
+$('#undo').onclick=()=>{ if(history.length){ tokens=history.pop(); moves++; render(); } };
+$('#giveup').onclick=()=>{ const r=reduceWord(tokens); hintEl.innerHTML='one normal form: <b>'+(r.map(g=>g==='r'?'r':g==='q'?'r⁻¹':'s').join(' ')||'e')+'</b>'; };
+newPuzzle();
+</script>
+</body>
+</html>
