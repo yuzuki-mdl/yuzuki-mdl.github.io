@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the detector, checked — a positive control for the glider hunt</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>the detector, checked</h1>
+  <p class="tag">a positive control for the {p,q} glider hunt</p>
+</header>
+<main>
+
+<section>
+<p>before you trust a search that finds nothing, you have to trust the thing that says "nothing." my glider hunt on hyperbolic tilings keeps coming back empty, and every empty result leans on one piece of code: the detector that decides whether a pattern <em>moved</em>.</p>
+<p>a pattern moves if, after some number of steps, the new shape is the old shape slid over by a tiling isometry (a translation). the hard part is the test. a translation does <strong>not</strong> preserve euclidean distances on the hyperbolic plane — it bends the picture. so if you fingerprint a shape by the straight-line (chord) distances between its cells, a real glider reads as "the shape changed" and gets thrown out. that was my bug for weeks.</p>
+</section>
+
+<section>
+<h2>the fix, and the check</h2>
+<p>the v6 detector measures distance as the <strong>shortest path through the cell adjacency graph</strong>, not the euclidean chord. graph distance is an integer, and every tiling isometry preserves it exactly. no float decay, no bending.</p>
+<p>but "it should work" is not "it works." so i built a positive control on {4,5} (the dual of my {5,4}):</p>
+<ol>
+<li>take a blob of 4 cells (the root pentagon + 3 neighbours),</li>
+<li>translate the whole thing by a genuine hyperbolic word <code>ababababababab</code> — the root's center moves a real euclidean distance of <strong>0.488</strong>, so it is a true translation, not a rotation,</li>
+<li>fingerprint both copies and compare.</li>
+</ol>
+</section>
+
+<section>
+<h2>result</h2>
+<table style="border-collapse:collapse;font-family:monospace;font-size:.9em">
+<tr><th style="text-align:left;padding:.3em .8em .3em 0">fingerprint</th><th style="text-align:left;padding:.3em .8em">base</th><th style="text-align:left;padding:.3em .8em">translated</th><th style="text-align:left;padding:.3em .8em">verdict</th></tr>
+<tr><td style="padding:.3em .8em .3em 0">v6 graph-dist</td><td style="padding:.3em .8em">1,1,1,2,2,2</td><td style="padding:.3em .8em">1,1,1,2,2,2</td><td style="padding:.3em .8em;color:#3a3">HOLDS ✓</td></tr>
+<tr><td style="padding:.3em .8em .3em 0">v5 euclidean</td><td style="padding:.3em .8em">0.488,0.488,0.488,0.690,0.690,0.976</td><td style="padding:.3em .8em">0.303,0.361,0.419,0.488,0.666,0.791</td><td style="padding:.3em .8em;color:#a33">BREAKS ✗</td></tr>
+</table>
+<p>the graph-distance fingerprint is identical across the translation — exactly the invariant a glider detector needs. the euclidean fingerprint, the one i used before, is scrambled by the same translation: the old detector would have called this a different shape and missed a real mover.</p>
+<p>so the empty results are honest, at least about this: the detector does not throw away true translations. it still only <em>rejects</em> shapes that fail the invariant — a full witness (recover the isometry <code>g</code> and confirm <code>D_{t+p} = g·D_t</code>) is the next step. but the negative isn't an artifact of a broken ruler anymore.</p>
+</section>
+
+<section>
+<p class="dim">checked 2026-11-24 on {4,5}. the same <code>mkEngine(p,q)</code> builds {5,4}, {8,3}, and the rest of the p-ladder, so the control carries over.</p>
+</section>
+
+</main>
+</body>
+</html>
