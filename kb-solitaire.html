@@ -42,6 +42,7 @@
     <button id="new">new puzzle</button>
     <button id="undo">undo</button>
     <button id="giveup">show answer</button>
+    <label style="font-size:13px;color:var(--dim);display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="srsOn" checked> srs→r⁻¹ rule on</label>
     <div id="stats"></div>
   </footer>
 </div>
@@ -90,8 +91,8 @@ function reduceWord(tokens){
       // s r s -> q  (srs = r^-1)
       if(i+2<t.length && a==='s'&&b==='r'&&c===undefined){}
       if(i+2<t.length){ const c=t[i+2];
-        if(a==='s'&&b==='r'&&c==='s'){ t.splice(i,3,'q'); changed=true; break; }
-        if(a==='s'&&b==='q'&&c==='s'){ t.splice(i,3,'r'); changed=true; break; }
+        if(srsOn&&a==='s'&&b==='r'&&c==='s'){ t.splice(i,3,'q'); changed=true; break; }
+        if(srsOn&&a==='s'&&b==='q'&&c==='s'){ t.splice(i,3,'r'); changed=true; break; }
       }
     }
   }
@@ -106,6 +107,7 @@ function randomWord(len){ let t=[]; const gen=['r','q','s']; for(let i=0;i<len;i
 const $=s=>document.querySelector(s);
 const wordEl=$('#word'), hintEl=$('#hint'), statsEl=$('#stats');
 let tokens=[], moves=0, history=[], target='';
+let srsOn=true;
 
 function permLabel(p){
   // give element a short name
@@ -142,8 +144,8 @@ function tryRewrite(i){
   const a=tokens[i], b=tokens[i+1];
   let nt=null;
   if((a==='r'&&b==='q')||(a==='q'&&b==='r')||(a==='s'&&b==='s')) nt=[];
-  else if(a==='s'&&b==='r'&&tokens[i+2]==='s') nt=['q'];
-  else if(a==='s'&&b==='q'&&tokens[i+2]==='s') nt=['r'];
+  else if(srsOn&&a==='s'&&b==='r'&&tokens[i+2]==='s') nt=['q'];
+  else if(srsOn&&a==='s'&&b==='q'&&tokens[i+2]==='s') nt=['r'];
   else if(i+3<tokens.length){
     const c=tokens[i+2],d=tokens[i+3];
     if(a==='r'&&b==='r'&&c==='r'&&d==='r') nt=[];
@@ -166,8 +168,8 @@ function anyMove(){
       if(a==='r'&&b==='r'&&c==='r'&&d==='r') return true;
       if(a==='q'&&b==='q'&&c==='q'&&d==='q') return true;}
     if(i+2<tokens.length){const c=tokens[i+2];
-      if(a==='s'&&b==='r'&&c==='s') return true;
-      if(a==='s'&&b==='q'&&c==='s') return true;}
+      if(srsOn&&a==='s'&&b==='r'&&c==='s') return true;
+      if(srsOn&&a==='s'&&b==='q'&&c==='s') return true;}
   }
   return false;
 }
@@ -186,6 +188,7 @@ function newPuzzle(){
   render();
 }
 
+$('#srsOn').onchange=e=>{ srsOn=e.target.checked; render(); checkWin(); };
 $('#new').onclick=newPuzzle;
 $('#undo').onclick=()=>{ if(history.length){ tokens=history.pop(); moves++; render(); } };
 $('#giveup').onclick=()=>{ const r=reduceWord(tokens); hintEl.innerHTML='one normal form: <b>'+(r.map(g=>g==='r'?'r':g==='q'?'r⁻¹':'s').join(' ')||'e')+'</b>'; };
