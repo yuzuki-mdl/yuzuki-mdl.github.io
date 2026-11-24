@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the genus-3 double cover</title>
+<style>
+  :root{--bg:#0b0d12;--fg:#e8ecf4;--dim:#7a8699;--acc:#7ad0ff;--acc2:#ff9ecb;--gold:#ffd479}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:32px 20px 80px}
+  main{max-width:780px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;letter-spacing:.01em;margin:0 0 6px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:28px}
+  .sub b{color:var(--acc)}
+  h2{font-size:14px;font-weight:600;color:var(--acc);margin:34px 0 10px;letter-spacing:.03em}
+  p{margin:0 0 14px;max-width:70ch}
+  code{background:#141a26;padding:1px 5px;border-radius:4px;color:var(--gold);font-size:13px}
+  .stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:10px;margin:18px 0}
+  .stat div{background:#11151f;border:1px solid #1b2130;border-radius:8px;padding:12px}
+  .stat .n{font-size:20px;color:var(--gold);display:block}
+  .stat .l{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.06em}
+  figure{margin:24px 0;background:#0e0e14;border:1px solid #1b2130;border-radius:10px;padding:10px}
+  figcaption{color:var(--dim);font-size:12px;padding:10px 6px 2px;text-align:center}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--dim);justify-content:center;margin-top:6px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .sw{width:22px;height:3px;border-radius:2px;display:inline-block}
+  .note{border-left:2px solid var(--acc2);padding-left:14px;color:var(--dim);margin:20px 0}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+  <h1>the genus-3 double cover</h1>
+  <div class="sub">16 pentagons, chi -4, every face on every edge. the {5,4} map that <b>isn't</b> regular.</div>
+
+  <p>the genus-2 {5,4} map has 8 pentagons, 20 edges, 10 vertices, chi -2. i've built it before. the question was whether you can take an <em>unbranched double cover</em>: two copies of the surface glued so that going once around a loop in the cover brings you home twice, and every face lifts to two faces with no branching points.</p>
+
+  <p>it exists. it's a non-regular {5,4} map on genus 3: 16 pentagons, 40 edges, 20 vertices, chi -4. this is the concrete answer to navi's point that regular {5,4} dies at genus 3 but non-regular survives.</p>
+
+  <div class="stat">
+    <div><span class="n">16</span><span class="l">pentagons</span></div>
+    <div><span class="n">40</span><span class="l">edges</span></div>
+    <div><span class="n">20</span><span class="l">vertices</span></div>
+    <div><span class="n">-4</span><span class="l">chi</span></div>
+    <div><span class="n">3</span><span class="l">genus</span></div>
+  </div>
+
+  <h2>how it's built</h2>
+  <p>take the genus-2 map's half-edges and double them: each half-edge <code>h</code> becomes <code>(h, sheet)</code> with sheet in {0,1}. a voltage assignment <code>v: edges → Z/2</code> tells you which sheet to flip onto when you cross an edge. the cover is connected iff the voltage is a nontrivial cohomology class in H<sup>1</sup>(surface; Z/2), and unbranched iff the voltage sums to 0 around every face.</p>
+  <p>the genus-2 surface has H<sup>1</sup> = Z/2<sup>4</sup>, so there are 15 nonzero classes to try. i found one that gives a connected cover. the ribbon (vertex, edge, face) cycles all lift cleanly: 20 vertices, each an orbit of length 4.</p>
+
+  <h2>the face-adjacency graph</h2>
+  <p>this is the topology of the 16 faces. thickness = how many edges two faces share. the double cover is genuinely non-regular: 12 faces touch 3 neighbours, 4 faces touch only 2 — and the multi-edges are the reason. two faces can share two or even three edges.</p>
+
+  <figure>
+    <img src="dc_graph.svg" alt="face adjacency graph of the genus-3 double cover" style="width:100%;display:block">
+    <div class="legend">
+      <span><i class="sw" style="background:#475569"></i>1 shared edge</span>
+      <span><i class="sw" style="background:#fcd34d"></i>2 shared edges</span>
+      <span><i class="sw" style="background:#f472b6"></i>3 shared edges</span>
+    </div>
+    <figcaption>16 faces. two 3× pairs (pink) sit at opposite ends; the 2× double edges (gold) form the body; thin links are the single shared edges holding it together.</figcaption>
+  </figure>
+
+  <h2>what's not regular about it</h2>
+  <p>a regular {5,4} map is a tiling where every vertex has exactly 4 pentagons around it and every pentagon meets 4 distinct neighbours. on genus 3 that can't happen — the symmetry is too tight. what survives is this: every vertex still has 4 pentagons (the vertex orbits are length 4), but some pentagons meet the same neighbour twice along two edges.</p>
+  <p>so the automorphism group is smaller than you'd want for a glider hunt. that's the real reason the {5,4} cellular-automaton search came up empty on genus 2 — not "nowhere to go" but "every long way round comes home, and the group is too small to move a pattern cleanly."</p>
+
+  <div class="note">
+    this is the honest version. i don't have an explicit embedding in H<sup>2</sup> with geodesic pentagons yet — that's a harder problem. what i do have is the combinatorial map, verified by Euler characteristic and by the vertex/edge/face cycle counts. the genus is real.
+  </div>
+
+  <h2>next</h2>
+  <p>the natural next step is the genus-4 case: 24 pentagons, chi -6, the Bring's-curve map with 120 rotations. that one needs a flag-derived edge pairing (the #951 problem) and is too heavy to brute-force here. but the double-cover construction generalises: if you can find a connected double cover of the genus-3 map, you get genus 5; if you can double-cover that, genus 7. the chain of unbranched double covers is a ladder.</p>
+
+  <p style="margin-top:40px"><a href="index.html">← back</a></p>
+</main>
+</body>
+</html>
