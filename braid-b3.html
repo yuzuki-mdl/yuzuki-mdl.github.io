@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>braid B3</title>
+<style>
+:root{--bg:#0f1117;--fg:#e8e8ee;--dim:#8a8fa3;--acc:#7ad0c0;--acc2:#e08fb0;--line:#2a2e3d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 ui-monospace,Menlo,monospace;padding:28px 20px 60px;max-width:760px;margin:0 auto}
+h1{font-size:20px;font-weight:600;margin:0 0 4px}
+p.sub{color:var(--dim);margin:0 0 22px;font-size:13px}
+canvas{display:block;width:100%;max-width:520px;margin:0 0 16px;border:1px solid var(--line);border-radius:8px;background:#0b0d13}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+button{font:inherit;background:#1a1e2b;color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--acc);color:var(--acc)}
+button:disabled{opacity:.4;cursor:default}
+.word{font-size:17px;letter-spacing:2px;color:var(--acc);min-height:26px;word-break:break-all}
+.note{color:var(--dim);font-size:12.5px;margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.note b{color:var(--fg)}
+.msg{color:var(--acc2);font-size:13px;min-height:18px;margin:0 0 8px}
+</style></head><body>
+<h1>the braid group B&#8323;</h1>
+p.sub B&#8323; = &#10216;x, y | xyx = yxy&#10217;. click to add a crossing, then try to walk two equal words to the same picture.
+<canvas id="cv" width="520" height="300"></canvas>
+<div class="msg" id="msg"></div>
+<div class="word" id="word"></div>
+<div class="row">
+  <button id="bx">+ x</button>
+  <button id="by">+ y</button>
+  <button id="bxi">+ x&#8315;&#185;</button>
+  <button id="byi">+ y&#8315;&#185;</button>
+  <button id="bu">undo</button>
+  <button id="bc">clear</button>
+</div>
+<div class="row">
+  <button id="brel">apply xyx &rarr; yxy</button>
+  <button id="brel2">apply yxy &rarr; xyx</button>
+</div>
+<div class="note">
+<b>x</b> = strand 1 crosses over strand 2. <b>y</b> = strand 2 crosses over strand 3.
+The relation <b>xyx = yxy</b> is the one move that's allowed: three crossings that can slide past each other.
+It's why B&#8323; isn't free &mdash; it's the tiny group where two different words draw the same braid.
+</div>
+<script>
+const cv=document.getElementById('cv'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+let word=[]; // each: 'x','y','xi','yi'
+const inv={x:'xi',xi:'x',y:'yi',yi:'y'};
+const relA=['x','y','x'], relB=['y','x','y'];
+function label(t){return t==='x'?'x':t==='y'?'y':t==='xi'?'x\u207b\u00b9':'y\u207b\u00b9';}
+function render(){
+  ctx.clearRect(0,0,W,H);
+  const n=word.length;
+  const padX=60, top=40, bot=H-40;
+  const cols=[W/2-90, W/2, W/2+90];
+  // base strands
+  const segs = n+1; // segments between crossings
+  // draw each strand as polyline through crossing positions
+  // crossing i at x = padX + (i+0.5)*(W-2*padX)/n
+  const stepX = n>0 ? (W-2*padX)/n : 0;
+  const xAt = i => n>0 ? padX + (i+0.5)*stepX : W/2;
+  // start/end column of each strand = index
+  // simulate: strands carry labels 0,1,2; at crossing swap positions
+  let pos=[0,1,2]; // pos[slot]=strand id
+  // we need to draw segment by segment; easier: track for each crossing which slots swap
+  // Build list of crossings with slot pair
+  let swaps=[];
+  let cur=[0,1,2];
+  for(const t of word){
+    let a,b;
+    if(t==='x'||t==='xi'){a=0;b=1;} else {a=1;b=2;}
+    swaps.push([a,b,t]);
+  }
+  // draw strands: for each strand (slot at start), follow through crossings
+  // We'll draw lines between consecutive x positions; at a crossing the two strands cross.
+  const xs=[padX-10];
+  for(let i=0;i<n;i++) xs.push(xAt(i));
+  xs.push(W-padX+10);
+  // strand slot positions at each x-line: slot s sits at cols[s]
+  // at crossing between lines, slots a,b swap. We draw each slot's path.
+  // track slot occupancy: which strand is in which slot
+  let occ=[0,1,2];
+  // For drawing, iterate slot by slot is confusing; instead draw per strand id
+  // strand id s: find its slot at each stage
+  for(let sid=0;sid<3;sid++){
+    let slot=sid; // starts in slot==id
+    let pts=[[xs[0], cols[slot]]];
+    for(let i=0;i<n;i++){
+      // before crossing i, slot is 'slot', at x=xs[i+1]
+      pts.push([xs[i+1], cols[slot]]);
+      const [a,b]=swaps[i];
+      if(slot===a) slot=b; else if(slot===b) slot=a;
+      // after crossing, continue same x then next
+      pts.push([xs[i+1], cols[slot]]);
+    }
+    pts.push([xs[n+1], cols[slot]]);
+    // simplify duplicates
+    ctx.beginPath();
+    ctx.moveTo(pts[0][0],pts[0][1]);
+    for(let k=1;k<pts.length;k++) ctx.lineTo(pts[k][0],pts[k][1]);
+    ctx.strokeStyle = ['#7ad0c0','#e08fb0','#e8c56a'][sid];
+    ctx.lineWidth=3; ctx.stroke();
+  }
+  // draw crossings: over/under
+  for(let i=0;i<n;i++){
+    const [a,b,t]=swaps[i];
+    const x=xs[i+1];
+    const y1=cols[a], y2=cols[b];
+    // over strand: for x (1 over 2) or y (2 over 3)
+    // determine which slot is 'over': over = the 'right' strand in standard convention
+    // x: strand1 over strand2 → at crossing, draw a gap in the under strand
+    // We'll just mark with a small circle on the over strand
+    const overSlot = (t==='x')? a : b; // x: slot of 1 over 2; y: 2 over 3? choose
+    // gap in under: draw bg over the under line at crossing
+    const underSlot = (overSlot===a)? b : a;
+    ctx.save();
+    ctx.fillStyle='#0b0d13';
+    ctx.fillRect(x-4, cols[underSlot]-4, 8, 8);
+    ctx.restore();
+    // over line redraw
+    ctx.beginPath();
+    ctx.strokeStyle=['#7ad0c0','#e08fb0','#e8c56a'][occ[overSlot]]||'#fff';
+    // just draw a dot
+    ctx.fillStyle=['#7ad0c0','#e08fb0','#e8c56a'][sidColor(overSlot)];
+    ctx.beginPath(); ctx.arc(x, cols[overSlot], 4, 0, 7); ctx.fill();
+  }
+}
+function sidColor(slot){return slot;}
+function upd(){
+  document.getElementById('word').textContent = word.length? word.map(label).join(' ') : '(empty word = the trivial braid)';
+  render();
+}
+function push(t){
+  if(word.length && inv[word[word.length-1]]===t){ word.pop(); }
+  else word.push(t);
+  document.getElementById('msg').textContent='';
+  upd();
+}
+document.getElementById('bx').onclick=()=>push('x');
+document.getElementById('by').onclick=()=>push('y');
+document.getElementById('bxi').onclick=()=>push('xi');
+document.getElementById('byi').onclick=()=>push('yi');
+document.getElementById('bu').onclick=()=>{word.pop();upd();};
+document.getElementById('bc').onclick=()=>{word=[];document.getElementById('msg').textContent='';upd();};
+function applyRel(from,to){
+  const s=word.join(','), f=from.join(','), t=to.join(',');
+  const idx=s.indexOf(f);
+  if(idx<0){document.getElementById('msg').textContent='no '+from.map(label).join('')+' to replace here';return;}
+  // find word index (count commas before)
+  const before=word.slice(0, idx===-1?0:countItems(s,idx));
+  const wi=countItems(s,idx);
+  word = word.slice(0,wi).concat(to, word.slice(wi+3));
+  document.getElementById('msg').textContent='replaced '+from.map(label).join('')+' with '+to.map(label).join('');
+  upd();
+}
+function countItems(s,pos){let c=0;for(let i=0;i<pos;i++) if(s[i]===',')c++; return c;}
+document.getElementById('brel').onclick=()=>applyRel(relA,relB);
+document.getElementById('brel2').onclick=()=>applyRel(relB,relA);
+upd();
+</script>
+</body></html>
