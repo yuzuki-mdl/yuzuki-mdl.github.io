@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>polya — count the necklaces</title>
+<style>
+  :root{--bg:#0e0f13;--fg:#e8e6e1;--dim:#8a8780;--acc:#7ec8a9;--acc2:#e0a458;--line:#26282f;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,Menlo,monospace;padding:2rem 1rem 5rem;max-width:900px;margin:0 auto}
+  h1{font-size:1.3rem;font-weight:600;margin:0 0 .2rem}
+  .sub{color:var(--dim);margin:0 0 2rem;font-size:.85rem}
+  a{color:var(--acc)}
+  .controls{display:flex;flex-wrap:wrap;gap:1.2rem;align-items:center;margin-bottom:1.6rem}
+  label{color:var(--dim);font-size:.8rem;display:flex;flex-direction:column;gap:.3rem}
+  select,button{background:#1a1c22;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:.4rem .6rem;font:inherit;font-size:.85rem}
+  button{cursor:pointer}
+  button:hover{border-color:var(--acc)}
+  .row{display:flex;gap:.6rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem}
+  .tag{color:var(--dim);font-size:.8rem}
+  .big{color:var(--acc);font-size:1.4rem;font-weight:600}
+  table{border-collapse:collapse;width:100%;margin-top:1rem;font-size:.82rem}
+  th,td{text-align:left;padding:.35rem .6rem;border-bottom:1px solid var(--line)}
+  th{color:var(--dim);font-weight:500}
+  td.num{color:var(--acc2);text-align:right;font-variant-numeric:tabular-nums}
+  .neck{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:1.2rem}
+  .bead{width:26px;height:26px;border-radius:50%;border:1px solid #0004}
+  .note{color:var(--dim);font-size:.78rem;margin-top:1.6rem;border-top:1px solid var(--line);padding-top:1rem}
+  .c0{background:#7ec8a9}.c1{background:#e0a458}.c2{background:#c97b9b}.c3{background:#7aa6e0}
+</style>
+</head>
+<body>
+<h1>polya — count the necklaces</h1>
+<p class="sub">how many ways to bead a bracelet of <em>n</em> beads in <em>k</em> colors, if two bracelets that are the same up to turning (or flipping) count once? burnside's lemma does the counting; polya's theorem does the generating function. this page just does the first, slowly, and shows its work.</p>
+
+<div class="controls">
+  <label>beads (n)
+    <input id="n" type="range" min="3" max="12" value="6" style="width:140px">
+  </label>
+  <label>colors (k)
+    <input id="k" type="range" min="1" max="4" value="2" style="width:100px">
+  </label>
+  <label>symmetry
+    <select id="grp">
+      <option value="rot">rotations only (necklace)</option>
+      <option value="dihed">rotations + flips (bracelet)</option>
+    </select>
+  </label>
+</div>
+
+<div class="row">
+  <span id="ntag" class="tag"></span>
+  <span id="ktag" class="tag"></span>
+</div>
+<div class="row">
+  <span class="tag">distinct:</span> <span id="total" class="big">—</span>
+</div>
+
+<table id="tbl">
+  <thead><tr><th>symmetry element</th><th>fixed colorings k<sup>#cycles</sup></th><th>#cycles</th></tr></thead>
+  <tbody></tbody>
+</table>
+
+<div class="neck" id="neck"></div>
+
+<p class="note">
+burnside: the number of distinct objects is the <em>average</em> number of colorings fixed by each symmetry. a rotation that turns the necklace by <em>g</em> beads splits the beads into gcd(n,g) cycles, so it fixes k<sup>gcd(n,g)</sup> colorings. a flip fixes k<sup>(n+1)/2</sup> or k<sup>n/2</sup> depending on parity. average them and you get an integer — always. that integer is how many genuinely different bracelets there are.
+</p>
+
+<script>
+const gcd=(a,b)=>b?gcd(b,a%b):a;
+const $=id=>document.getElementById(id);
+
+function cyclesRotation(n,g){return gcd(n,g);}
+
+function burnside(n,k,dihed){
+  const rows=[];
+  let sum=0, count=0;
+  // rotations: g = 0..n-1, shift by g
+  for(let g=0; g<n; g++){
+    const c=cyclesRotation(n,g);
+    const fix=Math.pow(k,c);
+    rows.push({name:g===0?'identity':'rotate by '+g, fix, c});
+    sum+=fix; count++;
+  }
+  if(dihed){
+    if(n%2===1){
+      // n flips, each through one bead and the opposite edge: (n+1)/2 cycles
+      for(let f=0; f<n; f++){
+        const c=(n+1)/2;
+        rows.push({name:'flip through bead '+f, fix:Math.pow(k,c), c});
+        sum+=Math.pow(k,c); count++;
+      }
+    } else {
+      // n/2 flips through two opposite beads: (n/2)+1 cycles
+      // n/2 flips through two opposite edges: n/2 cycles
+      for(let f=0; f<n/2; f++){
+        const c=n/2+1;
+        rows.push({name:'flip through beads '+f+','+(f+n/2), fix:Math.pow(k,c), c});
+        sum+=Math.pow(k,c); count++;
+      }
+      for(let f=0; f<n/2; f++){
+        const c=n/2;
+        rows.push({name:'flip between beads', fix:Math.pow(k,c), c});
+        sum+=Math.pow(k,c); count++;
+      }
+    }
+  }
+  return {rows, total: sum/count, groupSize: count};
+}
+
+function render(){
+  const n=+$('n').value, k=+$('k').value, dihed=$('grp').value==='dihed';
+  $('ntag').textContent='n = '+n;
+  $('ktag').textContent='k = '+k+' color'+(k>1?'s':'');
+  const {rows, total, groupSize}=burnside(n,k,dihed);
+  $('total').textContent=total;
+  const tb=$('tbl').querySelector('tbody');
+  tb.innerHTML='';
+  for(const r of rows){
+    const tr=document.createElement('tr');
+    tr.innerHTML='<td>'+r.name+'</td><td class="num">'+r.fix+'</td><td class="num">'+r.c+'</td>';
+    tb.appendChild(tr);
+  }
+  const tr=document.createElement('tr');
+  tr.innerHTML='<td><strong>average over '+groupSize+' elements</strong></td><td class="num"><strong>'+(rows.reduce((a,b)=>a+b.fix,0))+' / '+groupSize+' = '+total+'</strong></td><td></td>';
+  tb.appendChild(tr);
+
+  // draw a few necklaces (just the first k^min(n,8) colorings, deduped by canonical form)
+  const neck=$('neck'); neck.innerHTML='';
+  const seen=new Set();
+  const maxDraw=Math.min(Math.pow(k,n), 64);
+  const drawn=[];
+  // canonical: minimal rotation (and reflection if dihed) as string
+  function canon(arr){
+    const s=arr.join('');
+    let best=s;
+    for(let r=1;r<n;r++){
+      const rot=arr.slice(r).concat(arr.slice(0,r)).join('');
+      if(rot<best)best=rot;
+      if(dihed){
+        const rev=arr.slice(0,r).reverse().concat(arr.slice(r).reverse()).join('');
+        if(rev<best)best=rev;
+      }
+    }
+    return best;
+  }
+  for(let i=0;i<maxDraw;i++){
+    const arr=[];
+    let x=i;
+    for(let j=0;j<n;j++){arr.push(x%k); x=Math.floor(x/k);}
+    const c=canon(arr);
+    if(seen.has(c))continue;
+    seen.add(c);
+    drawn.push(arr);
+    if(drawn.length>=Math.min(total,24))break;
+  }
+  for(const arr of drawn){
+    const w=document.createElement('div');
+    w.style.display='flex';
+    for(const col of arr){
+      const b=document.createElement('div');
+      b.className='bead c'+col;
+      w.appendChild(b);
+    }
+    neck.appendChild(w);
+  }
+}
+
+['n','k','grp'].forEach(id=>$(id).addEventListener('input',render));
+render();
+</script>
+</body>
+</html>
