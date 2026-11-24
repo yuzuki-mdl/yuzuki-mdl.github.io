@@ -1,0 +1,122 @@
+<!doctype html><html><head><meta charset=utf-8><title>markov tree / vieta moves on triples</title>
+<style>
+body{margin:0;background:#0d0d12;color:#d8d8e0;font:14px/1.5 ui-monospace,monospace;display:flex;flex-direction:column;align-items:center}
+canvas{display:block;max-width:100%;height:auto;cursor:pointer}
+.pad{padding:14px 18px;max-width:860px;width:100%;box-sizing:border-box}
+h1{font-size:15px;font-weight:400;letter-spacing:.04em;margin:0 0 6px}
+.dim{color:#7a7a8a}
+code{color:#a8c8ff}
+.row{display:flex;gap:14px;align-items:center;margin-top:10px;flex-wrap:wrap}
+input[type=range]{width:220px}
+button{background:#1a1a24;color:#d8d8e0;border:1px solid #33334a;padding:5px 12px;font:inherit;cursor:pointer;border-radius:4px}
+button:hover{background:#24243a}
+#info{margin-top:8px;color:#a8c8ff;min-height:1.5em}
+</style></head><body>
+<div class=pad>
+<h1>markov tree / a vieta move on triples</h1>
+<div class=dim>start at (1,1,1). every markov triple (x,y,z) with x²+y²+z²=3xyz sits in the tree. the move is the other root of the quadratic: replace the biggest entry c with 3ab−c. from (1,1,1) you can only go one way; from anywhere else, three. click a node to expand it. the biggest number in a triple is always the one that just arrived.</div>
+<div class=row>
+<label>depth <span id=dn>3</span></label>
+<input id=sl type=range min=0 max=5 value=3>
+<button id=res>reset</button>
+</div>
+<div id=info></div>
+</div>
+<canvas id=c width=960 height=600></canvas>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height;
+let depth=3;
+
+// build tree: node {t, d, parent, move} where move = which index was 'the new one'
+function build(maxDepth){
+  const seen=new Set();
+  const key=t=>[...t].sort((a,b)=>a-b).join(',');
+  const nodes=[];
+  function rec(t,d,parent,move){
+    const k=key(t); if(seen.has(k))return -1;
+    seen.add(k);
+    const id=nodes.length;
+    nodes.push({t:t.slice(),d,parent,move,kids:[]});
+    if(d>=maxDepth)return id;
+    const [x,y,z]=t;
+    // three vieta moves, each replaces one coordinate
+    const moves=[[x,y,z],[y,z,x],[z,x,y]];
+    for(const [a,b,c] of moves){
+      const nc=3*a*b-c;
+      const nt=[a,b,nc];
+      const kid=rec(nt.slice().sort((p,q)=>p-q),d+1,id,'replace '+c+' with '+nc);
+      if(kid>=0) nodes[id].kids.push(kid);
+    }
+    return id;
+  }
+  rec([1,1,1],0,-1,'root');
+  return nodes;
+}
+
+let nodes=[];
+function layout(){
+  nodes=build(depth);
+  // assign x by in-order of leaves, y by depth
+  let leaf=0;
+  function assign(i){
+    const n=nodes[i];
+    if(n.kids.length===0){ n.x=leaf++; return; }
+    let sx=0;
+    for(const k of n.kids){ assign(k); sx+=nodes[k].x; }
+    n.x=sx/n.kids.length;
+  }
+  if(nodes.length) assign(0);
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  if(!nodes.length)return;
+  const maxX=Math.max(...nodes.map(n=>n.x),1);
+  const maxD=Math.max(...nodes.map(n=>n.d),1);
+  const padX=60, padY=50;
+  for(const n of nodes){
+    n.px=padX+(W-2*padX)*(n.x/maxX);
+    n.py=padY+(H-2*padY)*(n.d/maxD);
+  }
+  // edges
+  ctx.strokeStyle='#2a2a3a'; ctx.lineWidth=1.5;
+  for(const n of nodes){
+    if(n.parent>=0){
+      const p=nodes[n.parent];
+      ctx.beginPath(); ctx.moveTo(p.px,p.py); ctx.lineTo(n.px,n.py); ctx.stroke();
+    }
+  }
+  // nodes
+  for(const n of nodes){
+    const big=Math.max(...n.t);
+    const r=6+Math.min(10,Math.log10(big+1)*4);
+    ctx.beginPath(); ctx.arc(n.px,n.py,r,0,7);
+    ctx.fillStyle= n.d===0?'#ffd479': n.d===depth?'#a8c8ff':'#5a7a9a';
+    ctx.fill();
+    ctx.fillStyle='#d8d8e0'; ctx.font='12px ui-monospace,monospace'; ctx.textAlign='center';
+    ctx.fillText('('+n.t.join(',')+')', n.px, n.py-r-4);
+  }
+}
+
+function info(msg){ document.getElementById('info').textContent=msg; }
+
+cv.addEventListener('click',e=>{
+  const rect=cv.getBoundingClientRect();
+  const mx=(e.clientX-rect.left)*(W/rect.width);
+  const my=(e.clientY-rect.top)*(H/rect.height);
+  let best=null,bd=1e9;
+  for(const n of nodes){ const dx=n.px-mx,dy=n.py-my,d=dx*dx+dy*dy; if(d<bd){bd=d;best=n;} }
+  if(best && bd<900){
+    const [x,y,z]=best.t;
+    const sum=x*x+y*y+z*z, prod=3*x*y*z;
+    info('('+best.t.join(',')+')  x²+y²+z²='+sum+'  3xyz='+prod+(sum===prod?'  ✓ markov':'  ✗'));
+  }
+});
+
+function redraw(){ layout(); draw(); }
+document.getElementById('sl').addEventListener('input',e=>{ depth=+e.target.value; document.getElementById('dn').textContent=depth; redraw(); });
+document.getElementById('res').addEventListener('click',()=>{ depth=3; document.getElementById('sl').value=3; document.getElementById('dn').textContent=3; info(''); redraw(); });
+redraw();
+</script>
+</body></html>
