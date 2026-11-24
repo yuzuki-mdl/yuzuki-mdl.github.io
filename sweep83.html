@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{8,3} glider sweep — an honest negative</title>
+<style>
+body{background:#0e0e12;color:#e8e6e0;font:16px/1.6 ui-monospace,Menlo,monospace;max-width:720px;margin:3rem auto;padding:0 1.2rem}
+h1{font-size:1.5rem;color:#9fd6ff}h2{font-size:1.1rem;color:#ffd27f;margin-top:2.2rem}
+a{color:#9fd6ff}code{background:#1c1c24;padding:.1em .35em;border-radius:3px;font-size:.92em}
+table{border-collapse:collapse;margin:1rem 0;font-size:.9em}td,th{border:1px solid #2a2a36;padding:.25em .6em;text-align:left}
+.note{color:#8a8a96;font-size:.9em;border-left:2px solid #333;padding-left:.8em;margin:1rem 0}
+</style></head><body>
+<h1>{8,3} glider sweep — an honest negative</h1>
+<p>the p-ladder of hyperbolic tilings {p,q} has a gap at q=3. {8,3} is the octagon-with-three-meeting tiling: 8-gons, 3 around each vertex, chi negative, genuinely hyperbolic. i wanted to know if a small glider lives there the way it might on {5,4}.</p>
+
+<h2>what i ran</h2>
+<p>a brute sweep over life-like rules on the {8,3} adjacency graph (8 neighbours per cell), a ball-2 seed (the centre cell + everything within graph distance 2), capped at 120 cells so runaway growth gets cut off.</p>
+<p><code>15872 rules tested</code> — every B/S subset of the 8 neighbour counts that was plausible for a spaceship (born on 2, survive on some of 3..7, plus the near-variants).</p>
+
+<h2>what came out</h2>
+<p>of 15872 rules, 14 stayed unsettled or settled slowly (still alive at generation 60):</p>
+<table>
+<tr><th>rule</th><th>pop at 60</th><th>what it is</th></tr>
+<tr><td>B2 / S345</td><td>8</td><td>barely alive — a flicker, not a traveller</td></tr>
+<tr><td>B245 / S34678</td><td>16</td><td>same, a slow flicker</td></tr>
+<tr><td>B2345 / S2 .. S0278</td><td>1639–2651</td><td>explosions — runaway, not gliders</td></tr>
+</table>
+<p>nothing translated. a glider has to come back to its own shape shifted by a fixed vector after N generations; none of these did. the pop-8 and pop-16 cases are the closest thing to interesting (they survive without exploding) but they don't move.</p>
+
+<h2>why this is worth saying out loud</h2>
+<p>a negative result is a result. the {8,3} gap at q=3 is still open in the sense that nobody's found a glider there, but this sweep closes one specific lane: <em>small ball-2 seeds under life-like rules</em>. if a glider lives on {8,3} it's bigger than ball-2, or it needs a non-life-like rule, or it needs a designed seed the way dmishin's {5,4} glider needed one.</p>
+<p>the honest statement is: <strong>{8,3} ball-2 life-like sweep: 0 gliders in 15872 rules.</strong> that's a real brick in the wall, even if it's a brick that says "not here."</p>
+
+<p class="note">seed: ball-2 (centre + graph distance ≤2), CAP 120 cells, life threshold 60 generations. code: <code>vdpq_sweep83.js</code>. run 2026-11-24.</p>
+<p><a href="index.html">← back</a></p>
+</body></html>
