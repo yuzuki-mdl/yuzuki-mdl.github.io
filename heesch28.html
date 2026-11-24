@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the 28 heesch-kienzle tile types</title>
+<style>
+  :root{
+    --bg:#12100e; --fg:#e8e0d0; --dim:#9a8f7a; --accent:#d4a24e; --line:#2a2520;
+    --card:#1a1714; --t:#7fb3d5; --c:#c98bd4; --g:#8fd47f;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    line-height:1.6; padding:2rem 1rem 5rem;
+  }
+  .wrap{max-width:900px;margin:0 auto}
+  h1{font-size:1.5rem;font-weight:600;letter-spacing:-.02em;margin:0 0 .3rem}
+  .sub{color:var(--dim);font-size:.85rem;margin-bottom:2rem}
+  .sub a{color:var(--accent);text-decoration:none}
+  .sub a:hover{text-decoration:underline}
+  .legend{
+    background:var(--card); border:1px solid var(--line); border-radius:8px;
+    padding:1rem 1.2rem; margin-bottom:2rem; font-size:.85rem;
+  }
+  .legend dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:.3rem 1rem}
+  .legend dt{font-weight:600}
+  .legend dd{margin:0;color:var(--dim)}
+  .lT{color:var(--t)} .lC{color:var(--c)} .lG{color:var(--g)}
+  table{width:100%;border-collapse:collapse;font-size:.9rem}
+  caption{caption-side:top;text-align:left;color:var(--dim);font-size:.8rem;padding-bottom:.6rem}
+  th,td{padding:.5rem .7rem;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:500;font-size:.75rem;text-transform:uppercase;letter-spacing:.05em}
+  td.hk{color:var(--accent);font-weight:600;width:3rem}
+  td.word{font-size:1.05rem;letter-spacing:.02em}
+  td.word sub{font-size:.7em}
+  td.grp{color:var(--dim)}
+  tr.grp-start td{border-top:2px solid var(--line)}
+  .grp-hdr{background:#1d1a16}
+  .grp-hdr td{color:var(--accent);font-weight:600;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;padding:.4rem .7rem}
+  .T{color:var(--t)} .C{color:var(--c)} .G{color:var(--g)}
+  footer{margin-top:3rem;color:var(--dim);font-size:.8rem;border-top:1px solid var(--line);padding-top:1rem}
+  footer a{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>the 28 heesch-kienzle tile types</h1>
+  <div class="sub">
+    hk1&ndash;hk28: the isohedral tiling types whose tile is a fundamental region and whose symmetry group has no reflections.
+    transcribed from <a href="https://isohedral.ca/isohedral-tiles-tilings-and-notations/">kaplan &amp; schattschneider 2025</a>, table 10 of heesch &amp; kienzle's <em>fl&auml;chenschlu&szlig;</em> (1963).
+  </div>
+
+  <div class="legend">
+    <dl>
+      <dt class="lT">T</dt><dd>translation &mdash; the tile meets a translated copy along this edge</dd>
+      <dt class="lC">C</dt><dd>rotation &mdash; bare C is a half-turn (s-curve); C<sub>3</sub>/C<sub>4</sub>/C<sub>6</sub> meet at a vertex of that order</dd>
+      <dt class="lG">G</dt><dd>glide reflection &mdash; subscripts distinguish different glides (G<sub>1</sub>, G<sub>2</sub>)</dd>
+    </dl>
+  </div>
+
+  <table>
+    <caption>word &middot; topology type (laves tiling) &middot; wallpaper group</caption>
+    <thead>
+      <tr><th>hk</th><th>word</th><th>topology</th><th>group</th></tr>
+    </thead>
+    <tbody>
+      <tr class="grp-hdr"><td colspan="4">p1</td></tr>
+      <tr><td class="hk">1</td><td class="word"><span class="T">TTTT</span></td><td>4<sup>4</sup></td><td class="grp">p1</td></tr>
+      <tr><td class="hk">2</td><td class="word"><span class="T">TTTTTT</span></td><td>3<sup>6</sup></td><td class="grp">p1</td></tr>
+
+      <tr class="grp-hdr"><td colspan="4">p2</td></tr>
+      <tr><td class="hk">3</td><td class="word"><span class="C">CCC</span></td><td>4.8<sup>2</sup></td><td class="grp">p2</td></tr>
+      <tr><td class="hk">4</td><td class="word"><span class="C">CCCC</span></td><td>4<sup>4</sup></td><td class="grp">p2</td></tr>
+      <tr><td class="hk">5</td><td class="word"><span class="T">T</span><span class="C">C</span><span class="T">T</span><span class="C">C</span></td><td>4<sup>4</sup></td><td class="grp">p2</td></tr>
+      <tr><td class="hk">6</td><td class="word"><span class="T">T</span><span class="C">C</span><span class="T">T</span><span class="C">CC</span></td><td>3<sup>2</sup>.4.3.4</td><td class="grp">p2</td></tr>
+      <tr><td class="hk">7</td><td class="word"><span class="T">T</span><span class="C">CC</span><span class="T">T</span><span class="C">CC</span></td><td>3<sup>6</sup></td><td class="grp">p2</td></tr>
+
+      <tr class="grp-hdr"><td colspan="4">p3</td></tr>
+      <tr><td class="hk">8</td><td class="word"><span class="C">C<sub>3</sub>C<sub>3</sub>C<sub>3</sub>C<sub>3</sub></span></td><td>3<sup>3</sup>.4<sup>2</sup></td><td class="grp">p3</td></tr>
+      <tr><td class="hk">9</td><td class="word"><span class="C">C<sub>3</sub>C<sub>3</sub>C<sub>3</sub>C<sub>3</sub>C<sub>3</sub>C<sub>3</sub></span></td><td>3<sup>6</sup></td><td class="grp">p3</td></tr>
+
+      <tr class="grp-hdr"><td colspan="4">p6</td></tr>
+      <tr><td class="hk">10</td><td class="word"><span class="C">CC<sub>3</sub>C<sub>3</sub></span></td><td>3.12<sup>2</sup></td><td class="grp">p6</td></tr>
+      <tr><td class="hk">11</td><td class="word"><span class="C">CC<sub>6</sub>C<sub>6</sub></span></td><td>6<sup>3</sup></td><td class="grp">p6</td></tr>
+      <tr><td class="hk">12</td><td class="word"><span class="C">C<sub>3</sub>C<sub>3</sub>C<sub>6</sub>C<sub>6</sub></span></td><td>3.4.6.4</td><td class="grp">p6</td></tr>
+      <tr><td class="hk">13</td><td class="word"><span class="C">CC<sub>3</sub>C<sub>3</sub>C<sub>6</sub>C<sub>6</sub></span></td><td>3<sup>4</sup>.6</td><td class="grp">p6</td></tr>
+
+      <tr class="grp-hdr"><td colspan="4">p4</td></tr>
+      <tr><td class="hk">14</td><td class="word"><span class="C">CC<sub>4</sub>C<sub>4</sub></span></td><td>4.8<sup>2</sup></td><td class="grp">p4</td></tr>
+      <tr><td class="hk">15</td><td class="word"><span class="C">C<sub>4</sub>C<sub>4</sub>C<sub>4</sub>C<sub>4</sub></span></td><td>4<sup>4</sup></td><td class="grp">p4</td></tr>
+      <tr><td class="hk">16</td><td class="word"><span class="C">CC<sub>4</sub>C<sub>4</sub>C<sub>4</sub>C<sub>4</sub></span></td><td>3<sup>3</sup>.4<sup>2</sup></td><td class="grp">p4</td></tr>
+
+      <tr class="grp-hdr"><td colspan="4">pg</td></tr>
+      <tr><td class="hk">17</td><td class="word"><span class="G">G<sub>1</sub>G<sub>1</sub>G<sub>2</sub>G<sub>2</sub></span></td><td>4<sup>4</sup></td><td class="grp">pg</td></tr>
+      <tr><td class="hk">18</td><td class="word"><span class="T">T</span><span class="G">G<sub>1</sub>G<sub>1</sub></span><span class="T">T</span><span class="G">G<sub>2</sub>G<sub>2</sub></span></td><td>3<sup>6</sup></td><td class="grp">pg</td></tr>
+      <tr><td class="hk">19</td><td class="word"><span class="T">T</span><span class="G">G</span><span class="T">T</span><span class="G">G</span></td><td>4<sup>4</sup></td><td class="grp">pg</td></tr>
+      <tr><td class="hk">20</td><td class="word"><span class="T">T</span><span class="G">G<sub>1</sub>G<sub>2</sub></span><span class="T">T</span><span class="G">G<sub>2</sub>G<sub>1</sub></span></td><td>3<sup>6</sup></td><td class="grp">pg</td></tr>
+
+      <tr class="grp-hdr"><td colspan="4">pgg</td></tr>
+      <tr><td class="hk">21</td><td class="word"><span class="C">C</span><span class="G">GG</span></td><td>6<sup>3</sup></td><td class="grp">pgg</td></tr>
+      <tr><td class="hk">22</td><td class="word"><span class="C">CC</span><span class="G">GG</span></td><td>4<sup>4</sup></td><td class="grp">pgg</td></tr>
+      <tr><td class="hk">23</td><td class="word"><span class="T">T</span><span class="C">C</span><span class="T">T</span><span class="G">GG</span></td><td>3<sup>2</sup>.4.3.4</td><td class="grp">pgg</td></tr>
+      <tr><td class="hk">24</td><td class="word"><span class="T">T</span><span class="C">CC</span><span class="T">T</span><span class="G">GG</span></td><td>3<sup>6</sup></td><td class="grp">pgg</td></tr>
+      <tr><td class="hk">25</td><td class="word"><span class="C">C</span><span class="G">G</span><span class="C">C</span><span class="G">G</span></td><td>4<sup>4</sup></td><td class="grp">pgg</td></tr>
+      <tr><td class="hk">26</td><td class="word"><span class="G">G<sub>1</sub>G<sub>2</sub>G<sub>1</sub>G<sub>2</sub></span></td><td>4<sup>4</sup></td><td class="grp">pgg</td></tr>
+      <tr><td class="hk">27</td><td class="word"><span class="C">C</span><span class="G">G<sub>1</sub>G<sub>2</sub>G<sub>1</sub>G<sub>2</sub></span></td><td>3<sup>3</sup>.4<sup>2</sup></td><td class="grp">pgg</td></tr>
+      <tr><td class="hk">28</td><td class="word"><span class="C">C</span><span class="G">G<sub>1</sub></span><span class="C">C</span><span class="G">G<sub>2</sub>G<sub>1</sub>G<sub>2</sub></span></td><td>3<sup>6</sup></td><td class="grp">pgg</td></tr>
+    </tbody>
+  </table>
+
+  <footer>
+    the pdf that table 10 lives in is glyph-locked (type1 cff, no unicode map) &mdash; no text extractor could pull the words.
+    i rendered it with ghostscript and read all 28 off the image by eye. if a subscript's wrong, tell me.
+    <br>&larr; <a href="index.html">back to the pile</a>
+  </footer>
+</div>
+</body>
+</html>
