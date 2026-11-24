@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>braid closure</title>
+<style>
+:root{--bg:#0f1117;--fg:#e8e8ee;--dim:#8a8fa3;--acc:#7ad0c0;--acc2:#e08fb0;--line:#2a2e3d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 ui-monospace,Menlo,monospace;padding:28px 20px 60px;max-width:760px;margin:0 auto}
+h1{font-size:20px;font-weight:600;margin:0 0 4px}
+p.sub{color:var(--dim);margin:0 0 22px;font-size:13px}
+canvas{display:block;width:100%;max-width:560px;margin:0 0 16px;border:1px solid var(--line);border-radius:8px;background:#0b0d13}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+button{font:inherit;background:#1a1e2b;color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:8px 14px;cursor:pointer}
+button:hover{border-color:var(--acc);color:var(--acc)}
+.word{font-size:17px;letter-spacing:2px;color:var(--acc);min-height:26px;word-break:break-all}
+.stat{font-size:13px;color:var(--acc2);margin:8px 0 0}
+.note{color:var(--dim);font-size:12.5px;margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+.note b{color:var(--fg)}
+</style></head><body>
+<h1>closing a braid</h1>
+p.sub type a word in the braid group B&#8323;. closing it (join top strands to bottom) gives a knot or link. the number of components is the number of cycles in the braid's permutation.
+<canvas id="cv" width="560" height="360"></canvas>
+<div class="word" id="word">(empty)</div>
+<div class="stat" id="stat"></div>
+<div class="row">
+  <button data-g="x">+ x</button>
+  <button data-g="y">+ y</button>
+  <button data-g="xi">+ x&#8315;&#185;</button>
+  <button data-g="yi">+ y&#8315;&#185;</button>
+  <button id="undo">undo</button>
+  <button id="clear">clear</button>
+</div>
+<div class="note">
+<b>x</b> = strand 1 over strand 2. <b>y</b> = strand 2 over strand 3. <b>x&#8315;&#185;</b> = strand 1 under strand 2.
+<br>a single component = a <b>knot</b>. more than one = a <b>link</b>. e.g. <b>xy</b> closes to a knot (a 3-cycle). <b>xx</b> closes to a 3-component unlink.
+</div>
+<script>
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
+const W=cv.width, H=cv.height;
+let word=[];
+const N=3;
+const padX=70, topY=40, botY=H-40;
+const xs=[W*0.32, W*0.5, W*0.68];
+
+function permOf(w){
+  let p=[...Array(N).keys()];
+  for(const c of w){
+    if(c.g==='x'){ [p[0],p[1]]=[p[1],p[0]]; }
+    else { [p[1],p[2]]=[p[2],p[1]]; }
+  }
+  return p;
+}
+function cycles(p){
+  const seen=new Array(p.length).fill(false); let n=0;
+  for(let i=0;i<p.length;i++){ if(!seen[i]){ n++; let j=i; while(!seen[j]){seen[j]=true; j=p[j];} } }
+  return n;
+}
+
+// strand position tracking for drawing: each strand has a label 0..N-1 at top
+// we walk crossings; at each crossing the two involved strands swap x-position
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  const m=word.length;
+  // x-position of each strand-label as function of step
+  // label at top starts at index = its number. track current slot per label.
+  let slot=[...Array(N).keys()]; // label -> current lane index
+  const laneX = (lane)=> xs[lane];
+  // crossing x positions along the width
+  const stepX = (i)=> padX + (W-2*padX)*( (i+0.5)/Math.max(m,1) );
+  const stepY = (i)=> topY + (botY-topY)*( (i+0.5)/Math.max(m,1) );
+
+  // build path points for each label
+  const pts=[...Array(N)].map(()=>[{x:xs[0],y:topY}]);
+  // we need per-label position; but lanes change. Simpler: draw each crossing as X, and connect.
+  // Represent each strand as a polyline through crossings using lane positions.
+  // Recompute: simulate again storing per-step lane for each label.
+  let curSlot=[...Array(N).keys()];
+  const labelAt=[...Array(N).keys()]; // lane -> label currently
+  const paths=[...Array(N)].map(()=>[{x:xs[0]+0,y:topY}]);
+  // init each label start point at its lane
+  for(let L=0;L<N;L++) paths[L]=[{x:xs[L],y:topY}];
+  // track lane of each label
+  let laneOfLabel=[...Array(N).keys()];
+  for(let i=0;i<m;i++){
+    const c=word[i];
+    const a = c.g==='x'?0:1;
+    const b = a+1;
+    // the two labels currently in lanes a,b swap lanes
+    const la=laneOfLabel.indexOf(a), lb=laneOfLabel.indexOf(b);
+    // wait we need labels in those lanes
+    // find labels whose laneOfLabel == a and == b
+    // swap them
+    const labelA = laneOfLabel.findIndex(l=>l===a);
+    const labelB = laneOfLabel.findIndex(l=>l===b);
+    // Hmm laneOfLabel indexed by label gives lane. find label with lane==a:
+    const labA = laneOfLabel.indexOf(a);
+    const labB = laneOfLabel.indexOf(b);
+    // add midpoint to both paths at the crossing x, then swap
+    const cx=stepX(i), cy=stepY(i);
+    paths[labA].push({x:cx, y:cy, cross:true, over:true});
+    paths[labB].push({x:cx, y:cy, cross:true, over:false});
+    laneOfLabel[labA]=b; laneOfLabel[labB]=a;
+  }
+  // end points: each label goes to its final lane at bottom
+  for(let L=0;L<N;L++) paths[L].push({x:xs[laneOfLabel[L]], y:botY});
+
+  // closure arcs: connect bottom of lane j to top of lane j (same column)
+  // draw closure as arcs on the sides
+  // draw strands
+  const cols=['#7ad0c0','#e08fb0','#c0a0e0'];
+  for(let L=0;L<N;L++){
+    ctx.strokeStyle=cols[L%3];
+    ctx.lineWidth=2.5;
+    ctx.beginPath();
+    let first=true;
+    for(const p of paths[L]){
+      if(first){ctx.moveTo(p.x,p.y); first=false;}
+      else ctx.lineTo(p.x,p.y);
+    }
+    ctx.stroke();
+    // draw crossing gaps (under-strands) as small bg circles to fake over/under
+  }
+  // over/under: draw a small dark disc on under-strand crossings
+  for(let L=0;L<N;L++){
+    for(const p of paths[L]){
+      if(p.cross && !p.over){
+        ctx.fillStyle='#0b0d13';
+        ctx.beginPath(); ctx.arc(p.x,p.y,5,0,7); ctx.fill();
+      }
+    }
+  }
+  // redraw over-strands on top at crossings
+  for(let L=0;L<N;L++){
+    ctx.strokeStyle=cols[L%3]; ctx.lineWidth=2.5;
+    for(const p of paths[L]){
+      if(p.cross && p.over){
+        ctx.beginPath(); ctx.arc(p.x,p.y,5,0,7);
+        ctx.fillStyle=cols[L%3]; ctx.fill();
+      }
+    }
+  }
+  // closure arcs at sides: connect bottom lane j to top lane j
+  for(let j=0;j<N;j++){
+    ctx.strokeStyle=cols[j%3]; ctx.lineWidth=2;
+    ctx.setLineDash([5,4]);
+    ctx.beginPath();
+    const x=xs[j];
+    // arc out to the side then back
+    const side = j===0? -1 : (j===N-1? 1 : 0);
+    if(side!==0){
+      const ox = x + side*40;
+      ctx.moveTo(x,botY);
+      ctx.bezierCurveTo(ox,botY+30, ox,topY-30, x,topY);
+    } else {
+      ctx.moveTo(x,botY);
+      ctx.lineTo(x,topY);
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+
+function update(){
+  draw();
+  const wEl=document.getElementById('word');
+  if(word.length===0){ wEl.textContent='(empty)'; }
+  else {
+    wEl.textContent = word.map(c=>{ const base=c.g==='x'?'x':'y'; return c.inv? base+'\u207B\u00B9':base; }).join(' ');
+  }
+  const p=permOf(word);
+  const k=cycles(p);
+  const stat=document.getElementById('stat');
+  if(word.length===0){ stat.textContent='3 separate strands (the unlink of 3 components).'; }
+  else if(k===1){ stat.textContent='1 component \u2014 a knot.'; }
+  else { stat.textContent=k+' components \u2014 a link of '+k+' strands.'; }
+}
+
+function add(g){
+  const inv=(g==='xi'||g==='yi');
+  const base=(g==='x'||g==='xi')?'x':'y';
+  word.push({g:base, inv});
+  update();
+}
+document.querySelectorAll('button[data-g]').forEach(b=>b.addEventListener('click',()=>add(b.dataset.g)));
+document.getElementById('undo').addEventListener('click',()=>{word.pop();update();});
+document.getElementById('clear').addEventListener('click',()=>{word=[];update();});
+update();
+</script>
+</body></html>
