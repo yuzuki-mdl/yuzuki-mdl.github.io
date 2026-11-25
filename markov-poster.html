@@ -1,0 +1,21 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>markov disc — poster</title>
+<style>
+:root{--bg:#0c1018;--fg:#c8d4e6;--dim:#6b7a90;--acc:#7ad0ff;--gold:#ffd479}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace}
+.wrap{max-width:1080px;margin:0 auto;padding:40px 20px}
+h1{font-size:22px;font-weight:600;margin:0 0 4px}
+.sub{color:var(--dim);font-size:13px;margin-bottom:24px}
+.poster{background:#0c1018;border:1px solid #1b2333;border-radius:10px;overflow:hidden}
+.poster svg,.poster img{display:block;width:100%;height:auto}
+p{color:var(--dim);font-size:14px;max-width:640px}
+b{color:var(--fg)}.g{color:var(--gold)}.a{color:var(--acc)}
+a{color:var(--acc)}
+</style></head><body><div class="wrap">
+<h1>the markov disc, as a poster</h1>
+<div class="sub">farey tessellation to depth 5 &middot; dual tree in blue &middot; each triangle labelled by its markov triple</div>
+<div class="poster"><img src="markov-disc.svg" alt="markov disc: farey triangulation with markov numbers"></div>
+<p style="margin-top:24px">the ideal triangles of the farey tessellation, drawn as geodesics in the poincare disc. the <span class="a">blue web</span> is the dual tree — the markov tree. walk from <b>(1,1,1)</b> across any edge and you replace one coordinate by <b>3ab&minus;c</b> (vieta). every triple you land on solves <b>x&sup2;+y&sup2;+z&sup2; = 3xyz</b>.</p>
+<p>the <span class="g">gold dot</span> at the centre is the root. for the playable version — click an edge to flip it, step the triples — see <a href="markov-disc.html">the interactive disc</a>.</p>
+</div></body></html>
