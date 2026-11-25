@@ -33,6 +33,7 @@
     <div class="stat"><span>multiplier</span><b id="mult">x1</b></div>
     <div class="stat"><span>growth depth</span><b id="depth">0</b></div>
     <div class="stat"><span>newest word</span><b id="word" style="font-size:12px">&mdash;</b></div>
+    <div class="stat"><span>gliders caught</span><b id="caught">0</b></div>
     <div id="shop" style="margin-top:12px"></div>
     <div style="margin-top:12px">
       <button id="prestige">compactify (prestige)</button>
@@ -147,6 +148,9 @@ let pents = [];   // each: {verts:[5 pts], id}
 let banked = 0;   // curvature degrees = currency
 let up = {auto:0, speed:0, reach:0, workers:0}; // upgrade levels
 let mult = 1;     // prestige multiplier
+let caught = 0;   // gliders caught
+let gliders = []; // active gliders {pi, born, hopAt}
+let gliderSpawnAt = Date.now()+15000;
 let CURV_PER_PENT = 720;
 const DISK_BASE = 0.92;
 let DISK_R = DISK_BASE;   // current draw radius, raised by 'reach'
@@ -163,7 +167,7 @@ function autoRate(){ return (up.auto+up.workers)*0.5; }  // pents/sec
 function cooldownMs(){ return 2000/(1+0.12*up.speed); }
 
 function save(){
-  const data={pents:pents.map(p=>p.verts), words:pents.map(p=>p.word||''), banked, up, mult, t:Date.now()};
+  const data={pents:pents.map(p=>p.verts), words:pents.map(p=>p.word||''), banked, up, mult, caught, t:Date.now()};
   try{localStorage.setItem('tiling54',JSON.stringify(data));}catch(e){}
 }
 function load(){
@@ -172,7 +176,7 @@ function load(){
     if(!raw) return false;
     const d=JSON.parse(raw);
     pents=d.pents.map((vs,i)=>({verts:vs,id:i,word:(d.words&&d.words[i])||''}));
-    banked=d.banked||0;
+    banked=d.banked||0; caught=d.caught||0;
     up=Object.assign({auto:0,speed:0,reach:0,workers:0}, d.up||{}); mult=d.mult||1;
     DISK_R=DISK_BASE+up.reach*0.006;
     // offline gain: auto-growers bank curvature while away
@@ -207,11 +211,13 @@ function draw(){
     ctx.fill();
     ctx.strokeStyle='#6b5aa0'; ctx.lineWidth=1.2; ctx.stroke();
   }
+  drawGliders();
   document.getElementById('n').textContent=pents.length;
   document.getElementById('v').textContent=pents.length*5;
   document.getElementById('cur').textContent=Math.floor(banked)+'\u00b0';
   document.getElementById('ps').textContent=autoRate().toFixed(1);
   document.getElementById('mult').textContent='x'+mult.toFixed(2);
+  const ce=document.getElementById('caught'); if(ce) ce.textContent=caught;
   let md=0; for(const p of pents) if((p.word||'').length>md) md=p.word.length;
   document.getElementById('depth').textContent=md;
   const last=pents[pents.length-1];
@@ -299,18 +305,90 @@ document.getElementById('prestige').onclick=()=>{
   save(); draw();
 };
 
+// --- gliders: rare drifting lights on the tiling, click to catch ---
+function spawnGlider(){
+  if(pents.length<3) return;
+  const pi=Math.floor(Math.random()*pents.length);
+  gliders.push({pi, born:Date.now(), hopAt:Date.now()+1800});
+}
+function gliderNeighbor(pi){
+  const P=pents[pi];
+  const opts=[];
+  for(let i=0;i<5;i++){
+    const a=P.verts[i], b=P.verts[(i+1)%5];
+    for(let qi=0;qi<pents.length;qi++){ if(qi===pi) continue;
+      const Q=pents[qi];
+      for(let j=0;j<5;j++){
+        const c=Q.verts[j], d=Q.verts[(j+1)%5];
+        if((dist(a,c)<1e-6&&dist(b,d)<1e-6)||(dist(a,d)<1e-6&&dist(b,c)<1e-6)){ opts.push(qi); }
+      }
+    }
+  }
+  if(opts.length) return opts[Math.floor(Math.random()*opts.length)];
+  return Math.floor(Math.random()*pents.length);
+}
+function drawGliders(){
+  for(const g of gliders){
+    const P=pents[g.pi]; if(!P) continue;
+    const age=(Date.now()-g.born)/1000;
+    if(age>12) continue;
+    const pulse=0.5+0.5*Math.sin(Date.now()/180);
+    ctx.beginPath();
+    for(let i=0;i<5;i++){ const [x,y]=toScreen(P.verts[i]); i?ctx.lineTo(x,y):ctx.moveTo(x,y); }
+    ctx.closePath();
+    ctx.fillStyle=`rgba(155,232,184,${0.25+0.35*pulse})`;
+    ctx.fill();
+    ctx.strokeStyle='#9be8b8'; ctx.lineWidth=2; ctx.stroke();
+  }
+}
+function catchGlider(sx,sy){
+  for(let gi=gliders.length-1;gi>=0;gi--){
+    const g=gliders[gi], P=pents[g.pi]; if(!P) continue;
+    let inside=false;
+    for(let i=0,j=4;i<5;j=i++){
+      const [xi,yi]=toScreen(P.verts[i]), [xj,yj]=toScreen(P.verts[j]);
+      if(((yi>sy)!=(yj>sy)) && (sx<(xj-xi)*(sy-yi)/(yj-yi)+xi)) inside=!inside;
+    }
+    if(inside){
+      const bonus=CURV_PER_PENT*10*Math.max(1,mult);
+      banked+=bonus; caught++;
+      gliders.splice(gi,1);
+      document.getElementById('msg').textContent=`caught a glider! +${Math.floor(bonus)}\u00b0`;
+      save(); draw();
+      return true;
+    }
+  }
+  return false;
+}
+
 let lastGrow=Date.now();
 function tick(){
   const now=Date.now();
   if(up.auto>0 && now-lastGrow > cooldownMs()){
     if(growOne()){ lastGrow=now; draw(); }
   }
+  // gliders: spawn occasionally, hop, expire
+  if(now>gliderSpawnAt){
+    if(gliders.length<3) spawnGlider();
+    gliderSpawnAt=now+18000+Math.random()*12000;
+  }
+  let moved=false;
+  for(let i=gliders.length-1;i>=0;i--){
+    const g=gliders[i];
+    if((now-g.born)/1000>12){ gliders.splice(i,1); moved=true; continue; }
+    if(now>g.hopAt){ g.pi=gliderNeighbor(g.pi); g.hopAt=now+1800; moved=true; }
+  }
+  if(moved) draw();
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
 
 // manual click: grow nearest unsupported edge
 cv.addEventListener('pointerdown',e=>{
+  const rect=cv.getBoundingClientRect();
+  const sx=(e.clientX-rect.left)*(cv.width/rect.width);
+  const sy=(e.clientY-rect.top)*(cv.height/rect.height);
+  if(catchGlider(sx,sy)) return;
   if(growOne()){ draw(); document.getElementById('msg').textContent=''; }
   else { document.getElementById('msg').textContent='disk full — buy "expand the disk"'; }
 });
