@@ -31,12 +31,15 @@
     <div class="stat"><span>per second</span><b id="ps">0</b></div>
     <div class="stat"><span>banked while away</span><b id="off">0</b></div>
     <div class="stat"><span>multiplier</span><b id="mult">x1</b></div>
+    <div class="stat"><span>growth depth</span><b id="depth">0</b></div>
+    <div class="stat"><span>newest word</span><b id="word" style="font-size:12px">&mdash;</b></div>
     <div id="shop" style="margin-top:12px"></div>
     <div style="margin-top:12px">
       <button id="prestige">compactify (prestige)</button>
       <button id="reset">full reset</button>
     </div>
     <div class="msg" id="msg"></div>
+    <div class="sub" style="margin-top:12px;line-height:1.5">each pentagon is placed by reflecting its parent across one edge. the word is that edge-reflection sequence &mdash; the newest pentagon's path from the centre. these reflections are the generators of the (2,4,5) triangle group, the one whose relators a&sup2;=b&#8308;=c&#8309;=abc=1 are exactly why pentagons fit four-to-a-corner on this surface.</div>
   </div>
 </div>
 <script>
@@ -160,7 +163,7 @@ function autoRate(){ return (up.auto+up.workers)*0.5; }  // pents/sec
 function cooldownMs(){ return 2000/(1+0.12*up.speed); }
 
 function save(){
-  const data={pents:pents.map(p=>p.verts), banked, up, mult, t:Date.now()};
+  const data={pents:pents.map(p=>p.verts), words:pents.map(p=>p.word||''), banked, up, mult, t:Date.now()};
   try{localStorage.setItem('tiling54',JSON.stringify(data));}catch(e){}
 }
 function load(){
@@ -168,7 +171,7 @@ function load(){
     const raw=localStorage.getItem('tiling54');
     if(!raw) return false;
     const d=JSON.parse(raw);
-    pents=d.pents.map((vs,i)=>({verts:vs,id:i}));
+    pents=d.pents.map((vs,i)=>({verts:vs,id:i,word:(d.words&&d.words[i])||''}));
     banked=d.banked||0;
     up=Object.assign({auto:0,speed:0,reach:0,workers:0}, d.up||{}); mult=d.mult||1;
     DISK_R=DISK_BASE+up.reach*0.006;
@@ -209,6 +212,11 @@ function draw(){
   document.getElementById('cur').textContent=Math.floor(banked)+'\u00b0';
   document.getElementById('ps').textContent=autoRate().toFixed(1);
   document.getElementById('mult').textContent='x'+mult.toFixed(2);
+  let md=0; for(const p of pents) if((p.word||'').length>md) md=p.word.length;
+  document.getElementById('depth').textContent=md;
+  const last=pents[pents.length-1];
+  const w=(last&&last.word)||'';
+  document.getElementById('word').textContent=w? w.split('').join('\u00b7') : '\u2014';
   renderShop();
 }
 function renderShop(){
@@ -257,7 +265,7 @@ function growOne(){
       const nv=P.verts.map(v=>reflect(v,a,b));
       // only keep if it lands inside the disk
       if(nv.every(v=>cabs(v)<DISK_R)){
-        pents.push({verts:nv,id:pents.length});
+        pents.push({verts:nv,id:pents.length,word:P.word+i});
         banked+=CURV_PER_PENT;
         save();
         return true;
@@ -270,7 +278,7 @@ function dist(a,b){return Math.hypot(a[0]-b[0],a[1]-b[1]);}
 
 // init
 if(!load()){
-  pents=[{verts:centralVerts(),id:0}];
+  pents=[{verts:centralVerts(),id:0,word:''}];
   banked=CURV_PER_PENT;
   save();
 }
@@ -286,7 +294,7 @@ document.getElementById('prestige').onclick=()=>{
   const gain=Math.floor(pents.length/10)/10;
   if(!confirm(`compactify? lose the tiling + upgrades, keep x${(mult+gain).toFixed(2)} multiplier`))return;
   mult=+(mult+gain).toFixed(2);
-  pents=[{verts:centralVerts(),id:0}]; banked=CURV_PER_PENT;
+  pents=[{verts:centralVerts(),id:0,word:''}]; banked=CURV_PER_PENT;
   up={auto:0,speed:0,reach:0,workers:0}; DISK_R=DISK_BASE;
   save(); draw();
 };
