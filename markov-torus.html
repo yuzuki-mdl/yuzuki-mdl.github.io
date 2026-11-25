@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>geodesics on the modular torus</title>
+<style>
+  :root{--bg:#0c0f14;--fg:#cfd8e3;--dim:#7a8699;--line:#1e2530}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:28px 20px 60px}
+  h1{font-size:19px;font-weight:600;margin:0 0 4px;letter-spacing:.3px}
+  .sub{color:var(--dim);max-width:640px;margin-bottom:18px;font-size:13.5px}
+  .sub b{color:#9fb0c6;font-weight:600}
+  canvas{display:block;background:#0a0d11;border:1px solid var(--line);border-radius:10px;margin:0 auto;max-width:100%}
+  .ctrl{max-width:640px;margin:16px auto 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:var(--dim);font-size:13px}
+  button{background:#151b24;color:var(--fg);border:1px solid var(--line);border-radius:7px;padding:6px 10px;font:inherit;font-size:13px;cursor:pointer}
+  button:hover{background:#1c2531;border-color:#2c3746}
+  .legend{max-width:640px;margin:14px auto 0;color:var(--dim);font-size:12.5px}
+  a{color:#7fb0e0}
+</style></head>
+<body>
+<h1>simple closed geodesics on the modular torus</h1>
+<div class="sub">the modular torus is the once-punctured torus = the square with opposite edges glued (the quotient of the hyperbolic plane by the commutator subgroup of PSL(2,&#8484;)). a slope <b>p/q</b> (gcd 1) gives one simple closed geodesic, which wraps <b>p</b> times horizontally and <b>q</b> times vertically. each of these has a length; the markov numbers <b>m</b> are exactly the traces they carry: <b>3m = tr</b> of the slope-m geodesic (Cohn 1955). click a slope to light it up.</div>
+<canvas id="c" width="560" height="560"></canvas>
+<div class="ctrl" id="btns"></div>
+<div class="legend">colours cycle by slope; brighter = smaller p+q (shorter curve). the dashed square is the fundamental domain — opposite edges are the same line.</div>
+
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const W=cv.width,H=cv.height,pad=0.12*W;
+const x0=pad,y0=pad,side=W-2*pad;
+
+// list of slopes p/q with gcd=1, small p+q
+function slopes(maxsum){
+  const out=[];
+  for(let q=0;q<=maxsum;q++)for(let p=0;p<=maxsum;p++){
+    if(p+q===0||p+q>maxsum) continue;
+    if(gcd(p,q)!==1) continue;
+    out.push([p,q]);
+  }
+  return out;
+}
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){[a,b]=[b,a%b];}return a;}
+
+const palette=['#e06c75','#98c379','#e5c07b','#61afef','#c678dd','#56b6c2','#d19a66','#7ec699','#d16ba5','#8fbcbb'];
+
+const S=slopes(11); // slopes with p+q <= 11
+const SHORT=slopes(4); // the readable ones shown by default
+let active=null; // [p,q] or null = show short set
+
+// map torus coord (u,v) in [0,1) to screen
+function toScreen(u,v){ return [x0+u*side, y0+v*side]; }
+
+// draw the (p,q) curve: t in [0,1], point (p t mod 1, q t mod 1), split at boundaries
+function drawCurve(p,q,color,width,alpha){
+  ctx.save();
+  ctx.strokeStyle=color; ctx.lineWidth=width; ctx.globalAlpha=alpha; ctx.lineJoin='round';
+  const N=Math.max(80,(p+q)*60);
+  let prev=null;
+  for(let i=0;i<=N;i++){
+    const t=i/N;
+    const u=((p*t)%1+1)%1;
+    const v=((q*t)%1+1)%1;
+    const s=toScreen(u,v);
+    if(prev){
+      // if the jump between consecutive samples is a wrap (big jump), lift a new segment
+      const du=Math.abs(s[0]-prev[0]), dv=Math.abs(s[1]-prev[1]);
+      if(du<side*0.3 && dv<side*0.3){
+        ctx.beginPath(); ctx.moveTo(prev[0],prev[1]); ctx.lineTo(s[0],s[1]); ctx.stroke();
+      }
+    }
+    prev=s;
+  }
+  ctx.restore();
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  // fundamental square
+  ctx.save();
+  ctx.strokeStyle='#2c3746'; ctx.setLineDash([5,5]); ctx.lineWidth=1.2;
+  ctx.strokeRect(x0,y0,side,side);
+  ctx.restore();
+
+  // draw all curves faint, active bright
+  S.forEach(([p,q],i)=>{
+    const col=palette[i%palette.length];
+    const isActive = active && active[0]===p && active[1]===q;
+    if(active){
+      if(isActive) drawCurve(p,q,col,3.2,1);
+      else drawCurve(p,q,'#3a4656',1,0.25);
+    } else {
+      if(!SHORT.some(([a,b])=>a===p&&b===q)) return; // default view: only short slopes
+      const w = 1 + 2.4/(p+q);
+      drawCurve(p,q,col,w,0.6);
+    }
+  });
+
+  // corner dot (the puncture / identity)
+  ctx.fillStyle='#9fb0c6'; ctx.beginPath(); ctx.arc(x0,y0,3,0,7); ctx.fill();
+
+  // label active
+  if(active){
+    ctx.fillStyle='#cfd8e3'; ctx.font='14px ui-monospace,monospace';
+    ctx.fillText(`slope ${active[0]}/${active[1]}`, x0+8, y0+side-14);
+  }
+}
+
+// buttons
+const bc=document.getElementById('btns');
+const allBtn=document.createElement('button'); allBtn.textContent='short slopes';
+allBtn.onclick=()=>{active=null; draw();};
+bc.appendChild(allBtn);
+S.slice().sort((a,b)=>(a[0]+a[1])-(b[0]+b[1])).forEach(([p,q])=>{
+  const b=document.createElement('button'); b.textContent=`${p}/${q}`;
+  b.onclick=()=>{active=[p,q]; draw();};
+  bc.appendChild(b);
+});
+
+draw();
+</script>
+</body></html>
