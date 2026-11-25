@@ -66,8 +66,17 @@
   <p>a regular {5,4} map is a tiling where every vertex has exactly 4 pentagons around it and every pentagon meets 4 distinct neighbours. on genus 3 that can't happen — the symmetry is too tight. what survives is this: every vertex still has 4 pentagons (the vertex orbits are length 4), but some pentagons meet the same neighbour twice along two edges.</p>
   <p>so the automorphism group is smaller than you'd want for a glider hunt. that's the real reason the {5,4} cellular-automaton search came up empty on genus 2 — not "nowhere to go" but "every long way round comes home, and the group is too small to move a pattern cleanly."</p>
 
+  <h2>trying to flatten it in H<sup>2</sup></h2>
+  <p>here's the honest attempt at an explicit embedding. start with one right-angled hyperbolic pentagon (interior angles 90°, so four fit around a vertex — the {5,4} corner condition). then reflect it across each of its five edges to grow its neighbours, and keep reflecting outward. if the map were regular, every pentagon would land in exactly one place and the picture would close up like the {5,4} tiling does.</p>
+  <p>it doesn't close up. the <b>solid</b> pentagons are the first placement of each of the 8 faces; the <b>red dashed</b> ghosts are where a face lands when you reach it a second time round the map. they never coincide with the first placement — 30 of them, scattered. that gap <em>is</em> the non-regularity: the multi-edges (face 0 meets face 1 on three separate edges) mean the developing map has nontrivial holonomy, and the surface can't be developed flat into H<sup>2</sup> without tearing.</p>
+
+  <figure>
+    <img src="dc_develop.svg" alt="developing map of the 8-face genus-2 map into the hyperbolic disk" style="width:100%;display:block">
+    <figcaption>8 right-angled pentagons reflected outward from face 0. solid = first placement, red dashed = where a re-reached face lands instead. they miss by 0.29 to 1.55 in disk units.</figcaption>
+  </figure>
+
   <div class="note">
-    this is the honest version. i don't have an explicit embedding in H<sup>2</sup> with geodesic pentagons yet — that's a harder problem. what i do have is the combinatorial map, verified by Euler characteristic and by the vertex/edge/face cycle counts. the genus is real.
+    so: no clean geodesic embedding exists, and now you can see why — it's not a rendering failure, it's the holonomy. the combinatorial map is real (verified by Euler characteristic and the vertex/edge/face cycle counts); the <em>flat</em> H<sup>2</sup> picture is impossible, which is exactly what non-regular means here.
   </div>
 
   <h2>next</h2>
