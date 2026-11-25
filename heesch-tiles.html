@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the 28 heesch-kienzle tiles, drawn</title>
+<style>
+  :root{--bg:#12100e;--fg:#e8e0d0;--dim:#9a8f7a;--accent:#d4a24e;--line:#2a2520;--card:#1a1714;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;line-height:1.6;padding:2rem 1rem 5rem;}
+  .wrap{max-width:960px;margin:0 auto}
+  h1{font-size:1.5rem;font-weight:600;letter-spacing:-.02em;margin:0 0 .3rem}
+  .sub{color:var(--dim);font-size:.85rem;margin-bottom:1.6rem}
+  .sub a{color:var(--accent);text-decoration:none}
+  .sub a:hover{text-decoration:underline}
+  .legend{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.8rem 1.2rem;margin-bottom:1.6rem;font-size:.85rem;display:flex;gap:1.4rem;flex-wrap:wrap}
+  .legend b{font-weight:600}
+  h2.grp{color:var(--accent);font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;margin:1.6rem 0 .5rem;border-bottom:1px solid var(--line);padding-bottom:.3rem}
+  .row{display:flex;flex-wrap:wrap;gap:.8rem}
+  .cell{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:.5rem;text-align:center;width:130px}
+  .cell svg{display:block;margin:0 auto}
+  .lab{font-size:.72rem;color:var(--dim);margin-top:.3rem;line-height:1.35}
+  .lab b{color:var(--accent)}
+  .tp{color:#7a7060;font-size:.68rem}
+  footer{margin-top:3rem;color:var(--dim);font-size:.8rem;border-top:1px solid var(--line);padding-top:1rem}
+  footer a{color:var(--accent);text-decoration:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>the 28 heesch-kienzle tiles, drawn</h1>
+  <div class="sub">
+    the 28 fundamental-region tile types from <a href="heesch28.html">the table</a>, here as actual boundary shapes.
+    each tile is an n-gon where n = the length of its edge word; every edge is colored by how it meets its neighbour.
+  </div>
+  <div class="legend">
+    <span><b style="color:#7fb3d5">T</b> translation</span>
+    <span><b style="color:#c98bd4">C</b> rotation (subscript = vertex order)</span>
+    <span><b style="color:#8fd47f">G</b> glide reflection (subscript = which glide)</span>
+    <span>ticks on an edge = its subscript</span>
+  </div>
+  <h2 class="grp">p1</h2><div class="row">
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 94.6,55.0 55.0,94.6 15.4,55.0" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="94.6" y2="55.0" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="32.4" x2="72.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<line x1="94.6" y1="55.0" x2="55.0" y2="94.6" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="77.6" x2="72.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="15.4" y2="55.0" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="77.6" x2="38.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="15.4" y1="55.0" x2="55.0" y2="15.4" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="32.4" x2="38.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk1</text>
+</svg><div class="lab"><b>hk1</b> &nbsp;TTTT<br><span class="tp">4<sup>4</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 89.3,35.2 89.3,74.8 55.0,94.6 20.7,74.8 20.7,35.2" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="89.3" y2="35.2" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="21.8" x2="70.1" y2="28.8" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="35.2" x2="89.3" y2="74.8" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="93.3" y1="55.0" x2="85.3" y2="55.0" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="74.8" x2="55.0" y2="94.6" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="88.2" x2="70.1" y2="81.2" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="20.7" y2="74.8" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="35.9" y1="88.2" x2="39.9" y2="81.2" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="74.8" x2="20.7" y2="35.2" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="16.7" y1="55.0" x2="24.7" y2="55.0" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="35.2" x2="55.0" y2="15.4" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="35.9" y1="21.8" x2="39.9" y2="28.8" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk2</text>
+</svg><div class="lab"><b>hk2</b> &nbsp;TTTTTT<br><span class="tp">3<sup>6</sup></span></div></div>
+</div>
+<h2 class="grp">p2</h2><div class="row">
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 89.3,74.8 20.7,74.8" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="89.3" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="75.6" y1="43.1" x2="68.7" y2="47.1" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="74.8" x2="20.7" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="55.0" y1="78.8" x2="55.0" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="74.8" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="34.4" y1="43.1" x2="41.3" y2="47.1" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk3</text>
+</svg><div class="lab"><b>hk3</b> &nbsp;CCC<br><span class="tp">4.8<sup>2</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 94.6,55.0 55.0,94.6 15.4,55.0" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="94.6" y2="55.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="32.4" x2="72.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<line x1="94.6" y1="55.0" x2="55.0" y2="94.6" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="77.6" x2="72.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="15.4" y2="55.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="77.6" x2="38.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="15.4" y1="55.0" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="32.4" x2="38.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk4</text>
+</svg><div class="lab"><b>hk4</b> &nbsp;CCCC<br><span class="tp">4<sup>4</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 94.6,55.0 55.0,94.6 15.4,55.0" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="94.6" y2="55.0" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="32.4" x2="72.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<line x1="94.6" y1="55.0" x2="55.0" y2="94.6" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="77.6" x2="72.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="15.4" y2="55.0" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="77.6" x2="38.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="15.4" y1="55.0" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="32.4" x2="38.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk5</text>
+</svg><div class="lab"><b>hk5</b> &nbsp;TC TC<br><span class="tp">4<sup>4</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 92.7,42.8 78.3,87.0 31.7,87.0 17.3,42.8" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="92.7" y2="42.8" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="76.2" y1="25.8" x2="71.5" y2="32.3" stroke="#111" stroke-width="1.3"/>
+<line x1="92.7" y1="42.8" x2="78.3" y2="87.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="89.3" y1="66.1" x2="81.7" y2="63.7" stroke="#111" stroke-width="1.3"/>
+<line x1="78.3" y1="87.0" x2="31.7" y2="87.0" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="55.0" y1="91.0" x2="55.0" y2="83.0" stroke="#111" stroke-width="1.3"/>
+<line x1="31.7" y1="87.0" x2="17.3" y2="42.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="20.7" y1="66.1" x2="28.3" y2="63.7" stroke="#111" stroke-width="1.3"/>
+<line x1="17.3" y1="42.8" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="33.8" y1="25.8" x2="38.5" y2="32.3" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk6</text>
+</svg><div class="lab"><b>hk6</b> &nbsp;TC T CC<br><span class="tp">3<sup>2</sup>.4.3.4</span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 89.3,35.2 89.3,74.8 55.0,94.6 20.7,74.8 20.7,35.2" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="89.3" y2="35.2" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="21.8" x2="70.1" y2="28.8" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="35.2" x2="89.3" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="93.3" y1="55.0" x2="85.3" y2="55.0" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="74.8" x2="55.0" y2="94.6" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="88.2" x2="70.1" y2="81.2" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="20.7" y2="74.8" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="35.9" y1="88.2" x2="39.9" y2="81.2" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="74.8" x2="20.7" y2="35.2" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="16.7" y1="55.0" x2="24.7" y2="55.0" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="35.2" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="35.9" y1="21.8" x2="39.9" y2="28.8" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk7</text>
+</svg><div class="lab"><b>hk7</b> &nbsp;T CC T CC<br><span class="tp">3<sup>6</sup></span></div></div>
+</div>
+<h2 class="grp">p3</h2><div class="row">
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 94.6,55.0 55.0,94.6 15.4,55.0" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="94.6" y2="55.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="28.8" x2="68.4" y2="34.5" stroke="#111" stroke-width="1.3"/>
+<line x1="77.6" y1="32.4" x2="72.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<line x1="81.2" y1="35.9" x2="75.5" y2="41.6" stroke="#111" stroke-width="1.3"/>
+<line x1="94.6" y1="55.0" x2="55.0" y2="94.6" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="81.2" y1="74.1" x2="75.5" y2="68.4" stroke="#111" stroke-width="1.3"/>
+<line x1="77.6" y1="77.6" x2="72.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="74.1" y1="81.2" x2="68.4" y2="75.5" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="15.4" y2="55.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="35.9" y1="81.2" x2="41.6" y2="75.5" stroke="#111" stroke-width="1.3"/>
+<line x1="32.4" y1="77.6" x2="38.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="28.8" y1="74.1" x2="34.5" y2="68.4" stroke="#111" stroke-width="1.3"/>
+<line x1="15.4" y1="55.0" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="28.8" y1="35.9" x2="34.5" y2="41.6" stroke="#111" stroke-width="1.3"/>
+<line x1="32.4" y1="32.4" x2="38.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<line x1="35.9" y1="28.8" x2="41.6" y2="34.5" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk8</text>
+</svg><div class="lab"><b>hk8</b> &nbsp;C<sub>3</sub> C<sub>3</sub> C<sub>3</sub> C<sub>3</sub><br><span class="tp">3<sup>3</sup>.4<sup>2</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 89.3,35.2 89.3,74.8 55.0,94.6 20.7,74.8 20.7,35.2" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="89.3" y2="35.2" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="69.8" y1="19.3" x2="65.8" y2="26.3" stroke="#111" stroke-width="1.3"/>
+<line x1="74.1" y1="21.8" x2="70.1" y2="28.8" stroke="#111" stroke-width="1.3"/>
+<line x1="78.5" y1="24.3" x2="74.5" y2="31.3" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="35.2" x2="89.3" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="93.3" y1="50.0" x2="85.3" y2="50.0" stroke="#111" stroke-width="1.3"/>
+<line x1="93.3" y1="55.0" x2="85.3" y2="55.0" stroke="#111" stroke-width="1.3"/>
+<line x1="93.3" y1="60.0" x2="85.3" y2="60.0" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="74.8" x2="55.0" y2="94.6" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="78.5" y1="85.7" x2="74.5" y2="78.7" stroke="#111" stroke-width="1.3"/>
+<line x1="74.1" y1="88.2" x2="70.1" y2="81.2" stroke="#111" stroke-width="1.3"/>
+<line x1="69.8" y1="90.7" x2="65.8" y2="83.7" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="20.7" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="40.2" y1="90.7" x2="44.2" y2="83.7" stroke="#111" stroke-width="1.3"/>
+<line x1="35.9" y1="88.2" x2="39.9" y2="81.2" stroke="#111" stroke-width="1.3"/>
+<line x1="31.5" y1="85.7" x2="35.5" y2="78.7" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="74.8" x2="20.7" y2="35.2" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="16.7" y1="60.0" x2="24.7" y2="60.0" stroke="#111" stroke-width="1.3"/>
+<line x1="16.7" y1="55.0" x2="24.7" y2="55.0" stroke="#111" stroke-width="1.3"/>
+<line x1="16.7" y1="50.0" x2="24.7" y2="50.0" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="35.2" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="31.5" y1="24.3" x2="35.5" y2="31.3" stroke="#111" stroke-width="1.3"/>
+<line x1="35.9" y1="21.8" x2="39.9" y2="28.8" stroke="#111" stroke-width="1.3"/>
+<line x1="40.2" y1="19.3" x2="44.2" y2="26.3" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk9</text>
+</svg><div class="lab"><b>hk9</b> &nbsp;C<sub>3</sub> &times;6<br><span class="tp">3<sup>6</sup></span></div></div>
+</div>
+<h2 class="grp">p6</h2><div class="row">
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 89.3,74.8 20.7,74.8" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="89.3" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="75.6" y1="43.1" x2="68.7" y2="47.1" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="74.8" x2="20.7" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="60.0" y1="78.8" x2="60.0" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="78.8" x2="55.0" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="50.0" y1="78.8" x2="50.0" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="74.8" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="31.9" y1="47.4" x2="38.8" y2="51.4" stroke="#111" stroke-width="1.3"/>
+<line x1="34.4" y1="43.1" x2="41.3" y2="47.1" stroke="#111" stroke-width="1.3"/>
+<line x1="36.9" y1="38.8" x2="43.8" y2="42.8" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk10</text>
+</svg><div class="lab"><b>hk10</b> &nbsp;C C<sub>3</sub> C<sub>3</sub><br><span class="tp">3.12<sup>2</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 89.3,74.8 20.7,74.8" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="89.3" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="75.6" y1="43.1" x2="68.7" y2="47.1" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="74.8" x2="20.7" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="67.5" y1="78.8" x2="67.5" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="62.5" y1="78.8" x2="62.5" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="57.5" y1="78.8" x2="57.5" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="52.5" y1="78.8" x2="52.5" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="47.5" y1="78.8" x2="47.5" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="42.5" y1="78.8" x2="42.5" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="74.8" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="28.1" y1="53.9" x2="35.1" y2="57.9" stroke="#111" stroke-width="1.3"/>
+<line x1="30.6" y1="49.6" x2="37.6" y2="53.6" stroke="#111" stroke-width="1.3"/>
+<line x1="33.1" y1="45.3" x2="40.1" y2="49.3" stroke="#111" stroke-width="1.3"/>
+<line x1="35.6" y1="40.9" x2="42.6" y2="44.9" stroke="#111" stroke-width="1.3"/>
+<line x1="38.1" y1="36.6" x2="45.1" y2="40.6" stroke="#111" stroke-width="1.3"/>
+<line x1="40.6" y1="32.3" x2="47.6" y2="36.3" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk11</text>
+</svg><div class="lab"><b>hk11</b> &nbsp;C C<sub>6</sub> C<sub>6</sub><br><span class="tp">6<sup>3</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 94.6,55.0 55.0,94.6 15.4,55.0" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="94.6" y2="55.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="28.8" x2="68.4" y2="34.5" stroke="#111" stroke-width="1.3"/>
+<line x1="77.6" y1="32.4" x2="72.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<line x1="81.2" y1="35.9" x2="75.5" y2="41.6" stroke="#111" stroke-width="1.3"/>
+<line x1="94.6" y1="55.0" x2="55.0" y2="94.6" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="81.2" y1="74.1" x2="75.5" y2="68.4" stroke="#111" stroke-width="1.3"/>
+<line x1="77.6" y1="77.6" x2="72.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="74.1" y1="81.2" x2="68.4" y2="75.5" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="15.4" y2="55.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="41.2" y1="86.5" x2="46.9" y2="80.8" stroke="#111" stroke-width="1.3"/>
+<line x1="37.7" y1="82.9" x2="43.3" y2="77.3" stroke="#111" stroke-width="1.3"/>
+<line x1="34.1" y1="79.4" x2="39.8" y2="73.7" stroke="#111" stroke-width="1.3"/>
+<line x1="30.6" y1="75.9" x2="36.3" y2="70.2" stroke="#111" stroke-width="1.3"/>
+<line x1="27.1" y1="72.3" x2="32.7" y2="66.7" stroke="#111" stroke-width="1.3"/>
+<line x1="23.5" y1="68.8" x2="29.2" y2="63.1" stroke="#111" stroke-width="1.3"/>
+<line x1="15.4" y1="55.0" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="23.5" y1="41.2" x2="29.2" y2="46.9" stroke="#111" stroke-width="1.3"/>
+<line x1="27.1" y1="37.7" x2="32.7" y2="43.3" stroke="#111" stroke-width="1.3"/>
+<line x1="30.6" y1="34.1" x2="36.3" y2="39.8" stroke="#111" stroke-width="1.3"/>
+<line x1="34.1" y1="30.6" x2="39.8" y2="36.3" stroke="#111" stroke-width="1.3"/>
+<line x1="37.7" y1="27.1" x2="43.3" y2="32.7" stroke="#111" stroke-width="1.3"/>
+<line x1="41.2" y1="23.5" x2="46.9" y2="29.2" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk12</text>
+</svg><div class="lab"><b>hk12</b> &nbsp;C<sub>3</sub>C<sub>3</sub>C<sub>6</sub>C<sub>6</sub><br><span class="tp">3.4.6.4</span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 92.7,42.8 78.3,87.0 31.7,87.0 17.3,42.8" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="92.7" y2="42.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="76.2" y1="25.8" x2="71.5" y2="32.3" stroke="#111" stroke-width="1.3"/>
+<line x1="92.7" y1="42.8" x2="78.3" y2="87.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="90.8" y1="61.4" x2="83.2" y2="58.9" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="66.1" x2="81.7" y2="63.7" stroke="#111" stroke-width="1.3"/>
+<line x1="87.7" y1="70.9" x2="80.1" y2="68.4" stroke="#111" stroke-width="1.3"/>
+<line x1="78.3" y1="87.0" x2="31.7" y2="87.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="60.0" y1="91.0" x2="60.0" y2="83.0" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="91.0" x2="55.0" y2="83.0" stroke="#111" stroke-width="1.3"/>
+<line x1="50.0" y1="91.0" x2="50.0" y2="83.0" stroke="#111" stroke-width="1.3"/>
+<line x1="31.7" y1="87.0" x2="17.3" y2="42.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="24.6" y1="78.0" x2="32.2" y2="75.6" stroke="#111" stroke-width="1.3"/>
+<line x1="23.0" y1="73.3" x2="30.7" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="21.5" y1="68.5" x2="29.1" y2="66.0" stroke="#111" stroke-width="1.3"/>
+<line x1="20.0" y1="63.8" x2="27.6" y2="61.3" stroke="#111" stroke-width="1.3"/>
+<line x1="18.4" y1="59.0" x2="26.0" y2="56.5" stroke="#111" stroke-width="1.3"/>
+<line x1="16.9" y1="54.2" x2="24.5" y2="51.8" stroke="#111" stroke-width="1.3"/>
+<line x1="17.3" y1="42.8" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="23.7" y1="33.2" x2="28.4" y2="39.7" stroke="#111" stroke-width="1.3"/>
+<line x1="27.8" y1="30.3" x2="32.5" y2="36.7" stroke="#111" stroke-width="1.3"/>
+<line x1="31.8" y1="27.3" x2="36.5" y2="33.8" stroke="#111" stroke-width="1.3"/>
+<line x1="35.8" y1="24.4" x2="40.5" y2="30.8" stroke="#111" stroke-width="1.3"/>
+<line x1="39.9" y1="21.4" x2="44.6" y2="27.9" stroke="#111" stroke-width="1.3"/>
+<line x1="43.9" y1="18.5" x2="48.6" y2="25.0" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk13</text>
+</svg><div class="lab"><b>hk13</b> &nbsp;C C<sub>3</sub>C<sub>3</sub>C<sub>6</sub>C<sub>6</sub><br><span class="tp">3<sup>4</sup>.6</span></div></div>
+</div>
+<h2 class="grp">p4</h2><div class="row">
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 89.3,74.8 20.7,74.8" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="89.3" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="75.6" y1="43.1" x2="68.7" y2="47.1" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="74.8" x2="20.7" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="62.5" y1="78.8" x2="62.5" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="57.5" y1="78.8" x2="57.5" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="52.5" y1="78.8" x2="52.5" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="47.5" y1="78.8" x2="47.5" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="74.8" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="30.6" y1="49.6" x2="37.6" y2="53.6" stroke="#111" stroke-width="1.3"/>
+<line x1="33.1" y1="45.3" x2="40.1" y2="49.3" stroke="#111" stroke-width="1.3"/>
+<line x1="35.6" y1="40.9" x2="42.6" y2="44.9" stroke="#111" stroke-width="1.3"/>
+<line x1="38.1" y1="36.6" x2="45.1" y2="40.6" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk14</text>
+</svg><div class="lab"><b>hk14</b> &nbsp;C C<sub>4</sub> C<sub>4</sub><br><span class="tp">4.8<sup>2</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 94.6,55.0 55.0,94.6 15.4,55.0" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="94.6" y2="55.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="72.3" y1="27.1" x2="66.7" y2="32.7" stroke="#111" stroke-width="1.3"/>
+<line x1="75.9" y1="30.6" x2="70.2" y2="36.3" stroke="#111" stroke-width="1.3"/>
+<line x1="79.4" y1="34.1" x2="73.7" y2="39.8" stroke="#111" stroke-width="1.3"/>
+<line x1="82.9" y1="37.7" x2="77.3" y2="43.3" stroke="#111" stroke-width="1.3"/>
+<line x1="94.6" y1="55.0" x2="55.0" y2="94.6" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="82.9" y1="72.3" x2="77.3" y2="66.7" stroke="#111" stroke-width="1.3"/>
+<line x1="79.4" y1="75.9" x2="73.7" y2="70.2" stroke="#111" stroke-width="1.3"/>
+<line x1="75.9" y1="79.4" x2="70.2" y2="73.7" stroke="#111" stroke-width="1.3"/>
+<line x1="72.3" y1="82.9" x2="66.7" y2="77.3" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="15.4" y2="55.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="37.7" y1="82.9" x2="43.3" y2="77.3" stroke="#111" stroke-width="1.3"/>
+<line x1="34.1" y1="79.4" x2="39.8" y2="73.7" stroke="#111" stroke-width="1.3"/>
+<line x1="30.6" y1="75.9" x2="36.3" y2="70.2" stroke="#111" stroke-width="1.3"/>
+<line x1="27.1" y1="72.3" x2="32.7" y2="66.7" stroke="#111" stroke-width="1.3"/>
+<line x1="15.4" y1="55.0" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="27.1" y1="37.7" x2="32.7" y2="43.3" stroke="#111" stroke-width="1.3"/>
+<line x1="30.6" y1="34.1" x2="36.3" y2="39.8" stroke="#111" stroke-width="1.3"/>
+<line x1="34.1" y1="30.6" x2="39.8" y2="36.3" stroke="#111" stroke-width="1.3"/>
+<line x1="37.7" y1="27.1" x2="43.3" y2="32.7" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk15</text>
+</svg><div class="lab"><b>hk15</b> &nbsp;C<sub>4</sub>&times;4<br><span class="tp">4<sup>4</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 92.7,42.8 78.3,87.0 31.7,87.0 17.3,42.8" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="92.7" y2="42.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="76.2" y1="25.8" x2="71.5" y2="32.3" stroke="#111" stroke-width="1.3"/>
+<line x1="92.7" y1="42.8" x2="78.3" y2="87.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="91.6" y1="59.0" x2="84.0" y2="56.5" stroke="#111" stroke-width="1.3"/>
+<line x1="90.0" y1="63.8" x2="82.4" y2="61.3" stroke="#111" stroke-width="1.3"/>
+<line x1="88.5" y1="68.5" x2="80.9" y2="66.0" stroke="#111" stroke-width="1.3"/>
+<line x1="87.0" y1="73.3" x2="79.3" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="78.3" y1="87.0" x2="31.7" y2="87.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="62.5" y1="91.0" x2="62.5" y2="83.0" stroke="#111" stroke-width="1.3"/>
+<line x1="57.5" y1="91.0" x2="57.5" y2="83.0" stroke="#111" stroke-width="1.3"/>
+<line x1="52.5" y1="91.0" x2="52.5" y2="83.0" stroke="#111" stroke-width="1.3"/>
+<line x1="47.5" y1="91.0" x2="47.5" y2="83.0" stroke="#111" stroke-width="1.3"/>
+<line x1="31.7" y1="87.0" x2="17.3" y2="42.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="23.0" y1="73.3" x2="30.7" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="21.5" y1="68.5" x2="29.1" y2="66.0" stroke="#111" stroke-width="1.3"/>
+<line x1="20.0" y1="63.8" x2="27.6" y2="61.3" stroke="#111" stroke-width="1.3"/>
+<line x1="18.4" y1="59.0" x2="26.0" y2="56.5" stroke="#111" stroke-width="1.3"/>
+<line x1="17.3" y1="42.8" x2="55.0" y2="15.4" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="27.8" y1="30.3" x2="32.5" y2="36.7" stroke="#111" stroke-width="1.3"/>
+<line x1="31.8" y1="27.3" x2="36.5" y2="33.8" stroke="#111" stroke-width="1.3"/>
+<line x1="35.8" y1="24.4" x2="40.5" y2="30.8" stroke="#111" stroke-width="1.3"/>
+<line x1="39.9" y1="21.4" x2="44.6" y2="27.9" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk16</text>
+</svg><div class="lab"><b>hk16</b> &nbsp;C C<sub>4</sub>C<sub>4</sub>C<sub>4</sub>C<sub>4</sub><br><span class="tp">3<sup>3</sup>.4<sup>2</sup></span></div></div>
+</div>
+<h2 class="grp">pg</h2><div class="row">
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 94.6,55.0 55.0,94.6 15.4,55.0" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="94.6" y2="55.0" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="32.4" x2="72.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<line x1="94.6" y1="55.0" x2="55.0" y2="94.6" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="77.6" x2="72.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="15.4" y2="55.0" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="34.1" y1="79.4" x2="39.8" y2="73.7" stroke="#111" stroke-width="1.3"/>
+<line x1="30.6" y1="75.9" x2="36.3" y2="70.2" stroke="#111" stroke-width="1.3"/>
+<line x1="15.4" y1="55.0" x2="55.0" y2="15.4" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="30.6" y1="34.1" x2="36.3" y2="39.8" stroke="#111" stroke-width="1.3"/>
+<line x1="34.1" y1="30.6" x2="39.8" y2="36.3" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk17</text>
+</svg><div class="lab"><b>hk17</b> &nbsp;G<sub>1</sub>G<sub>1</sub>G<sub>2</sub>G<sub>2</sub><br><span class="tp">4<sup>4</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 89.3,35.2 89.3,74.8 55.0,94.6 20.7,74.8 20.7,35.2" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="89.3" y2="35.2" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="21.8" x2="70.1" y2="28.8" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="35.2" x2="89.3" y2="74.8" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="93.3" y1="55.0" x2="85.3" y2="55.0" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="74.8" x2="55.0" y2="94.6" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="88.2" x2="70.1" y2="81.2" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="20.7" y2="74.8" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="35.9" y1="88.2" x2="39.9" y2="81.2" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="74.8" x2="20.7" y2="35.2" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="16.7" y1="57.5" x2="24.7" y2="57.5" stroke="#111" stroke-width="1.3"/>
+<line x1="16.7" y1="52.5" x2="24.7" y2="52.5" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="35.2" x2="55.0" y2="15.4" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="33.7" y1="23.1" x2="37.7" y2="30.0" stroke="#111" stroke-width="1.3"/>
+<line x1="38.0" y1="20.6" x2="42.0" y2="27.5" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk18</text>
+</svg><div class="lab"><b>hk18</b> &nbsp;T G<sub>1</sub>G<sub>1</sub> T G<sub>2</sub>G<sub>2</sub><br><span class="tp">3<sup>6</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 94.6,55.0 55.0,94.6 15.4,55.0" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="94.6" y2="55.0" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="32.4" x2="72.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<line x1="94.6" y1="55.0" x2="55.0" y2="94.6" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="77.6" x2="72.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="15.4" y2="55.0" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="77.6" x2="38.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="15.4" y1="55.0" x2="55.0" y2="15.4" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="32.4" x2="38.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk19</text>
+</svg><div class="lab"><b>hk19</b> &nbsp;T G T G<br><span class="tp">4<sup>4</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 89.3,35.2 89.3,74.8 55.0,94.6 20.7,74.8 20.7,35.2" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="89.3" y2="35.2" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="21.8" x2="70.1" y2="28.8" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="35.2" x2="89.3" y2="74.8" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="93.3" y1="55.0" x2="85.3" y2="55.0" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="74.8" x2="55.0" y2="94.6" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="76.3" y1="86.9" x2="72.3" y2="80.0" stroke="#111" stroke-width="1.3"/>
+<line x1="72.0" y1="89.4" x2="68.0" y2="82.5" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="20.7" y2="74.8" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="35.9" y1="88.2" x2="39.9" y2="81.2" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="74.8" x2="20.7" y2="35.2" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="16.7" y1="57.5" x2="24.7" y2="57.5" stroke="#111" stroke-width="1.3"/>
+<line x1="16.7" y1="52.5" x2="24.7" y2="52.5" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="35.2" x2="55.0" y2="15.4" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="35.9" y1="21.8" x2="39.9" y2="28.8" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk20</text>
+</svg><div class="lab"><b>hk20</b> &nbsp;T G<sub>1</sub>G<sub>2</sub> T G<sub>2</sub>G<sub>1</sub><br><span class="tp">3<sup>6</sup></span></div></div>
+</div>
+<h2 class="grp">pgg</h2><div class="row">
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 89.3,74.8 20.7,74.8" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="89.3" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="75.6" y1="43.1" x2="68.7" y2="47.1" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="74.8" x2="20.7" y2="74.8" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="55.0" y1="78.8" x2="55.0" y2="70.8" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="74.8" x2="55.0" y2="15.4" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="34.4" y1="43.1" x2="41.3" y2="47.1" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk21</text>
+</svg><div class="lab"><b>hk21</b> &nbsp;C GG<br><span class="tp">6<sup>3</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 94.6,55.0 55.0,94.6 15.4,55.0" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="94.6" y2="55.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="32.4" x2="72.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<line x1="94.6" y1="55.0" x2="55.0" y2="94.6" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="77.6" x2="72.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="15.4" y2="55.0" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="77.6" x2="38.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="15.4" y1="55.0" x2="55.0" y2="15.4" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="32.4" x2="38.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk22</text>
+</svg><div class="lab"><b>hk22</b> &nbsp;CC GG<br><span class="tp">4<sup>4</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 92.7,42.8 78.3,87.0 31.7,87.0 17.3,42.8" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="92.7" y2="42.8" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="76.2" y1="25.8" x2="71.5" y2="32.3" stroke="#111" stroke-width="1.3"/>
+<line x1="92.7" y1="42.8" x2="78.3" y2="87.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="89.3" y1="66.1" x2="81.7" y2="63.7" stroke="#111" stroke-width="1.3"/>
+<line x1="78.3" y1="87.0" x2="31.7" y2="87.0" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="55.0" y1="91.0" x2="55.0" y2="83.0" stroke="#111" stroke-width="1.3"/>
+<line x1="31.7" y1="87.0" x2="17.3" y2="42.8" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="20.7" y1="66.1" x2="28.3" y2="63.7" stroke="#111" stroke-width="1.3"/>
+<line x1="17.3" y1="42.8" x2="55.0" y2="15.4" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="33.8" y1="25.8" x2="38.5" y2="32.3" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk23</text>
+</svg><div class="lab"><b>hk23</b> &nbsp;T C T GG<br><span class="tp">3<sup>2</sup>.4.3.4</span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 89.3,35.2 89.3,74.8 55.0,94.6 20.7,74.8 20.7,35.2" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="89.3" y2="35.2" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="21.8" x2="70.1" y2="28.8" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="35.2" x2="89.3" y2="74.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="93.3" y1="55.0" x2="85.3" y2="55.0" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="74.8" x2="55.0" y2="94.6" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="88.2" x2="70.1" y2="81.2" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="20.7" y2="74.8" stroke="#7fb3d5" stroke-width="3" stroke-linecap="round"/>
+<line x1="35.9" y1="88.2" x2="39.9" y2="81.2" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="74.8" x2="20.7" y2="35.2" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="16.7" y1="55.0" x2="24.7" y2="55.0" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="35.2" x2="55.0" y2="15.4" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="35.9" y1="21.8" x2="39.9" y2="28.8" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk24</text>
+</svg><div class="lab"><b>hk24</b> &nbsp;T CC T GG<br><span class="tp">3<sup>6</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 94.6,55.0 55.0,94.6 15.4,55.0" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="94.6" y2="55.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="32.4" x2="72.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<line x1="94.6" y1="55.0" x2="55.0" y2="94.6" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="77.6" x2="72.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="15.4" y2="55.0" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="77.6" x2="38.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="15.4" y1="55.0" x2="55.0" y2="15.4" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="32.4" x2="38.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk25</text>
+</svg><div class="lab"><b>hk25</b> &nbsp;C G C G<br><span class="tp">4<sup>4</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 94.6,55.0 55.0,94.6 15.4,55.0" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="94.6" y2="55.0" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="77.6" y1="32.4" x2="72.0" y2="38.0" stroke="#111" stroke-width="1.3"/>
+<line x1="94.6" y1="55.0" x2="55.0" y2="94.6" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="79.4" y1="75.9" x2="73.7" y2="70.2" stroke="#111" stroke-width="1.3"/>
+<line x1="75.9" y1="79.4" x2="70.2" y2="73.7" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="15.4" y2="55.0" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="32.4" y1="77.6" x2="38.0" y2="72.0" stroke="#111" stroke-width="1.3"/>
+<line x1="15.4" y1="55.0" x2="55.0" y2="15.4" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="30.6" y1="34.1" x2="36.3" y2="39.8" stroke="#111" stroke-width="1.3"/>
+<line x1="34.1" y1="30.6" x2="39.8" y2="36.3" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk26</text>
+</svg><div class="lab"><b>hk26</b> &nbsp;G<sub>1</sub>G<sub>2</sub>G<sub>1</sub>G<sub>2</sub><br><span class="tp">4<sup>4</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 92.7,42.8 78.3,87.0 31.7,87.0 17.3,42.8" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="92.7" y2="42.8" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="76.2" y1="25.8" x2="71.5" y2="32.3" stroke="#111" stroke-width="1.3"/>
+<line x1="92.7" y1="42.8" x2="78.3" y2="87.0" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="89.3" y1="66.1" x2="81.7" y2="63.7" stroke="#111" stroke-width="1.3"/>
+<line x1="78.3" y1="87.0" x2="31.7" y2="87.0" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="57.5" y1="91.0" x2="57.5" y2="83.0" stroke="#111" stroke-width="1.3"/>
+<line x1="52.5" y1="91.0" x2="52.5" y2="83.0" stroke="#111" stroke-width="1.3"/>
+<line x1="31.7" y1="87.0" x2="17.3" y2="42.8" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="20.7" y1="66.1" x2="28.3" y2="63.7" stroke="#111" stroke-width="1.3"/>
+<line x1="17.3" y1="42.8" x2="55.0" y2="15.4" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="31.8" y1="27.3" x2="36.5" y2="33.8" stroke="#111" stroke-width="1.3"/>
+<line x1="35.8" y1="24.4" x2="40.5" y2="30.8" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk27</text>
+</svg><div class="lab"><b>hk27</b> &nbsp;C G<sub>1</sub>G<sub>2</sub>G<sub>1</sub>G<sub>2</sub><br><span class="tp">3<sup>3</sup>.4<sup>2</sup></span></div></div>
+<div class="cell"><svg xmlns="http://www.w3.org/2000/svg" width="110" height="110" viewBox="0 0 110 110">
+<polygon points="55.0,15.4 89.3,35.2 89.3,74.8 55.0,94.6 20.7,74.8 20.7,35.2" fill="#f6f6f6" stroke="none"/>
+<line x1="55.0" y1="15.4" x2="89.3" y2="35.2" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="21.8" x2="70.1" y2="28.8" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="35.2" x2="89.3" y2="74.8" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="93.3" y1="55.0" x2="85.3" y2="55.0" stroke="#111" stroke-width="1.3"/>
+<line x1="89.3" y1="74.8" x2="55.0" y2="94.6" stroke="#c98bd4" stroke-width="3" stroke-linecap="round"/>
+<line x1="74.1" y1="88.2" x2="70.1" y2="81.2" stroke="#111" stroke-width="1.3"/>
+<line x1="55.0" y1="94.6" x2="20.7" y2="74.8" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="38.0" y1="89.4" x2="42.0" y2="82.5" stroke="#111" stroke-width="1.3"/>
+<line x1="33.7" y1="86.9" x2="37.7" y2="80.0" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="74.8" x2="20.7" y2="35.2" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="16.7" y1="55.0" x2="24.7" y2="55.0" stroke="#111" stroke-width="1.3"/>
+<line x1="20.7" y1="35.2" x2="55.0" y2="15.4" stroke="#8fd47f" stroke-width="3" stroke-linecap="round"/>
+<line x1="33.7" y1="23.1" x2="37.7" y2="30.0" stroke="#111" stroke-width="1.3"/>
+<line x1="38.0" y1="20.6" x2="42.0" y2="27.5" stroke="#111" stroke-width="1.3"/>
+<text x="55.0" y="102" font-size="11" text-anchor="middle" fill="#555" font-family="monospace">hk28</text>
+</svg><div class="lab"><b>hk28</b> &nbsp;C G<sub>1</sub> C G<sub>2</sub>G<sub>1</sub>G<sub>2</sub><br><span class="tp">3<sup>6</sup></span></div></div>
+</div>
+  <footer>
+    drawn from the edge words on <a href="heesch28.html">the table page</a> (heesch &amp; kienzle 1963, table 10).
+    the polygon is the tile's topological face &mdash; the actual boundary curve bulges per edge, but the side count and pairing are what define the type.
+    <br>&larr; <a href="index.html">back to the pile</a>
+  </footer>
+</div>
+</body>
+</html>
