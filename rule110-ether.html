@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>rule 110 — paint a seed</title>
+<style>
+  :root{--bg:#0c0c10;--fg:#e8e6df;--dim:#7a7a86;--acc:#8fd0ff;--cell:#1a1a22}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;padding:24px;max-width:900px;margin:0 auto}
+  h1{font-size:20px;font-weight:600;margin:0 0 4px}
+  p.sub{color:var(--dim);margin:0 0 20px;font-size:13px}
+  canvas{width:100%;image-rendering:pixelated;background:var(--cell);border:1px solid #262630;border-radius:6px;display:block}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:14px 0}
+  button{background:#1c1c26;color:var(--fg);border:1px solid #33333f;border-radius:6px;padding:7px 14px;font:inherit;cursor:pointer}
+  button:hover{border-color:var(--acc);color:var(--acc)}
+  button.on{border-color:var(--acc);color:var(--acc)}
+  .note{color:var(--dim);font-size:13px;margin-top:18px;line-height:1.7}
+  code{color:var(--acc)}
+  a{color:var(--acc)}
+</style>
+</head>
+<body>
+<h1>rule 110 — paint a seed</h1>
+<p class="sub">one row a tick. click the top row to flip a cell, then play. the top row is the seed.</p>
+<canvas id="c" width="240" height="150"></canvas>
+<div class="row">
+  <button id="play">play</button>
+  <button id="step">step</button>
+  <button id="reset">reset</button>
+  <button id="rand">random seed</button>
+  <button id="clear">clear</button>
+</div>
+<div class="note">
+  rule 110: a cell is alive next tick when its neighbourhood (left,self,right) reads <code>110 101 011 010 001</code>.<br>
+  in the literature, rule 110's evolution space is tiled by a period-7 background called the <b>ether</b>, and a <b>glider</b> is a defect riding it. a glider's <b>phase</b> is which alignment of that tiling it sits in — same glider, different phase, different collision on contact. this page just lets u paint seeds and watch; it doesn't hardcode the ether tiles, so what u see is whatever ur seed does.<br>
+  (background: Martínez &amp; McIntosh, <i>ATLAS: Collisions of gliders like phases of ether in rule 110</i>, 2001.)
+</div>
+<script>
+const W=240,H=150;
+const c=document.getElementById('c'),ctx=c.getContext('2d');
+let grid=new Uint8Array(W*H);
+let row=0,playing=false,timer=null;
+
+function rule(l,m,r){
+  const n=(l<<2)|(m<<1)|r;
+  return (n===6||n===5||n===3||n===2||n===1)?1:0;
+}
+function stepRow(){
+  if(row>=H-1){stop();return;}
+  const y=row, ny=y+1;
+  for(let x=0;x<W;x++){
+    const l=grid[y*W+((x-1+W)%W)], m=grid[y*W+x], r=grid[y*W+((x+1)%W)];
+    grid[ny*W+x]=rule(l,m,r);
+  }
+  row=ny;
+}
+function render(){
+  const off=document.createElement('canvas');off.width=W;off.height=H;
+  const o=off.getContext('2d');
+  o.fillStyle='#1a1a22';o.fillRect(0,0,W,H);
+  o.fillStyle='#8fd0ff';
+  for(let y=0;y<=row;y++)for(let x=0;x<W;x++)if(grid[y*W+x])o.fillRect(x,y,1,1);
+  ctx.imageSmoothingEnabled=false;
+  ctx.drawImage(off,0,0,W,H,0,0,c.width,c.height);
+}
+function step(){stepRow();render();}
+function play(){if(playing)return;playing=true;document.getElementById('play').classList.add('on');timer=setInterval(()=>{if(row>=H-1){stop();return;}step();},55);}
+function stop(){playing=false;clearInterval(timer);document.getElementById('play').classList.remove('on');}
+function reset(){grid.fill(0);row=0;render();}
+function randSeed(){
+  reset();
+  for(let x=0;x<W;x++) grid[x]=Math.random()<0.5?1:0;
+  render();
+}
+
+c.addEventListener('click',e=>{
+  if(row!==0){return;} // only paint the seed row
+  const rect=c.getBoundingClientRect();
+  const x=Math.floor((e.clientX-rect.left)/rect.width*W);
+  if(x>=0&&x<W){grid[x]^=1;render();}
+});
+
+document.getElementById('play').onclick=()=>{playing?stop():play();};
+document.getElementById('step').onclick=()=>{if(!playing)step();};
+document.getElementById('reset').onclick=()=>{stop();reset();};
+document.getElementById('rand').onclick=()=>{stop();randSeed();};
+document.getElementById('clear').onclick=()=>{stop();reset();};
+
+// default seed: a single live cell shows the classic fractal growth
+reset();
+grid[Math.floor(W/2)]=1;
+render();
+</script>
+</body>
+</html>
