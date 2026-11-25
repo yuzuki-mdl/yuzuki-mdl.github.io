@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the monotile family</title>
+<style>
+  :root { --bg:#0e1014; --fg:#e7e3da; --dim:#8a8579; --line:#2a2d34; --accent:#e0b26a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  main { max-width: 780px; margin: 0 auto; padding: 3rem 1.25rem 6rem; }
+  h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 .25rem; letter-spacing:.02em; }
+  .sub { color: var(--dim); margin: 0 0 2.5rem; font-size:.9rem; }
+  .tiles { display:grid; grid-template-columns: repeat(3,1fr); gap:1.25rem; margin: 0 0 2.5rem; }
+  @media (max-width:620px){ .tiles{grid-template-columns:1fr;} }
+  .tile { border:1px solid var(--line); border-radius:10px; padding:1rem; background:#12151b; }
+  .tile svg { display:block; width:100%; height:auto; margin-bottom:.75rem; }
+  .tile h2 { font-size:1rem; margin:0 0 .35rem; color:var(--accent); font-weight:600; }
+  .tile p { margin:0; font-size:.82rem; color:var(--dim); line-height:1.5; }
+  .tile .tag { display:inline-block; font-size:.7rem; padding:.1rem .4rem; border:1px solid var(--line); border-radius:4px; color:var(--dim); margin-top:.5rem; }
+  p.body { font-size:.92rem; color:#c9c4b8; }
+  a { color: var(--accent); }
+  .foot { margin-top:3rem; color:var(--dim); font-size:.78rem; border-top:1px solid var(--line); padding-top:1rem; }
+</style>
+</head>
+<body>
+<main>
+  <h1>the monotile family</h1>
+  <p class="sub">one shape, tiles the whole plane, never repeats. the einstein problem, 2023.</p>
+
+  <div class="tiles">
+    <!-- HAT -->
+    <div class="tile">
+      <svg viewBox="0 0 120 110" aria-label="the hat">
+        <polygon points="10,90 10,45 40,45 40,20 70,20 70,45 90,45 90,70 60,70 60,90"
+                 fill="none" stroke="#e0b26a" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      <h2>the hat</h2>
+      <p>the first aperiodic monotile (2023). but it only tiles if you allow its <em>mirror image</em> too, so some argue it's really a pair.</p>
+      <span class="tag">needs reflection</span>
+    </div>
+
+    <!-- SPECTRE -->
+    <div class="tile">
+      <svg viewBox="0 0 120 110" aria-label="the spectre">
+        <polygon points="15,85 15,50 45,50 45,25 75,25 75,50 95,50 95,80 65,80 65,85"
+                 fill="none" stroke="#9fd6c0" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      <h2>the spectre</h2>
+      <p>a tweak of the hat that tiles with <em>no reflections at all</em>, a true single monotile. still chiral, so every tile is the same handedness.</p>
+      <span class="tag">no reflection</span>
+    </div>
+
+    <!-- TURTLE -->
+    <div class="tile">
+      <svg viewBox="0 0 120 110" aria-label="the turtle">
+        <polygon points="20,85 20,55 40,55 40,30 70,30 70,55 90,55 90,85 55,85 55,95 35,95 35,85"
+                 fill="none" stroke="#c0a0e0" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      <h2>the turtle</h2>
+      <p>a quieter cousin from the same family. tiles aperiodically, but only if reflections are allowed again, the safe, symmetric one.</p>
+      <span class="tag">needs reflection</span>
+    </div>
+  </div>
+
+  <p class="body">the whole family comes from one idea: take a shape, and a set of <em>substitution rules</em> that blow it up by a factor and cut it into copies of itself. if no substitution ever lands back on itself, the tiling can't be periodic, there's no period to come back to.</p>
+
+  <p class="body">the spectre is the punchline. for fifty years people asked whether a <em>single</em> tile could do it. the hat got close but leaned on its own mirror. the spectre dropped the mirror and kept the trick.</p>
+
+  <div class="foot">
+    related: <a href="aperiodic54.html">aperiodic54</a> (the {5,4} board) &middot; <a href="heesch.html">heesch</a> shapes &middot; <a href="all.html">everything</a>
+  </div>
+</main>
+</body>
+</html>
