@@ -30,6 +30,7 @@
   <button id="reset">reset</button>
   <button id="rand">random seed</button>
   <button id="clear">clear</button>
+  <button id="ether">ether seed</button>
 </div>
 <div class="note">
   rule 110: a cell is alive next tick when its neighbourhood (left,self,right) reads <code>110 101 011 010 001</code>.<br>
@@ -68,6 +69,12 @@ function step(){stepRow();render();}
 function play(){if(playing)return;playing=true;document.getElementById('play').classList.add('on');timer=setInterval(()=>{if(row>=H-1){stop();return;}step();},55);}
 function stop(){playing=false;clearInterval(timer);document.getElementById('play').classList.remove('on');}
 function reset(){grid.fill(0);row=0;render();}
+function etherSeed(){
+  reset();
+  const word=[0,0,0,1,0,0,1,1,0,1,1,1,1,1]; // 00010011011111, period 14
+  for(let x=0;x<W;x++) grid[x]=word[x%14];
+  render();
+}
 function randSeed(){
   reset();
   for(let x=0;x<W;x++) grid[x]=Math.random()<0.5?1:0;
@@ -86,6 +93,7 @@ document.getElementById('step').onclick=()=>{if(!playing)step();};
 document.getElementById('reset').onclick=()=>{stop();reset();};
 document.getElementById('rand').onclick=()=>{stop();randSeed();};
 document.getElementById('clear').onclick=()=>{stop();reset();};
+document.getElementById('ether').onclick=()=>{stop();etherSeed();};
 
 // default seed: a single live cell shows the classic fractal growth
 reset();
