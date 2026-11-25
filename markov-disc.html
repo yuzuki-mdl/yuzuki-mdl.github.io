@@ -148,6 +148,31 @@ function strokeGeodesic(a,b,style,width){
   ctx.beginPath(); ctx.arc(scx,scy,sr,a1,a1+da,da<0); ctx.stroke();
 }
 
+function computeMarkov(){
+  // BFS the dual tree from root (id 0), assigning markov triples by vieta per branch.
+  // across an edge shared by two triangles, the child's triple = vieta(parent, index of parent's vertex NOT on the shared edge).
+  const M=new Array(tris.length).fill(null);
+  if(tris.length===0) return M;
+  M[0]=[1,1,1];
+  const q=[0]; const seen=new Set([0]);
+  while(q.length){
+    const ti=q.shift(); const t=tris[ti]; const [a,b,c]=t.v;
+    const pairs=[[a,b,2],[b,c,0],[c,a,1]]; // edge, edge, index of opposite vertex in t.v
+    for(const [u,v,oi] of pairs){
+      const k=ekey(u,v); const list=edges.get(k);
+      if(!list || list.length!==2) continue;
+      const nb = list[0]===ti? list[1] : list[0];
+      if(seen.has(nb) || M[nb]) continue;
+      const m=M[ti]; if(!m) continue;
+      // vieta: replace coordinate oi with 3*a*b - c (a,b = other two coords)
+      const cv=m[oi], ca=m[(oi+1)%3], cb=m[(oi+2)%3];
+      const nm=m.slice(); nm[oi]=3*ca*cb-cv;
+      M[nb]=nm; seen.add(nb); q.push(nb);
+    }
+  }
+  return M;
+}
+
 function triCentroid(t){
   // average of the three boundary points, pulled toward centre a bit
   const [a,b,c]=t.v.map(([p,q])=>bnd(p,q));
@@ -200,15 +225,17 @@ function draw(){
     }
   }
 
-  // triangle centroids labelled by tree depth
-  for(const t of tris){
+  // triangle centroids labelled by markov triple (BFS from root by vieta)
+  const M=computeMarkov();
+  for(let i=0;i<tris.length;i++){
+    const t=tris[i];
     const [x,y]=toScreen(triCentroid(t));
-    const big = Math.pow(2, t.depth); // rough growth of markov numbers
     ctx.fillStyle = t.depth===0?'#ffd479':'#5a7a9a';
-    ctx.beginPath(); ctx.arc(x,y,t.depth===0?4:2.4,0,7); ctx.fill();
-    if(t.depth<=Math.min(depth,3)){
-      ctx.fillStyle='#8fa2bd'; ctx.font='10px ui-monospace,monospace'; ctx.textAlign='center';
-      ctx.fillText('d'+t.depth, x, y-6);
+    ctx.beginPath(); ctx.arc(x,y,t.depth===0?4:2.6,0,7); ctx.fill();
+    const m=M[i];
+    if(m && t.depth<=Math.min(depth,3)){
+      ctx.fillStyle='#a8bcd6'; ctx.font='9px ui-monospace,monospace'; ctx.textAlign='center';
+      ctx.fillText(m.join(','), x, y-6);
     }
   }
 
