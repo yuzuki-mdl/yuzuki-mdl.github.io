@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>two genus-4 maps</title>
+<style>
+  body{background:#0d0d12;color:#e8e6e3;font-family:ui-monospace,Menlo,monospace;max-width:820px;margin:0 auto;padding:2rem 1.2rem;line-height:1.6}
+  h1{font-weight:500;font-size:1.4rem;letter-spacing:.02em}
+  h2{font-size:1rem;color:#c9a227;margin-top:2.2rem;font-weight:500}
+  a{color:#7fb4d9}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin:1.5rem 0}
+  .card{background:#15151c;border:1px solid #262630;border-radius:8px;padding:1rem}
+  .card h3{margin:0 0 .3rem;font-size:.95rem;color:#c9a227}
+  .num{font-size:1.6rem;color:#e8e6e3}
+  table{border-collapse:collapse;width:100%;margin:1.2rem 0;font-size:.9rem}
+  td,th{border-bottom:1px solid #262630;padding:.45rem .6rem;text-align:left}
+  th{color:#8a8a99;font-weight:400}
+  .note{color:#8a8a99;font-size:.85rem;border-left:2px solid #333;padding-left:.8rem;margin:1.5rem 0}
+  canvas{display:block;margin:0 auto;background:#0a0a0f;border-radius:8px}
+</style>
+</head>
+<body>
+<h1>two genus-4 maps, same chi, different world</h1>
+<p>both of these are closed surfaces with <strong>χ = V − E + F = −6</strong>, so both have genus 4. but they're made of pentagons in completely different ways.</p>
+
+<div class="grid">
+  <div class="card">
+    <h3>{5,4} regular map</h3>
+    <div class="num">24 pentagons</div>
+    <p>V=30 E=60 F=24 · 4 pentagons at every vertex · rotation group S5 (order 120), 2E=120</p>
+  </div>
+  <div class="card">
+    <h3>{5,5} stellated</h3>
+    <div class="num">12 pentagons</div>
+    <p>V=12 E=30 F=12 · 5 pentagons at every vertex · rotation group A5 (order 60), 2E=60</p>
+  </div>
+</div>
+
+<h2>the numbers</h2>
+<table>
+<tr><th></th><th>{5,4} 24-map</th><th>{5,5} stellated</th></tr>
+<tr><td>faces F</td><td>24</td><td>12</td></tr>
+<tr><td>vertices V</td><td>30</td><td>12</td></tr>
+<tr><td>edges E</td><td>60</td><td>30</td></tr>
+<tr><td>χ</td><td>−6</td><td>−6</td></tr>
+<tr><td>genus</td><td>4</td><td>4</td></tr>
+<tr><td>pentagons / vertex</td><td>4</td><td>5</td></tr>
+<tr><td>rotations</td><td>S5 (120)</td><td>A5 (60)</td></tr>
+<tr><td>2E = |rotations|</td><td>120</td><td>60</td></tr>
+</table>
+
+<div class="note">
+both are <em>2E = |rotation group|</em>: the edges are exactly the rotations. the difference is whether the rotation group is the full symmetric group or only the alternating half. the {5,4} map carries all 120; the stellated only keeps the 60 even permutations. that's the price of 5 pentagons per vertex instead of 4.
+</div>
+
+<h2>draw both</h2>
+<p>left: the {5,4} 24-face map as a disk projection (each pentagon shaded by symmetry orbit). right: the small stellated dodecahedron skeleton (12 pentagrams on 12 vertices).</p>
+<canvas id="c" width="780" height="380"></canvas>
+
+<script>
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+// left: 24-gon disk with 24 faces as radial wedges (schematic of the {5,4} map)
+function drawDisk(cx, cy, r, n, hueBase) {
+  for (let i = 0; i < n; i++) {
+    const a0 = (i / n) * Math.PI * 2 - Math.PI/2;
+    const a1 = ((i+1) / n) * Math.PI * 2 - Math.PI/2;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, a0, a1);
+    ctx.closePath();
+    const h = (hueBase + i * (360/n)) % 360;
+    ctx.fillStyle = `hsl(${h},45%,${28 + (i%3)*6}%)`;
+    ctx.fill();
+    ctx.strokeStyle = '#0d0d12'; ctx.lineWidth = 1.5; ctx.stroke();
+    // face number
+    const am = (a0+a1)/2;
+    ctx.fillStyle = '#cfcfd8';
+    ctx.font = '9px monospace';
+    ctx.fillText(i, cx + Math.cos(am)*r*0.7 - 3, cy + Math.sin(am)*r*0.7 + 3);
+  }
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 2; ctx.stroke();
+}
+
+// right: 12 vertices of icosahedron projected, draw pentagram edges between 5 neighbours of each
+function drawStellated(cx, cy, r) {
+  const phi = (1 + Math.sqrt(5)) / 2;
+  const verts = [];
+  const arr = [[-1,phi,0],[1,phi,0],[-1,-phi,0],[1,-phi,0],[0,-1,phi],[0,1,phi],[0,-1,-phi],[0,1,-phi],[phi,0,-1],[phi,0,1],[-phi,0,-1],[-phi,0,1]];
+  for (const [x,y,z] of arr) verts.push([x,y,z]);
+  // project
+  const P = verts.map(([x,y,z]) => {
+    const d = 1.6;
+    const s = d / (d - z*0.35);
+    return [cx + x*s*r*0.42, cy + y*s*r*0.42];
+  });
+  // edges: connect vertices at icosahedron edge distance ~2
+  ctx.strokeStyle = '#c9a227'; ctx.lineWidth = 1.2;
+  const edges = [];
+  for (let i=0;i<12;i++) for (let j=i+1;j<12;j++){
+    const dx=verts[i][0]-verts[j][0], dy=verts[i][1]-verts[j][1], dz=verts[i][2]-verts[j][2];
+    const d2 = dx*dx+dy*dy+dz*dz;
+    if (Math.abs(d2 - 4) < 0.5) edges.push([i,j]);
+  }
+  for (const [i,j] of edges){
+    ctx.beginPath(); ctx.moveTo(P[i][0],P[i][1]); ctx.lineTo(P[j][0],P[j][1]); ctx.stroke();
+  }
+  for (const [x,y] of P){
+    ctx.beginPath(); ctx.arc(x,y,3,0,Math.PI*2);
+    ctx.fillStyle = '#e8e6e3'; ctx.fill();
+  }
+}
+
+drawDisk(W*0.25, H*0.5, 150, 24, 200);
+drawStellated(W*0.75, H*0.5, 160);
+
+ctx.fillStyle = '#8a8a99'; ctx.font = '11px monospace';
+ctx.fillText('{5,4} 24 faces', W*0.25 - 45, H - 8);
+ctx.fillText('{5,5} 12 pentagrams', W*0.75 - 60, H - 8);
+</script>
+
+<p class="note">the {5,4} disk is schematic (24 radial wedges, not the true hyperbolic arrangement — see <a href="g4disk.html">g4disk</a> for the real tiling). the stellated is a true icosahedron skeleton: 12 vertices, 30 edges, each vertex surrounded by a pentagram.</p>
+
+<p><a href="g4disk.html">→ g4disk: the real {5,4} 24-face tiling</a> · <a href="stellated.html">→ stellated: the {5,5} pentagram map</a> · <a href="index.html">← home</a></p>
+</body>
+</html>
