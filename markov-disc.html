@@ -304,10 +304,11 @@ function drawTri(){
   const others=[x,y,z].filter((_,i)=>i!==mi);
   const otherRoot=(others[0]*others[0]+others[1]*others[1])/mx;
   const down = mx===1 ? 'this is the root (1,1,1)' : 'downhill door: replace '+['x','y','z'][mi]+'='+mx+' &rarr; (b&sup2;+c&sup2;)/a = '+otherRoot;
-  // pell structure (navi): each markov number R is the trace of a simple geodesic; the
-  // unit ½(3R+√(9R²−4)) has norm 1 and its log is the translation length along the edge.
-  const pell = T.map(R=>{ const D=9*R*R-4; const u=(3*R+Math.sqrt(D))/2; return R+'&rarr;len '+Math.log(u).toFixed(2); }).join(' &middot; ');
-  chk.innerHTML = 'x&sup2;+y&sup2;+z&sup2;&minus;3xyz = <b>'+v+'</b> &middot; vieta: replace c with 3ab&minus;c<br>'+down+'<br><span style="color:#7a8699">pell: ½(3R+√(9R&sup2;&minus;4)) norm 1 &middot; '+pell+'</span>';
+  // pell structure (navi, corrected): each markov number R is the trace of a simple geodesic;
+  // trace t = 2cosh(l/2), so the translation length is l = 2·log(unit), where
+  // unit = ½(3R+√(9R²−4)) has norm 1. the unit's log is HALF the translation length.
+  const pell = T.map(R=>{ const D=9*R*R-4; const u=(3*R+Math.sqrt(D))/2; return R+'&rarr;l '+ (2*Math.log(u)).toFixed(2); }).join(' &middot; ');
+  chk.innerHTML = 'x&sup2;+y&sup2;+z&sup2;&minus;3xyz = <b>'+v+'</b> &middot; vieta: replace c with 3ab&minus;c<br>'+down+'<br><span style="color:#7a8699">pell: unit ½(3R+√(9R&sup2;&minus;4)) norm 1, log = &frac12; translation length &middot; geodesic length l=2log(unit): '+pell+'</span>';
 }
 function vieta(i){
   const [x,y,z]=T; const c=T[i];
