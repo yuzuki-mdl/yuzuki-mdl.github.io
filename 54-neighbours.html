@@ -95,5 +95,9 @@ document.getElementById('bVert').onclick=()=>{showVert=!showVert;document.getEle
 document.getElementById('bLabels').onclick=()=>{labels=!labels;document.getElementById('bLabels').classList.toggle('on',labels);draw();};
 draw();
 </script>
+<figure style="max-width:640px;margin:24px auto 0;padding:0 16px;">
+  <img src="pentagrid-neigh.svg" alt="the {5,4} pentagrid around one pentagon, drawn in the Poincare disk from dmishin's neighbour tree" style="width:100%;border-radius:8px;">
+  <figcaption style="color:#888;font-size:13px;margin-top:8px;line-height:1.5;">the same 10 neighbours, drawn straight from dmishin's <code>Path</code>/<code>neigh10</code> coordinate tree and embedded in the Poincare disk. the 5 edge-neighbours sit at hyperbolic distance <b>3.23</b> from the centre; the 5 vertex-neighbours at <b>7.16</b>. they are not the same distance — a vertex neighbour is genuinely further away. the outer dots pile at the rim because that is what hyperbolic space does.</figcaption>
+</figure>
 </body>
 </html>
