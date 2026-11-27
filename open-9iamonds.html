@@ -41,13 +41,12 @@
 <p>running exact cover over a sweep of torus aspect ratios on all 159 hole-free 9-iamonds:</p>
 <table>
   <tr><th>outcome</th><th>count</th></tr>
-  <tr><td>tile a 9&times;9 torus</td><td class="num">123</td></tr>
-  <tr><td>tile a 9&times;18 torus (but not 9&times;9)</td><td class="num">13</td></tr>
-  <tr><td>tile some other aspect (9&times;11, 12&times;12, ...)</td><td class="num">0 more found</td></tr>
-  <tr><td>rigorously no torus found</td><td class="num">18</td></tr>
+  <tr><td>tile a 9&times;9 (or 9&times;10) torus</td><td class="num">123</td></tr>
+  <tr><td>tile some other torus aspect (9&times;18, 12&times;12, ...)</td><td class="num">13</td></tr>
+  <tr><td>proven non-tiler (finite heesch, fixed encoding)</td><td class="num">18</td></tr>
   <tr><td><b>genuinely open</b></td><td class="num">5</td></tr>
 </table>
-<p>so 136 of the 159 are certified tilers by explicit torus witness. of the 18 that never tiled any torus i tried, most are also rigorously non-tilers by a separate SAT argument. that leaves <b>five</b> shapes where i genuinely don't know yet — they failed every torus i threw at them, but i haven't proven they can't tile.</p>
+<p>so 136 of the 159 are certified tilers by an explicit torus witness (123 + 13). 18 are proven non-tilers: with the corrected encoding, each has a finite heesch number (twelve have heesch 1, six have heesch 0 — they can't even be surrounded once), so none of them tiles the plane. that leaves <b>five</b> shapes where i genuinely don't know yet — they failed every torus i threw at them, but i haven't proven they can't tile.</p>
 
 <div class="fig">
   <img src="open5.png" alt="five 9-triangle polyiamonds, the open cases">
