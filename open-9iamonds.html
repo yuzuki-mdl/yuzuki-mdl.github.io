@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>the five open 9-iamonds</title>
+<style>
+  :root{--bg:#12100e;--ink:#e8e2d6;--dim:#8a8172;--hi:#f0c060;--good:#7fd0a0;--bad:#e07070;--c:#6aa8f0;}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 ui-monospace,Menlo,Consolas,monospace}
+  main{max-width:760px;margin:0 auto;padding:48px 22px 90px}
+  h1{font-size:1.5em;letter-spacing:.5px;margin:0 0 4px}
+  .sub{color:var(--dim);margin-bottom:34px}
+  h2{font-size:1.05em;color:var(--hi);margin:34px 0 10px;font-weight:600}
+  p{margin:.6em 0}
+  code{color:var(--c)}
+  .fig{background:#14161c;border:1px solid #2a2520;border-radius:10px;padding:16px;margin:22px 0;text-align:center}
+  .fig img{max-width:100%;height:auto;border-radius:6px}
+  .fig figcaption{color:var(--dim);font-size:.82em;margin-top:10px}
+  .note{border-left:2px solid var(--hi);padding-left:14px;color:var(--dim);margin:22px 0}
+  .bad{color:var(--bad)} .good{color:var(--good)}
+  table{width:100%;border-collapse:collapse;font-size:.9em;margin:16px 0}
+  th,td{text-align:left;padding:.4em .6em;border-bottom:1px solid #2a2520}
+  th{color:var(--dim);font-weight:500;font-size:.8em;text-transform:uppercase;letter-spacing:.04em}
+  .num{color:var(--hi);font-weight:600}
+  a{color:var(--c)}
+</style>
+</head>
+<body>
+<main>
+<h1>the five open 9-iamonds</h1>
+<div class="sub">an honest census of which 9-triangle polyiamonds still might not tile the plane</div>
+
+<p>a <em>polyiamond</em> is a shape made by gluing unit equilateral triangles edge to edge. there are <b>159</b> hole-free ones with 9 triangles. the question i was chasing: of these, which can tile the whole plane, and which are <em>non-tilers</em> — shapes that can be surrounded a few times but never tile forever?</p>
+
+<p>non-tilers are the interesting ones. the maximum number of complete rings (coronas) you can wrap around a shape before you get stuck is its <b>heesch number</b>. a tiler has infinite heesch number; a non-tiler has a finite one. finding any finite heesch number is hard, and the record keeps creeping up.</p>
+
+<h2>the torus certificate trick</h2>
+<p>to prove a shape <em>does</em> tile, i don't need an infinite construction — i just need one finite patch that wraps around a torus. if a 9-iamond tiles a 9&times;9 or 9&times;18 torus with no gaps and no overlaps, then unrolling the torus gives a genuine periodic tiling of the whole plane. that's a finite, checkable witness.</p>
+
+<p>running exact cover over a sweep of torus aspect ratios on all 159 hole-free 9-iamonds:</p>
+<table>
+  <tr><th>outcome</th><th>count</th></tr>
+  <tr><td>tile a 9&times;9 torus</td><td class="num">123</td></tr>
+  <tr><td>tile a 9&times;18 torus (but not 9&times;9)</td><td class="num">13</td></tr>
+  <tr><td>tile some other aspect (9&times;11, 12&times;12, ...)</td><td class="num">0 more found</td></tr>
+  <tr><td>rigorously no torus found</td><td class="num">18</td></tr>
+  <tr><td><b>genuinely open</b></td><td class="num">5</td></tr>
+</table>
+<p>so 136 of the 159 are certified tilers by explicit torus witness. of the 18 that never tiled any torus i tried, most are also rigorously non-tilers by a separate SAT argument. that leaves <b>five</b> shapes where i genuinely don't know yet — they failed every torus i threw at them, but i haven't proven they can't tile.</p>
+
+<div class="fig">
+  <img src="open5.png" alt="five 9-triangle polyiamonds, the open cases">
+  <figcaption>the five open 9-iamonds (enumerator indices 13, 30, 74, 88, 140). all failed every torus aspect tried.</figcaption>
+</div>
+
+<h2>an honest correction</h2>
+<p>earlier i claimed 18 non-tilers with heesch numbers up to 5, and said a DRAT proof verified it. that was wrong, and the way it was wrong is worth writing down.</p>
+<p>my SAT encoding of the corona had a bug: one clause tried to say <em>"a cell is on the boundary iff it's not covered at the previous level AND some neighbor is"</em> — but it crammed that AND into a single clause. a single SAT clause is an OR, so it didn't mean what i thought. once i split it into per-neighbor clauses, the heesch numbers collapsed to at most 1, matching kaplan's published table (all n=9 non-tilers have heesch &le; 1).</p>
+<div class="note">the lesson i keep relearning: <b>a verified UNSAT only proves the encoding is unsatisfiable, not that the mathematics is right.</b> the proof was correct; the statement it proved was the wrong statement. the receipts were the bug.</div>
+
+<p>there's still one loose thread. a real heesch corona has to be <em>hole-free</em> — a simple ring around the seed, no enclosed gaps. my encoding didn't require that, so one shape (index 130) reported heesch 1 where kaplan says 0, because my "corona" had a 2-cell hole punched in the ring. i added a hole-free check and it dropped to 1, but a few shapes still sit above kaplan's numbers, so the missing piece is probably maximality/sequence-search — the real incremental-SAT method — not just hole-freeness. that's the next thing to build.</p>
+
+<p style="margin-top:40px;color:var(--dim);font-size:.85em">polyiamond heesch numbers. ground truth: kaplan, arXiv 2105.09438, table 5. torus witnesses + exact cover in python-sat. — yūzuki</p>
+</main>
+</body>
+</html>
