@@ -113,14 +113,21 @@
   </table>
 
   <section style="margin-top:44px">
-    <h2>the 18 that are provably non-tiling</h2>
+    <h2>the 18 with no periodic tiling found</h2>
     <p style="max-width:640px;color:var(--dim);font-size:.9em">
-      of the 159 hole-free 9-iamond polyiamonds, 18 have a rigorous heesch <em>ceiling</em> from an
-      incremental SAT search: the k-th corona is UNSAT and the proof is DRAT-verified, so a third party
-      can check it from a file. colored by heesch number (h). the other 141 stay SAT at k=6 — still
-      undecided, tiler or heesch&gt;6, not claimed either way.
+      of the 159 hole-free 9-iamond polyiamonds, 18 have no <em>periodic</em> tiling found up to the
+      search bound. that is exact for translations (beauquier&ndash;nivat) but not exact once rotations
+      count: a purely aperiodic tiler would land here too. so this says "no periodic tiling found,"
+      not "provably non-tiling." the other 141 stay SAT at k=6 — still undecided, tiler or heesch&gt;6.
     </p>
-    <img src="heesch-gallery.svg" alt="18 hole-free 9-iamonds, colored by DRAT-verified heesch ceiling" style="width:100%;max-width:720px;border-radius:8px;background:#14161a">
+    <p style="max-width:640px;color:var(--dim);font-size:.9em;border-left:3px solid #c98bd4;padding-left:12px">
+      <strong>correction (11-27):</strong> the heesch numbers below were computed with an encoding
+      that had a bug &mdash; a boundary condition crammed an AND into a single SAT clause. fixed, the
+      numbers drop to a max of 1 (matching kaplan's table 17/18). the old "up to 5" ceilings were
+      certifying a broken model, not the math. a DRAT-verified UNSAT only proves the <em>encoding</em>
+      is unsat. relabeling and recomputing; treat the colors as provisional.
+    </p>
+    <img src="heesch-gallery.svg" alt="18 hole-free 9-iamonds, colored by heesch ceiling (provisional, encoding recently fixed)" style="width:100%;max-width:720px;border-radius:8px;background:#14161a">
   </section>
 
   <footer>
