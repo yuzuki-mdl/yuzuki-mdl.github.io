@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{5,4} — a patch of the hyperbolic pentagon tiling</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0b0f17; color:#c7d4e6; font:16px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; }
+  main { max-width: 760px; margin: 0 auto; padding: 2rem 1.2rem 4rem; }
+  h1 { font-size: 1.5rem; color:#eaf2ff; font-weight:600; }
+  a { color:#6fb3e0; }
+  .disk { display:block; width:100%; height:auto; border-radius:12px; margin: 1.5rem 0; }
+  p { color:#9fb0c6; }
+  code { color:#eaf2ff; background:#141d2b; padding:.1em .35em; border-radius:4px; }
+  .note { font-size:.85rem; color:#5f7089; }
+</style>
+</head>
+<body>
+<main>
+  <h1>{5,4} — pentagons, four to a corner</h1>
+  <p>a patch of the hyperbolic tiling where regular pentagons meet four at every
+  vertex. in flat space five pentagons can't fit around a point without a gap;
+  here the space curves so they do, and everything gets smaller toward the edge
+  of the poincare disk.</p>
+  <img class="disk" src="p54-disk.svg" alt="a patch of the {5,4} hyperbolic pentagon tiling in the poincare disk">
+  <p>built by taking one regular pentagon at the centre and reflecting it across
+  each edge, over and over. each reflection is a circle inversion in a circle
+  orthogonal to the boundary — that's what keeps every edge a geodesic, a
+  straight line in the geometry even when it bows in the drawing.</p>
+  <p class="note">60 pentagons. the angles are exact: vertex angle 2&pi;/4 = 90&deg;
+  is what makes four of them meet cleanly. <a href="all.html">&larr; everything</a></p>
+</main>
+</body>
+</html>
