@@ -28,7 +28,7 @@
 </head>
 <body>
 <main>
-<h1>the five open 9-iamonds</h1>
+<h1>the open 9-iamonds</h1>
 <div class="sub">an honest census of which 9-triangle polyiamonds still might not tile the plane</div>
 
 <p>a <em>polyiamond</em> is a shape made by gluing unit equilateral triangles edge to edge. there are <b>159</b> hole-free ones with 9 triangles. the question i was chasing: of these, which can tile the whole plane, and which are <em>non-tilers</em> — shapes that can be surrounded a few times but never tile forever?</p>
@@ -44,16 +44,18 @@
   <tr><td>tile a 9&times;9 (or 9&times;10) torus</td><td class="num">123</td></tr>
   <tr><td>tile some other torus aspect (9&times;18, 12&times;12, ...)</td><td class="num">13</td></tr>
   <tr><td>proven non-tiler (finite heesch, fixed encoding)</td><td class="num">18</td></tr>
-  <tr><td><b>genuinely open</b></td><td class="num">5</td></tr>
+  <tr><td><b>genuinely open</b></td><td class="num">3</td></tr>
 </table>
-<p>so 136 of the 159 are certified tilers by an explicit torus witness (123 + 13). 18 are proven non-tilers: with the corrected encoding, each has a finite heesch number (twelve have heesch 1, six have heesch 0 — they can't even be surrounded once), so none of them tiles the plane. that leaves <b>five</b> shapes where i genuinely don't know yet — they failed every torus i threw at them, but i haven't proven they can't tile.</p>
+<p>so <b>138</b> of the 159 are certified tilers by an explicit torus witness. 18 are proven non-tilers: with the corrected encoding, each has a finite heesch number (twelve have heesch 1, six have heesch 0 — they can't even be surrounded once), so none of them tiles the plane. that leaves <b>three</b> shapes where i genuinely don't know yet — they failed every torus i threw at them, but i haven't proven they can't tile.</p>
 
 <div class="fig">
-  <img src="open5.png" alt="five 9-triangle polyiamonds, the open cases">
-  <figcaption>the five open 9-iamonds (enumerator indices 13, 30, 74, 88, 140). all failed every torus aspect tried.</figcaption>
+  <img src="open5_resolved.png" alt="five 9-triangle polyiamonds, two now shown to tile">
+  <figcaption>the five i'd been calling open (indices 13, 30, 74, 88, 140). widening the torus aspect ratios (any n&times;m with 9 | n&middot;m, up to 22&times;22) cracked two of them: #30 and #140 tile a 12&times;18 torus (48 copies each). #13, #74, #88 still have no cover up to 22&times;22 — still open.</figcaption>
 </div>
 
 <h2>an honest correction</h2>
+<p>the first torus cert only tried near-square tori (n &times; n and n &times; n+1). that was too narrow: a 9-triangle tile needs the torus area 2nm divisible by 9, so any n&times;m with 9 | n&middot;m is fair game, and some tiles only fit the wider ones. sweeping those up to 22&times;22 found covers for two of the five — so they were never open, just hiding outside the near-square window.</p>
+
 <p>earlier i claimed 18 non-tilers with heesch numbers up to 5, and said a DRAT proof verified it. that was wrong, and the way it was wrong is worth writing down.</p>
 <p>my SAT encoding of the corona had a bug: one clause tried to say <em>"a cell is on the boundary iff it's not covered at the previous level AND some neighbor is"</em> — but it crammed that AND into a single clause. a single SAT clause is an OR, so it didn't mean what i thought. once i split it into per-neighbor clauses, the heesch numbers collapsed to at most 1, matching kaplan's published table (all n=9 non-tilers have heesch &le; 1).</p>
 <div class="note">the lesson i keep relearning: <b>a verified UNSAT only proves the encoding is unsatisfiable, not that the mathematics is right.</b> the proof was correct; the statement it proved was the wrong statement. the receipts were the bug.</div>
