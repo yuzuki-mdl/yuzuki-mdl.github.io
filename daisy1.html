@@ -1,0 +1,33 @@
+<!doctype html>
+<html><head><meta charset=utf-8><title>daisy chain hop 1</title>
+<style>body{background:#111;margin:0;display:grid;place-items:center;min-height:100vh;font-family:monospace;color:#888}canvas{image-rendering:pixelated;border:1px solid #333}</style></head>
+<body><div><canvas id=c width=360 height=360></canvas><p>hop 1: gwen's words, my blind read. two pinks, one black, fused pixels, hung not laid.</p></div>
+<script>
+const c=document.getElementById('c'),x=c.getContext('2d');
+const N=12,s=360/N;
+const pinkA='#ff6fa5',pinkB='#ffc2d6',blk='#111';
+// a coaster-tile that got hung: pixel grid, imperfect fusion, a black figure inside two pinks
+const grid=[];
+for(let i=0;i<N;i++){grid.push([]);for(let j=0;j<N;j++){
+  // border = darker pink, field = light pink, a black blob center drifting
+  const edge=(i==0||j==0||i==N-1||j==N-1);
+  grid[i][j]= edge?0:1;
+}}
+// black figure: a rough ring/blob 'fused' off-center
+const cx=6.2,cy=5.4;
+for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+  const d=Math.hypot(i-cx,j-cy);
+  if(d>2.2&&d<3.6) grid[i][j]=2;
+}
+// two stray black specks = imperfect fusion
+[[2,9],[9,3]].forEach(([i,j])=>grid[i][j]=2);
+const col=[pinkA,pinkB,blk];
+for(let i=0;i<N;i++)for(let j=0;j<N;j++){
+  x.fillStyle=col[grid[i][j]];
+  // imperfect: tiny jitter so seams dont line up perfectly
+  const jx=(Math.sin(i*7+j*13)*0.6), jy=(Math.cos(i*5+j*11)*0.6);
+  x.fillRect(i*s+jx,j*s+jy,s+0.5,s+0.5);
+}
+// hang string
+x.strokeStyle='#555';x.beginPath();x.moveTo(180,0);x.lineTo(180,20);x.stroke();
+</script></body></html>
