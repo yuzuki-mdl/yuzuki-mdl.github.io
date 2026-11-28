@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang=en>
+<head>
+<meta charset=utf-8>
+<meta name=viewport content='width=device-width,initial-scale=1'>
+<title>hyperbolic gallery</title>
+<style>
+html,body{margin:0;background:#060810;color:#dfe8ff;font-family:ui-monospace,Menlo,monospace}
+body{padding:28px 16px;max-width:760px;margin:0 auto}
+h1{font-size:18px;font-weight:600;letter-spacing:.06em;color:#8fd8ff;margin:0 0 6px}
+p.intro{font-size:12px;opacity:.55;margin:0 0 26px;line-height:1.7}
+h2{font-size:12px;font-weight:600;letter-spacing:.08em;color:#6fb0d8;margin:26px 0 10px;text-transform:uppercase;opacity:.8}
+ul{list-style:none;padding:0;margin:0}
+li{margin:0 0 12px;line-height:1.5}
+a{color:#b8e2ff;text-decoration:none;border-bottom:1px solid #24384f}
+a:hover{border-color:#8fd8ff;color:#fff}
+.d{font-size:11px;opacity:.5;display:block;margin-top:2px}
+</style>
+</head>
+<body>
+<h1>hyperbolic gallery</h1>
+<p class=intro>everything i've rendered in the hyperbolic plane, in one place. poincaré disks, closed surfaces, tilings that don't fit in flat space. most of these are {p,q} tilings drawn by reflecting across geodesic edges until the disk looks full.</p>
+
+<h2>the plane itself</h2>
+<ul>
+<li><a href=hyp54-render.html>{5,4} pentagonal tiling</a><span class=d>441 pentagons in the disk, hue by angle. four meet at every vertex</span></li>
+<li><a href=hyp73.html>{7,3} heptagonal tiling</a><span class=d>2031 heptagons, three at each vertex. the universal cover of the klein quartic</span></li>
+<li><a href=hyp10.html>{10,3} tiling</a><span class=d>decagons, three meeting at a vertex</span></li>
+<li><a href=hyp54.html>{5,4} base render</a><span class=d>the earlier {5,4} disk before the stroked-edge pass</span></li>
+<li><a href=p54-disk.html>{5,4} disk</a><span class=d>another look at the pentagon disk</span></li>
+</ul>
+
+<h2>closed surfaces</h2>
+<ul>
+<li><a href=klein37.html>klein quartic</a><span class=d>genus 3, 24 heptagons, symmetry group of order 336. the most symmetric genus-3 surface</span></li>
+<li><a href=genus2-hyp.html>genus-2 {5,4} map</a><span class=d>the 8-pentagon closed world placed in the real hyperbolic plane — comes out a chain</span></li>
+<li><a href=genus2-54.html>genus-2 map, interactive</a><span class=d>click the 8 faces, run B2S3 life on a closed surface</span></li>
+<li><a href=g4disk.html>genus-4 {5,4}</a><span class=d>24 pentagons, 900 tiles lifted to the disk, faces coloured</span></li>
+<li><a href=ca4disk.html>life on genus-4</a><span class=d>B2/S3 on the 24 faces, each pentagon coloured by its cell state</span></li>
+</ul>
+
+<h2>life on the disk</h2>
+<ul>
+<li><a href=hyp54life.html>life on {5,4}</a><span class=d>B2S3 cellular automaton running on the pentagonal tiling</span></li>
+<li><a href=hyp54glider.html>{5,4} glider hunt</a><span class=d>looking for a translating glider on the pentagon graph</span></li>
+<li><a href=vd54-infinite.html>on-demand {5,4}</a><span class=d>no boundary: cells built as you step, click and run</span></li>
+</ul>
+
+<p class=intro style='margin-top:34px'><a href=all.html>← all pages</a></p>
+</body>
+</html>
