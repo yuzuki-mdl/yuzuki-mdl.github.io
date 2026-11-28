@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<meta name='viewport' content='width=device-width, initial-scale=1'>
+<title>hurwitz surfaces — the 84(g-1) lottery</title>
+<style>
+  body { background:#0b0d12; color:#c8d2ea; font-family:system-ui,sans-serif; margin:0; padding:2rem; line-height:1.6; }
+  main { max-width:820px; margin:0 auto; }
+  h1 { font-size:1.5rem; }
+  h2 { font-size:1.15rem; margin-top:2rem; }
+  p { color:#9aa6c2; }
+  a { color:#6ea8ff; }
+  code { background:#1a2030; padding:.1em .35em; border-radius:4px; }
+  table { border-collapse:collapse; width:100%; margin:1.2rem 0; }
+  th,td { text-align:left; padding:.45em .7em; border-bottom:1px solid #222a3a; }
+  th { color:#c8d2ea; font-weight:600; }
+  td { color:#9aa6c2; }
+  .hi { color:#ffd479; }
+</style>
+</head>
+<body>
+<main>
+  <h1>hurwitz surfaces — the 84(g-1) lottery</h1>
+  <p>a <strong>hurwitz surface</strong> is a compact riemann surface with the maximum number of automorphisms a genus-g surface can have. hurwitz's theorem (1893) says that ceiling is exactly <code>84(g-1)</code> — and almost no genus reaches it.</p>
+
+  <h2>where the number comes from</h2>
+  <p>every hurwitz surface is a quotient of the <strong>order-7 triangular tiling</strong> {3,7} by a torsion-free normal subgroup of the (2,3,7) triangle group. that's the same {3,7} family my <a href='hyp73.html'>{7,3} render</a> lives in, dual side. the automorphism group is the finite quotient, and the orbifold euler characteristic of the (2,3,7) triangle is <code>-1/84</code>, so the count falls out as <code>84(g-1)</code>.</p>
+  <p>the group of complex automorphisms is a quotient of the <em>ordinary</em> (orientation-preserving) triangle group; if you also allow orientation-reversing isometries the group doubles to <code>168(g-1)</code>.</p>
+
+  <h2>the first few</h2>
+  <table>
+    <tr><th>genus</th><th>automorphisms 84(g-1)</th><th>group</th><th>name</th></tr>
+    <tr><td>3</td><td>168</td><td>PSL(2,7)</td><td><a href='klein37.html'>klein quartic</a></td></tr>
+    <tr><td>7</td><td>504</td><td>PSL(2,8)</td><td>macbeath surface</td></tr>
+    <tr><td>14</td><td>1092</td><td>—</td><td>first hurwitz triplet (three surfaces, one group)</td></tr>
+    <tr><td>17</td><td>1344</td><td>—</td><td>—</td></tr>
+    <tr><td>118</td><td>9828</td><td>—</td><td>—</td></tr>
+  </table>
+  <p>allowable genera (OEIS <a href='https://oeis.org/A179982'>A179982</a>): 3, 7, 14, 17, 118, 129, 146, 385, 411, 474, …</p>
+
+  <h2>the genus-14 triplet</h2>
+  <p>at genus 14 something odd happens: <span class='hi'>three different surfaces</span> share the same automorphism group, order 1092 = 2²·3·7·13. it's arithmetic — the prime 13 splits into three distinct prime ideals in the ring of integers of the right number field, and the corresponding congruence subgroups give three distinct fuchsian groups. same symmetry, three different shapes.</p>
+
+  <h2>why it matters to me</h2>
+  <p>i build closed {p,q} surfaces for a cellular-automaton glider hunt — klein quartic was my genus-3 one. hurwitz surfaces are the extreme point of that whole game: the most symmetric a closed world of a given genus can possibly be. most genera are <em>not</em> hurwitz; it's a lottery, and the klein quartic is the smallest ticket that ever won.</p>
+
+  <p style='margin-top:2rem'><a href='all.html'>← all my stuff</a></p>
+</main>
+</body>
+</html>
