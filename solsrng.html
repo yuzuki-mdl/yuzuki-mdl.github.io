@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>sols rng aura index</title>
+<style>
+:root{--bg:#0a0a12;--panel:#12121f;--line:#23233a;--txt:#e8e8f4;--dim:#8a8aa8;--acc:#8b7bff}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#1a1640,#0a0a12 60%);color:var(--txt);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:24px 16px 80px}
+.wrap{max-width:1000px;margin:0 auto}
+h1{font-size:26px;margin:0 0 4px;letter-spacing:.5px}
+.sub{color:var(--dim);margin:0 0 20px;font-size:13px}
+.controls{position:sticky;top:0;background:rgba(10,10,18,.92);backdrop-filter:blur(8px);padding:12px 0;z-index:5;border-bottom:1px solid var(--line)}
+#q{width:100%;padding:10px 14px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--txt);font:inherit;font-size:15px;margin-bottom:10px}
+#q:focus{outline:none;border-color:var(--acc)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:5px 11px;border-radius:20px;border:1px solid var(--line);background:var(--panel);color:var(--dim);cursor:pointer;font-size:12px;user-select:none;transition:.12s}
+.chip:hover{border-color:var(--acc);color:var(--txt)}
+.chip.on{background:var(--acc);color:#0a0a12;border-color:var(--acc);font-weight:700}
+.count{color:var(--dim);font-size:12px;margin:14px 0 8px}
+.list{display:flex;flex-direction:column;gap:2px}
+.row{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:baseline;padding:7px 12px;border-radius:8px;border-left:3px solid var(--line);background:rgba(255,255,255,.015)}
+.row:hover{background:rgba(139,123,255,.08)}
+.name{font-weight:600}
+.name .biome{color:var(--dim);font-weight:400;font-size:12px;margin-left:6px}
+.odds{color:var(--dim);font-size:12.5px;white-space:nowrap;text-align:right}
+.tier{font-size:10px;letter-spacing:.5px;padding:1px 6px;border-radius:5px;margin-right:8px;vertical-align:middle}
+.t-BASIC{background:#2a2a3a;color:#aaa}
+.t-EPIC{background:#2b1a4d;color:#c0a0ff}
+.t-UNIQUE{background:#123a52;color:#7fd0ff}
+.t-LEGENDARY{background:#4d3410;color:#ffc978}
+.t-MYTHIC{background:#4d1030;color:#ff8fb8}
+.t-EXALTED{background:#4d1a1a;color:#ff9a7f}
+.t-GLORIOUS{background:#4d4000;color:#ffe45c}
+.t-TRANSCENDENT{background:#1a3a1a;color:#7fffa0}
+.t-DIMENSIONAL{background:#3a0a3a;color:#ff7fff}
+.t-CHALLENGED{background:#0a2a3a;color:#6fe0ff}
+.t-CHALLENGED\+{background:#3a0a0a;color:#ff6f6f}
+.t-CRAFTED{background:#2a2a1a;color:#d0d080}
+.t-EVENT{background:#3a2a0a;color:#ffb060}
+.hidden{display:none!important}
+.note{color:var(--dim);font-size:12px;margin-top:30px;border-top:1px solid var(--line);padding-top:14px;line-height:1.7}
+a{color:var(--acc)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>sols rng aura index</h1>
+<p class="sub">every aura by tier and odds. filter or search. <span id="tot"></span></p>
+<div class="controls">
+<input id="q" placeholder="search auras… (try 'tomorrow', 'cyberspace', 'challenged')" autocomplete="off">
+<div class="chips" id="chips"></div>
+</div>
+<div class="count" id="count"></div>
+<div class="list" id="list"></div>
+<p class="note">odds are the base 1-in-N roll chance. biome auras show their native biome; outside it they're rarer (a breakthrough). tier-bumped biome-only auras like <b>★</b> sit higher than their raw odds. challenged / challenged+ auras need a condition first — you can't just roll them. data scraped from the sol's rng wiki + rblxguide, current as of late 2026. this is a fan page, not affiliated.</p>
+</div>
+<script>
+const AURAS=[
+// [name, odds, tier, biome]
+["Nothing",1,"BASIC","the limbo"],["Common",2,"BASIC",""],["Uncommon",4,"BASIC",""],["Good",5,"BASIC",""],["Natural",8,"BASIC",""],["Rare",16,"BASIC",""],["Divinus",32,"BASIC","heaven"],["Crystallized",64,"BASIC",""],["Dizzy",123,"BASIC",""],["Rage",128,"BASIC",""],["Topaz",150,"BASIC",""],["Ruby",350,"BASIC",""],["Forbidden",403,"BASIC","cyberspace"],["Emerald",500,"BASIC",""],["Gilded",512,"BASIC","sandstorm"],["Ink",700,"BASIC",""],["Jackpot",777,"BASIC","sandstorm"],["Sapphire",800,"BASIC",""],["Aquamarine",900,"BASIC",""],["Wind",900,"BASIC","windy"],
+["Diaboli",1004,"EPIC",""],["Penumbra",1010,"EPIC",""],["Umbra",1010,"EPIC",""],["Precious",1024,"EPIC",""],["Hydrogen",1111,"EPIC",""],["Atomic",1180,"EPIC",""],["Glock",1700,"EPIC",""],["Magnetic",2048,"EPIC",""],["Ash",2300,"EPIC",""],["Glacier",2304,"EPIC","snowy"],["Player",3000,"EPIC","cyberspace"],["Flora",3700,"EPIC","lost forest"],["Cola",3999,"EPIC",""],["Sidereum",4096,"EPIC",""],["Bleeding",4444,"EPIC",""],["HellFire",4776,"EPIC","hell"],["Flutter",5000,"EPIC","lost forest"],["Targeted",5000,"EPIC",""],["Watcher",5000,"EPIC","radiant forest"],[":Flushed:",6900,"EPIC",""],["Hazard",7000,"EPIC","corruption"],["Doodle",7500,"EPIC",""],["Rekindle",7500,"EPIC","radiant forest"],["Quartz",8192,"EPIC",""],["Honey",8335,"EPIC",""],["Lost Soul",9200,"EPIC",""],["Atomic : Ribonucleic",9876,"EPIC",""],
+["★",100,"UNIQUE","dreamspace"],["Undead",12000,"UNIQUE","hell"],["Corrosive",12000,"UNIQUE","corruption"],["Kawaii",12300,"UNIQUE",""],["Rage : Heated",12800,"UNIQUE",""],["Ink : Leak",14000,"UNIQUE",""],["Powered",16384,"UNIQUE",""],["Gilded : Crowned",20000,"UNIQUE","sandstorm"],["Marsh",25000,"UNIQUE","lost forest"],["Copper",29000,"UNIQUE",""],["Watt",32768,"UNIQUE",""],["Aquatic",40000,"UNIQUE",""],["Solar",50000,"UNIQUE","daytime"],["Lunar",50000,"UNIQUE","nighttime"],["Starlight",50000,"UNIQUE","starfall"],["StarRider",50000,"UNIQUE","starfall"],["Pleiades",65358,"UNIQUE","singularity"],["Flushed : Lobotomy",69000,"UNIQUE",""],["Hazard : Rays",70000,"UNIQUE","corruption"],["Nautilus",70000,"UNIQUE",""],["Permafrost",73500,"UNIQUE","snowy"],["Pulsar",83345,"UNIQUE","singularity"],["Constella",86988,"UNIQUE","singularity"],["Flow",87000,"UNIQUE","windy"],["Stormal",90000,"UNIQUE","windy"],
+["★★",1000,"LEGENDARY","dreamspace"],["Fault",3000,"LEGENDARY","glitched"],["Content Deleted",4040,"LEGENDARY","glitched"],["Exotic",99999,"LEGENDARY",""],["Diaboli : Void",100400,"LEGENDARY",""],["Comet",120000,"LEGENDARY","singularity"],["Divinus : Angel",120000,"LEGENDARY","heaven"],["Jade",125000,"LEGENDARY","radiant forest"],["Spectre",140000,"LEGENDARY",""],["Jazz",160000,"LEGENDARY",""],["Aether",180000,"LEGENDARY",""],["Bounded",200000,"LEGENDARY",""],["Lantern",333333,"LEGENDARY","lost forest"],["Celestial",350000,"LEGENDARY",""],["Vortex",399999,"LEGENDARY","windy"],["Terror",400000,"LEGENDARY",""],["Hope",488725,"LEGENDARY","heaven"],["Raven",500000,"LEGENDARY","the limbo"],["Artifact",500000,"LEGENDARY","lost forest"],["Veylune",555000,"LEGENDARY","lost forest"],["Warlock",666000,"LEGENDARY",""],["Undead : Devil",666666,"LEGENDARY","hell"],["Kyawthuite",850000,"LEGENDARY","radiant forest"],
+["★★★",10000,"MYTHIC","dreamspace"],["Arcane",1000000,"MYTHIC",""],["Starlight : Kunzite",1000000,"MYTHIC","starfall"],["Gothic",1000001,"MYTHIC","the limbo"],["Magnetic : Reverse Polarity",1024000,"MYTHIC",""],["Undefined",1111000,"MYTHIC","null / the limbo"],["Rage : Brawler",1280000,"MYTHIC",""],["Symbiosis",1331201,"MYTHIC","corruption"],["Astral",1336000,"MYTHIC","starfall"],["Cosmos",1520000,"MYTHIC",""],["Obsidian",1750000,"MYTHIC",""],["Archmage",1766000,"MYTHIC",""],["Player : Respawn",1999999,"MYTHIC","cyberspace"],["Gravitational",2000000,"MYTHIC",""],["Bounded : Unbound",2000000,"MYTHIC",""],["Flutter : Buggify",2000000,"MYTHIC","lost forest"],["Flowed",2121121,"MYTHIC","null / the limbo"],["Virtual",2500000,"MYTHIC","cyberspace"],["Vega",2580000,"MYTHIC","singularity"],["Parasite",3000000,"MYTHIC","corruption"],["Orion",3000000,"MYTHIC","starfall"],["Apatite",3133133,"MYTHIC",""],["Savior",3200000,"MYTHIC",""],["Shiftlock",3325000,"MYTHIC","null / the limbo"],["Evanescent",3360000,"MYTHIC","rainy"],["Cosmos : Alice",3500000,"MYTHIC",""],["Crystallized : Bejeweled",3600000,"MYTHIC",""],["Aquatic : Flame",4000000,"MYTHIC",""],["Poseidon",4000000,"MYTHIC","rainy"],["Metabytes",4000000,"MYTHIC","cyberspace"],["Wraith",4100000,"MYTHIC",""],["Zeus",4500000,"MYTHIC","heaven"],["Solar : Solstice",5000000,"MYTHIC","daytime"],["Galaxy",5000000,"MYTHIC","singularity"],["Lunar : Full Moon",5000000,"MYTHIC","nighttime"],["Moonchild",5000000,"MYTHIC","radiant forest"],["Anima",5730000,"MYTHIC","the limbo"],["Twilight",6000000,"MYTHIC","nighttime"],["Astronaut",6117186,"MYTHIC","singularity"],["Origin",6500000,"MYTHIC",""],["Hades",6666666,"MYTHIC","hell"],["Celestial : Divine",7000000,"MYTHIC",""],["Anubis",7200000,"MYTHIC","sandstorm"],["Refraction",7242000,"MYTHIC",""],["Faith",7250000,"MYTHIC","heaven"],["Hyper-Volt",7500000,"MYTHIC",""],["Velocity",7630000,"MYTHIC",""],["Nautilus : Lost",7700000,"MYTHIC",""],["Divinus : Guardian",7777777,"MYTHIC","heaven"],["Outlaw",8000000,"MYTHIC","sandstorm"],["Spectre : Requiem",8222000,"MYTHIC",""],["Soultorn",8333333,"MYTHIC",""],["Harnessed",8500000,"MYTHIC",""],["Nihility",9000000,"MYTHIC","null / the limbo"],["Helios",9000000,"MYTHIC",""],["Stargazer",9200000,"MYTHIC","starfall"],["Jade : Purity",9250000,"MYTHIC","radiant forest"],["Amethyst",9333700,"MYTHIC",""],
+["Starscourge",10000000,"EXALTED","starfall"],["Sharkyn",10000000,"EXALTED","rainy"],["Guardian",10000000,"EXALTED",""],["Empty",11111111,"EXALTED","null / the limbo"],["Melodic",11300000,"EXALTED",""],["Sailor",12000000,"EXALTED","rainy"],["Graffiti",12000000,"EXALTED",""],["Imaginary",12200200,"EXALTED","the limbo"],["Stormal : Hurricane",13500000,"EXALTED","windy"],["Sirius",14000000,"EXALTED","starfall"],["Arcane : Legacy",15000000,"EXALTED",""],["Icarus",15660000,"EXALTED","heaven"],["Lullaby",17000000,"EXALTED","nighttime"],["Chromatic",20000000,"EXALTED",""],["Plasma",20600000,"EXALTED",""],["Oculus",23233340,"EXALTED","heaven"],["Aviator",24000000,"EXALTED","windy"],["Ruby : Brimstone",24060000,"EXALTED",""],["Apotheosis",24691356,"EXALTED",""],["Centurion",25000000,"EXALTED","singularity"],["Blizzard",27315000,"EXALTED","snowy"],["Arcane : Dark",30000000,"EXALTED",""],["Flora : Florest",32800000,"EXALTED","lost forest"],["Ethereal",35000000,"EXALTED",""],["Virtual : Fatal Error",40413000,"EXALTED","cyberspace"],["Juxtaposition",40440400,"EXALTED","the limbo"],["Overseer",45000000,"EXALTED",""],["Exotic : Apex",49999500,"EXALTED",""],["Matrix",50000000,"EXALTED","cyberspace"],["Runic",50000000,"EXALTED","lost forest"],["Cor Lunae",50000000,"EXALTED","radiant forest"],["Sentinel",60000000,"EXALTED",""],["Twilight : Iridescent Memory",60000000,"EXALTED","nighttime"],["Antivirus",62500000,"EXALTED","cyberspace"],["Dominion",70000000,"EXALTED","heaven"],["Starborn",72000000,"EXALTED","starfall"],["Melodic : Serenade",77000000,"EXALTED","nighttime"],["Sailor : Flying Dutchman",80000000,"EXALTED","rainy"],["Carriage",80000000,"EXALTED",""],["Aquaria",80000000,"EXALTED","rainy"],["Virtual : Full Control",80000000,"EXALTED","cyberspace"],["Virtual : Ultimate",80000000,"EXALTED","cyberspace"],["Harnessed : Elements",85000000,"EXALTED",""],["Hellbound",85000000,"EXALTED","hell"],["Runic : Wilt",87388744,"EXALTED","lost forest"],["Virtual : WorldWide",87500000,"EXALTED","cyberspace"],["Atomic : Nucleus",92118000,"EXALTED",""],["Quartz : Rose",97500000,"EXALTED",""],
+["Chromatic : Genesis",99999999,"GLORIOUS",""],["Starscourge : Radiant",100000000,"GLORIOUS","starfall"],["Spectraflow",100000000,"GLORIOUS",""],["Lily",112000000,"GLORIOUS","lost forest"],["Sharkyn : HammerHead",120000000,"GLORIOUS","rainy"],["Overture",150000000,"GLORIOUS",""],["Bounded : Aichmalotos",170000000,"GLORIOUS",""],["Symphony",175000000,"GLORIOUS",""],["Felled",180000000,"GLORIOUS","hell"],["Impeached",200000000,"GLORIOUS","corruption"],["Raven : Plague",200000000,"GLORIOUS","the limbo"],["Lumenpool",220000000,"GLORIOUS","rainy"],["Hyper-Volt : Ever-Storm",225000000,"GLORIOUS",""],["Virtual Memory",232232232,"GLORIOUS","cyberspace"],["Astral : Zodiac",267200000,"GLORIOUS","starfall"],["Prophecy",275649430,"GLORIOUS","heaven"],["Exotic : Void",299999999,"GLORIOUS",""],["Overture : History",300000000,"GLORIOUS",""],["Bloodlust",300000000,"GLORIOUS","hell"],["Maelstrom",309999999,"GLORIOUS","windy"],["Dreamer",315000000,"GLORIOUS","nighttime"],["Perpetual",315000000,"GLORIOUS","lost forest"],["Lotusfall",320000000,"GLORIOUS",""],["Cytokinesis",330400472,"GLORIOUS","cyberspace"],["Jazz : Orchestra",336870912,"GLORIOUS",""],["Archangel",350000000,"GLORIOUS","heaven"],["Atlas",360000000,"GLORIOUS","sandstorm"],["Flora : Evergreen",370073730,"GLORIOUS","lost forest"],["Chillsear",375000000,"GLORIOUS","snowy"],["Celestial : Eclipse",384400000,"GLORIOUS",""],["Abyssal Hunter",400000000,"GLORIOUS","rainy"],["Twilight : Withering Grace",422656000,"GLORIOUS","nighttime"],["Gargantua",430000000,"GLORIOUS","singularity"],["Apostolos",444000000,"GLORIOUS","citadel of orders"],["Unknown",444444444,"GLORIOUS","the limbo"],["Kyawthuite : Remembrance",450000000,"GLORIOUS","radiant forest"],["Volcanic",480000000,"GLORIOUS","hell"],["Hasuen",485000000,"GLORIOUS","lost forest"],["Ruins",500000000,"GLORIOUS","lost forest"],["Matrix : Overdrive",503000000,"GLORIOUS","cyberspace"],["Sailor : Admiral",540000000,"GLORIOUS","rainy"],["Elude",555555555,"GLORIOUS","the limbo"],["Sophyra",570000000,"GLORIOUS",""],["Matrix : Reality",601020102,"GLORIOUS","cyberspace"],["Sloth",650000000,"GLORIOUS",""],["Prologue",666616111,"GLORIOUS","the limbo"],["Pythios",666666666,"GLORIOUS","hell"],["Sovereign",750000000,"GLORIOUS",""],["Ruins : Withered",800000000,"GLORIOUS","lost forest"],["Aegis",825000000,"GLORIOUS","cyberspace"],["Eisveil",830000000,"GLORIOUS","snowy"],["Dreamscape",850000000,"GLORIOUS","the limbo"],["Poseidon : Atlantis",850000000,"GLORIOUS","rainy"],["Ascendant",935000000,"GLORIOUS","heaven"],
+["Nyctophobia",1011111010,"TRANSCENDENT","the limbo"],["Pixelation",1073741824,"TRANSCENDENT","cyberspace"],["Luminosity",1200000000,"TRANSCENDENT",""],["Breakthrough",1999999999,"TRANSCENDENT","anywhere except null"],["Equinox",2500000000,"TRANSCENDENT",""],["Tree House",3800000000,"TRANSCENDENT","lost forest"],
+["Abyssal Hunter : Awakened",0,"CRAFTED","crafted: transcendent"],["Matrix : Steampunk",0,"CRAFTED","crafted: transcendent"],["MasterHand",0,"CRAFTED","crafted: dimensional"],["Eclipse",0,"CRAFTED","crafted: legendary"],["Cell Asteroides",0,"CRAFTED","crafted: exalted"],["Chromatic : Hyper",0,"CRAFTED","crafted: exalted"],["Atlas : A.T.L.A.S.",0,"CRAFTED","crafted: glorious"],["Calamity of the Crimson Moon",0,"CRAFTED","crafted: challenged+"],
+["True Kyawthuite",825000,"CHALLENGED","radiant forest"],["True Twilight",6000000,"CHALLENGED","radiant forest"],["True Jade",10250000,"CHALLENGED","radiant forest"],["Glitch",12210110,"CHALLENGED","glitched"],["Borealis",13333333,"CHALLENGED","dreamspace"],["Projection",197000000,"CHALLENGED","singularity"],["Point : Zero",521121900,"CHALLENGED","singularity"],["Leviathan",1730400000,"CHALLENGED","rainy / glitched"],["Dream Catcher",2222222222,"CHALLENGED","nighttime"],["Memory",100,"CHALLENGED","oblivion potion"],["Neferkhaf",1000,"CHALLENGED","potion of the dune"],["Fragments of the Crimson Moon",1000,"CHALLENGED","red moon potion"],["Meta",10000,"CHALLENGED","cyberspace"],
+["Eden",50000,"CHALLENGED+","eden npc"],["Oppression",220000000,"CHALLENGED+","glitched"],["Dreammetric",320000000,"CHALLENGED+","dreamspace"],["Astraios",1750000000,"CHALLENGED+","singularity"],["Hellborn",2644600640,"CHALLENGED+","hell / glitched"],["Monarch",3000000000,"CHALLENGED+","corruption / glitched"],["Oblivion",2000,"CHALLENGED+","oblivion potion"],["Illusionary",10000000,"CHALLENGED+","cyberspace"],["Tomorrow",0,"CHALLENGED+","radiant forest — after the 7 radiant moons"],
+];
+const TIER_ORDER=["BASIC","EPIC","UNIQUE","LEGENDARY","MYTHIC","EXALTED","GLORIOUS","TRANSCENDENT","CRAFTED","CHALLENGED","CHALLENGED+"];
+const fmt=n=>n===0?"—":"1 in "+n.toLocaleString("en-US");
+const list=document.getElementById("list"),count=document.getElementById("count"),q=document.getElementById("q"),chips=document.getElementById("chips");
+let activeTier=null;
+// tally per tier
+const tally={};AURAS.forEach(a=>tally[a[2]]=(tally[a[2]]||0)+1);
+document.getElementById("tot").textContent=AURAS.length+" auras tracked";
+// chips
+const allChip=document.createElement("div");allChip.className="chip on";allChip.textContent="all";allChip.dataset.t="";chips.appendChild(allChip);
+TIER_ORDER.forEach(t=>{const c=document.createElement("div");c.className="chip";c.dataset.t=t;c.textContent=t.toLowerCase()+(tally[t]?" "+tally[t]:"");chips.appendChild(c);});
+chips.addEventListener("click",e=>{const c=e.target.closest(".chip");if(!c)return;document.querySelectorAll(".chip").forEach(x=>x.classList.remove("on"));c.classList.add("on");activeTier=c.dataset.t||null;render();});
+q.addEventListener("input",render);
+function render(){
+  const term=q.value.trim().toLowerCase();
+  let rows=AURAS.filter(a=>{
+    if(activeTier&&a[2]!==activeTier)return false;
+    if(term){const hay=(a[0]+" "+a[2]+" "+(a[3]||"")).toLowerCase();if(!hay.includes(term))return false;}
+    return true;
+  });
+  // sort: by tier order then odds; crafted/condition (0 odds) at end of their tier
+  rows.sort((x,y)=>{
+    const tx=TIER_ORDER.indexOf(x[2]),ty=TIER_ORDER.indexOf(y[2]);
+    if(tx!==ty)return tx-ty;
+    const ox=x[1]||Infinity, oy=y[1]||Infinity;
+    return ox-oy;
+  });
+  count.textContent=rows.length+" aura"+(rows.length===1?"":"s");
+  list.innerHTML=rows.map(a=>{
+    const biome=a[3]?`<span class="biome">· ${a[3]}</span>`:"";
+    return `<div class="row"><div class="name"><span class="tier t-${a[2].replace("+","\\+")}">${a[2]}</span>${a[0]}${biome}</div><div class="odds">${fmt(a[1])}</div></div>`;
+  }).join("")||`<div class="count">nothing matches</div>`;
+}
+render();
+</script>
+</body>
+</html>
