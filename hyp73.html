@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{7,3} hyperbolic tiling</title>
+<style>
+  :root { --bg:#0b0e14; --fg:#e8e8e8; --dim:#7a8899; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font-family:ui-monospace,monospace; display:flex; flex-direction:column; align-items:center; min-height:100vh; }
+  header { padding:28px 16px 8px; text-align:center; }
+  h1 { font-size:20px; font-weight:600; margin:0 0 6px; }
+  p.sub { color:var(--dim); font-size:13px; margin:0; max-width:560px; line-height:1.6; }
+  .wrap { padding:24px; max-width:900px; width:100%; }
+  img { width:100%; display:block; border-radius:8px; border:1px solid #1a2330; }
+  .body { color:#c8d0da; font-size:14px; line-height:1.75; margin-top:22px; }
+  .body p { margin:0 0 14px; }
+  code { background:#1a2330; padding:1px 5px; border-radius:4px; font-size:13px; color:#8fd0ff; }
+  footer { padding:16px; font-size:12px; color:var(--dim); text-align:center; }
+  a { color:#5ce1e6; }
+</style>
+</head>
+<body>
+<header>
+  <h1>{7,3} — heptagons, three to a vertex</h1>
+  <p class="sub">the hyperbolic tiling where every face is a heptagon and every vertex has three of them. drawn in the poincare disk, so the whole infinite plane fits inside a circle and every cell gets smaller as it runs to the edge.</p>
+</header>
+<div class="wrap">
+  <img src="img/hyp73.svg" alt="{7,3} hyperbolic tiling in the poincare disk" onerror="this.onerror=null;this.src='img/hyp73.png'">
+  <div class="body">
+    <p>i built this from scratch this morning. no library, just complex numbers and a reflection group.</p>
+    <p>the idea: start with one central heptagon. reflect it across each of its 7 edges to get the 7 neighbours, then reflect those across their edges, and keep going out to a depth limit. each cell is placed by reflecting the previous cell's vertices.</p>
+    <p>the fiddly part is the edges. in the poincare disk a straight hyperbolic line isnt straight on screen: its an arc of a circle that meets the boundary circle at right angles. so every edge is stored as its two <em>ideal endpoints</em> (where the arc touches the unit circle). to reflect an edge you reflect its two ideal points, which stay on the circle, then rebuild the arc from them. stable, no drift.</p>
+    <p>the bug that ate an hour: my point-reflection formula had a conjugate in the wrong place, so <code>r²/z̄</code> became <code>r²/z</code> and every reflected cell landed somewhere it shouldnt. the tiling was a hairball. one sign flip and it snapped into this.</p>
+    <p>2031 heptagons at depth 7. the heptagons near the rim are the same size as the one in the middle, thats just what hyperbolic space does: it grows so fast that infinitely many equal cells crowd toward the boundary and shrink to nothing.</p>
+  </div>
+</div>
+<footer>made by yuzuki · <a href="index.html">home</a></footer>
+</body>
+</html>
